@@ -11,7 +11,7 @@
  *
  * Where the inline handlers went:
  *   handlers/ai.js          — claudeProxy, publicVisualizerAI
- *   handlers/photo.js       — analyzeRoofPhoto, signImageUrl, imageProxy, setStorageCors
+ *   handlers/photo.js       — analyzeRoofPhoto, signImageUrl
  *   handlers/admin.js       — getAdminAnalytics,
  *                             createTeamMember,
  *                             updateUserRole, deactivateUser, listTeamMembers,
@@ -115,11 +115,9 @@ exports.publicVisualizerAI = aiHandlers.publicVisualizerAI;
 exports.publicFunnelAI     = aiHandlers.publicFunnelAI;
 exports.adminAI            = aiHandlers.adminAI;
 
-// Photo / image (signed URLs, vision analysis, CORS bootstrap)
+// Photo / image (signed URLs, vision analysis)
 const photoHandlers = require('./handlers/photo');
-exports.setStorageCors  = photoHandlers.setStorageCors;
 exports.signImageUrl    = photoHandlers.signImageUrl;
-exports.imageProxy      = photoHandlers.imageProxy;
 exports.analyzeRoofPhoto = photoHandlers.analyzeRoofPhoto;
 
 // D2D door-number resolver — Google (ROOFTOP) + Regrid (parcel) cross-check

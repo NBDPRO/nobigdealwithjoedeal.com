@@ -32,7 +32,6 @@ If you add a new export, list it here so the next audit doesn't have to re-deriv
 | `visitCaptureSweep` | onSchedule (30 min) | Retries what an outage left (notes only; the transcript is never paid for twice) and picks up uploaded visits whose trigger was lost (visit-capture.js) |
 | `attachVisitCapture` | onCall | Files a visit recording on a customer: timeline row, `kind:'promise'` tasks (`source:'visit'`), follow-ups, facts; `detach`, `notThese`, `retryNotes`, `audioUrl` (ten-minute signed link, never public). Owner / company_admin / manager / admin, on their OWN captures, same-tenant lead; viewers refused; App Check enforced (visit-capture.js) |
 | `getGameCard` | onCall | The optional game card (Settings › Appearance): level, XP and this week vs last week, derived on request from the caller's own tasks, calls, leads and collected invoices (game-logic.js). Read-only; nothing stored. |
-| `imageProxy` | onRequest | **Deprecated 410 stub** (H-01 stored-XSS fix) — fails loudly for stale clients; "safe to delete outright after 7+ days of zero calls in Cloud Logs" |
 | `analyzeRoofPhoto` | onRequest | Vision over a single photo (rep view) |
 | `analyzePhotoVision` | onCall | Per-photo Claude Vision classifier ($10/lead + $50/uid-month caps, sha256 cache) |
 | `onPhotoCreatedClassify` | onDocumentCreated `photos/{photoId}` | The same classifier on EVERY newly stored photo (imported, drag-dropped, customer page, camera) — same caps (the photo owner's meters), same cache, `aiDisabled` kill switch; skips annotated copies and already-classified docs; an in-flight claim stops it and the callable paying twice; captions pass photo-caption-safety.js (no claim talk) (photo-vision.js, 2026-10-04) |
@@ -202,7 +201,6 @@ Verified by the smoke test "every admin function in FUNCTIONS_INDEX has a role/a
 
 | Export | Type | Auth gate | Notes |
 |---|---|---|---|
-| `setStorageCors` | onRequest | `requireAuth({ adminOnly: true })` | One-time CORS config |
 | `integrationStatus` | onCall | `claims.role === 'admin'` | Integration health check (depends on every integration secret) |
 | `getAdminAnalytics` | onCall | `claims.role === 'admin'` | Cross-tenant analytics |
 | `getAiUsageAnalytics` | onCall | `claims.role === 'admin'` | Real claudeProxy usage aggregation for /admin/analytics.html (replaces SAMPLE DATA) |
@@ -383,7 +381,6 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `stormBriefing_onAlertSent` | `storm_alerts_sent/{id}` created | Phase B.2 rep-facing storm briefing (call-order scoring; once per alertId via atomic sentinel) |
 | `audit_users` / `audit_leads` / `audit_companies` / `audit_company_members` / `audit_access_codes` / `audit_subscriptions` | respective collections, written | H-4 canonical audit_log writers (PII-redacted compact diffs, stamp `ts` for retention). Was collectively listed as `auditTriggers` |
 | `auditInvoices` | `invoices/{invoiceId}` written | audit-log.js — the only live writer left in that module (`invoices/*` is not covered by audit-triggers.js) |
-| `auditUsers` / `auditCompanies` / `auditAccessCodes` / `auditSubscriptions` | (no-ops) | **Retained dead exports** from audit-log.js — superseded by `audit_*` on 2026-06-08. Kept because the name-scoped CI deploy cannot prune orphaned functions; deleting the exports would leave old double-writing revisions live. Remove via `firebase functions:delete ...` when prod access allows. |
 | `onPortalMessageDraft` | `leads/{leadId}/portal_messages/{msgId}` created | T-series — AI reply draft for an inbound homeowner portal message (source:'homeowner' only; safe-dark when secret unset) |
 | `voiceConsumer` | `leads/{leadId}/recordings/{recordingId}` written | Turns a completed call recording's structured summary into lead field updates (voice-consumer.js) |
 | `thursdayCallProcess` | `thursday_calls/{docId}` written (status `pending`/`reprocess`, claimed in a transaction) | Thursday call pipeline: hydrate from Bland, copy recording to Storage, Claude extraction, NBD-scoped lead match, route (create lead / attach / possible match / inbox / log only), task + activity, email/push/Bland-SMS notify — idempotent per step (integrations/thursday.js) |
