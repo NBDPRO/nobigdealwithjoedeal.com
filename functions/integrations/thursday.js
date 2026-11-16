@@ -763,6 +763,8 @@ exports.getThursdayRecording = onCall(
   }
 );
 
+const REPROCESS_COOLDOWN_MS = 10 * 60 * 1000;
+
 exports.thursdayCallAction = onCall(
   { region: REGION, enforceAppCheck: true, memory: '256MiB', timeoutSeconds: 60, maxInstances: 10 },
   async (request) => {
@@ -780,10 +782,22 @@ exports.thursdayCallAction = onCall(
       // A live run is refused; a STALE claim (killed by the trigger's
       // timeout — the doc would otherwise sit in 'processing' forever) is
       // re-queued. Same staleness rule as claim().
-      if (data.status === 'processing' && !isStaleProcessing(data)) {
-        throw new HttpsError('failed-precondition', 'Already processing.');
-      }
-      await ref.update({ status: 'reprocess', reprocessRequestedBy: by, notify: 'suppress' });
+      // One reprocess per call per 10 minutes (2026-11-14, AI audit F11): each
+      // re-runs the Bland fetch + Claude extraction, and nothing bounded a loop.
+      // Checked and stamped in one transaction, so a burst of simultaneous
+      // requests queues one run, not one each.
+      await db().runTransaction(async (tx) => {
+        const s = await tx.get(ref);
+        const cur = s.exists ? (s.data() || {}) : {};
+        if (cur.status === 'processing' && !isStaleProcessing(cur)) {
+          throw new HttpsError('failed-precondition', 'Already processing.');
+        }
+        const lastMs = Number(cur.reprocessRequestedAtMs) || 0;
+        if (lastMs && Date.now() - lastMs < REPROCESS_COOLDOWN_MS) {
+          throw new HttpsError('resource-exhausted', 'This call was just reprocessed. Try again in a few minutes.');
+        }
+        tx.update(ref, { status: 'reprocess', reprocessRequestedBy: by, reprocessRequestedAtMs: Date.now(), notify: 'suppress' });
+      });
       return { ok: true };
     }
 
