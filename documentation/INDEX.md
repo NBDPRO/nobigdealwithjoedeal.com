@@ -405,6 +405,7 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 
 ## Audits
 
+- [AI-ENDPOINT-GATES-2026-11-14](audit/AI-ENDPOINT-GATES-2026-11-14.md) — who may spend NBD's AI keys: Jo's rule (free accounts get no AI; paid plan + confirmed email; NBD exempt), the shared `functions/ai-gate.js`, which endpoints use it (#3063, #3076, #3079, #3085), the voice / vision budgets that changed, the public funnel AI fix (#3058), and the open follow-ups
 - [GITHUB-REPO-SWEEP-2026-11-04](audit/GITHUB-REPO-SWEEP-2026-11-04.md) — open-source sweep across five lanes (local 1080 Ti server, CRM, site, CI/security, bots): what main already has (axe, Lighthouse, site search, signature pad, draw-geom, call transcripts), ranked adopt-next lists, phased local-server build order (Pascal: Ollama yes, vLLM no), and the report-only actionlint + zizmor workflow shipped with it
 - [Town pages: uppercase nav and brand-coloured source links](audit/TOWN-PAGES-NAV-AND-LINKS-2026-11-07.md) — 124 service/town pages had a title-case nav; source links were default blue on 169 pages; 2026-11-07
 - [CRM-SILENT-FAILURES-2026-11-06](audit/CRM-SILENT-FAILURES-2026-11-06.md) — six CRM screens stopped saying "saved" / "All clear" when they weren't: Deleted bin, document viewer Save, Company + Notification settings, Agent Inbox, voicemail, and a blank Prospects view.

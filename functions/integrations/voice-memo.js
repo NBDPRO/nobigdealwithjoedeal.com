@@ -79,6 +79,11 @@ exports.transcribeVoiceMemo = onCall(
       throw new HttpsError('unavailable', 'AI temporarily disabled');
     }
 
+    // Free accounts get no AI (Joe, 2026-11-14; AI audit F9): transcription
+    // is the fallback path of nbd-whisper's dictation, so it carries the same
+    // gate as dictate. Before the rate limit, so a refusal spends nothing.
+    await require('../ai-gate').assertAiEntitled(require('firebase-admin/firestore').getFirestore(), request.auth);
+
     // D1-style per-uid cap. Voice memos are human-paced; 20/hour
     // is fine for the most diligent rep and kills a loop cheaply.
     const { enforceRateLimit } = require('./upstash-ratelimit');

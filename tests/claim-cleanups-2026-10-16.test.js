@@ -62,8 +62,11 @@ ok('estimate wizard: computes no payment (no APR constants, no amortization)',
   !/0\.1149|0\.1999|finPay|resultMonthlyFigs/.test(wizard) && /function renderFinancingLink\(min\)/.test(wizard));
 ok('estimate wizard: hides the link for storm claims and projects under $3,000',
   /wrap\.hidden = funnelData\.service === 'storm-damage' \|\| !min \|\| min < FIN_MIN_PROJECT;/.test(wizard) && /const FIN_MIN_PROJECT = 3000;/.test(wizard));
-ok('estimate wizard cache-bust: loader ?v=6 on the page, wizard ?v=7 in the loader (2026-10-26: step focus, email error)',
-  est.includes('/assets/js/estimate-wizard-loader.js?v=7') && read('docs/assets/js/estimate-wizard-loader.js').includes("/assets/js/inline/4053149b2f.js?v=8"));
+// ">= this version": a later edit re-versions the same scripts (AI funnel guard, 2026-11-15).
+const verOf = (h, re) => +((h.match(re) || [])[1] || 0);
+ok('estimate wizard cache-bust: loader ?v=6+ on the page, wizard ?v=7+ in the loader (2026-10-26: step focus, email error)',
+  verOf(est, /\/assets\/js\/estimate-wizard-loader\.js\?v=(\d+)"/) >= 6
+  && verOf(read('docs/assets/js/estimate-wizard-loader.js'), /\/assets\/js\/inline\/4053149b2f\.js\?v=(\d+)'/) >= 7);
 
 console.log('B. Elite is a package name, not an invented product line');
 ok('/estimate: no "Lifetime Designer" (page or wizard)', !/lifetime designer/i.test(est) && !/lifetime designer/i.test(wizard));

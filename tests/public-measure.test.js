@@ -222,8 +222,19 @@ section('the wizard uses the measurement without letting a model do the money ma
     /if \(!m \|\| !m\.measured \|\| !\(Number\(m\.squares\) > 0\)\) return null;/.test(wiz));
   ok('tier pricing is computed from real squares, never taken from the model',
     /function tiersFromSquares/.test(wiz) && /est\.tiers = tiersFromSquares\(est\.squares\)/.test(wiz));
-  ok('the model is told the size is measured and must not re-estimate it',
-    /use it EXACTLY and do not re-estimate the size/.test(wiz));
+  // 2026-11-14 (AI audit F5): the prompt is built server-side now; run the
+  // builder with a measurement. (That the page sends one is executed in
+  // tests/public-funnel-ai-guard-2026-11-14.test.js.)
+  {
+    const FL = require(path.join(ROOT, 'functions', 'public-funnel-ai-logic.js'));
+    const built = FL.buildFunnelRequest({ kind: 'estimate', firstName: 'Pat', address: '1 Elm St, Covington, KY', service: 'roof-replacement',
+      pricing: { good: [450, 550], better: [550, 650], best: [650, 800] }, measurement: { sqft: 2400, squares: 24, pitch: '6/12' } });
+    const plain = FL.buildFunnelRequest({ kind: 'estimate', firstName: 'Pat', address: '1 Elm St, Covington, KY', service: 'roof-replacement',
+      pricing: { good: [450, 550], better: [550, 650], best: [650, 800] } });
+    ok('the model is told the size is measured and must not re-estimate it',
+      built.ok && built.prompt.includes('AERIALLY MEASURED — 2,400 sq ft (24 squares)') && built.prompt.includes('use it EXACTLY and do not re-estimate the size')
+      && plain.ok && !plain.prompt.includes('AERIALLY MEASURED'));
+  }
   ok('the offline fallback also uses the measurement when the AI call fails',
     /var measured = !!\(meas && Number\(meas\.squares\) > 0\)/.test(wiz));
   ok('a measured roof drops the "~" so the page stops hedging a real number',

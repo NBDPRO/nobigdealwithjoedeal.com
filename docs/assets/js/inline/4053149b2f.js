@@ -1401,65 +1401,31 @@ async function submitAndGetEstimate() {
 
   // Get AI estimate
   try {
-    var serviceLabel = {
-      'roof-replacement': 'roof replacement',
-      'roof-repair': 'roof repair',
-      'siding': 'siding installation',
-      'gutters': 'gutter installation',
-      'storm-damage': 'storm damage inspection and repair'
-    }[funnelData.service] || funnelData.service;
-
-    var materialLabel = {
-      asphalt: 'asphalt shingles',
-      metal: 'metal roofing',
-      flat: 'flat/low-slope roofing'
-    }[funnelData.roofType] || 'asphalt shingles';
-
-    // Pull NBD's actual per-square pricing into the prompt so the AI can't drift.
+    // Pull NBD's actual per-square pricing into the request so the AI can't drift.
     var roofMat = funnelData.roofType === 'other' ? 'asphalt' : (funnelData.roofType || 'asphalt');
     var matPricing = PRICING.roof[roofMat] || PRICING.roof.asphalt;
-    var sizeCat = funnelData.homeSize || 'typical';
     var _meas = funnelData.measurement;
     var _measured = !!(_meas && Number(_meas.squares) > 0);
-    // A measured roof replaces the homeowner's guess as the primary signal.
-    var sizeHint = _measured
-      ? 'AERIALLY MEASURED — ' + Math.round(_meas.sqft).toLocaleString() + ' sq ft (' + _meas.squares + ' squares)'
-        + (_meas.pitch ? ', predominant pitch ' + _meas.pitch : '')
-        + (_meas.stories ? ', ' + _meas.stories + ' storey' : '')
-        + '. This is a real measurement, not the homeowner\'s estimate — use it EXACTLY and do not re-estimate the size.'
-      : (SIZE_LABEL[sizeCat] || SIZE_LABEL.typical);
-    var coordHint = (funnelData.lat && funnelData.lon)
-      ? funnelData.lat.toFixed(4) + ', ' + funnelData.lon.toFixed(4)
-      : 'unknown';
 
-    var prompt = 'You are Joe Deal, owner of No Big Deal Home Solutions. NBD serves the Greater Cincinnati metro area — SW Ohio, Northern Kentucky, and SE Indiana. A verified homeowner wants a detailed roof estimate.\n\n' +
-      'Address: ' + funnelData.address + '\n' +
-      'Coordinates: ' + coordHint + '\n' +
-      'Service: ' + serviceLabel + '\n' +
-      'Material preference: ' + materialLabel + '\n' +
-      (_measured ? 'Roof size: ' : 'Homeowner-reported size: ') + sizeHint + '\n' +
-      'Timeline: ' + funnelData.timeline + '\n' +
-      'Name: ' + funnelData.firstName + '\n\n' +
-      (_measured
-        ? 'The roof size above was measured from aerial imagery. Use it exactly — do not adjust, round or second-guess it.\n\n'
-        : 'Use the homeowner-reported size as your primary signal. Refine it with your knowledge of typical homes near these coordinates if you have it (lot patterns, year built norms, suburb characteristics). Do not assume a generic 1,800 sqft default — actually reason about the address.\n\n') +
-      'Apply NBD\'s actual installed pricing for this material. NBD does not install' +
-      ' 3-tab shingles on new roof installs — every tier below is a real architectural' +
-      ' or better shingle; never describe the Good/Standard tier as "3-tab" or "economy":\n' +
-      '- Good (Standard, architectural):        $' + matPricing.good[0]   + '-$' + matPricing.good[1]   + '/square\n' +
-      '- Better (Preferred, architectural):     $' + matPricing.better[0] + '-$' + matPricing.better[1] + '/square\n' +
-      '- Best (Elite, architectural):           $' + matPricing.best[0]   + '-$' + matPricing.best[1]   + '/square\n' +
-      'These per-square ranges already include pitch-based waste — do not add more.\n\n' +
-      'Return JSON with:\n' +
-      '1. roofSqft: estimated roof area in sq ft\n' +
-      '2. squares: roofSqft / 100\n' +
-      '3. tiers: price ranges for Good / Better / Best (= squares × the per-square ranges above)\n' +
-      '4. yearBuilt: estimate if you can, else null\n' +
-      '5. joesTake: 2-3 sentence personalized note addressing ' + funnelData.firstName + ' by name. Joe has NOT seen or inspected this roof yet: write the note as drafted from the homeowner\'s answers only, and never say or imply that Joe inspected, saw, walked, measured on site or assessed the roof. Reference the neighborhood/city if you can. Do not promise a specific price — say "Joe will give you the exact number after walking your roof."\n\n' +
-      'RESPOND ONLY WITH THIS JSON (no markdown, no commentary):\n' +
-      '{"roofSqft":number,"squares":number,"yearBuilt":number_or_null,"tiers":{"good":{"min":number,"max":number},"better":{"min":number,"max":number},"best":{"min":number,"max":number}},"joesTake":"string"}';
+    // Structured form answers only (2026-11-14, AI audit F5): the server
+    // builds the prompt (functions/public-funnel-ai-logic.js) and refuses a
+    // free-text one. A measured roof replaces the homeowner's guess there.
+    var aiRequest = {
+      kind: 'estimate',
+      firstName: funnelData.firstName,
+      address: funnelData.address,
+      service: funnelData.service,
+      roofType: funnelData.roofType || 'asphalt',
+      homeSize: funnelData.homeSize || 'typical',
+      timeline: funnelData.timeline,
+      pricing: { good: matPricing.good, better: matPricing.better, best: matPricing.best }
+    };
+    if (funnelData.lat && funnelData.lon) { aiRequest.lat = funnelData.lat; aiRequest.lon = funnelData.lon; }
+    if (_measured) {
+      aiRequest.measurement = { sqft: Number(_meas.sqft), squares: Number(_meas.squares), pitch: _meas.pitch || null, stories: _meas.stories ? Number(_meas.stories) : null };
+    }
 
-    var data = await _fetchAI({ prompt: prompt, maxTokens: 600 });
+    var data = await _fetchAI(aiRequest);
     var raw = (data && data.text) || '';
     var clean = raw.replace(/```json|```/g, '').trim();
     var est = JSON.parse(clean);
@@ -1612,20 +1578,15 @@ async function _fetchAI(body) {
 // non-roof-replacement services is deterministic (priceRangeForFunnel),
 // so the model is never asked for dollar amounts.
 async function fetchJoesTakeNote() {
-  var label = (SERVICE_LABELS[funnelData.service] || funnelData.service || 'home repair').toLowerCase();
-  var stormRule = funnelData.service === 'storm-damage'
-    ? 'This is a storm-damage situation. Do NOT say or imply what insurance will cover or pay, that the homeowner will only pay their deductible, that the claim will be approved, or that Joe takes the claim over in any way — the homeowner files it and it stays theirs. You may say: if they file and the claim is approved, the deductible is theirs to pay and what the claim covers is up to their insurer; Joe documents the damage in a free inspection and meets the adjuster; the claim stays theirs. '
-    : '';
-  var prompt = 'You are Joe Deal, owner of No Big Deal Home Solutions. NBD serves the Greater Cincinnati metro area — SW Ohio, Northern Kentucky, and SE Indiana. A verified homeowner just completed the instant estimate funnel.\n\n' +
-    'Name: ' + funnelData.firstName + '\n' +
-    'Address: ' + funnelData.address + '\n' +
-    'Service: ' + label + '\n' +
-    'Timeline: ' + funnelData.timeline + '\n\n' +
-    'Write a 2-3 sentence personalized note addressing ' + funnelData.firstName + ' by name about their ' + label + ' project. Reference the neighborhood/city if you can. Do NOT mention any dollar amounts, prices, or ranges. ' + stormRule +
-    'Joe has NOT seen or inspected this roof yet: write the note as drafted from the homeowner\'s answers only, and never say or imply that Joe inspected, saw, walked, measured on site or assessed the roof. Close by saying Joe will confirm everything with a free in-person look — no obligation.\n\n' +
-    'Respond with the note text only — no JSON, no markdown, no surrounding quotes.';
-
-  var data = await _fetchAI({ prompt: prompt, maxTokens: 180 });
+  // Structured answers only; the server builds the prompt and keeps the
+  // no-prices / storm-claim rules (functions/public-funnel-ai-logic.js).
+  var data = await _fetchAI({
+    kind: 'note',
+    firstName: funnelData.firstName,
+    address: funnelData.address,
+    service: funnelData.service,
+    timeline: funnelData.timeline
+  });
   var text = (data && data.text) || '';
   return text.trim();
 }

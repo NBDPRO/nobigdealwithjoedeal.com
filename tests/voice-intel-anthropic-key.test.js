@@ -98,6 +98,9 @@ const realLoad = Module._load;
 Module._load = function (request, parent, isMain) {
   if (request === 'firebase-admin/firestore') return { getFirestore: () => fakeDb, FieldValue, Timestamp };
   if (request === 'firebase-admin/storage') return { getStorage: () => ({ bucket: () => fakeBucket }) };
+  // 2026-11-14: the uploader's AI entitlement is read from their Auth record
+  // (functions/ai-gate.js): a confirmed rep of co1, which pays.
+  if (request === 'firebase-admin/auth') return { getAuth: () => ({ getUser: async () => ({ emailVerified: true, customClaims: { companyId: 'co1', role: 'sales_rep' } }) }) };
   return realLoad.apply(this, arguments);
 };
 
@@ -140,11 +143,12 @@ function reset({ key, consentMode, flags, usedSec, lead } = {}) {
   store.clear(); calls = []; killswitch._resetCache();
   if (key === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = key;
   store.set('users/' + UID, { companyId: 'co1' });
-  store.set('subscriptions/' + UID, { plan: 'foundation' });
+  store.set('subscriptions/co1', { plan: 'foundation', status: 'active' }); // the company's plan (2026-11-14)
   store.set('companies/co1', consentMode ? { recordingConsentMode: consentMode } : {});
   if (lead !== null) store.set('leads/' + LEAD, lead || { userId: UID, companyId: 'co1', firstName: 'Pat', lastName: 'Lee' });
   if (flags) store.set('feature_flags/global', flags);
-  if (usedSec) store.set('api_usage_daily/' + new Date().toISOString().slice(0, 10) + '__co__co1', { voice_audioSec: usedSec });
+  // The budget is this MONTH's audio (2026-11-14, AI audit F1).
+  if (usedSec) store.set('api_usage_monthly/' + new Date().toISOString().slice(0, 7) + '__co__co1', { voice_audioSec: usedSec });
   const recordingId = 'rec' + (++n);
   return { recordingId, docPath: 'leads/' + LEAD + '/recordings/' + recordingId };
 }
