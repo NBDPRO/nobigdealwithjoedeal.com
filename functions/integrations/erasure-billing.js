@@ -19,9 +19,13 @@
  *   failure being fixed, so "probably fine" is not an answer here.
  *
  * SCOPE
- *   Only `subscriptions/{uid}` — the doc the erasure cascade itself deletes
- *   (user-owned.js OWNER_KEYED_DOCS). For a solo owner that IS the company's
- *   billing doc (companyId == uid). A company_admin or rep whose company is
+ *   `subscriptions/{uid}` — the doc the erasure cascade itself deletes
+ *   (user-owned.js OWNER_KEYED_DOCS). For a solo owner whose companyId == uid
+ *   that IS the company's billing doc. A SLUG tenant (companyId is a slug,
+ *   not the owner's uid) is billed at `subscriptions/{companyId}`, so when
+ *   the caller passes the sole owner's companyId that doc is read too and its
+ *   live subscriptions are cancelled as well (2026-11-16 fix: before it, an
+ *   erased slug-tenant owner's plan kept charging). A company_admin or rep whose company is
  *   billed under someone else's uid is not the payer: erasing their personal
  *   account must not cancel the company's plan, and doesn't, because their
  *   own `subscriptions/{uid}` has no Stripe ids.
@@ -47,6 +51,10 @@ function isResourceMissing(e) {
  * @param {object}   args
  * @param {object}   args.db         Firestore-shaped ({ doc(p).get() })
  * @param {string}   args.uid        the account being erased
+ * @param {string}   [args.companyId] the company the erased user is the SOLE
+ *                                   OWNER of (pass only for that case); when
+ *                                   it differs from uid, its billing doc
+ *                                   subscriptions/{companyId} is included
  * @param {Function} args.getStripe  () => Stripe client; only called when
  *                                   there is something to cancel
  * @param {object}   [args.logger]
@@ -58,19 +66,28 @@ async function cancelBillingForErasure(args) {
   const log = a.logger || { info() {}, warn() {}, error() {} };
   const uid = String(a.uid || '');
   if (!uid || uid.indexOf('/') !== -1) return { ok: false, cancelled: [], reason: 'bad_uid' };
+  const companyId = a.companyId == null ? '' : String(a.companyId);
+  if (companyId.indexOf('/') !== -1) return { ok: false, cancelled: [], reason: 'bad_company_id' };
 
-  let sub;
-  try {
-    const snap = await a.db.doc('subscriptions/' + uid).get();
-    sub = snap && snap.exists ? (snap.data() || {}) : null;
-  } catch (e) {
-    // Can't tell whether there is a subscription → can't promise there isn't.
-    log.error('erasure_billing_read_failed', { uid, err: e && e.message });
-    return { ok: false, cancelled: [], reason: 'billing_record_unreadable' };
+  // Billing docs to read: the user's own, plus a slug company's.
+  const docIds = [uid];
+  if (companyId && companyId !== uid) docIds.push(companyId);
+  const subIds = new Set();
+  const customerIds = new Set();
+  for (const id of docIds) {
+    let sub;
+    try {
+      const snap = await a.db.doc('subscriptions/' + id).get();
+      sub = snap && snap.exists ? (snap.data() || {}) : null;
+    } catch (e) {
+      // Can't tell whether there is a subscription → can't promise there isn't.
+      log.error('erasure_billing_read_failed', { uid, doc: id, err: e && e.message });
+      return { ok: false, cancelled: [], reason: 'billing_record_unreadable' };
+    }
+    if (sub && typeof sub.stripeSubscriptionId === 'string' && sub.stripeSubscriptionId) subIds.add(sub.stripeSubscriptionId);
+    if (sub && typeof sub.stripeCustomerId === 'string' && sub.stripeCustomerId) customerIds.add(sub.stripeCustomerId);
   }
-  const subId = sub && typeof sub.stripeSubscriptionId === 'string' ? sub.stripeSubscriptionId : '';
-  const customerId = sub && typeof sub.stripeCustomerId === 'string' ? sub.stripeCustomerId : '';
-  if (!subId && !customerId) return { ok: true, cancelled: [], reason: 'no_stripe_billing' };
+  if (!subIds.size && !customerIds.size) return { ok: true, cancelled: [], reason: 'no_stripe_billing' };
 
   let stripe;
   try { stripe = a.getStripe(); } catch (e) {
@@ -81,19 +98,18 @@ async function cancelBillingForErasure(args) {
   // Candidate ids: the stored one, plus anything else live on the customer
   // (the double-bill guard exists because a second sub CAN be minted — an
   // orphaned one would keep charging after the doc that names it is gone).
-  const ids = new Set();
-  if (subId) ids.add(subId);
-  try {
-    if (customerId) {
+  const ids = new Set(subIds);
+  for (const customerId of customerIds) {
+    try {
       const list = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 100 });
       for (const s of (list && list.data) || []) {
         if (s && s.id && CANCELLABLE.indexOf(String(s.status)) !== -1) ids.add(s.id);
       }
-    }
-  } catch (e) {
-    if (!isResourceMissing(e)) {
-      log.error('erasure_billing_list_failed', { uid, err: e && e.message });
-      return { ok: false, cancelled: [], reason: 'stripe_error' };
+    } catch (e) {
+      if (!isResourceMissing(e)) {
+        log.error('erasure_billing_list_failed', { uid, err: e && e.message });
+        return { ok: false, cancelled: [], reason: 'stripe_error' };
+      }
     }
   }
 

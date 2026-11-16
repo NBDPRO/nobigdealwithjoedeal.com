@@ -688,9 +688,15 @@ exports.confirmAccountErasure = onRequest(
     // A member whose uid IS the company id (a former owner who handed the
     // company to someone else) has subscriptions/{uid} as the COMPANY's
     // billing doc: suspending them must not cancel the company's plan.
+    // A SOLO owner of a slug company (companyId is not their uid) pays at
+    // subscriptions/{companyId}: pass it so that plan is cancelled too
+    // (2026-11-16). A member never passes it: they are not the payer.
     const billing = (scope.mode === 'member' && scope.companyId === uid)
       ? { ok: true, cancelled: [], reason: 'company_billing_kept' }
-      : await cancelBillingForErasure({ db, uid, getStripe, logger });
+      : await cancelBillingForErasure({
+        db, uid, getStripe, logger,
+        companyId: scope.mode === 'solo' ? scope.companyId : undefined,
+      });
     if (!billing.ok) {
       logger.error('confirmAccountErasure: refused, billing not cancelled', { uid, reason: billing.reason });
       res.status(409).json({ error: BILLING_REFUSAL, code: 'billing_not_cancelled' });

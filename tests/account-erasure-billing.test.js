@@ -138,6 +138,55 @@ function fakeDb(docs, opts) {
   ok('the refusal message says nothing was deleted and how to proceed',
     /nothing has been deleted/.test(REFUSAL_MESSAGE) && /Settings → Billing/.test(REFUSAL_MESSAGE));
 
+  // ── A2. slug tenants (2026-11-16): a company whose id is NOT the owner's
+  // uid is billed at subscriptions/{companyId}. Erasing its sole owner must
+  // cancel THAT subscription too, not only subscriptions/{uid}.
+  console.log('A2. slug-tenant billing doc');
+  {
+    const stripe = fakeStripe({ sub_9: { id: 'sub_9', customer: 'cus_9', status: 'active' } });
+    const r = await cancelBillingForErasure({
+      db: fakeDb({ 'subscriptions/oaks': { stripeCustomerId: 'cus_9', stripeSubscriptionId: 'sub_9', status: 'active' } }),
+      uid: 'u9', companyId: 'oaks', getStripe: () => stripe,
+    });
+    ok('slug owner: the company billing doc subscriptions/{companyId} is cancelled',
+      r.ok && stripe.calls.includes('cancel:sub_9') && r.cancelled.join() === 'sub_9', JSON.stringify(r));
+  }
+  {
+    const stripe = fakeStripe({
+      sub_9: { id: 'sub_9', customer: 'cus_9', status: 'active' },
+      sub_u: { id: 'sub_u', customer: 'cus_u', status: 'trialing' },
+    });
+    const r = await cancelBillingForErasure({
+      db: fakeDb({
+        'subscriptions/u9': { stripeCustomerId: 'cus_u', stripeSubscriptionId: 'sub_u' },
+        'subscriptions/oaks': { stripeCustomerId: 'cus_9', stripeSubscriptionId: 'sub_9' },
+      }),
+      uid: 'u9', companyId: 'oaks', getStripe: () => stripe,
+    });
+    ok('slug owner with ids on BOTH docs: both subscriptions are cancelled',
+      r.ok && r.cancelled.slice().sort().join() === 'sub_9,sub_u', JSON.stringify(r));
+  }
+  {
+    const reads = [];
+    const db = { doc: (p) => ({ get: async () => { reads.push(p); return { exists: false, data: () => null }; } }) };
+    const r = await cancelBillingForErasure({ db, uid: 'u1', companyId: 'u1', getStripe: () => fakeStripe({}) });
+    ok('solo owner whose companyId IS the uid: one billing doc read, no Stripe needed',
+      r.ok && reads.join() === 'subscriptions/u1', reads.join());
+  }
+  {
+    const db = { doc: (p) => ({ get: async () => {
+      if (p === 'subscriptions/oaks') throw new Error('UNAVAILABLE');
+      return { exists: false, data: () => null };
+    } }) };
+    const r = await cancelBillingForErasure({ db, uid: 'u9', companyId: 'oaks', getStripe: () => fakeStripe({}) });
+    ok('the company billing doc cannot be read → refuse (ok:false), never guess',
+      !r.ok && r.reason === 'billing_record_unreadable', JSON.stringify(r));
+  }
+  {
+    const r = await cancelBillingForErasure({ db: fakeDb({}), uid: 'u9', companyId: 'a/b', getStripe: () => fakeStripe({}) });
+    ok('a companyId with a slash is refused', !r.ok && r.reason === 'bad_company_id', JSON.stringify(r));
+  }
+
   // ═══ B. the real confirmAccountErasure POST ═══════════════════════════
   console.log('B. confirmAccountErasure');
   async function runErasure(opts) {
@@ -153,6 +202,7 @@ function fakeDb(docs, opts) {
       doc: (p) => ({
         get: async () => { events.push('read:' + p); return { exists: docs[p] != null, data: () => docs[p] }; },
         update: async (d) => { events.push('update:' + p); docs[p] = Object.assign({}, docs[p], d); },
+        set: async (d) => { events.push('set:' + p); docs[p] = Object.assign({}, docs[p], d); },
       }),
       collection: (n) => Object.assign(emptyQuery(), { add: async (row) => { events.push('add:' + n); (docs['__add_' + n] = docs['__add_' + n] || []).push(row); } }),
       collectionGroup: () => emptyQuery(),
@@ -168,7 +218,7 @@ function fakeDb(docs, opts) {
       'firebase-admin/firestore': { getFirestore: () => db, Timestamp: { fromMillis: (ms) => ({ toMillis: () => ms }) }, FieldValue: { serverTimestamp: () => 'ts' } },
       // getUser: erasure now resolves who is asking first (2026-10-08 member
       // suspend); u1 is a claimless solo account, so the erase path runs.
-      'firebase-admin/auth': { getAuth: () => ({ getUser: async (uid) => ({ uid, email: 'pat@example.test' }), updateUser: async () => events.push('auth-disable'), revokeRefreshTokens: async () => {} }) },
+      'firebase-admin/auth': { getAuth: () => ({ getUser: async (uid) => ({ uid, email: 'pat@example.test', customClaims: o.claims || {} }), updateUser: async () => events.push('auth-disable'), revokeRefreshTokens: async () => {} }) },
       'firebase-admin/storage': { getStorage: () => ({ bucket: () => ({ deleteFiles: async () => events.push('storage-delete') }) }) },
       './upstash-ratelimit': { httpRateLimit: async () => true, enforceRateLimit: async () => ({}) },
       stripe: StripeCtor,
@@ -230,6 +280,44 @@ function fakeDb(docs, opts) {
   {
     const { res, events } = await runErasure({ noKey: true, stripe: null, docs: { 'subscriptions/u1': { status: 'none' } } });
     ok('a free user (no Stripe ids) erases normally, Stripe never needed', res.code === 200 && events.includes('delete'));
+  }
+
+  {
+    // Slug tenant, sole owner: u1 owns companies/oaks, billed at subscriptions/oaks.
+    const shared = [];
+    const stripe = fakeStripe({ sub_9: { id: 'sub_9', customer: 'cus_9', status: 'active' } }, { log: shared });
+    const { res, events } = await runErasure({
+      events: shared, stripe, claims: { companyId: 'oaks', role: 'company_admin' },
+      docs: {
+        'companies/oaks': { ownerId: 'u1' },
+        'subscriptions/oaks': { stripeCustomerId: 'cus_9', stripeSubscriptionId: 'sub_9', status: 'active' },
+      },
+    });
+    ok('slug tenant sole owner erased → 200', res.code === 200, JSON.stringify(res.body));
+    const cancelAt = events.indexOf('stripe:cancel:sub_9');
+    ok('...the company subscription at subscriptions/{companyId} was cancelled before the first delete',
+      cancelAt >= 0 && cancelAt < events.indexOf('delete'), events.join(' > '));
+  }
+  {
+    // Slug tenant, Stripe down: refused, nothing deleted.
+    const e = new Error('Stripe API down'); e.statusCode = 500;
+    const stripe = fakeStripe({ sub_9: { id: 'sub_9', customer: 'cus_9', status: 'active' } }, { cancelThrows: e });
+    const { res, events } = await runErasure({
+      stripe, claims: { companyId: 'oaks' },
+      docs: { 'companies/oaks': { ownerId: 'u1' }, 'subscriptions/oaks': { stripeSubscriptionId: 'sub_9', status: 'active' } },
+    });
+    ok('slug owner, Stripe cancel fails → 409 and nothing deleted',
+      res.code === 409 && !events.includes('delete') && !events.includes('auth-disable'), events.join(' > '));
+  }
+  {
+    // A team MEMBER of a slug company is not the payer: the company plan stays.
+    const stripe = fakeStripe({ sub_9: { id: 'sub_9', customer: 'cus_9', status: 'active' } });
+    const { res } = await runErasure({
+      stripe, claims: { companyId: 'oaks', role: 'sales_rep' },
+      docs: { 'companies/oaks': { ownerId: 'boss' }, 'subscriptions/oaks': { stripeCustomerId: 'cus_9', stripeSubscriptionId: 'sub_9', status: 'active' } },
+    });
+    ok('a member of a slug company erased → the company subscription is NOT cancelled',
+      !stripe.calls.some((c) => c.indexOf('cancel:') === 0) && res.code === 200, JSON.stringify(res.body) + ' ' + stripe.calls.join());
   }
 
   console.log('');
