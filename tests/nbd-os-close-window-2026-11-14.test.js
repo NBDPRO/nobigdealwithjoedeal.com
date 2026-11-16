@@ -101,6 +101,33 @@ console.log('minimise stays separate');
   ok('a minimised window closes too', !D.win('schedule') && !D.task('schedule'), D.wins().join());
 }
 
+console.log('the Settings window (seen failing on production, 2026-11-15)');
+{
+  // Joe opened Settings from Start's footer and its ✕ did not close it. Settings is
+  // a templated view whose tab switcher toggles .stab-active inside it; neither its
+  // hydration nor its tabs touch the view's own class, so this is the same
+  // last-window path as above. Pinned for Settings explicitly.
+  const D = desk();
+  H.click(D.T.dom, D.doc.querySelector('.os-start-btn'));
+  const open = D.doc.querySelector('[data-osdo="settings"]');
+  ok('control: Start has a Settings button', !!open);
+  H.click(D.T.dom, open);
+  D.settle();
+  ok('control: Settings opens as the only window', D.wins().join() === 'settings', D.wins().join());
+  // a tab switch: a class change on a tab button INSIDE the view, not on the view
+  const tab = D.doc.createElement('button');
+  tab.className = 'stab-btn';
+  D.doc.getElementById('view-settings').appendChild(tab);
+  H.click(D.T.dom, D.btn('settings', 'close'));
+  D.observe('settings');   // release() touched the view's class
+  tab.classList.add('stab-active');
+  D.settle();
+  ok('Settings\' ✕ closes it, and it stays closed', !D.win('settings') && !D.task('settings'), D.wins().join());
+  D.W.goTo('settings');
+  D.settle();
+  ok('…and Settings opens again from the router', !!D.win('settings'), D.wins().join());
+}
+
 console.log('control: two windows');
 {
   const D = desk();
