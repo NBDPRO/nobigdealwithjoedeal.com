@@ -289,6 +289,10 @@ async function callableChecks() {
   db = fakeDb(seedA(long20));
   r = await call(owner, Object.assign({}, good, fp(long20.payments[17], 17)), db);
   ok('a payment past the 15th (here the 18th of 20) can still be reversed', !r.err && db.writes.length > 0, r.err ? r.err.message : 'ok');
+  const long29 = Object.assign(base(), { payments: Array.from({ length: 29 }, (_, k) => ({ paymentId: 'x' + k, amount: 100, at: D(2026, 9, 1 + k), method: 'cash', recordedBy: 'rep1' })), amountPaid: 2900 });
+  db = fakeDb(seedA(long29));
+  r = await call(owner, Object.assign({}, good, fp(long29.payments[28], 28)), db);
+  ok('the last payment a browser can record (the 29th) can be reversed; the reversal is line 30', !r.err && db.writes.length > 0, r.err ? r.err.message : 'ok');
   // Second security pass: the entry is picked by index + frozen fingerprint, never by paymentId.
   const R1 = { paymentId: 'r1', amount: 5000, at: D(2026, 10, 1), method: 'check', recordedBy: 'alice' };
   const F1 = { paymentId: 'r1', amount: 5000, at: D(2026, 10, 20), method: 'cash', recordedBy: 'alice' };   // a rep renamed the fake to the real one's id

@@ -89,7 +89,7 @@ function reversalBlockedReason(invoice, index) {
   const st = String(inv.status || '').toLowerCase();
   if (st === 'sending') return 'The invoice is being sent — try again in a minute';
   if (inv.deleted === true || st === 'void' || st === 'cancelled') return 'The invoice is voided';
-  // A browser appends a payment to a list of at most 30 (firestore.rules invoicePaymentsOk, 2026-11-15); the reversal
+  // A browser appends a payment to a list of at most 29 (firestore.rules invoicePaymentsOk, 2026-11-15); the reversal
   // is the 30th at most, so any payment the browser could record can still be reversed.
   if (list.length >= 30) return 'This invoice has too many payment lines to add a reversal — ask for help';
   return '';

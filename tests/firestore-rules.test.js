@@ -1339,7 +1339,7 @@ async function run() {
   for (const k of ['backfilled', 'backfillKey', 'paymentBackfill']) await assertFails(updateDoc(doc(alice, 'invoices/mk-new'), { [k]: null }));
   await assertFails(updateDoc(doc(coAdmin, 'invoices/bf-null'), { backfilled: deleteField() }));
   // long payment lists (2026-11-15): a pure append (the old list an unchanged prefix, plus one valid entry) is one list
-  // comparison, so it fits the expression budget for every writer up to 30 entries, backfill invoices included
+  // comparison, so it fits the expression budget for every writer up to 29 entries (the 30th line is the Reverse's), backfill invoices included
   // (before, a company_admin went over at the 10th payment on a backfill invoice, and a solo owner at the 9th on any).
   {
     const longBase = Date.now();   // one base time, so the old entries in an append are byte-for-byte the seeded ones
@@ -1347,17 +1347,17 @@ async function run() {
     const seedLong = async (id, n, by, extra) => { await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/' + id), Object.assign({ createdBy: by, companyId: by === 'solo1' ? 'solo1' : 'co-a', status: 'partial', total: 100000, amountPaid: 10 * n, balanceDue: 100000 - 10 * n, payments: longList(n, by), createdAt: 1 }, extra || {})); }); };
     const appendOne = (db, id, n, by, over) => { const at = new Date(); return updateDoc(doc(db, 'invoices/' + id), Object.assign({ payments: longList(n, by).concat([{ amount: 30, at, method: 'check', recordedBy: by, paymentId: 'L' + n }]), amountPaid: 10 * n + 30, balanceDue: 100000 - 10 * n - 30, lastPaymentAt: at }, over || {})); };
     const bfMarks = { source: 'backfill', backfilled: true, backfillKey: 'kL' };
-    for (const n of [9, 10, 19, 29]) { await seedLong('long-bf-' + n, n, 'carol', bfMarks); await assertSucceeds(appendOne(coAdmin, 'long-bf-' + n, n, 'carol')); }   // the 10th, 11th, 20th and 30th payment on a backfill invoice
-    await seedLong('long-rep', 29, 'alice'); await assertSucceeds(appendOne(alice, 'long-rep', 29, 'alice'));      // a rep, 30th entry
+    for (const n of [9, 10, 19, 28]) { await seedLong('long-bf-' + n, n, 'carol', bfMarks); await assertSucceeds(appendOne(coAdmin, 'long-bf-' + n, n, 'carol')); }   // the 10th, 11th, 20th and 30th payment on a backfill invoice
+    await seedLong('long-rep', 28, 'alice'); await assertSucceeds(appendOne(alice, 'long-rep', 28, 'alice'));      // a rep, 29th entry
     await seedLong('long-solo', 8, 'solo1'); await assertSucceeds(appendOne(solo, 'long-solo', 8, 'solo1'));      // a solo owner, 9th entry
-    await seedLong('long-solo29', 29, 'solo1', bfMarks); await assertSucceeds(appendOne(solo, 'long-solo29', 29, 'solo1'));   // a solo owner, 30th, backfill
-    await seedLong('long-31', 30, 'alice'); await assertFails(appendOne(alice, 'long-31', 30, 'alice'));           // the 31st is refused
-    await assertFails(appendOne(alice, 'long-rep', 29, 'alice', { amountPaid: 999999 }));                                  // the fast path still checks the money
+    await seedLong('long-solo29', 28, 'solo1', bfMarks); await assertSucceeds(appendOne(solo, 'long-solo29', 28, 'solo1'));   // a solo owner, 29th, backfill
+    await seedLong('long-31', 29, 'alice'); await assertFails(appendOne(alice, 'long-31', 29, 'alice'));           // a browser's 30th is refused: that line is the Reverse's
+    await assertFails(appendOne(alice, 'long-rep', 28, 'alice', { amountPaid: 999999 }));                                  // the fast path still checks the money
     await seedLong('long-edit', 19, 'alice');
     const edited = longList(19, 'alice').map((e, j) => (j === 3 ? Object.assign({}, e, { amount: 11 }) : e));
     const atE = new Date();
     await assertFails(updateDoc(doc(alice, 'invoices/long-edit'), { payments: edited.concat([{ amount: 30, at: atE, method: 'check', recordedBy: 'alice', paymentId: 'L19' }]), amountPaid: 220, balanceDue: 99780, lastPaymentAt: atE }));   // an append that rewrites an old entry is not a pure append
-    await assertFails(updateDoc(doc(alice, 'invoices/long-bf-29'), { notes: 'x' }));                                 // a rep still cannot edit a backfill invoice
+    await assertFails(updateDoc(doc(alice, 'invoices/long-bf-28'), { notes: 'x' }));                                 // a rep still cannot edit a backfill invoice
   }
   await assertSucceeds(updateDoc(doc(alice, 'invoices/mk-new'), { status: 'void', voidNote: 'entered twice' }));   // void without money still works
   await assertSucceeds(updateDoc(doc(admin, 'invoices/pay15'), { notes: 'admin on the largest list' }));
