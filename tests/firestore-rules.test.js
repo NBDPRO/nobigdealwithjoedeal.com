@@ -1323,6 +1323,9 @@ async function run() {
       for (const [id, uid] of [['rp-joe40', 'joeown'], ['rp-joe400', 'joeown'], ['rp-co', 'coown'], ['rp-solo', 'solo1'], ['rp-joe-void', 'joeown'], ['rp-joe-money', 'joeown']]) await setDoc(doc(d, 'invoices/' + id), rpInv(uid));
       const fourteen = Array.from({ length: 14 }, (_, i) => rpEntry('joeown', 1, new Date(Date.now() - (30 - i) * 3600000), i + 1));
       await setDoc(doc(d, 'invoices/rp-joe15'), rpInv('joeown', { total: 100, balanceDue: 86, amountPaid: 14, status: 'partial', payments: fourteen }));
+      for (const [id, uid] of [['rp-x-amt', 'joeown'], ['rp-x-rec', 'solo1'], ['rp-x-ok', 'joeown']]) await setDoc(doc(d, 'invoices/' + id), rpInv(uid));
+      await setDoc(doc(d, 'invoices/rp-x-edit'), rpInv('joeown', { total: 100, balanceDue: 90, amountPaid: 10, status: 'partial', payments: [rpEntry('joeown', 10, new Date(Date.now() - 7200000), 8)] }));
+      await setDoc(doc(d, 'invoices/rp-x-lock'), rpInv('joeown', { status: 'sending', sendingPriorStatus: 'draft', sendingAt: new Date() }));
       await setDoc(doc(d, 'invoices/rp-joe-proof'), rpInv('joeown', { total: 100, balanceDue: 90, amountPaid: 10, status: 'partial', payments: [rpEntry('joeown', 10, new Date(Date.now() - 3600000), 7)] }));
     });
     await assertSucceeds(rpPay(joeOwn, 'rp-joe40', 'joeown', 40));        // a platform-admin owner records the first payment on a fresh invoice (the live case)
@@ -1331,11 +1334,55 @@ async function run() {
     await assertSucceeds(rpPay(solo, 'rp-solo', 'solo1', 40));            // a solo owner (no claims) records
     const at15 = new Date(); const l14 = (await getDoc(doc(joeOwn, 'invoices/rp-joe15'))).data().payments;
     await assertSucceeds(updateDoc(doc(joeOwn, 'invoices/rp-joe15'), { payments: l14.concat([rpEntry('joeown', 1, at15, 15)]), amountPaid: 15, balanceDue: 85, lastPaymentAt: at15 }));   // the 15th payment
+    const at16 = new Date(); const l15 = (await getDoc(doc(joeOwn, 'invoices/rp-joe15'))).data().payments;
+    await assertFails(updateDoc(doc(joeOwn, 'invoices/rp-joe15'), { payments: l15.concat([rpEntry('joeown', 1, at16, 16)]), amountPaid: 16, balanceDue: 84, lastPaymentAt: at16 }));   // a 16th single append: the 15 cap holds
+    const atX = new Date();
+    await assertFails(updateDoc(doc(joeOwn, 'invoices/rp-x-amt'), { payments: [rpEntry('joeown', 40, atX, 1)], amountPaid: 41, balanceDue: 0, status: 'paid', paidAt: atX, lastPaymentAt: atX }));   // amountPaid off by $1 on the fast path
+    await assertFails(updateDoc(doc(solo, 'invoices/rp-x-rec'), { payments: [rpEntry('joeown', 40, atX, 1)], amountPaid: 40, balanceDue: 0, status: 'paid', paidAt: atX, lastPaymentAt: atX }));   // recorded by someone else
+    await assertSucceeds(updateDoc(doc(joeOwn, 'invoices/rp-x-ok'), { payments: [rpEntry('joeown', 40, atX, 1)], amountPaid: 40, balanceDue: 0, status: 'paid', paidAt: atX, lastPaymentAt: atX }));   // control for the two above
+    const le = (await getDoc(doc(joeOwn, 'invoices/rp-x-edit'))).data().payments;
+    await assertFails(updateDoc(doc(joeOwn, 'invoices/rp-x-edit'), { payments: [Object.assign({}, le[0], { amount: 11 }), rpEntry('joeown', 40, atX, 2)], amountPaid: 51, balanceDue: 49, lastPaymentAt: atX }));   // an append that rewrites an old entry
+    await assertSucceeds(updateDoc(doc(joeOwn, 'invoices/rp-x-edit'), { payments: le.concat([rpEntry('joeown', 40, atX, 2)]), amountPaid: 50, balanceDue: 50, lastPaymentAt: atX }));   // control: the same append with the old entry untouched
+    await assertFails(updateDoc(doc(joeOwn, 'invoices/rp-x-lock'), { payments: [rpEntry('joeown', 40, atX, 1)], amountPaid: 40, balanceDue: 0, lastPaymentAt: atX }));   // the send lock freezes the list
     await assertSucceeds(updateDoc(doc(joeOwn, 'invoices/rp-joe-void'), { deleted: true, voidNote: 'entered twice' }));   // the owner voids an invoice with no money
     const lp = (await getDoc(doc(joeOwn, 'invoices/rp-joe-proof'))).data().payments;
     await assertSucceeds(updateDoc(doc(joeOwn, 'invoices/rp-joe-proof'), { payments: [Object.assign({}, lp[0], { proofStoragePath: 'payment-proofs/joeown/rp-joe-proof/1_a.jpg' })] }));   // a proof photo on a payment
     await assertFails(updateDoc(doc(admin, 'invoices/rp-joe-money'), { amountPaid: 40, balanceDue: 0 }));   // the platform admin still cannot rewrite money without a payment entry
     await assertFails(updateDoc(doc(joeOwn, 'invoices/rp-joe-money'), { amountPaid: 40, balanceDue: 0 }));  // nor can the admin who made it
+
+    // BUDGET GUARD (2026-11-15 hotfix). The invoice update rule is evaluated against Firestore's 1000-expression limit;
+    // going over refuses the write with no rule at fault, which is how Record payment broke on the live site. This loads
+    // the same rules with 100 dummy keys added to the update rule's didNotChange list (one expression each) and replays
+    // the costliest everyday writes. If a rules change eats into that margin, this fails here instead of in production:
+    // make the new check cheaper, do not lower the floor.
+    {
+      const BUDGET_FLOOR = 100;
+      const rulesText = fs.readFileSync(RULES_OVERRIDE || path.resolve(__dirname, '../firestore.rules'), 'utf8');
+      const marker = "didNotChange(['createdBy', 'companyId', 'estimateId', 'createdAt', 'jobId'";
+      if (rulesText.split(marker).length !== 2) throw new Error('budget guard: the invoice update rule\'s didNotChange list moved; update the marker');
+      const padded = rulesText.replace(marker, marker + Array.from({ length: BUDGET_FLOOR }, (_, i) => ", 'budgetPad" + i + "'").join(''));
+      const benv = await initializeTestEnvironment({ projectId: PROJECT_ID + '-budget', firestore: { rules: padded, host: '127.0.0.1', port: Number(String(process.env.FIRESTORE_EMULATOR_HOST || '').split(':')[1]) || 8080 } });
+      const bJoe = benv.authenticatedContext('joeown', { role: 'admin', companyId: 'joeown' }).firestore();
+      const bSolo = benv.authenticatedContext('solo1', {}).firestore();
+      const fourteenB = (uid) => Array.from({ length: 14 }, (_, i) => rpEntry(uid, 1, new Date(Date.now() - (30 - i) * 3600000), i + 1));
+      const bf = { source: 'backfill', backfilled: true, backfillKey: 'kb' };
+      const revd = (uid) => [rpEntry(uid, 40, new Date(Date.now() - 7200000), 1), Object.assign(rpEntry(uid, -40, new Date(Date.now() - 7200000), 2), { reversal: true, reverses: 'mp_' + uid + '1' })];
+      await benv.withSecurityRulesDisabled(async (ctx) => { const d = ctx.firestore();
+        await setDoc(doc(d, 'invoices/b-live'), rpInv('joeown'));
+        await setDoc(doc(d, 'invoices/b-solo-bf'), rpInv('solo1', bf));
+        await setDoc(doc(d, 'invoices/b-15'), rpInv('solo1', Object.assign({ total: 100, balanceDue: 86, amountPaid: 14, status: 'partial', payments: fourteenB('solo1') }, bf)));
+        await setDoc(doc(d, 'invoices/b-rev'), rpInv('joeown', { status: 'partial', amountPaid: 0, balanceDue: 40, payments: revd('joeown') }));
+      });
+      const bAt = new Date();
+      const paidIn = (uid, prior, paid) => ({ payments: prior.concat([rpEntry(uid, 40, bAt, 99)]), amountPaid: paid + 40, balanceDue: Math.max(0, 40 - paid - 40), status: 'paid', paidAt: bAt, lastPaymentAt: bAt });
+      await assertSucceeds(updateDoc(doc(bJoe, 'invoices/b-live'), paidIn('joeown', [], 0)));                      // the live case: admin owner, first payment, paid in full
+      await assertSucceeds(updateDoc(doc(bSolo, 'invoices/b-solo-bf'), paidIn('solo1', [], 0)));                   // solo owner, backfill invoice, first payment
+      const b15 = (await getDoc(doc(bSolo, 'invoices/b-15'))).data().payments;
+      await assertSucceeds(updateDoc(doc(bSolo, 'invoices/b-15'), { payments: b15.concat([rpEntry('solo1', 1, bAt, 15)]), amountPaid: 15, balanceDue: 85, lastPaymentAt: bAt }));   // solo owner, backfill, the 15th payment
+      const bRev = (await getDoc(doc(bJoe, 'invoices/b-rev'))).data().payments;
+      await assertSucceeds(updateDoc(doc(bJoe, 'invoices/b-rev'), paidIn('joeown', bRev, 0)));                     // re-record after a Reverse
+      await benv.cleanup();
+    }
   }   // the admin's money check fits the budget too
   // a legacy status that the send lock holds is restored as it was; a legacy 'Paid' is never restored
   await env.withSecurityRulesDisabled(async (ctx) => {
