@@ -281,10 +281,14 @@ async function callableChecks() {
   const missing = await call(owner, Object.assign({}, good, { invoiceId: 'nope' }), db);
   const foreign = await call({ uid: 'bob', token: { role: 'company_admin', companyId: 'co-b' } }, good, db);
   ok('a missing invoice gets the same answer as another company\'s (nothing leaks)', missing.err && foreign.err && missing.err.code === foreign.err.code && missing.err.message === foreign.err.message, (missing.err && missing.err.code) + ' / ' + (foreign.err && foreign.err.code));
-  const full = Object.assign(base(), { payments: Array.from({ length: 15 }, (_, k) => ({ paymentId: 'q' + k, amount: 100, at: D(2026, 10, 1), method: 'cash', recordedBy: 'rep1' })) });
+  const full = Object.assign(base(), { payments: Array.from({ length: 30 }, (_, k) => ({ paymentId: 'q' + k, amount: 100, at: D(2026, 10, 1), method: 'cash', recordedBy: 'rep1' })) });
   db = fakeDb(seedA(full));
   r = await call(owner, Object.assign({}, good, fp(full.payments[3], 3)), db);
-  ok('refused: an invoice with 15 payment lines (a 16th would lock it for the browser)', !!r.err && /too many/.test(r.err.message) && db.writes.length === 0, r.err ? r.err.message : 'ALLOWED');
+  ok('refused: an invoice with 30 payment lines (the browser appends up to 30)', !!r.err && /too many/.test(r.err.message) && db.writes.length === 0, r.err ? r.err.message : 'ALLOWED');
+  const long20 = Object.assign(base(), { payments: Array.from({ length: 20 }, (_, k) => ({ paymentId: 'w' + k, amount: 100, at: D(2026, 10, 1 + k), method: 'cash', recordedBy: 'rep1' })), amountPaid: 2000 });
+  db = fakeDb(seedA(long20));
+  r = await call(owner, Object.assign({}, good, fp(long20.payments[17], 17)), db);
+  ok('a payment past the 15th (here the 18th of 20) can still be reversed', !r.err && db.writes.length > 0, r.err ? r.err.message : 'ok');
   // Second security pass: the entry is picked by index + frozen fingerprint, never by paymentId.
   const R1 = { paymentId: 'r1', amount: 5000, at: D(2026, 10, 1), method: 'check', recordedBy: 'alice' };
   const F1 = { paymentId: 'r1', amount: 5000, at: D(2026, 10, 20), method: 'cash', recordedBy: 'alice' };   // a rep renamed the fake to the real one's id
