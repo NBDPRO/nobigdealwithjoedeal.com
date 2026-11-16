@@ -126,8 +126,18 @@
       // check then rejects with ALREADY_EXISTS for a lead that saved. After any
       // error the doc is read back; there and this user's = saved.
       var ref = window.doc(window.collection(window.db, 'leads'));
+      // Offline (wave-1 field #4, 2026-11-14): setDoc resolves only on the
+      // server's ack, so with no signal New Lead > Save spun forever although
+      // the lead was already in Firestore's on-phone queue. settle() answers
+      // 'queued' once the phone is offline or the ack is slow; the write
+      // carries on and syncs by itself. queued tells the caller to skip
+      // steps that need the server (customer-ID mint, re-reads).
+      var queued = false;
       try {
-        await window.setDoc(ref, payload);
+        var w = window.setDoc(ref, payload);
+        var S = window.NBDOfflineSync;
+        if (S && typeof S.settle === 'function') queued = (await S.settle(w)) === 'queued';
+        else await w;
       } catch (e) {
         var saved = false;
         try {
@@ -137,7 +147,7 @@
         if (!saved) throw e;
         console.warn('[NBDRepos] lead create reported ' + ((e && e.code) || 'an error') + ' but the lead is saved; continuing');
       }
-      return { id: ref.id };
+      return { id: ref.id, queued: queued };
     },
 
     /**
