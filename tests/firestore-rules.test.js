@@ -1366,7 +1366,36 @@ async function run() {
     //  a follow-up of its own; the rep's path below fits)
     await assertSucceeds(updateDoc(doc(alice, 'invoices/full15-rep'), { payments: proofAt(full15('alice'), [0]) }));                         // a rep: a proof on one entry of a full list (one per write, as the app sends)
     await assertFails(updateDoc(doc(alice, 'invoices/full15-rep'), { payments: full15('alice').map((e, j) => (j === 14 ? Object.assign({}, e, { amount: -1 }) : e)) }));   // the reversal's amount is frozen
-    await assertFails(updateDoc(doc(alice, 'invoices/full15-rep'), { payments: full15('alice').slice(0, 14), amountPaid: 140 }));          // no browser removes a line                                 // a rep still cannot edit a backfill invoice
+    await assertFails(updateDoc(doc(alice, 'invoices/full15-rep'), { payments: full15('alice').slice(0, 14), amountPaid: 140 }));          // no browser removes a line
+    // Same-length edits within the budget (2026-11-16, Joe: "Yes, fix it"): a proof photo, deposited-to or a receipt marked
+    // sent on ONE entry. On main these went over the expression budget for a solo or platform-admin owner (a solo owner on
+    // a backfill invoice from 8 lines), so they were refused and receipt-sent failed silently.
+    const joeE = env.authenticatedContext('joeown', { role: 'admin', companyId: 'joeown' }).firestore();
+    const edits = [['proof', (e) => Object.assign({}, e, { proofStoragePath: 'payment-proofs/x/1_a.jpg' })], ['deposited-to', (e) => Object.assign({}, e, { depositedTo: 'chase_business' })],
+      ['receipt sent', (e) => Object.assign({}, e, { receipt: { status: 'sent', sentAt: new Date(longBase), via: 'email' } })]];
+    const oneEdit = (list, j, fn) => list.map((e, k) => (k === j ? fn(e) : e));
+    for (const [who, db, by, n, extra, cid] of [['solo, backfill, 8', solo, 'solo1', 8, bfMarks], ['solo, backfill, 14', solo, 'solo1', 14, bfMarks],
+      ['admin owner, 14', joeE, 'joeown', 14, {}, 'joeown'], ['admin owner, 15 (line 15 a reversal)', joeE, 'joeown', 15, {}, 'joeown']]) {
+      for (const [what, fn] of edits) {
+        const id = 'se-' + by + '-' + n + '-' + what.replace(/\W/g, '');
+        const L = n === 15 ? full15(by) : longList(n, by);
+        await seedLong(id, 0, by, Object.assign({ payments: L, amountPaid: n === 15 ? 130 : 10 * n, balanceDue: 99000 }, extra, cid ? { companyId: cid } : {}));
+        await assertSucceeds(updateDoc(doc(db, 'invoices/' + id), { payments: oneEdit(L, n - 2, fn) }));   // e.g. solo, backfill, 8: a proof photo
+      }
+    }
+    // refused, as before: the money or date of an entry in the same edit, a line dropped
+    await seedLong('se-x', 0, 'solo1', Object.assign({ payments: longList(14, 'solo1'), amountPaid: 140, balanceDue: 99000 }, bfMarks));
+    const Lx = longList(14, 'solo1');
+    await assertFails(updateDoc(doc(solo, 'invoices/se-x'), { payments: oneEdit(Lx, 5, (e) => Object.assign({}, e, { proofStoragePath: 'payment-proofs/x/1_a.jpg', amount: 11 })) }));   // a proof AND a new amount
+    await assertFails(updateDoc(doc(solo, 'invoices/se-x'), { payments: oneEdit(Lx, 12, (e) => Object.assign({}, e, { at: new Date(longBase - 200 * 3600000) })) }));                 // a new date
+    await assertFails(updateDoc(doc(solo, 'invoices/se-x'), { payments: oneEdit(Lx, 0, (e) => Object.assign({}, e, { method: 'zelle' })) }));                                       // a new method
+    await assertFails(updateDoc(doc(solo, 'invoices/se-x'), { payments: Lx.slice(1), amountPaid: 130 }));                                                                         // a line dropped
+    await seedLong('se-x12', 0, 'solo1', Object.assign({ payments: longList(12, 'solo1'), amountPaid: 120, balanceDue: 99000 }, bfMarks));
+    await assertFails(updateDoc(doc(solo, 'invoices/se-x12'), { payments: oneEdit(longList(12, 'solo1'), 11, (e) => Object.assign({}, e, { amount: 11 })) }));   // the short last chunk: a new amount on the last line
+    // allowed today and still allowed (the rule checks the money fields of every entry, not who edits which entry or how many):
+    // (the app edits one entry per write; two entries five or more apart cost two chunks and can still go over the budget for this,
+    //  the costliest caller, as every same-length edit did before)
+    await assertSucceeds(updateDoc(doc(solo, 'invoices/se-x'), { payments: Lx.map((e, k) => (k === 1 || k === 3 ? Object.assign({}, e, { depositedTo: 'chase_business' }) : e)) }));   // two entries at once                                 // a rep still cannot edit a backfill invoice
   }
   await assertSucceeds(updateDoc(doc(alice, 'invoices/mk-new'), { status: 'void', voidNote: 'entered twice' }));   // void without money still works
   await assertSucceeds(updateDoc(doc(admin, 'invoices/pay15'), { notes: 'admin on the largest list' }));
@@ -1448,6 +1477,11 @@ async function run() {
       await assertSucceeds(updateDoc(doc(bSolo, 'invoices/b-15'), { payments: b15.concat([rpEntry('solo1', 1, bAt, 14)]), amountPaid: 14, balanceDue: 86, lastPaymentAt: bAt }));   // solo owner, backfill, the 14th (last) payment
       const bRev = (await getDoc(doc(bJoe, 'invoices/b-rev'))).data().payments;
       await assertSucceeds(updateDoc(doc(bJoe, 'invoices/b-rev'), paidIn('joeown', bRev, 0)));                     // re-record after a Reverse
+      // the costliest same-length edit (2026-11-16): a solo owner's proof photo on line 14 of a 15-line backfill invoice
+      const b15full = Array.from({ length: 14 }, (_, i) => rpEntry('solo1', 1, new Date(Date.now() - (40 - i) * 3600000), 40 + i)).concat([Object.assign(rpEntry('solo1', -1, new Date(Date.now() - 3600000), 99), { reversal: true, reverses: 'mp_solo153' })]);
+      await benv.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/b-edit'), rpInv('solo1', Object.assign({ total: 100, balanceDue: 87, amountPaid: 13, status: 'partial', payments: b15full }, bf))); });
+      const bE = (await getDoc(doc(bSolo, 'invoices/b-edit'))).data().payments;
+      await assertSucceeds(updateDoc(doc(bSolo, 'invoices/b-edit'), { payments: bE.map((e, k) => (k === 13 ? Object.assign({}, e, { proofStoragePath: 'payment-proofs/solo1/b-edit/1_a.jpg' }) : e)) }));
       await benv.cleanup();
     }
   }   // the admin's money check fits the budget too

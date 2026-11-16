@@ -1125,18 +1125,21 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     } else {
       return { sent: false, reason: 'no_email' };
     }
-    // Mark it sent on the payment (re-read: the array can move under us).
+    // Mark it sent on the payment (re-read: the array can move under us). The receipt already went out, so a refused
+    // write is still a send; markFailed tells the caller to say so (2026-11-16: it used to fail silently, the payment
+    // kept its Send receipt button, and the homeowner could be sent the same receipt twice).
+    let markFailed = false;
     try {
       const fresh = await window.getDoc(invRef);
       const next = markReceiptSent((fresh.data() || {}).payments || [], key, via, new Date());
       await window.updateDoc(invRef, { payments: next, updatedAt: new Date() });
-    } catch (e) { console.warn('sendReceipt: could not mark the receipt sent', e && (e.code || e.message)); }
+    } catch (e) { markFailed = true; console.warn('sendReceipt: could not mark the receipt sent', e && (e.code || e.message)); }
     const noteId = paymentTimelineNoteId(invoiceId, inv.payments[i]);
     if (noteId && typeof window.updateDoc === 'function') {
       try { await window.updateDoc(window.doc(db, 'notes', noteId), { receiptSentAt: new Date() }); }
       catch (_) { /* the timeline line may not exist (legacy payment) */ }
     }
-    return { sent: true, via };
+    return markFailed ? { sent: true, via, markFailed: true } : { sent: true, via };
   }
 
   /** UI: the one-tap "Send receipt" (no confirm sheet — the tap IS the send). */
@@ -1144,7 +1147,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     try {
       const r = await sendReceipt(invoiceId, key);
       if (r.sent) {
-        if (r.via === 'share') _toast('Receipt shared', 'success');
+        if (r.markFailed) _toast('The receipt went out, but it could not be marked sent here: it may still show Send receipt. Don\'t send it again.', 'error');
+        else if (r.via === 'share') _toast('Receipt shared', 'success');
         if (document.getElementById('nbd-inv-detail-host')) renderInvoiceDetail('nbd-inv-detail-host', invoiceId);
         return true;
       }

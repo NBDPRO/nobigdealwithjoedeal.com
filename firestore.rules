@@ -1768,7 +1768,8 @@ service cloud.firestore {
     // this makes it true at the rules layer: platform admin, company_admin, or a solo
     // operator (no role, no company claim or the company is their own uid).
     function backfillWriterOk() {
-      return isAdmin()
+      // role read with a default (2026-11-16): isAdmin() throws on a solo owner's missing claim, which costs the budget
+      return request.auth.token.get('role', '') == 'admin'
         || request.auth.token.get('role', '') == 'company_admin'
         || (request.auth.token.get('role', '') == ''
             && (request.auth.token.get('companyId', '') == '' || request.auth.token.get('companyId', '') == request.auth.uid));
@@ -1796,10 +1797,17 @@ service cloud.firestore {
             && n[i].get('method', '') == o[i].get('method', '')
             && n[i].get('recordedBy', '') == o[i].get('recordedBy', ''));
     }
+    // Five slots at a time (2026-11-16, the rules expression budget; Joe: "Yes, fix it"). A chunk whose entries are all
+    // unchanged is decided by ONE slice comparison (a short last chunk compares the slice it has); only a chunk that
+    // changed checks its five slots. Same meaning as checking the 15 slots one by one (an unchanged entry always passes
+    // payKept), but a one-entry edit (a proof photo, deposited-to, a receipt sent) costs one chunk, not fifteen slots.
+    function payChunkKept(n, o, a) {
+      return o.size() <= a || n.size() <= a
+        || (n.size() == o.size() && (n.size() >= a + 5 ? n[a:a + 5] == o[a:a + 5] : n[a:n.size()] == o[a:o.size()]))
+        || (payKept(n, o, a) && payKept(n, o, a + 1) && payKept(n, o, a + 2) && payKept(n, o, a + 3) && payKept(n, o, a + 4));
+    }
     function paymentsKept(n, o) {
-      return payKept(n, o, 0) && payKept(n, o, 1) && payKept(n, o, 2) && payKept(n, o, 3) && payKept(n, o, 4)
-        && payKept(n, o, 5) && payKept(n, o, 6) && payKept(n, o, 7) && payKept(n, o, 8) && payKept(n, o, 9)
-        && payKept(n, o, 10) && payKept(n, o, 11) && payKept(n, o, 12) && payKept(n, o, 13) && payKept(n, o, 14);
+      return payChunkKept(n, o, 0) && payChunkKept(n, o, 5) && payChunkKept(n, o, 10);
     }
     // After a change to the list the dates may only be unset, unchanged, or the NEWEST remaining entry's date.
     function payDatesOk(d, r, n) {
@@ -4247,8 +4255,7 @@ service cloud.firestore {
       // balanceDue/amountPaid/status).
       // The platform admin skips the invoice checks for everything EXCEPT money (Joe, 2026-11-14: even the top-level
       // account leaves a trail on money; a payment is fixed through reversePayment).
-      allow update: if (isAdmin() && invoiceMoneyUntouched())
-        || (
+      allow update: if (
           (
             (isOwner(resource.data.createdBy) && notViewer())
             || (isCompanyStaff()
@@ -4278,7 +4285,10 @@ service cloud.firestore {
           && invoiceLockOk()
           // A backfill invoice is the owner side's to edit or void (a manager cannot).
           && (resource.data.get('source', '') != 'backfill' || backfillWriterOk())
-        );
+        )
+        // The platform admin's own branch is tried second (2026-11-16, the expression budget): an owner's write, the
+        // platform admin's on an invoice they made included, is decided by the branch above without paying for this one.
+        || (isAdmin() && invoiceMoneyUntouched());
       // An invoice that carries money is never hard-deleted from a browser, by anyone (Joe, 2026-11-14: money keeps its
       // trail). The owner side voids it instead (invoiceVoidOwnerOk), which keeps the record.
       // An invoice that billed supplements (supplementIds) is the owner side's to delete (second security pass M-A,
