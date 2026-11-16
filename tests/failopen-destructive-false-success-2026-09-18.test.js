@@ -98,6 +98,14 @@ function lift(src, marker) {
 
 const QUIET = { log() {}, warn() {}, error() {} };
 
+// crm-portal-bridge.js's lead-delete guard (2026-11-14): the consts, the bin
+// cache and the three functions confirmDeleteLead / restoreDeletedLead call.
+function leadGuardSrc(BR) {
+  const k = (n) => (BR.match(new RegExp('^const ' + n + ' = [^\\n]*;$', 'm')) || [''])[0];
+  return [k('NO_LEAD_DELETE'), k('LEAD_ROLE_LOADING'), 'let _binLeads = {};',
+    lift(BR, 'function _leadDeletePerm('), lift(BR, 'function _mayDeleteLead('), lift(BR, 'function _deleteRefusal(')].join('\n');
+}
+
 // A stubbed promise that never settles empties the event loop and Node exits
 // 0 mid-run â€” silently green with most assertions never evaluated. Treat an
 // exit before the summary line as a failure.
@@ -300,6 +308,7 @@ console.log('\n3. crm-portal-bridge.js confirmDeleteLead / permanentDeleteLead â
       'dc-L1': { style: { opacity: '', pointerEvents: '' } },
     };
     const win = {
+      _userClaims: {},   // claims loaded (a solo owner): the delete guard lets an uncached lead through
       __NBD_CALL_REGISTRY: { _deleteLead: opts.softDelete },
       _permanentDeleteLead: opts.permDelete,
       nbdConfirm: async (m) => { calls.asks.push(m); return opts.confirmAnswer !== false; },
@@ -311,7 +320,10 @@ console.log('\n3. crm-portal-bridge.js confirmDeleteLead / permanentDeleteLead â
       refreshTrashBadge: () => { calls.badge++; },
       renderDeletedDrawer: async () => { calls.drawer++; },
     });
-    vm.runInContext('let _pendingDeleteId = null;\n' + showSrc + '\n' + confirmSrc + '\n' + permSrc
+    // confirmDeleteLead's role check (2026-11-14); the harness signs in as a
+    // claim-less solo owner, so an uncached lead is left to the (stubbed) write.
+    const roleSrc = leadGuardSrc(BRIDGE);
+    vm.runInContext('let _pendingDeleteId = null;\n' + roleSrc + '\n' + showSrc + '\n' + confirmSrc + '\n' + permSrc
       + '\n;this.__show = showDeleteConfirm; this.__confirm = confirmDeleteLead; this.__perm = permanentDeleteLead;',
       ctx, { filename: 'crm-portal-bridge.lifted.js' });
     return { calls, els, show: ctx.__show, confirm: ctx.__confirm, perm: ctx.__perm };
@@ -915,6 +927,7 @@ console.log('\n7. _restoreLead / restoreDeletedLead â€” no "Lead restored" for a
     const calls = { toasts: [], loads: 0, badge: 0, drawer: 0 };
     const els = { 'dc-L1': { style: { opacity: '', pointerEvents: '' } } };
     const win = {
+      _userClaims: {},   // claims loaded (a solo owner): Restore's guard lets an uncached lead through
       _restoreLead: restoreImpl,
       _loadLeads: async () => { calls.loads++; if (opts.loadThrows) throw new Error('load failed'); },
     };
@@ -925,7 +938,7 @@ console.log('\n7. _restoreLead / restoreDeletedLead â€” no "Lead restored" for a
       refreshTrashBadge: () => { calls.badge++; },
       renderDeletedDrawer: async () => { calls.drawer++; },
     });
-    vm.runInContext(drawerSrc + '\n;this.__restore = restoreDeletedLead;', ctx, { filename: 'crm-portal-bridge.restore.lifted.js' });
+    vm.runInContext(leadGuardSrc(BRIDGE) + '\n' + drawerSrc + '\n;this.__restore = restoreDeletedLead;', ctx, { filename: 'crm-portal-bridge.restore.lifted.js' });
     return { calls, els, run: ctx.__restore };
   }
   const restored = (d) => d.calls.toasts.some((x) => x.m === 'Lead restored');

@@ -142,6 +142,9 @@ exports.leadFollowUpSweep = onSchedule(
           .get();
         if (crm.empty) { skipped++; continue; }
         const card = crm.docs[0].data() || {};
+        // A deleted card, or an archived one (2026-11-15: archiving a lead can
+        // mean "do not contact"), gets no homeowner email.
+        if (card.deleted === true || card.archived === true) { skipped++; continue; }
         const untouched =
           String(card.stage || '').toLowerCase() === 'new' &&
           String(card.status || '').toLowerCase() === 'new';
