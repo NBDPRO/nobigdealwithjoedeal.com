@@ -170,6 +170,8 @@ function fakeDb(seed) {
   ok('number not the consenting customer\'s → refused', plan(ON, Object.assign({}, consented, { phone: '8595550199' })).reason === 'number_mismatch');
   ok('do-not-contact / dnc → refused', plan(ON, Object.assign({}, consented, { doNotContact: true })).reason === 'do_not_contact' && plan(ON, Object.assign({}, consented, { dnc: 'yes' })).reason === 'do_not_contact');
   ok('deleted lead → refused', plan(ON, Object.assign({}, consented, { deleted: true })).reason === 'deleted');
+  // 2026-11-15: archiving a lead can mean "do not contact".
+  ok('archived lead → refused', plan(ON, Object.assign({}, consented, { archived: true })).reason === 'archived');
   const night = Date.parse('2026-10-16T02:30:00Z'); // 10:30 PM Eastern
   ok('10:30 PM homeowner time → quiet hours', plan(ON, consented, Object.assign({}, fresh, { startedAtMs: night - 10 * MIN }), night).reason === 'quiet_hours');
   const ky8 = Date.parse('2026-10-15T12:30:00Z'); // 8:30 AM Eastern = 7:30 AM Central

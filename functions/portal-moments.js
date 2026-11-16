@@ -171,6 +171,8 @@ async function sendMoment(leadId, m, deps) {
     const snap = await db.doc('leads/' + leadId).get();
     const lead = snap.exists ? snap.data() || {} : null;
     if (!lead || lead.deleted === true) return { sent: false, reason: 'no_lead' };
+    // Archived (2026-11-15): archiving a lead can mean "do not contact".
+    if (lead.archived === true) return { sent: false, reason: 'archived' };
     const tenant = String(lead.companyId || lead.userId || '');
     if (!require('./zelle-contact').isNbdCompany(tenant)) return { sent: false, reason: 'not_nbd' };
     const email = String(lead.email || '').trim();

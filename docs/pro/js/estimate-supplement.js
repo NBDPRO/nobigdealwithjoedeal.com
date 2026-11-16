@@ -777,12 +777,29 @@ ${signBlock}
       console.warn('[Supplement] Firestore not available — cannot save');
       return null;
     }
+    // companyId (Finding 5, 2026-11-14): the office invoices a job by reading
+    // its supplements by companyId, and the /supplements create rule requires
+    // the caller's tenant here: the companyId claim, or a solo owner's uid.
+    // Read from the live ID token (customer.html may not have
+    // window._userClaims yet); fall back to the cached claims. With neither,
+    // guessing the uid would only be refused by the rules, so say so (L-B).
+    let claims = null;
+    try {
+      if (typeof window.auth.currentUser.getIdTokenResult === 'function') {
+        claims = (await window.auth.currentUser.getIdTokenResult()).claims || null;
+      }
+    } catch (_) { claims = null; }
+    claims = claims || window._userClaims || null;
+    if (!claims) {
+      throw new Error('Supplement not saved: your account could not be confirmed. Check your connection, reload and try again.');
+    }
     try {
       const ts = (typeof window.serverTimestamp === 'function')
         ? window.serverTimestamp()
         : new Date().toISOString(); // last-resort fallback
       const data = Object.assign({}, supplement, {
         userId: window.auth.currentUser.uid,
+        companyId: claims.companyId || window.auth.currentUser.uid,
         updatedAt: ts,
         // W159: stamp createdAt with server time too so the doc has
         // a sortable canonical timestamp (the supplement object's
@@ -811,28 +828,42 @@ ${signBlock}
             ? supplement.supplementTotal
             : ((supplement.addedItems || []).reduce((s, it) => s + (Number(it.lineTotal) || 0), 0)
               + (supplement.modifiedItems || []).reduce((s, m) => s + (Number(m.deltaLineTotal) || 0), 0));
-          await window.addDoc(
-            window.collection(window.db, `leads/${supplement.leadId}/activity`),
-            {
-              userId: window.auth.currentUser.uid,
-              source: 'rep', // F-05: client-written activity must declare source:'rep'
-              type: 'supplement_created',
-              label: 'Supplement #' + (supplement.version || 1)
-                + (totalDelta ? ' (+$' + Math.round(totalDelta).toLocaleString() + ')' : ''),
-              supplementId: ref.id,
-              parentEstimateId: supplement.parentEstimateId || null,
-              version: supplement.version || 1,
-              reason: (supplement.reason || '').slice(0, 280),
-              createdAt: ts,
-            }
-          );
+          const entry = {
+            userId: window.auth.currentUser.uid,
+            source: 'rep', // F-05: client-written activity must declare source:'rep'
+            type: 'supplement_created',
+            label: 'Supplement #' + (supplement.version || 1)
+              + (totalDelta ? ' (+$' + Math.round(totalDelta).toLocaleString() + ')' : ''),
+            supplementId: ref.id,
+            parentEstimateId: supplement.parentEstimateId || null,
+            version: supplement.version || 1,
+            reason: (supplement.reason || '').slice(0, 280),
+            createdAt: ts,
+          };
+          // The office's invoice cross-checks this entry to find supplements it
+          // cannot read (invoice-pipeline.js loadEstimateSupplements), so a lost
+          // entry is not cosmetic: retry once, then tell the rep (review
+          // 2026-11-14) instead of a console line only.
+          const col = window.collection(window.db, `leads/${supplement.leadId}/activity`);
+          try { await window.addDoc(col, entry); }
+          catch (firstErr) { await window.addDoc(col, entry); }
         } catch (actErr) {
           console.warn('[Supplement] activity log write failed:', actErr.message);
+          if (typeof window.showToast === 'function') {
+            window.showToast('Supplement saved, but it could not be added to the customer timeline. '
+              + 'Tell the office before they invoice this job.', 'warning');
+          }
         }
       }
       return ref.id;
     } catch (e) {
       console.error('[Supplement] Save failed:', e);
+      // The rules refused it (wrong estimate, company or status): say so
+      // instead of "check console" (L-B, 2026-11-14).
+      if (e && e.code === 'permission-denied') {
+        throw new Error('Supplement not saved: your account is not allowed to add a supplement to this estimate. '
+          + 'Ask the person who wrote the estimate, or your office.');
+      }
       return null;
     }
   }
@@ -872,11 +903,19 @@ ${signBlock}
    *   - 'partial'  → bills submission.approvedAmount (the adjuster's $ figure).
    *   - 'denied'   → not billable.
    *
-   * The /supplements rule already permits this: an owner update passes as long
-   * as userId + parentEstimateId are unchanged (which they are here).
+   * WHO (Joe, 2026-11-14): only the company OWNER SIDE (company_admin, a solo
+   * owner, the platform admin) records 'approved' / 'partial', and it must come
+   * with evidence: response.evidenceNote (the carrier's approval, not blank, at
+   * most 1000 characters) and/or response.evidencePath (a document under
+   * companies/{companyId}/supplement-evidence/). This writes the approval
+   * record the rules (/supplements supApproveOk) and the invoice
+   * (functions/supplement-invoice.js) require: approvedBy = the caller,
+   * approvedAt = server time, approvalEvidence. A rep records 'denied' only
+   * (the rules refuse a rep's approval). Without evidence an approval is not
+   * sent: returns false.
    *
    * @param {string} supplementId  Firestore doc id in `supplements`
-   * @param {Object} response  { status:'approved'|'partial'|'denied', approvedAmount?, notes? }
+   * @param {Object} response  { status:'approved'|'partial'|'denied', approvedAmount?, notes?, evidenceNote?, evidencePath? }
    * @returns {Promise<boolean>} true on success
    */
   async function updateResponse(supplementId, response) {
@@ -899,10 +938,21 @@ ${signBlock}
     const approvedAmount = (status === 'partial')
       ? (Number(response.approvedAmount) || 0)
       : null;
+    const approving = status === 'approved' || status === 'partial';
+    let evidence = null;
+    if (approving) {
+      const note = typeof response.evidenceNote === 'string' ? response.evidenceNote.trim() : '';
+      const pth = typeof response.evidencePath === 'string' ? response.evidencePath.trim() : '';
+      if (note.length > 1000) { console.warn('[Supplement] approval evidence note is over 1000 characters'); return false; }
+      if (!note && !pth) { console.warn('[Supplement] an approval needs the carrier evidence'); return false; }
+      evidence = {};
+      if (note) evidence.note = note;
+      if (pth) evidence.path = pth;
+    }
     try {
       await window.updateDoc(
         window.doc(window.db, 'supplements', supplementId),
-        {
+        Object.assign({
           status: status,
           'submission.responseStatus': status,
           'submission.approvedAmount': approvedAmount,
@@ -913,7 +963,12 @@ ${signBlock}
           'submission.itemDecisions': sanitizeItemDecisions(response.itemDecisions),
           'submission.respondedAt': ts,
           updatedAt: ts,
-        }
+        }, approving ? {
+          // The owner side's approval record (Joe, 2026-11-14).
+          approvedBy: window.auth && window.auth.currentUser ? window.auth.currentUser.uid : null,
+          approvedAt: ts,
+          approvalEvidence: evidence,
+        } : {})
       );
       return true;
     } catch (e) {

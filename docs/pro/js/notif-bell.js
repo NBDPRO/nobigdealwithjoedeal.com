@@ -318,7 +318,10 @@
         if (!due) return;
         if (due > eod) return;
         const isOverdue = due < sod;
-        const id = `task:${lead.id}:${t.id}`;
+        // The due date is part of the id (wave-1 daily #3, 2026-11-14): a
+        // dismissed "due today" alert used to stay dismissed for good on this
+        // device, so a task rescheduled after a dismiss never alerted again.
+        const id = `task:${lead.id}:${t.id}:${t.dueDate}`;
         items.push({
           id,
           // Wave 82: leadId is the gate for the W48/W68/W76 inline

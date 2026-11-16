@@ -61,7 +61,7 @@ async function run() {
   const solo   = env.authenticatedContext('solo1',  {}).firestore();
   const anon  = env.unauthenticatedContext().firestore();
 
-  const { setDoc, doc, getDoc, updateDoc, deleteDoc, deleteField, collectionGroup } = require('firebase/firestore');
+  const { setDoc, doc, getDoc, updateDoc, deleteDoc, deleteField, collectionGroup, runTransaction } = require('firebase/firestore');
 
   // ─── Seed ALL state in a single withSecurityRulesDisabled call.
   // Multiple calls conflict on Firestore settings in v10+ of the
@@ -1090,7 +1090,7 @@ async function run() {
   await assertFails(updateDoc(await fresh('r2'), paidPatch(payEntry({ recordedBy: undefined }))));                              // no recorder at all
   await assertSucceeds(updateDoc(await fresh('r3'), paidPatch(payEntry({ at: when }), { paidAt: when, lastPaymentAt: when })));
   await assertFails(updateDoc(doc(alice, 'invoices/r3'), { payments: [payEntry({ at: when, recordedBy: 'carol' })] }));       // same-size recorder rewrite
-  // (5) cents only, and the entry unroll covers every index (12 appends are guaranteed to fit the rules expression budget since the 2026-10-20 void rule; 16 entries are always refused)
+  // (5) cents only, and the entry unroll covers every index (12 appends are guaranteed to fit the rules expression budget since the 2026-10-20 void rule; a jump to 16 entries in one write is refused; pure appends go to 30, see "long payment lists" below)
   await assertFails(updateDoc(await fresh('c1'), paidPatch(payEntry({ amount: 5339.997 }), { amountPaid: 5339.997 })));
   await assertSucceeds(updateDoc(await fresh('k0'), { total: 100000 }));
   await assertSucceeds(updateDoc(doc(alice, 'invoices/k0'), { status: 'sent' }));
@@ -1303,6 +1303,188 @@ async function run() {
   const p15 = (await getDoc(doc(alice, 'invoices/pay15'))).data().payments;
   await assertSucceeds(updateDoc(doc(alice, 'invoices/pay15'), { payments: p15.map((e, i) => (i === 0 ? Object.assign({}, e, { proofStoragePath: 'payment-proofs/alice/pay15/1_a.jpg' }) : e)), status: 'overdue' }));
   await assertSucceeds(updateDoc(doc(admin, 'invoices/pay15'), { notes: 'admin on the largest list' }));   // the admin's money check fits the budget too
+  // the server's money keys (2026-11-15, Joe): refundedTotal, refundReopenedTotal, paidIntentIds, supersededPayments and
+  // reconciliations are written only by the server (Admin SDK); no browser sets, changes or drops them, like refunds and
+  // stripeCreditKeys. paidIntentIds is what stops a second credit for the same Stripe payment.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const list = Array.from({ length: 11 }, (_, i) => ({ amount: 10, at: new Date(Date.now() - (40 - i) * 3600000), method: 'cash', recordedBy: 'alice', paymentId: 'mk' + i }));
+    const srv = { refunds: [{ amount: 5 }], refundedTotal: 5, refundReopenedTotal: 5, stripeCreditKeys: ['ck1'], paidIntentIds: ['pi_x'], supersededPayments: [{ paymentId: 'old' }], reconciliations: [{ at: 1 }] };
+    await setDoc(doc(ctx.firestore(), 'invoices/mk-srv'), Object.assign({ createdBy: 'alice', companyId: 'co-a', status: 'partial', total: 1000, amountPaid: 110, balanceDue: 890, payments: list, createdAt: 1 }, srv));
+    // T2: the owner side's (company_admin's) 12th append on an invoice carrying every server key. (A BACKFILL invoice's owner-side
+    // append is over the budget from the 9th entry on main already, before this change: a separate follow-up.)
+    await setDoc(doc(ctx.firestore(), 'invoices/mk-bf'), Object.assign({ createdBy: 'carol', companyId: 'co-a', source: 'record_payment', status: 'partial', total: 1000, amountPaid: 110, balanceDue: 890, payments: list.map((e) => Object.assign({}, e, { recordedBy: 'carol' })), createdAt: 1 }, srv));
+    await setDoc(doc(ctx.firestore(), 'invoices/bf-null'), { createdBy: 'carol', companyId: 'co-a', source: 'backfill', backfilled: null, status: 'sent', total: 100, amountPaid: 0, balanceDue: 100, payments: [], createdAt: 1 });
+    await setDoc(doc(ctx.firestore(), 'invoices/mk-new'), { createdBy: 'alice', companyId: 'co-a', status: 'sent', total: 1000, amountPaid: 0, balanceDue: 1000, payments: [], createdAt: 1 });
+  });
+  const mkSrv = doc(alice, 'invoices/mk-srv');
+  const mkMgr = doc(env.authenticatedContext('mgr-mk', { role: 'manager', companyId: 'co-a' }).firestore(), 'invoices/mk-srv');
+  const mkOther = doc(env.authenticatedContext('mgr-mkb', { role: 'manager', companyId: 'co-b' }).firestore(), 'invoices/mk-srv');
+  const mkAdmin = doc(admin, 'invoices/mk-srv');
+  await assertSucceeds(updateDoc(mkMgr, { notes: 'manager can edit this invoice' }));            // control: the same-company manager reaches the key check
+  for (const [k, v] of [['refundedTotal', 0], ['refundReopenedTotal', 0], ['paidIntentIds', []], ['supersededPayments', []], ['reconciliations', []]]) {
+    await assertFails(updateDoc(mkSrv, { [k]: v }));                                                 // the maker cannot rewrite it
+    await assertFails(updateDoc(mkSrv, { [k]: deleteField() }));                                     // …nor drop it
+    await assertFails(updateDoc(mkMgr, { [k]: v }));                                                 // nor can same-company staff
+    await assertFails(updateDoc(doc(alice, 'invoices/mk-new'), { [k]: v }));                         // and none is added to an invoice without it
+    await assertFails(updateDoc(mkOther, { [k]: v }));                                               // tenant isolation (refused before the key check)
+    await assertFails(updateDoc(mkAdmin, { [k]: v }));                                               // nor the platform admin (invoiceMoneyUntouched)
+    await assertFails(updateDoc(mkAdmin, { [k]: deleteField() }));
+  }
+  await assertSucceeds(updateDoc(mkSrv, { notes: 'call first' }));                                   // an ordinary edit on that invoice still works
+  const mkList = (await getDoc(mkSrv)).data().payments; const mkWhen = new Date();
+  await assertSucceeds(updateDoc(mkSrv, { payments: mkList.concat([{ amount: 30, at: mkWhen, method: 'check', recordedBy: 'alice', paymentId: 'mk11' }]), amountPaid: 140, balanceDue: 860, lastPaymentAt: mkWhen }));   // Record Payment as the 12th entry on an invoice with all the server keys (expression budget)
+  const bfList = (await getDoc(doc(coAdmin, 'invoices/mk-bf'))).data().payments;
+  await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/mk-bf'), { payments: bfList.concat([{ amount: 30, at: mkWhen, method: 'check', recordedBy: 'carol', paymentId: 'mkb11' }]), amountPaid: 140, balanceDue: 860, lastPaymentAt: mkWhen }));   // T2: the owner side's 12th append, every server key present
+  // T1: the backfill markers are frozen by key (didNotChange), so a null value cannot be added, and a stored null cannot be dropped
+  for (const k of ['backfilled', 'backfillKey', 'paymentBackfill']) await assertFails(updateDoc(doc(alice, 'invoices/mk-new'), { [k]: null }));
+  await assertFails(updateDoc(doc(coAdmin, 'invoices/bf-null'), { backfilled: deleteField() }));
+  // long payment lists (2026-11-15): a pure append (the old list an unchanged prefix, plus one valid entry) is one list
+  // comparison, so it fits the expression budget for every writer up to the 14th entry (line 15 is the Reverse's: Joe, "Yes, keep 15"), backfill invoices included
+  // (before, a company_admin went over at the 10th payment on a backfill invoice, and a solo owner at the 9th on any).
+  {
+    const longBase = Date.now();   // one base time, so the old entries in an append are byte-for-byte the seeded ones
+    const longList = (n, by) => Array.from({ length: n }, (_, i) => ({ amount: 10, at: new Date(longBase - (80 - i) * 3600000), method: 'cash', recordedBy: by, paymentId: 'L' + i }));
+    const seedLong = async (id, n, by, extra) => { await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/' + id), Object.assign({ createdBy: by, companyId: by === 'solo1' ? 'solo1' : 'co-a', status: 'partial', total: 100000, amountPaid: 10 * n, balanceDue: 100000 - 10 * n, payments: longList(n, by), createdAt: 1 }, extra || {})); }); };
+    const appendOne = (db, id, n, by, over) => { const at = new Date(); return updateDoc(doc(db, 'invoices/' + id), Object.assign({ payments: longList(n, by).concat([{ amount: 30, at, method: 'check', recordedBy: by, paymentId: 'L' + n }]), amountPaid: 10 * n + 30, balanceDue: 100000 - 10 * n - 30, lastPaymentAt: at }, over || {})); };
+    const bfMarks = { source: 'backfill', backfilled: true, backfillKey: 'kL' };
+    for (const n of [9, 10, 13]) { await seedLong('long-bf-' + n, n, 'carol', bfMarks); await assertSucceeds(appendOne(coAdmin, 'long-bf-' + n, n, 'carol')); }   // the 10th, 11th, 20th and 30th payment on a backfill invoice
+    await seedLong('long-rep', 13, 'alice'); await assertSucceeds(appendOne(alice, 'long-rep', 13, 'alice'));      // a rep, the 14th (last) entry
+    await seedLong('long-solo', 8, 'solo1'); await assertSucceeds(appendOne(solo, 'long-solo', 8, 'solo1'));      // a solo owner, 9th entry
+    await seedLong('long-solo29', 13, 'solo1', bfMarks); await assertSucceeds(appendOne(solo, 'long-solo29', 13, 'solo1'));   // a solo owner, the 14th, backfill
+    await seedLong('long-31', 14, 'alice'); await assertFails(appendOne(alice, 'long-31', 14, 'alice'));           // a browser's 15th is refused: that line is the Reverse's
+    await seedLong('long-amt', 10, 'alice'); await assertFails(appendOne(alice, 'long-amt', 10, 'alice', { amountPaid: 999999 }));                                  // the fast path still checks the money
+    await seedLong('long-edit', 12, 'alice');
+    const edited = longList(12, 'alice').map((e, j) => (j === 3 ? Object.assign({}, e, { amount: 11 }) : e));
+    const atE = new Date();
+    await assertFails(updateDoc(doc(alice, 'invoices/long-edit'), { payments: edited.concat([{ amount: 30, at: atE, method: 'check', recordedBy: 'alice', paymentId: 'L12' }]), amountPaid: 151, balanceDue: 99849, lastPaymentAt: atE }));   // an append that rewrites an old entry is not a pure append
+    await assertFails(updateDoc(doc(alice, 'invoices/long-bf-13'), { notes: 'x' }));
+    // a FULL 15-line list (the 15th line is the server's: here a reversal): same-length edits still work, money does not move
+    const full15 = (by) => longList(14, by).concat([{ amount: -10, at: new Date(longBase - 60 * 3600000), method: 'cash', recordedBy: by, paymentId: 'R14', reversal: true, reverses: 'L13' }]);
+    await seedLong('full15-rep', 0, 'alice', { payments: full15('alice'), amountPaid: 130, balanceDue: 99870 });
+    const proofAt = (list, idxs) => list.map((e, j) => (idxs.includes(j) ? Object.assign({}, e, { proofStoragePath: 'payment-proofs/x/1_a.jpg' }) : e));
+    // (a solo or platform-admin owner's same-length edit on a long list is over the rules expression budget on main today too:
+    //  a follow-up of its own; the rep's path below fits)
+    await assertSucceeds(updateDoc(doc(alice, 'invoices/full15-rep'), { payments: proofAt(full15('alice'), [0]) }));                         // a rep: a proof on one entry of a full list (one per write, as the app sends)
+    await assertFails(updateDoc(doc(alice, 'invoices/full15-rep'), { payments: full15('alice').map((e, j) => (j === 14 ? Object.assign({}, e, { amount: -1 }) : e)) }));   // the reversal's amount is frozen
+    await assertFails(updateDoc(doc(alice, 'invoices/full15-rep'), { payments: full15('alice').slice(0, 14), amountPaid: 140 }));          // no browser removes a line
+    // Same-length edits within the budget (2026-11-16, Joe: "Yes, fix it"): a proof photo, deposited-to or a receipt marked
+    // sent on ONE entry. On main these went over the expression budget for a solo or platform-admin owner (a solo owner on
+    // a backfill invoice from 8 lines), so they were refused and receipt-sent failed silently.
+    const joeE = env.authenticatedContext('joeown', { role: 'admin', companyId: 'joeown' }).firestore();
+    const edits = [['proof', (e) => Object.assign({}, e, { proofStoragePath: 'payment-proofs/x/1_a.jpg' })], ['deposited-to', (e) => Object.assign({}, e, { depositedTo: 'chase_business' })],
+      ['receipt sent', (e) => Object.assign({}, e, { receipt: { status: 'sent', sentAt: new Date(longBase), via: 'email' } })]];
+    const oneEdit = (list, j, fn) => list.map((e, k) => (k === j ? fn(e) : e));
+    for (const [who, db, by, n, extra, cid] of [['solo, backfill, 8', solo, 'solo1', 8, bfMarks], ['solo, backfill, 14', solo, 'solo1', 14, bfMarks],
+      ['admin owner, 14', joeE, 'joeown', 14, {}, 'joeown'], ['admin owner, 15 (line 15 a reversal)', joeE, 'joeown', 15, {}, 'joeown']]) {
+      for (const [what, fn] of edits) {
+        const id = 'se-' + by + '-' + n + '-' + what.replace(/\W/g, '');
+        const L = n === 15 ? full15(by) : longList(n, by);
+        await seedLong(id, 0, by, Object.assign({ payments: L, amountPaid: n === 15 ? 130 : 10 * n, balanceDue: 99000 }, extra, cid ? { companyId: cid } : {}));
+        await assertSucceeds(updateDoc(doc(db, 'invoices/' + id), { payments: oneEdit(L, n - 2, fn) }));   // e.g. solo, backfill, 8: a proof photo
+      }
+    }
+    // refused, as before: the money or date of an entry in the same edit, a line dropped
+    await seedLong('se-x', 0, 'solo1', Object.assign({ payments: longList(14, 'solo1'), amountPaid: 140, balanceDue: 99000 }, bfMarks));
+    const Lx = longList(14, 'solo1');
+    await assertFails(updateDoc(doc(solo, 'invoices/se-x'), { payments: oneEdit(Lx, 5, (e) => Object.assign({}, e, { proofStoragePath: 'payment-proofs/x/1_a.jpg', amount: 11 })) }));   // a proof AND a new amount
+    await assertFails(updateDoc(doc(solo, 'invoices/se-x'), { payments: oneEdit(Lx, 12, (e) => Object.assign({}, e, { at: new Date(longBase - 200 * 3600000) })) }));                 // a new date
+    await assertFails(updateDoc(doc(solo, 'invoices/se-x'), { payments: oneEdit(Lx, 0, (e) => Object.assign({}, e, { method: 'zelle' })) }));                                       // a new method
+    await assertFails(updateDoc(doc(solo, 'invoices/se-x'), { payments: Lx.slice(1), amountPaid: 130 }));                                                                         // a line dropped
+    await seedLong('se-x12', 0, 'solo1', Object.assign({ payments: longList(12, 'solo1'), amountPaid: 120, balanceDue: 99000 }, bfMarks));
+    await assertFails(updateDoc(doc(solo, 'invoices/se-x12'), { payments: oneEdit(longList(12, 'solo1'), 11, (e) => Object.assign({}, e, { amount: 11 })) }));   // the short last chunk: a new amount on the last line
+    // allowed today and still allowed (the rule checks the money fields of every entry, not who edits which entry or how many):
+    // (the app edits one entry per write; two entries five or more apart cost two chunks and can still go over the budget for this,
+    //  the costliest caller, as every same-length edit did before)
+    await assertSucceeds(updateDoc(doc(solo, 'invoices/se-x'), { payments: Lx.map((e, k) => (k === 1 || k === 3 ? Object.assign({}, e, { depositedTo: 'chase_business' }) : e)) }));   // two entries at once                                 // a rep still cannot edit a backfill invoice
+  }
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/mk-new'), { status: 'void', voidNote: 'entered twice' }));   // void without money still works
+  await assertSucceeds(updateDoc(doc(admin, 'invoices/pay15'), { notes: 'admin on the largest list' }));
+  // Record payment on the LIVE shape (2026-11-15 hotfix): the Record payment sheet makes a draft invoice, then markPaid
+  // writes amountPaid / depositPaid / balanceDue / status / paidAt / lastPaymentAt / payments / updatedAt in a transaction.
+  // After Money B the invoice update rule went over the 1000-expression budget on that write for a platform-admin owner
+  // and a solo owner (live: Joe could not record a payment). A pure append is now one list comparison.
+  {
+    const rpOwner = (uid, claims) => env.authenticatedContext(uid, claims).firestore();
+    const joeOwn = rpOwner('joeown', { role: 'admin', companyId: 'joeown' });
+    const coOwn = rpOwner('coown', { role: 'company_admin', companyId: 'coown' });
+    const rpNow = new Date();
+    const rpInv = (uid, extra) => Object.assign({ leadId: null, estimateId: null, customerId: null, customerName: 'synthetic', customerEmail: '', customerPhone: '', status: 'draft',
+      items: [{ description: 'Roofing work - job total', quantity: 1, unitPrice: 40, total: 40 }], subtotal: 40, tax: 0, taxRate: 0, total: 40, supplementTotal: 0, depositAmount: 0, depositPaid: false,
+      amountPaid: 0, balanceDue: 40, stripeInvoiceId: null, stripePaymentLink: null, dueDate: rpNow, sentAt: null, paidAt: null, viewedAt: null, notes: '', depositTerms: '', depositRepNote: '',
+      kyInsuranceHold: false, emergencyServices: false, terms: 'Net 7.', createdAt: rpNow, updatedAt: rpNow, createdBy: uid, companyId: uid, jobId: null, source: 'record_payment',
+      totalConfirmedBy: uid, totalConfirmedAt: rpNow }, extra || {});
+    const rpEntry = (uid, amount, at, i) => ({ amount, method: 'cash', at, recordedBy: uid, recordedAt: at, paymentId: 'mp_' + uid + (i || 0), payer: 'homeowner', receipt: { status: 'draft' } });
+    const rpPay = (db, id, uid, amount) => { const at = new Date(); return runTransaction(db, async (tx) => { await tx.get(doc(db, 'invoices/' + id)); tx.update(doc(db, 'invoices/' + id), { amountPaid: amount, depositPaid: true, balanceDue: Math.max(0, 40 - amount), status: amount >= 40 ? 'paid' : 'partial', paidAt: amount >= 40 ? at : null, lastPaymentAt: at, payments: [rpEntry(uid, amount, at)], updatedAt: at }); }); };
+    await env.withSecurityRulesDisabled(async (ctx) => { const d = ctx.firestore();
+      for (const [id, uid] of [['rp-joe40', 'joeown'], ['rp-joe400', 'joeown'], ['rp-co', 'coown'], ['rp-solo', 'solo1'], ['rp-joe-void', 'joeown'], ['rp-joe-money', 'joeown']]) await setDoc(doc(d, 'invoices/' + id), rpInv(uid));
+      const fourteen = Array.from({ length: 13 }, (_, i) => rpEntry('joeown', 1, new Date(Date.now() - (30 - i) * 3600000), i + 1));
+      await setDoc(doc(d, 'invoices/rp-joe15'), rpInv('joeown', { total: 100, balanceDue: 87, amountPaid: 13, status: 'partial', payments: fourteen }));
+      for (const [id, uid] of [['rp-x-amt', 'joeown'], ['rp-x-rec', 'solo1'], ['rp-x-ok', 'joeown']]) await setDoc(doc(d, 'invoices/' + id), rpInv(uid));
+      await setDoc(doc(d, 'invoices/rp-x-edit'), rpInv('joeown', { total: 100, balanceDue: 90, amountPaid: 10, status: 'partial', payments: [rpEntry('joeown', 10, new Date(Date.now() - 7200000), 8)] }));
+      await setDoc(doc(d, 'invoices/rp-x-lock'), rpInv('joeown', { status: 'sending', sendingPriorStatus: 'draft', sendingAt: new Date() }));
+      await setDoc(doc(d, 'invoices/rp-joe-proof'), rpInv('joeown', { total: 100, balanceDue: 90, amountPaid: 10, status: 'partial', payments: [rpEntry('joeown', 10, new Date(Date.now() - 3600000), 7)] }));
+    });
+    await assertSucceeds(rpPay(joeOwn, 'rp-joe40', 'joeown', 40));        // a platform-admin owner records the first payment on a fresh invoice (the live case)
+    await assertSucceeds(rpPay(joeOwn, 'rp-joe400', 'joeown', 400));      // …and an overpayment, after the sheet asks
+    await assertSucceeds(rpPay(coOwn, 'rp-co', 'coown', 40));             // a company_admin owner still records
+    await assertSucceeds(rpPay(solo, 'rp-solo', 'solo1', 40));            // a solo owner (no claims) records
+    const at15 = new Date(); const l13 = (await getDoc(doc(joeOwn, 'invoices/rp-joe15'))).data().payments;
+    await assertSucceeds(updateDoc(doc(joeOwn, 'invoices/rp-joe15'), { payments: l13.concat([rpEntry('joeown', 1, at15, 14)]), amountPaid: 14, balanceDue: 86, lastPaymentAt: at15 }));   // the 14th payment: the last a browser records (line 15 is the Reverse's)
+    const at16 = new Date(); const l15 = (await getDoc(doc(joeOwn, 'invoices/rp-joe15'))).data().payments;
+    await assertFails(updateDoc(doc(joeOwn, 'invoices/rp-joe15'), { payments: l15.concat([rpEntry('joeown', 1, at16, 15)]), amountPaid: 15, balanceDue: 85, lastPaymentAt: at16 }));   // a browser's 15th is refused: that line is left for Reverse
+    const atX = new Date();
+    await assertFails(updateDoc(doc(joeOwn, 'invoices/rp-x-amt'), { payments: [rpEntry('joeown', 40, atX, 1)], amountPaid: 41, balanceDue: 0, status: 'paid', paidAt: atX, lastPaymentAt: atX }));   // amountPaid off by $1 on the fast path
+    await assertFails(updateDoc(doc(solo, 'invoices/rp-x-rec'), { payments: [rpEntry('joeown', 40, atX, 1)], amountPaid: 40, balanceDue: 0, status: 'paid', paidAt: atX, lastPaymentAt: atX }));   // recorded by someone else
+    await assertSucceeds(updateDoc(doc(joeOwn, 'invoices/rp-x-ok'), { payments: [rpEntry('joeown', 40, atX, 1)], amountPaid: 40, balanceDue: 0, status: 'paid', paidAt: atX, lastPaymentAt: atX }));   // control for the two above
+    const le = (await getDoc(doc(joeOwn, 'invoices/rp-x-edit'))).data().payments;
+    await assertFails(updateDoc(doc(joeOwn, 'invoices/rp-x-edit'), { payments: [Object.assign({}, le[0], { amount: 11 }), rpEntry('joeown', 40, atX, 2)], amountPaid: 51, balanceDue: 49, lastPaymentAt: atX }));   // an append that rewrites an old entry
+    await assertSucceeds(updateDoc(doc(joeOwn, 'invoices/rp-x-edit'), { payments: le.concat([rpEntry('joeown', 40, atX, 2)]), amountPaid: 50, balanceDue: 50, lastPaymentAt: atX }));   // control: the same append with the old entry untouched
+    await assertFails(updateDoc(doc(joeOwn, 'invoices/rp-x-lock'), { payments: [rpEntry('joeown', 40, atX, 1)], amountPaid: 40, balanceDue: 0, lastPaymentAt: atX }));   // the send lock freezes the list
+    await assertSucceeds(updateDoc(doc(joeOwn, 'invoices/rp-joe-void'), { deleted: true, voidNote: 'entered twice' }));   // the owner voids an invoice with no money
+    const lp = (await getDoc(doc(joeOwn, 'invoices/rp-joe-proof'))).data().payments;
+    await assertSucceeds(updateDoc(doc(joeOwn, 'invoices/rp-joe-proof'), { payments: [Object.assign({}, lp[0], { proofStoragePath: 'payment-proofs/joeown/rp-joe-proof/1_a.jpg' })] }));   // a proof photo on a payment
+    await assertFails(updateDoc(doc(admin, 'invoices/rp-joe-money'), { amountPaid: 40, balanceDue: 0 }));   // the platform admin still cannot rewrite money without a payment entry
+    await assertFails(updateDoc(doc(joeOwn, 'invoices/rp-joe-money'), { amountPaid: 40, balanceDue: 0 }));  // nor can the admin who made it
+
+    // BUDGET GUARD (2026-11-15 hotfix). The invoice update rule is evaluated against Firestore's 1000-expression limit;
+    // going over refuses the write with no rule at fault, which is how Record payment broke on the live site. This loads
+    // the same rules with 100 dummy keys added to the update rule's didNotChange list (one expression each) and replays
+    // the costliest everyday writes. If a rules change eats into that margin, this fails here instead of in production:
+    // make the new check cheaper, do not lower the floor.
+    {
+      const BUDGET_FLOOR = 100;
+      const rulesText = fs.readFileSync(RULES_OVERRIDE || path.resolve(__dirname, '../firestore.rules'), 'utf8');
+      const marker = "didNotChange(['createdBy', 'companyId', 'estimateId', 'createdAt', 'jobId'";
+      if (rulesText.split(marker).length !== 2) throw new Error('budget guard: the invoice update rule\'s didNotChange list moved; update the marker');
+      const padded = rulesText.replace(marker, marker + Array.from({ length: BUDGET_FLOOR }, (_, i) => ", 'budgetPad" + i + "'").join(''));
+      const benv = await initializeTestEnvironment({ projectId: PROJECT_ID + '-budget', firestore: { rules: padded, host: '127.0.0.1', port: Number(String(process.env.FIRESTORE_EMULATOR_HOST || '').split(':')[1]) || 8080 } });
+      const bJoe = benv.authenticatedContext('joeown', { role: 'admin', companyId: 'joeown' }).firestore();
+      const bSolo = benv.authenticatedContext('solo1', {}).firestore();
+      const fourteenB = (uid) => Array.from({ length: 13 }, (_, i) => rpEntry(uid, 1, new Date(Date.now() - (30 - i) * 3600000), i + 1));
+      const bf = { source: 'backfill', backfilled: true, backfillKey: 'kb' };
+      const revd = (uid) => [rpEntry(uid, 40, new Date(Date.now() - 7200000), 1), Object.assign(rpEntry(uid, -40, new Date(Date.now() - 7200000), 2), { reversal: true, reverses: 'mp_' + uid + '1' })];
+      await benv.withSecurityRulesDisabled(async (ctx) => { const d = ctx.firestore();
+        await setDoc(doc(d, 'invoices/b-live'), rpInv('joeown'));
+        await setDoc(doc(d, 'invoices/b-solo-bf'), rpInv('solo1', bf));
+        await setDoc(doc(d, 'invoices/b-15'), rpInv('solo1', Object.assign({ total: 100, balanceDue: 87, amountPaid: 13, status: 'partial', payments: fourteenB('solo1') }, bf)));
+        await setDoc(doc(d, 'invoices/b-rev'), rpInv('joeown', { status: 'partial', amountPaid: 0, balanceDue: 40, payments: revd('joeown') }));
+      });
+      const bAt = new Date();
+      const paidIn = (uid, prior, paid) => ({ payments: prior.concat([rpEntry(uid, 40, bAt, 99)]), amountPaid: paid + 40, balanceDue: Math.max(0, 40 - paid - 40), status: 'paid', paidAt: bAt, lastPaymentAt: bAt });
+      await assertSucceeds(updateDoc(doc(bJoe, 'invoices/b-live'), paidIn('joeown', [], 0)));                      // the live case: admin owner, first payment, paid in full
+      await assertSucceeds(updateDoc(doc(bSolo, 'invoices/b-solo-bf'), paidIn('solo1', [], 0)));                   // solo owner, backfill invoice, first payment
+      const b15 = (await getDoc(doc(bSolo, 'invoices/b-15'))).data().payments;
+      await assertSucceeds(updateDoc(doc(bSolo, 'invoices/b-15'), { payments: b15.concat([rpEntry('solo1', 1, bAt, 14)]), amountPaid: 14, balanceDue: 86, lastPaymentAt: bAt }));   // solo owner, backfill, the 14th (last) payment
+      const bRev = (await getDoc(doc(bJoe, 'invoices/b-rev'))).data().payments;
+      await assertSucceeds(updateDoc(doc(bJoe, 'invoices/b-rev'), paidIn('joeown', bRev, 0)));                     // re-record after a Reverse
+      // the costliest same-length edit (2026-11-16): a solo owner's proof photo on line 14 of a 15-line backfill invoice
+      const b15full = Array.from({ length: 14 }, (_, i) => rpEntry('solo1', 1, new Date(Date.now() - (40 - i) * 3600000), 40 + i)).concat([Object.assign(rpEntry('solo1', -1, new Date(Date.now() - 3600000), 99), { reversal: true, reverses: 'mp_solo153' })]);
+      await benv.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/b-edit'), rpInv('solo1', Object.assign({ total: 100, balanceDue: 87, amountPaid: 13, status: 'partial', payments: b15full }, bf))); });
+      const bE = (await getDoc(doc(bSolo, 'invoices/b-edit'))).data().payments;
+      await assertSucceeds(updateDoc(doc(bSolo, 'invoices/b-edit'), { payments: bE.map((e, k) => (k === 13 ? Object.assign({}, e, { proofStoragePath: 'payment-proofs/solo1/b-edit/1_a.jpg' }) : e)) }));
+      await benv.cleanup();
+    }
+  }   // the admin's money check fits the budget too
   // a legacy status that the send lock holds is restored as it was; a legacy 'Paid' is never restored
   await env.withSecurityRulesDisabled(async (ctx) => {
     const d = ctx.firestore();
@@ -2068,14 +2250,17 @@ async function run() {
   await assertFails(setDoc(doc(alice,  'leads/leadTeamA/portal_messages/pm2'), { from: 'rep', text: 'forged' }));
   await assertFails(updateDoc(doc(alice, 'leads/leadTeamA/portal_messages/pm1'), { text: 'edited' }));
   await assertFails(setDoc(doc(admin,  'leads/leadTeamA/portal_messages/pm3'), { from: 'rep', text: 'even admin' }));
-  // supplements: owner-only read/delete (+ platform admin) — CURRENT contract,
-  // company staff are NOT granted; create must carry the caller's uid; update
+  // supplements: a LEGACY supplement (no companyId, like sup-a) stays owner-only
+  // read/delete (+ platform admin): company staff are NOT granted on it (the
+  // same-company staff read of a companyId-stamped one, 2026-11-14, is in
+  // firestore-rules.supplements-company.test.js); create must carry the
+  // caller's uid and their tenant's companyId; update
   // may neither re-own nor re-point parentEstimateId; cross-tenant denied.
   await assertSucceeds(getDoc(doc(alice,   'supplements/sup-a')));
   await assertSucceeds(getDoc(doc(admin,   'supplements/sup-a')));
   await assertFails(getDoc(doc(bob,        'supplements/sup-a')));
   await assertFails(getDoc(doc(coAdmin,    'supplements/sup-a')));
-  await assertSucceeds(setDoc(doc(alice, 'supplements/sup-new'),   { userId: 'alice', leadId: 'leadTeamA', parentEstimateId: 'est-ok', version: 2, status: 'draft' }));
+  await assertSucceeds(setDoc(doc(alice, 'supplements/sup-new'),   { userId: 'alice', companyId: 'co-a', leadId: 'leadTeamA', parentEstimateId: 'est-ok', version: 2, status: 'draft' }));
   await assertFails(setDoc(doc(alice,    'supplements/sup-forge'), { userId: 'bob',   leadId: 'leadB',     parentEstimateId: 'est-x',  version: 1 }));
   await assertFails(setDoc(doc(anon,     'supplements/sup-anon'),  { userId: 'alice', parentEstimateId: 'est-ok' }));
   await assertSucceeds(updateDoc(doc(alice, 'supplements/sup-a'), { status: 'sent' }));
@@ -2083,7 +2268,10 @@ async function run() {
   await assertFails(updateDoc(doc(alice,    'supplements/sup-a'), { userId: 'bob' }));
   await assertFails(updateDoc(doc(bob,      'supplements/sup-a'), { status: 'void' }));
   await assertFails(deleteDoc(doc(bob,      'supplements/sup-a')));
-  await assertSucceeds(deleteDoc(doc(alice, 'supplements/sup-new')));
+  // Soft delete only since 2026-11-14 (second security pass M-B): the owner
+  // flags it deleted; a hard delete is the platform admin's.
+  await assertFails(deleteDoc(doc(alice, 'supplements/sup-new')));
+  await assertSucceeds(updateDoc(doc(alice, 'supplements/sup-new'), { deleted: true }));
   // connectAccounts: same-tenant read (a rep must resolve the collect-online
   // capability), solo uid==companyId read, cross-tenant + anon denied, and
   // NO client write of any kind — flipping chargesEnabled from devtools would
@@ -2340,7 +2528,7 @@ async function run() {
   // payload for an update that is otherwise legal for the owner.
   const top = {
     estimates:         { mk: (u) => ({ userId: u, companyId: CO, total: 100 }),                  upd: { note: 'x' } },
-    supplements:       { mk: (u) => ({ userId: u, parentEstimateId: 'e1', version: 1 }),          upd: { note: 'x' } },
+    supplements:       { mk: (u) => ({ userId: u, companyId: CO, parentEstimateId: 'e34-' + u, version: 1, status: 'draft' }), upd: { note: 'x' }, noDelete: true }, // soft delete only (2026-11-14)
     expenses:          { mk: (u) => expDoc(u, CO, null, 'Lowes'),                                 upd: { amountCents: 500 } },
     recurringExpenses: { mk: (u) => ({ userId: u, companyId: CO, amountCents: 5000, costType: 'overhead' }), upd: { amountCents: 6000 } },
     suppliers:         { mk: (u) => ({ userId: u, companyId: CO, displayName: 'Supply' }),        upd: { displayName: 'Supply 2' } },
@@ -2380,6 +2568,9 @@ async function run() {
     const db = ctx.firestore();
     for (const u of ['vx', 'rx']) {
       await setDoc(doc(db, 'leads/' + LEAD[u]), { userId: u, companyId: CO, name: u + ' lead' });
+      // A supplement names a parent estimate the writer may bill (2026-11-14); kept
+      // apart from estimates/s34-<u>, which this matrix deletes first.
+      await setDoc(doc(db, 'estimates/e34-' + u), { userId: u, companyId: CO });
       for (const [c, d] of Object.entries(top)) await setDoc(doc(db, c + '/s34-' + u), d.mk(u));
       for (const [s, d] of Object.entries(sub)) await setDoc(doc(db, 'leads/' + LEAD[u] + '/' + s + '/s34'), d.mk());
       await setDoc(doc(db, 'leads/' + LEAD[u] + '/ai_drafts/s34'), { userId: u, leadId: LEAD[u], status: 'pending', draftText: 'hi' });

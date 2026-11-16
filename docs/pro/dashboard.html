@@ -78,8 +78,8 @@
 <link rel="modulepreload" href="js/crm-stages.js">
 <link rel="modulepreload" href="js/estimate-lead-sync.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
-<link rel="preload" href="js/crm-portal-bridge.js?v=9" as="script">
-<link rel="preload" href="js/crm.js?v=36" as="script">
+<link rel="preload" href="js/crm-portal-bridge.js?v=11" as="script">
+<link rel="preload" href="js/crm.js?v=37" as="script">
 <link rel="preload" href="js/maps.js?v=12" as="script">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -143,7 +143,7 @@
      the first tap/key, a non-Home goTo(), a ?query link, or idle after load. -->
 <script defer src="js/late-css.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=224"></script>
+<script src="js/script-loader.js?v=226"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -162,7 +162,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=46"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=48"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -2090,6 +2090,7 @@
               🗑 <span class="crm-hdr-btn-label">Deleted leads</span>
               <span class="trash-count-badge" id="trashCountBadge"></span>
             </button>
+            <button class="btn btn-ghost crm-hdr-btn" data-action="call" data-fn="openArchivedDrawer" title="Archived leads">📦 <span class="crm-hdr-btn-label">Archived leads</span></button>
             <button class="btn btn-ghost crm-hdr-btn" data-action="call" data-fn="openDupReview" title="Find likely duplicate leads">🧬 <span class="crm-hdr-btn-label">Find duplicates</span></button>
             <button class="btn btn-ghost crm-hdr-btn" id="loadSampleDataBtn" data-action="call" data-fn="loadSampleData" style="display:none;" title="Add 5 sample leads">
               🎲 <span class="crm-hdr-btn-label">Sample data</span>
@@ -2260,6 +2261,20 @@
       <button class="deleted-drawer-close" data-action="closeModal" data-target="deletedDrawer">✕</button>
     </div>
     <div class="deleted-drawer-body" id="deletedDrawerBody">
+      <div class="deleted-empty">Loading...</div>
+    </div>
+  </div>
+
+  <!-- ARCHIVED LEADS DRAWER (2026-11-14): same layout as the Deleted bin; crm-portal-bridge.js renderArchivedDrawer fills it. -->
+  <div class="deleted-drawer" id="archivedDrawer">
+    <div class="deleted-drawer-hdr">
+      <div>
+        <div class="deleted-drawer-title">📦 Archived Leads</div>
+        <div class="deleted-card-meta">Hidden from the board, map and search. Un-archive to bring one back.</div>
+      </div>
+      <button class="deleted-drawer-close" data-action="closeModal" data-target="archivedDrawer">✕</button>
+    </div>
+    <div class="deleted-drawer-body" id="archivedDrawerBody">
       <div class="deleted-empty">Loading...</div>
     </div>
   </div>
@@ -6350,7 +6365,7 @@
 <!-- Canonical customer URL builder (window.NBDUrl). Loaded BEFORE
      dashboard-actions.js because that file calls NBDUrl.customer(). -->
 <script defer src="js/nbd-url.js?v=1"></script>
-<script defer src="js/dashboard-state.js?v=12"></script>
+<script defer src="js/dashboard-state.js?v=13"></script>
 <!-- uid → teammate display name for the leaderboards (window.NBDTeamNames). -->
 <script defer src="js/team-names.js?v=2"></script>
 <script defer src="js/dashboard-api.js?v=10"></script>
@@ -6388,7 +6403,7 @@
 <script defer src="js/estimate-preview.js?v=3"></script>
 <script defer src="js/dashboard-widgets.js?v=12"></script>
 <script defer src="js/dashboard-ui.js?v=14"></script>
-<script defer src="js/dashboard-actions.js?v=20"></script>
+<script defer src="js/dashboard-actions.js?v=22"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
 
 <!-- DOC VIEWER MODAL -->
@@ -7312,7 +7327,7 @@
      companyId/serverTimestamp stamping across every write to /leads,
      /photos, /estimates. New write sites should prefer NBDRepos;
      existing call sites migrate at their own pace. -->
-<script defer src="js/repos.js?v=3"></script>
+<script defer src="js/repos.js?v=4"></script>
 <!-- Step 4b (2026-05-16): crm.js (175KB) was split into four sibling
      modules + a thin shim. Load order is locked:
        leads → pipeline → snooze → portal-bridge → crm (shim)
@@ -7345,17 +7360,17 @@
      No-ops until window.__NBD_VAPID_KEY is set (dashboard-fcm-config.js). -->
 <script defer src="js/push-registration.js?v=7"></script>
 <script defer src="js/push-actions.js?v=3"></script>
-<script defer src="js/crm-portal-bridge.js?v=9"></script>
+<script defer src="js/crm-portal-bridge.js?v=11"></script>
 <script defer src="js/triage-deck.js?v=2"></script>
 <script defer src="js/followup-deck.js?v=2"></script>
 <!-- "Sort my customers" (js/sort-customers.js) is a ScriptLoader bundle since 2026-11-08: crm-pipeline.js loads it
      on the first Pipeline render, when the banner's mount (inside tpl-view-crm) exists. -->
-<script defer src="js/crm.js?v=36"></script>
+<script defer src="js/crm.js?v=37"></script>
 <script defer src="js/crm-list-view.js?v=9"></script>
-<script defer src="js/tasks.js?v=11"></script>
+<script defer src="js/tasks.js?v=12"></script>
 <script defer src="js/storm-time.js?v=1"></script>
 <script defer src="js/dol-fill.js?v=3"></script>
-<script defer src="js/notif-bell.js?v=8"></script>
+<script defer src="js/notif-bell.js?v=9"></script>
 <script defer src="js/agent-inbox.js?v=9"></script>
 <!-- Messaging Control Center nav reveal (2026-10-19): flag messagingControlCenter, owner/admin only. -->
 <script defer src="js/messaging-nav.js?v=1"></script>
@@ -7433,7 +7448,7 @@
 <script defer src="js/keyboard-viewport.js?v=1"></script>
 <!-- My Skin (my-skin-logic.js + my-skin.js) is the lazy myskin bundle since 2026-11-08: my-skin-boot.js loads it for an account with a skin, or when Settings opens. -->
 <script defer src="js/my-skin-boot.js?v=1"></script>
-<script defer src="js/layout-system.js?v=8"></script>
+<script defer src="js/layout-system.js?v=9"></script>
 <script defer src="js/pixel-mode.js?v=4"></script>
 <script defer src="js/ui.js?v=11"></script>
 <script defer src="js/demo.js?v=5"></script>
@@ -7452,7 +7467,7 @@
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
 <script defer src="js/photo-ai.js?v=4"></script>
-<script defer src="js/invoice-pipeline.js?v=41"></script>
+<script defer src="js/invoice-pipeline.js?v=43"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js
@@ -7483,7 +7498,7 @@
 <script defer src="js/d2d-storm-layer.js?v=3"></script>
 <script defer src="js/schedule-planner-logic.js?v=3"></script>
 <script defer src="js/production-logic.js?v=1"></script>
-<script defer src="js/production.js?v=3"></script>
+<script defer src="js/production.js?v=4"></script>
 <!-- Plan Jobs (js/schedule-planner.js) loads on the first Schedule visit since 2026-11-08: production.js registers
      the ScriptLoader bundle and view "schedule", so goTo('schedule') fetches it. -->
 <!-- Voicemail pipeline — record OR upload a voicemail, route through
@@ -7586,7 +7601,7 @@
      boot only for a first-run rep or how-to's Restart Tour, else by Settings → Help → Start Tour. -->
 <!-- (theme-overlays/sounds/achievements/gx ride the lazy `theme` bundle — see
      the note at the theme-engine slot above.) -->
-<script src="js/dashboard-sw-bootstrap.js?v=2"></script>
+<script src="js/dashboard-sw-bootstrap.js?v=3"></script>
 <script defer src="js/mobile-nav-customizer.js?v=7"></script>
 <script defer src="js/connection-status-btn.js?v=5"></script>
 <!-- admin-manager must load eagerly — it gates the #nav-admin visibility
@@ -7608,11 +7623,11 @@
 <!-- W128: NBD Whisper — dictate-anywhere with AI cleanup -->
 <script defer src="js/nbd-whisper.js?v=4"></script>
 <!-- W130: NBD Quick Capture — voice scratchpad with summarize + save-to-lead routing -->
-<script defer src="js/quick-capture.js?v=6"></script>
+<script defer src="js/quick-capture.js?v=7"></script>
 <!-- W132: Quick Capture inbox — past captures, search, re-link, archive -->
 <script defer src="js/quick-capture-inbox.js?v=4"></script>
 <!-- W133: Cmd+K command palette — fuzzy search leads, actions, views -->
-<script defer src="js/command-palette.js?v=8"></script>
+<script defer src="js/command-palette.js?v=9"></script>
 <!-- Visit recorder launcher (2026-10-13): entry points only; the recorder, its
      IndexedDB store and screens load on the first tap or when a recording is
      still on the phone. -->

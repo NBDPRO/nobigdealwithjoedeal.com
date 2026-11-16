@@ -258,6 +258,7 @@ const WOULD = {
   manageAway: 'turn Away mode on or off',
   manageSmsCompliance: 'change your texting compliance settings',
   markEmailUnsubscribed: 'mark this email unsubscribed',
+  createSupplementInvoice: 'make this invoice with its insurance supplements',
   reversePayment: 'reverse this payment',
   messagingCenter: 'load your text threads',
   mintOwnerClaims: 'refresh your sign-in permissions',

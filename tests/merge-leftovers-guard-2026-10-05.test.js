@@ -78,11 +78,9 @@ const KNOWN = {
       'measurementWebhook', 'measureNewWebLead', 'crmMcp', 'createAgentKey', 'listAgentKeys', 'revokeAgentKey',
     ],
   },
-  indexRowsNotExported: {
-    'KNOWN BUG R1-10-5 (reported 2026-10-05): FUNCTIONS_INDEX.md has rows for four functions no longer exported (sendEstimateForSignature + esignWebhook retired with BoldSign in #2166; stormWatch + checkStormAlerts merged into stormPoller in #2148, then re-added by the 8d16cbb0 merge) — expected those rows deleted (and the console functions deleted with gcloud)': [
-      'sendEstimateForSignature', 'esignWebhook', 'stormWatch', 'checkStormAlerts',
-    ],
-  },
+  // R1-10-5 (FUNCTIONS_INDEX.md rows for sendEstimateForSignature, esignWebhook, stormWatch, checkStormAlerts)
+  // FIXED 2026-11-14: rows removed; the pin is dropped per the "gone (fixed? remove its KNOWN pin)" rule.
+  indexRowsNotExported: {},
   verdictDupKeys: {
     'KNOWN BUG R1-10-6 (reported 2026-10-05): viewer-callables.test.js VERDICTS repeats keys (same value today; a later edit to only one copy would be silently overridden by the other) — expected each function once': [
       'createStripePaymentLink', 'cspReport', 'emailUnsubscribe', 'getCalendarFeed', 'getDealRoom', 'getEsignEnvelope',
