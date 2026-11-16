@@ -1339,7 +1339,7 @@ async function run() {
   for (const k of ['backfilled', 'backfillKey', 'paymentBackfill']) await assertFails(updateDoc(doc(alice, 'invoices/mk-new'), { [k]: null }));
   await assertFails(updateDoc(doc(coAdmin, 'invoices/bf-null'), { backfilled: deleteField() }));
   // long payment lists (2026-11-15): a pure append (the old list an unchanged prefix, plus one valid entry) is one list
-  // comparison, so it fits the expression budget for every writer up to 29 entries (the 30th line is the Reverse's), backfill invoices included
+  // comparison, so it fits the expression budget for every writer up to the 14th entry (line 15 is the Reverse's: Joe, "Yes, keep 15"), backfill invoices included
   // (before, a company_admin went over at the 10th payment on a backfill invoice, and a solo owner at the 9th on any).
   {
     const longBase = Date.now();   // one base time, so the old entries in an append are byte-for-byte the seeded ones
@@ -1347,17 +1347,17 @@ async function run() {
     const seedLong = async (id, n, by, extra) => { await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/' + id), Object.assign({ createdBy: by, companyId: by === 'solo1' ? 'solo1' : 'co-a', status: 'partial', total: 100000, amountPaid: 10 * n, balanceDue: 100000 - 10 * n, payments: longList(n, by), createdAt: 1 }, extra || {})); }); };
     const appendOne = (db, id, n, by, over) => { const at = new Date(); return updateDoc(doc(db, 'invoices/' + id), Object.assign({ payments: longList(n, by).concat([{ amount: 30, at, method: 'check', recordedBy: by, paymentId: 'L' + n }]), amountPaid: 10 * n + 30, balanceDue: 100000 - 10 * n - 30, lastPaymentAt: at }, over || {})); };
     const bfMarks = { source: 'backfill', backfilled: true, backfillKey: 'kL' };
-    for (const n of [9, 10, 19, 28]) { await seedLong('long-bf-' + n, n, 'carol', bfMarks); await assertSucceeds(appendOne(coAdmin, 'long-bf-' + n, n, 'carol')); }   // the 10th, 11th, 20th and 30th payment on a backfill invoice
-    await seedLong('long-rep', 28, 'alice'); await assertSucceeds(appendOne(alice, 'long-rep', 28, 'alice'));      // a rep, 29th entry
+    for (const n of [9, 10, 13]) { await seedLong('long-bf-' + n, n, 'carol', bfMarks); await assertSucceeds(appendOne(coAdmin, 'long-bf-' + n, n, 'carol')); }   // the 10th, 11th, 20th and 30th payment on a backfill invoice
+    await seedLong('long-rep', 13, 'alice'); await assertSucceeds(appendOne(alice, 'long-rep', 13, 'alice'));      // a rep, the 14th (last) entry
     await seedLong('long-solo', 8, 'solo1'); await assertSucceeds(appendOne(solo, 'long-solo', 8, 'solo1'));      // a solo owner, 9th entry
-    await seedLong('long-solo29', 28, 'solo1', bfMarks); await assertSucceeds(appendOne(solo, 'long-solo29', 28, 'solo1'));   // a solo owner, 29th, backfill
-    await seedLong('long-31', 29, 'alice'); await assertFails(appendOne(alice, 'long-31', 29, 'alice'));           // a browser's 30th is refused: that line is the Reverse's
-    await assertFails(appendOne(alice, 'long-rep', 28, 'alice', { amountPaid: 999999 }));                                  // the fast path still checks the money
-    await seedLong('long-edit', 19, 'alice');
-    const edited = longList(19, 'alice').map((e, j) => (j === 3 ? Object.assign({}, e, { amount: 11 }) : e));
+    await seedLong('long-solo29', 13, 'solo1', bfMarks); await assertSucceeds(appendOne(solo, 'long-solo29', 13, 'solo1'));   // a solo owner, the 14th, backfill
+    await seedLong('long-31', 14, 'alice'); await assertFails(appendOne(alice, 'long-31', 14, 'alice'));           // a browser's 15th is refused: that line is the Reverse's
+    await seedLong('long-amt', 10, 'alice'); await assertFails(appendOne(alice, 'long-amt', 10, 'alice', { amountPaid: 999999 }));                                  // the fast path still checks the money
+    await seedLong('long-edit', 12, 'alice');
+    const edited = longList(12, 'alice').map((e, j) => (j === 3 ? Object.assign({}, e, { amount: 11 }) : e));
     const atE = new Date();
-    await assertFails(updateDoc(doc(alice, 'invoices/long-edit'), { payments: edited.concat([{ amount: 30, at: atE, method: 'check', recordedBy: 'alice', paymentId: 'L19' }]), amountPaid: 220, balanceDue: 99780, lastPaymentAt: atE }));   // an append that rewrites an old entry is not a pure append
-    await assertFails(updateDoc(doc(alice, 'invoices/long-bf-28'), { notes: 'x' }));                                 // a rep still cannot edit a backfill invoice
+    await assertFails(updateDoc(doc(alice, 'invoices/long-edit'), { payments: edited.concat([{ amount: 30, at: atE, method: 'check', recordedBy: 'alice', paymentId: 'L12' }]), amountPaid: 151, balanceDue: 99849, lastPaymentAt: atE }));   // an append that rewrites an old entry is not a pure append
+    await assertFails(updateDoc(doc(alice, 'invoices/long-bf-13'), { notes: 'x' }));                                 // a rep still cannot edit a backfill invoice
   }
   await assertSucceeds(updateDoc(doc(alice, 'invoices/mk-new'), { status: 'void', voidNote: 'entered twice' }));   // void without money still works
   await assertSucceeds(updateDoc(doc(admin, 'invoices/pay15'), { notes: 'admin on the largest list' }));
@@ -1379,8 +1379,8 @@ async function run() {
     const rpPay = (db, id, uid, amount) => { const at = new Date(); return runTransaction(db, async (tx) => { await tx.get(doc(db, 'invoices/' + id)); tx.update(doc(db, 'invoices/' + id), { amountPaid: amount, depositPaid: true, balanceDue: Math.max(0, 40 - amount), status: amount >= 40 ? 'paid' : 'partial', paidAt: amount >= 40 ? at : null, lastPaymentAt: at, payments: [rpEntry(uid, amount, at)], updatedAt: at }); }); };
     await env.withSecurityRulesDisabled(async (ctx) => { const d = ctx.firestore();
       for (const [id, uid] of [['rp-joe40', 'joeown'], ['rp-joe400', 'joeown'], ['rp-co', 'coown'], ['rp-solo', 'solo1'], ['rp-joe-void', 'joeown'], ['rp-joe-money', 'joeown']]) await setDoc(doc(d, 'invoices/' + id), rpInv(uid));
-      const fourteen = Array.from({ length: 14 }, (_, i) => rpEntry('joeown', 1, new Date(Date.now() - (30 - i) * 3600000), i + 1));
-      await setDoc(doc(d, 'invoices/rp-joe15'), rpInv('joeown', { total: 100, balanceDue: 86, amountPaid: 14, status: 'partial', payments: fourteen }));
+      const fourteen = Array.from({ length: 13 }, (_, i) => rpEntry('joeown', 1, new Date(Date.now() - (30 - i) * 3600000), i + 1));
+      await setDoc(doc(d, 'invoices/rp-joe15'), rpInv('joeown', { total: 100, balanceDue: 87, amountPaid: 13, status: 'partial', payments: fourteen }));
       for (const [id, uid] of [['rp-x-amt', 'joeown'], ['rp-x-rec', 'solo1'], ['rp-x-ok', 'joeown']]) await setDoc(doc(d, 'invoices/' + id), rpInv(uid));
       await setDoc(doc(d, 'invoices/rp-x-edit'), rpInv('joeown', { total: 100, balanceDue: 90, amountPaid: 10, status: 'partial', payments: [rpEntry('joeown', 10, new Date(Date.now() - 7200000), 8)] }));
       await setDoc(doc(d, 'invoices/rp-x-lock'), rpInv('joeown', { status: 'sending', sendingPriorStatus: 'draft', sendingAt: new Date() }));
@@ -1390,10 +1390,10 @@ async function run() {
     await assertSucceeds(rpPay(joeOwn, 'rp-joe400', 'joeown', 400));      // …and an overpayment, after the sheet asks
     await assertSucceeds(rpPay(coOwn, 'rp-co', 'coown', 40));             // a company_admin owner still records
     await assertSucceeds(rpPay(solo, 'rp-solo', 'solo1', 40));            // a solo owner (no claims) records
-    const at15 = new Date(); const l14 = (await getDoc(doc(joeOwn, 'invoices/rp-joe15'))).data().payments;
-    await assertSucceeds(updateDoc(doc(joeOwn, 'invoices/rp-joe15'), { payments: l14.concat([rpEntry('joeown', 1, at15, 15)]), amountPaid: 15, balanceDue: 85, lastPaymentAt: at15 }));   // the 15th payment
+    const at15 = new Date(); const l13 = (await getDoc(doc(joeOwn, 'invoices/rp-joe15'))).data().payments;
+    await assertSucceeds(updateDoc(doc(joeOwn, 'invoices/rp-joe15'), { payments: l13.concat([rpEntry('joeown', 1, at15, 14)]), amountPaid: 14, balanceDue: 86, lastPaymentAt: at15 }));   // the 14th payment: the last a browser records (line 15 is the Reverse's)
     const at16 = new Date(); const l15 = (await getDoc(doc(joeOwn, 'invoices/rp-joe15'))).data().payments;
-    await assertSucceeds(updateDoc(doc(joeOwn, 'invoices/rp-joe15'), { payments: l15.concat([rpEntry('joeown', 1, at16, 16)]), amountPaid: 16, balanceDue: 84, lastPaymentAt: at16 }));   // a 16th single append (pure appends go to 30; the 31st is refused in 'long payment lists')
+    await assertFails(updateDoc(doc(joeOwn, 'invoices/rp-joe15'), { payments: l15.concat([rpEntry('joeown', 1, at16, 15)]), amountPaid: 15, balanceDue: 85, lastPaymentAt: at16 }));   // a browser's 15th is refused: that line is left for Reverse
     const atX = new Date();
     await assertFails(updateDoc(doc(joeOwn, 'invoices/rp-x-amt'), { payments: [rpEntry('joeown', 40, atX, 1)], amountPaid: 41, balanceDue: 0, status: 'paid', paidAt: atX, lastPaymentAt: atX }));   // amountPaid off by $1 on the fast path
     await assertFails(updateDoc(doc(solo, 'invoices/rp-x-rec'), { payments: [rpEntry('joeown', 40, atX, 1)], amountPaid: 40, balanceDue: 0, status: 'paid', paidAt: atX, lastPaymentAt: atX }));   // recorded by someone else
@@ -1422,13 +1422,13 @@ async function run() {
       const benv = await initializeTestEnvironment({ projectId: PROJECT_ID + '-budget', firestore: { rules: padded, host: '127.0.0.1', port: Number(String(process.env.FIRESTORE_EMULATOR_HOST || '').split(':')[1]) || 8080 } });
       const bJoe = benv.authenticatedContext('joeown', { role: 'admin', companyId: 'joeown' }).firestore();
       const bSolo = benv.authenticatedContext('solo1', {}).firestore();
-      const fourteenB = (uid) => Array.from({ length: 14 }, (_, i) => rpEntry(uid, 1, new Date(Date.now() - (30 - i) * 3600000), i + 1));
+      const fourteenB = (uid) => Array.from({ length: 13 }, (_, i) => rpEntry(uid, 1, new Date(Date.now() - (30 - i) * 3600000), i + 1));
       const bf = { source: 'backfill', backfilled: true, backfillKey: 'kb' };
       const revd = (uid) => [rpEntry(uid, 40, new Date(Date.now() - 7200000), 1), Object.assign(rpEntry(uid, -40, new Date(Date.now() - 7200000), 2), { reversal: true, reverses: 'mp_' + uid + '1' })];
       await benv.withSecurityRulesDisabled(async (ctx) => { const d = ctx.firestore();
         await setDoc(doc(d, 'invoices/b-live'), rpInv('joeown'));
         await setDoc(doc(d, 'invoices/b-solo-bf'), rpInv('solo1', bf));
-        await setDoc(doc(d, 'invoices/b-15'), rpInv('solo1', Object.assign({ total: 100, balanceDue: 86, amountPaid: 14, status: 'partial', payments: fourteenB('solo1') }, bf)));
+        await setDoc(doc(d, 'invoices/b-15'), rpInv('solo1', Object.assign({ total: 100, balanceDue: 87, amountPaid: 13, status: 'partial', payments: fourteenB('solo1') }, bf)));
         await setDoc(doc(d, 'invoices/b-rev'), rpInv('joeown', { status: 'partial', amountPaid: 0, balanceDue: 40, payments: revd('joeown') }));
       });
       const bAt = new Date();
@@ -1436,7 +1436,7 @@ async function run() {
       await assertSucceeds(updateDoc(doc(bJoe, 'invoices/b-live'), paidIn('joeown', [], 0)));                      // the live case: admin owner, first payment, paid in full
       await assertSucceeds(updateDoc(doc(bSolo, 'invoices/b-solo-bf'), paidIn('solo1', [], 0)));                   // solo owner, backfill invoice, first payment
       const b15 = (await getDoc(doc(bSolo, 'invoices/b-15'))).data().payments;
-      await assertSucceeds(updateDoc(doc(bSolo, 'invoices/b-15'), { payments: b15.concat([rpEntry('solo1', 1, bAt, 15)]), amountPaid: 15, balanceDue: 85, lastPaymentAt: bAt }));   // solo owner, backfill, the 15th payment
+      await assertSucceeds(updateDoc(doc(bSolo, 'invoices/b-15'), { payments: b15.concat([rpEntry('solo1', 1, bAt, 14)]), amountPaid: 14, balanceDue: 86, lastPaymentAt: bAt }));   // solo owner, backfill, the 14th (last) payment
       const bRev = (await getDoc(doc(bJoe, 'invoices/b-rev'))).data().payments;
       await assertSucceeds(updateDoc(doc(bJoe, 'invoices/b-rev'), paidIn('joeown', bRev, 0)));                     // re-record after a Reverse
       await benv.cleanup();
