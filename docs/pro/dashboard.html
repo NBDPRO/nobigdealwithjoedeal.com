@@ -135,7 +135,7 @@
      stay BEFORE dashboard-bootstrap.module.js (deferred scripts and modules
      run in document order): it installs the accessors the bootstrap then
      assigns window._userClaims / window.addDoc through. -->
-<script defer src="js/role-gate.js?v=8"></script>
+<script defer src="js/role-gate.js?v=9"></script>
 <!-- 2026-09-29: the "Join team / Not now" prompt claimInvite now requires of
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
@@ -143,7 +143,7 @@
      the first tap/key, a non-Home goTo(), a ?query link, or idle after load. -->
 <script defer src="js/late-css.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=218"></script>
+<script src="js/script-loader.js?v=224"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -162,7 +162,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=45"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=46"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -174,7 +174,7 @@
 <link rel="stylesheet" media="print" data-late-css href="css/rep-os.css?v=1">
 <link rel="stylesheet" media="print" data-late-css href="css/close-board.css?v=2">
 <link rel="stylesheet" href="css/tenant-ready.css?v=2">
-<link rel="stylesheet" media="print" data-late-css href="css/money-dashboard.css?v=3">
+<link rel="stylesheet" media="print" data-late-css href="css/money-dashboard.css?v=4">
 <link rel="stylesheet" media="print" data-late-css href="css/job-templates-view.css?v=1">
 <link rel="stylesheet" media="print" data-late-css href="css/yard-signs-view.css?v=1">
 <link rel="stylesheet" media="print" data-late-css href="css/expenses.css?v=5">
@@ -243,7 +243,7 @@
 <link rel="stylesheet" href="css/production.css?v=1">
 <link rel="stylesheet" media="print" data-late-css href="css/ask-joe-actions.css?v=1">
 <link rel="stylesheet" href="css/game-card.css?v=5">
-<link rel="stylesheet" media="print" data-late-css href="css/estimate-send.css?v=2">
+<link rel="stylesheet" media="print" data-late-css href="css/estimate-send.css?v=3">
 <link rel="stylesheet" media="print" data-late-css href="css/materials-list.css?v=1">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
 <!-- Knowing your numbers (2026-10-04): Sunday review, lost-reason sheet, Reports panels, lead-source table. -->
@@ -7285,7 +7285,7 @@
      doc-phone-layout.js (2026-09-25) is its phone reading layout for a
      generated document, shared with sign.html and the portal. -->
 <script defer src="js/doc-phone-layout.js?v=1"></script>
-<script defer src="js/nbd-doc-viewer.js?v=5"></script>
+<script defer src="js/nbd-doc-viewer.js?v=6"></script>
 <!-- Talk Tank: unified voice-capture inbox under #/talk-tank. Reads
      users/<uid>/captures (written by quick-capture.js). REC button on
      the page invokes window.NBDQuickCapture.open() — no duplicate
@@ -7416,7 +7416,7 @@
 <script defer src="js/almost-there-widget.js?v=2"></script>
 <script defer src="js/stale-shares-widget.js?v=2"></script>
 <!-- Revenue = collected payments only (Jo, 2026-09-28): shared paymentsOf + one cached invoice load for every revenue surface. -->
-<script defer src="js/collected-revenue.js?v=4"></script>
+<script defer src="js/collected-revenue.js?v=5"></script>
 <!-- Knowing your numbers (2026-10-04): ONE close rate, the lead-source table,
      spend + cost per lead, the required lost reason. numbers-logic.js is the
      pure rules; numbers-data.js the owner-only reads/writes; the picker is
@@ -7435,7 +7435,7 @@
 <script defer src="js/my-skin-boot.js?v=1"></script>
 <script defer src="js/layout-system.js?v=9"></script>
 <script defer src="js/pixel-mode.js?v=4"></script>
-<script defer src="js/ui.js?v=10"></script>
+<script defer src="js/ui.js?v=11"></script>
 <script defer src="js/demo.js?v=5"></script>
 <script defer src="js/icons.js?v=4"></script>
 <script defer src="js/nbd-comms.js?v=6"></script>
@@ -7451,8 +7451,8 @@
 <script defer src="js/customer-checklist.js?v=2"></script>
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
-<script defer src="js/photo-ai.js?v=3"></script>
-<script defer src="js/invoice-pipeline.js?v=39"></script>
+<script defer src="js/photo-ai.js?v=4"></script>
+<script defer src="js/invoice-pipeline.js?v=41"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js
@@ -7491,7 +7491,7 @@
      activity entry, and auto-create tasks from extracted action items.
      Loaded after voice-memo.js (sibling module) — they coexist; this
      adds the summary + upload + auto-task layer. -->
-<script defer src="js/voicemail.js?v=5"></script>
+<script defer src="js/voicemail.js?v=6"></script>
 <!-- estimate-config.js MUST load before estimates.js + estimate-builder-v2.js;
      it exposes window.NBD_ESTIMATE_CONFIG which both engines read. -->
 <script defer src="js/estimate-config.js?v=10"></script>
@@ -7538,7 +7538,7 @@
      Blank buttons), and preloaded when the Docs view opens. Pre-flight reads
      window._leadDoc / _customerId / _customerEstimates / _allPhotos, which
      the dashboard stages just-in-time in _stageWindowStateForLead. -->
-<script defer src="js/analytics-kpi.js?v=13"></script>
+<script defer src="js/analytics-kpi.js?v=14"></script>
 <!-- T-3: AI texting analytics card (renders on the board/analytics view) -->
 <script defer src="js/ai-texting-stats-card.js?v=2"></script>
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->
@@ -7606,7 +7606,7 @@
 <!-- Voice memo recorder + Deepgram client (F8) -->
 <script defer src="js/voice-memo.js?v=2"></script>
 <!-- W128: NBD Whisper — dictate-anywhere with AI cleanup -->
-<script defer src="js/nbd-whisper.js?v=3"></script>
+<script defer src="js/nbd-whisper.js?v=4"></script>
 <!-- W130: NBD Quick Capture — voice scratchpad with summarize + save-to-lead routing -->
 <script defer src="js/quick-capture.js?v=6"></script>
 <!-- W132: Quick Capture inbox — past captures, search, re-link, archive -->

@@ -287,6 +287,9 @@
   // repaint has nothing in flight to destroy.
   let _pollTimer = null;
   let _pollInflight = false;
+  // Set when the link stops working mid-session (410/404, or the open cap):
+  // no timer, visibility change or finally-block re-arms the poll after it.
+  let _pollStopped = false;
 
   // isPoll=true marks a background live-poll so the server doesn't count it
   // against the token's replay budget (only genuine opens do). See portal.js
@@ -467,6 +470,12 @@
       events.push({ kind: 'paid', msg: `🏦 Your bank payment is processing` });
     } else if (((prev.balance && prev.balance.stripePaymentLink) || '') !== ((next.balance && next.balance.stripePaymentLink) || '')) {
       events.push({ kind: 'paid', msg: `💳 Your payment details were updated` });
+    } else if (((prev.balance && prev.balance.amountCents) || 0) !== ((next.balance && next.balance.amountCents) || 0)
+      || pProc !== nProc || !prev.balance !== !next.balance) {
+      // Any other balance change (amount due with no pay link, a bank payment
+      // that stopped processing without posting, a balance that went away)
+      // repaints too, or the open page keeps showing the old figure (2026-11-14).
+      events.push({ kind: 'paid', msg: `💳 Your balance was updated` });
     }
     return events.length ? events : null;
   }
@@ -485,7 +494,11 @@
     banner.style.cssText = 'position:fixed;top:14px;left:50%;transform:translate(-50%, -120%);background:var(--green, #2ecc8a);color:#fff;padding:12px 18px;border-radius:10px;font-weight:600;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:var(--z-toast, 10002);cursor:pointer;max-width:90vw;transition:transform .35s cubic-bezier(.22,.61,.36,1);';
     // Stack the messages — typically 1-2; cap at 3 lines so it can't
     // grow off-screen if a slow homeowner returns to a much-updated page.
-    banner.innerHTML = events.slice(0, 3).map(e => `<div>${e.msg}</div>`).join('');
+    events.slice(0, 3).forEach((e) => {
+      const line = document.createElement('div');
+      line.textContent = e.msg;
+      banner.appendChild(line);
+    });
     banner.addEventListener('click', () => banner.remove());
     document.body.appendChild(banner);
     // Trigger the slide-in via rAF so the initial off-screen style applies first.
@@ -535,6 +548,7 @@
 
   function _scheduleNextPoll() {
     clearTimeout(_pollTimer);
+    if (_pollStopped) { _pollTimer = null; return; }
     if (document.hidden) { _pollTimer = null; return; }
     _pollTimer = setTimeout(_pollOnce, Date.now() < _payWatchUntil ? PAY_POLL_INTERVAL_MS : POLL_INTERVAL_MS);
   }
@@ -567,6 +581,7 @@
   }
 
   async function _pollOnce() {
+    if (_pollStopped) return;
     if (_pollInflight) { _scheduleNextPoll(); return; }
     _pollInflight = true;
     _pulseLivePill();
@@ -574,10 +589,15 @@
       const token = getToken().trim();
       if (!token) return;
       const res = await _fetchView(token, true); // background poll — don't burn the replay budget
-      if (res.status === 410 || res.status === 404) {
+      // The open cap (429 too_many_opens) never clears on its own, unlike the
+      // per-IP limiter's 429: treat it like a dead link (2026-11-14).
+      let code = null;
+      if (res.status === 429) { try { code = (await res.clone().json()).code || null; } catch (_) {} }
+      if (res.status === 410 || res.status === 404 || code === 'too_many_opens') {
         // Link revoked/expired mid-session — stop polling and surface
         // a non-destructive notice. Don't wipe the rendered view; the
         // homeowner can still see what they had.
+        _pollStopped = true;
         clearTimeout(_pollTimer);
         _pollTimer = null;
         _showUpdateBanner([{ msg: 'This link is no longer valid. Contact your rep for a fresh link.' }]);

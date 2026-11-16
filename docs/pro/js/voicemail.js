@@ -280,8 +280,11 @@ let _NBD_VM_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       res = r.data || {};
     } catch (e) {
       const msg = e && (e.message || e.code) || 'Transcription failed';
+      // A plan / email refusal says what to do (2026-11-14, free accounts get no AI).
+      const code = e && e.code ? String(e.code).replace(/^functions\//, '') : '';
+      const planRefusal = (code === 'permission-denied' || code === 'unavailable') && e.message;
       resetUI();
-      showError(String(msg).includes('rate') ? 'Rate limit — try again in an hour.' : 'Transcription failed.');
+      showError(planRefusal ? e.message : (String(msg).includes('rate') ? 'Rate limit — try again in an hour.' : 'Transcription failed.'));
       return;
     }
 

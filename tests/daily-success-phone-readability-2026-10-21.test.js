@@ -27,6 +27,8 @@ function ok(label, cond, detail) {
   if (cond) { console.log('  ✓ ' + label); passed++; }
   else { console.log('  ✗ ' + label + (detail ? ' — ' + detail : '')); failed++; }
 }
+const K = require('./lib/src-kit.js');
+const PAGE_CSS = K.cssRules(K.parseTags(read('index.html')).$$('style').map((s) => s.text).join('\n'));   // structured rules (src-kit), not text
 const phoneBlock = (HTML.match(/@media \(max-width:768px\)\{([\s\S]*?)\n\}\n/) || [])[1] || '';
 const tableBlock = (HTML.match(/@media \(max-width:560px\)\{\n  \.pr-grid[\s\S]*?\n\}\n/) || [])[0] || '';
 
@@ -48,7 +50,12 @@ console.log('\n2. tap targets');
   ok('a phone block exists', phoneBlock.length > 50);
   ['.btn', '.btn-ico', '.tplus', '.tab'].forEach((sel) => ok(sel + ' is at least 44 px tall on a phone', new RegExp('\\' + sel.slice(0) + '[^{]*\\{[^}]*min-height:44px|' + sel.replace('.', '\\.') + '[^{]*\\{[^}]*height:44px').test(phoneBlock) || /\.btn,\.btn-ico,\.tplus,\.tab\{min-height:44px;\}/.test(phoneBlock)));
   ok('habit dots keep a small circle but get a 44 px hit area (pseudo-element)', /\.hd\{width:22px;height:22px;position:relative;\}/.test(phoneBlock) && /\.hd::after\{content:"";position:absolute;left:-11px;right:-11px;top:-11px;bottom:-11px;\}/.test(phoneBlock));
-  ok('22 px + 2 x 11 px = a 44 px hit area', 22 + 2 * 11 === 44);
+  // 2026-11-14 (audit): was `22 + 2 * 11 === 44`, arithmetic on literals that could never fail. Now read from the CSS.
+  ok('the habit dot + its ::after reach = a 44 px hit area (read from the phone CSS)', (function () {
+    const dot = K.cssRule(PAGE_CSS, '.hd', { media: '(max-width:768px)' }) || {}, reach = K.cssRule(PAGE_CSS, '.hd::after', { media: '(max-width:768px)' }) || {};
+    const w = parseFloat(dot.width), out = -parseFloat(reach.left);
+    return w > 0 && out > 0 && w + 2 * out >= 44;
+  })());
   ok('the 15 px tab-close x gets a 45 px hit area', 15 + 2 * 15 >= 44 && /\.tx::after\{content:"";position:absolute;left:-15px;right:-15px;top:-15px;bottom:-15px;\}/.test(phoneBlock));
   ok('the HISTORY / delete / floor-score controls are 44 px', /\.ex-del\{min-width:44px;min-height:44px;\}/.test(phoneBlock) && /\.pr-hist-btn\{min-height:44px;/.test(phoneBlock) && /\.dsc-item\{min-height:44px;\}/.test(phoneBlock));
   ok('inputs inside paper cards are 44 px on a phone', /\.pc input:not\(\[type=checkbox\]\):not\(\[type=radio\]\),\.pc select\{min-height:44px;\}/.test(tableBlock));
@@ -74,7 +81,15 @@ console.log('\n4. dialogs and banners');
 {
   ok('no stray markdown fences in the page (they rendered as literal ``` around the goal wizard)', !/^```/m.test(HTML));
   ok('the onboarding banner wraps and keeps its tabs/main offsets on a phone', /\.onboard-banner\{top:calc\(52px \+ var\(--sat\)\);height:96px;/.test(tableBlock) && /\.ob-msg\{white-space:normal;/.test(tableBlock) && /body\.has-banner \.tabrow\{top:calc\(148px \+ var\(--sat\)\);\}/.test(tableBlock) && /body\.has-banner \.main\{margin-top:calc\(200px \+ var\(--sat\)\);\}/.test(tableBlock));
-  ok('control: 52 px one-row header + 96 px banner = the 148 px tab row offset; + 52 px tab row = the 200 px content offset (flow batch 3: the ten header controls moved into the menu)', 52 + 96 === 148 && 148 + 52 === 200);
+  // 2026-11-14 (audit): was `52 + 96 === 148 && 148 + 52 === 200`, literals only. Now the offsets are read from the phone CSS.
+  ok('control: 52 px one-row header + the banner height = the tab row offset; + 52 px tab row = the content offset (flow batch 3: the ten header controls moved into the menu)', (function () {
+    const rule = (sel) => K.cssRule(PAGE_CSS, sel, { media: '(max-width:560px)' }) || {};
+    const px = (v) => parseFloat(String(v || '').replace(/^calc\(/, ''));   // calc(148px + var(--sat)) -> 148
+    const banner = rule('.onboard-banner');
+    const bannerTop = px(banner.top), bannerH = px(banner.height);
+    const tabTop = px(rule('body.has-banner .tabrow').top), mainTop = px(rule('body.has-banner .main')['margin-top']);
+    return bannerTop === 52 && bannerH > 0 && tabTop === bannerTop + bannerH && mainTop === tabTop + 52;
+  })());
   ok('the phone header is ONE row (52px): brand + status, search icon and the menu button, no second strip', !/\.topbar\{[^}]*flex-wrap:wrap/.test(tableBlock) && !/height:calc\(100px/.test(tableBlock) && /\.tbl\{min-width:0;flex:1 1 auto;/.test(tableBlock) && /\.tbr \.btn-ico\{min-width:44px;min-height:44px;/.test(tableBlock));
   ok('every fixed bar takes the default one-row offsets on a phone too (no 100 px overrides left: tabs 52, search tabs 100, content 102, search 52, dropdown 100)', !/\.tabrow\{top:calc\(100px/.test(tableBlock) && !/\.sbar\{top:calc\(100px/.test(tableBlock) && !/\.sdrop\{top:calc\(148px/.test(tableBlock) && !/\.main\{margin-top:calc\(150px/.test(tableBlock) && /\.tabrow\{[^}]*top:calc\(52px \+ var\(--sat\)\)/.test(HTML) && /\.tabrow\.sp\{top:calc\(100px \+ var\(--sat\)\);\}/.test(HTML) && /margin-top:calc\(102px \+ var\(--sat\)\);\}/.test(HTML));
   ok('control: the header has two controls (search, menu) and the menu holds the rest: Save, New, Rename, CSV, PDF, Appearance, Customize, Guide, Delete', (HTML.match(/<div class="tbr">([\s\S]*?)<\/div>/) || ['', ''])[1].match(/<button/g).length === 2 && (HTML.match(/<div class="ds-menu"[\s\S]*?<\/div>/) || [''])[0].match(/<button/g).length === 9);

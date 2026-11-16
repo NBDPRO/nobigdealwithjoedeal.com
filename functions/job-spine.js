@@ -340,7 +340,13 @@ async function spineAfterRemoteSign(db, info, deps) {
     if (type !== 'contract') return { filedField, skipped: 'not_a_contract' };
     const r = await recordJobEvent(db, {
       leadId: String(info.leadId), event: 'contract_signed', sourceId: 'doc_' + info.docId,
-      actor: 'remote signing', meta: { docId: String(info.docId), detail: (info.signerName ? info.signerName + ' signed' : 'signed') + ' remotely' },
+      actor: 'remote signing', meta: {
+        docId: String(info.docId), detail: (info.signerName ? info.signerName + ' signed' : 'signed') + ' remotely',
+        // The price the sign link was sent at (createSignRequest), for the
+        // signed-price stamp (finding 8, 2026-11-14). An object, so cleanMeta
+        // never persists it on the spine's marker.
+        ...(info.priceSnapshot && typeof info.priceSnapshot === 'object' ? { signRequestPrice: info.priceSnapshot } : {}),
+      },
     }, deps);
     return { filedField, spine: r };
   } catch (e) {

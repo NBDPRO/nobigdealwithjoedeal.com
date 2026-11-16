@@ -86,6 +86,16 @@
       // and return null. The Review UI just shows the photo without
       // a suggestion in this case.
       console.warn('[ai-classify] call failed:', e && e.message);
+      // A plan / email refusal (2026-11-14, free accounts get no AI) is
+      // surfaced like a cap, with the server's words.
+      const code = e && e.code ? String(e.code).replace(/^functions\//, '') : '';
+      if (code === 'permission-denied' || code === 'unavailable') {
+        try {
+          window.dispatchEvent(new CustomEvent('nbd:ai-classify-skipped', {
+            detail: { photoId, reason: 'not-entitled', message: e.message || '' }
+          }));
+        } catch (_) {}
+      }
       return null;
     }
   }

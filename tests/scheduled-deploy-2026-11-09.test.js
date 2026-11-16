@@ -180,6 +180,45 @@ ok('the IndexNow ping stays push-only', !sched.some((n) => /IndexNow/.test(n)) &
 const hostingStep = steps.find((s) => s.name === 'Deploy Hosting');
 ok('the Hosting step deploys hosting only', !!hostingStep && /deploy --only hosting\b/.test(hostingStep.body));
 
+// FUNCTIONS SKIP (2026-11-14): a push may skip the functions deploy steps on functions_plan's explicit 'false'
+// (scripts/functions-deploy-decision.js; its own suite is tests/functions-deploy-decision-2026-11-14.test.js).
+console.log('\nfunctions skip: which steps a functions_plan output turns off');
+{
+  const SKIPPABLE = ['Ensure integration secrets exist (stub if missing)', 'Deploy Cloud Functions (strict — retries CPU-quota stragglers)',
+    'Deploy Cloud Functions (tolerant — skip-list retry)'];
+  const KEPT = ['Enable required Google APIs', 'Gate — function smoke suite must pass before deploy',
+    'Fleet must match the code — no orphaned or missing functions'];
+  const withPlan = (event, fn, inputs = {}) => ctx(event, { inputs, needs: { check: { configured: 'true' }, due: {}, functions_plan: { functions: fn } } });
+  ok('POSITIVE CONTROL: every named step exists', [...SKIPPABLE, ...KEPT].every((n) => steps.some((s) => s.name === n)),
+    [...SKIPPABLE, ...KEPT].filter((n) => !steps.some((s) => s.name === n)).join(' | '));
+  const skipPush = runsOn(withPlan('push', 'false'));
+  ok('push + plan false: the three functions deploy steps are skipped', SKIPPABLE.every((n) => !skipPush.includes(n)), skipPush.join(' | '));
+  ok('push + plan false: the API check, smoke gate and fleet check still run', KEPT.every((n) => skipPush.includes(n)), skipPush.join(' | '));
+  ok('push + plan false: hosting, the rules gate and every rules deploy still run',
+    ['Deploy Hosting', 'Gate — Firestore + Storage rules tests must pass before deploy', 'Deploy Firestore rules (pro)',
+      'Deploy Firestore indexes (pro)', 'Deploy Storage rules (pro)'].every((n) => skipPush.includes(n)), skipPush.join(' | '));
+  ok('push + plan false: exactly the three skippable steps drop out',
+    JSON.stringify(push.filter((n) => !skipPush.includes(n))) === JSON.stringify(SKIPPABLE), push.filter((n) => !skipPush.includes(n)).join(' | '));
+  ok('push + plan true: functions deploy', SKIPPABLE.every((n) => runsOn(withPlan('push', 'true')).includes(n)));
+  ok('push + no plan output (the plan job failed or never ran): functions deploy — fail closed',
+    SKIPPABLE.every((n) => runsOn(withPlan('push', '')).includes(n)));
+  // (No 'FALSE' case: GitHub compares strings case-insensitively, this evaluator does not. The script only ever
+  // writes lowercase functions=true / functions=false.)
+  ok('push + an unexpected output ("yes"): functions deploy', SKIPPABLE.every((n) => runsOn(withPlan('push', 'yes')).includes(n)));
+  for (const scope of ['all', 'functions']) {
+    const r = runsOn(withPlan('workflow_dispatch', 'false', { scope }));
+    ok(`dispatch scope=${scope} deploys functions even if the plan said false`, [...SKIPPABLE, ...KEPT].every((n) => r.includes(n)), r.join(' | '));
+  }
+  const forced = runsOn(withPlan('workflow_dispatch', 'true', { scope: 'hosting', force_functions: 'true' }));
+  ok('dispatch scope=hosting + force_functions: hosting AND every functions step (gates and fleet check included)',
+    forced.includes('Deploy Hosting') && [...SKIPPABLE, ...KEPT].every((n) => forced.includes(n)), forced.join(' | '));
+  const unforced = runsOn(withPlan('workflow_dispatch', 'true', { scope: 'hosting', force_functions: 'false' }));
+  ok('dispatch scope=hosting without force: still no functions step', [...SKIPPABLE, ...KEPT].every((n) => !unforced.includes(n)), unforced.join(' | '));
+  ok('the schedule runs no functions step whatever the plan says', [...SKIPPABLE, ...KEPT].every((n) => !runsOn(withPlan('schedule', 'true')).includes(n)));
+  const planIf = jobIf('functions_plan') || '';
+  ok('functions_plan does not run on the schedule', !evalIf(planIf, ctx('schedule')) && evalIf(planIf, ctx('push')), planIf);
+}
+
 console.log('\nnever commits to main; verify-live understands the schedule');
 ok('no step runs git commit or git push', !/\bgit\s+(commit|push)\b/.test(noComments));
 ok('the deploy job token stays read-only', /permissions:\s*\n\s+contents: read\s*\n/.test(jobBlock('deploy') || ''));

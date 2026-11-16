@@ -92,6 +92,11 @@ exports.submitInboxReceipt = onCall({
     throw new HttpsError('unavailable', 'AI temporarily disabled');
   }
 
+  // Free accounts get no AI (Joe, 2026-11-14): the per-company enabled doc
+  // is an allowlist, not a plan check, so a company that drops to free kept
+  // reading receipts on NBD's key. Before the rate limit.
+  await require('./ai-gate').assertAiEntitled(getFirestore(), request.auth);
+
   await callableRateLimit(request, 'submitInboxReceipt', 20, 60_000);
 
   const storagePath = typeof request.data?.storagePath === 'string' ? request.data.storagePath : null;
