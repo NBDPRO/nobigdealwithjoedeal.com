@@ -42,6 +42,13 @@
     reviews: 'nbd_ds_reviews',
     money: 'nbd_ds_money',
     streak: 'nbd_streak',
+    // audit 2026-11-14 #2: these were on the phone only and missing from the download
+    measurements: 'nbd_ds_measurements',
+    routines: 'nbd_ds_coach_routines',
+    customLifts: 'nbd_ds_coach_custom',
+    checkins: 'nbd_ds_coach_ready',
+    exerciseNotes: 'nbd_ds_coach_notes',
+    liveWorkout: 'nbd_ds_coach_live',
   };
 
   const parse = (raw, fallback) => {
@@ -158,6 +165,12 @@
       money: parse(raw[KEYS.money], {}),
       streak: num(raw[KEYS.streak]) || 0,
       weight: weightReadings(pages),
+      measurements: asArray(parse(raw[KEYS.measurements], [])),
+      routines: asArray(parse(raw[KEYS.routines], [])),
+      customLifts: asArray(parse(raw[KEYS.customLifts], [])),
+      checkins: parse(raw[KEYS.checkins], {}),
+      exerciseNotes: parse(raw[KEYS.exerciseNotes], {}),
+      liveWorkout: parse(raw[KEYS.liveWorkout], null),   // a workout still in progress
     };
   }
 

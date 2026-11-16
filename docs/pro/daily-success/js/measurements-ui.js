@@ -38,7 +38,8 @@
   let draft = '';
 
   const list = () => (M() ? M().clean(readJson(KEY, [])) : []);
-  const save = (l) => { try { localStorage.setItem(KEY, JSON.stringify(l)); return true; } catch (_) { toastErr('Could not save on this device'); return false; } };
+  // Synced through userSettings since 2026-11-14 (audit #2): the stamp tells the sync this copy is the newer one.
+  const save = (l) => { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch (_) { toastErr('Could not save on this device'); return false; } if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(KEY); return true; };
 
   /* ---------- measurements ---------- */
   function msHtml() {

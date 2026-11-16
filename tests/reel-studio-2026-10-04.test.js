@@ -712,7 +712,7 @@ function enable(db) { db.store.set('companies/co1/social_settings/config', { ena
     {
       const src = read('functions/reel-studio.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"])\/\/[^\n]*/g, '$1');
       const body = (name) => { const i = src.indexOf('exports.' + name + ' = onCall('); const j = src.indexOf('\nexports.', i + 10); return i < 0 ? '' : src.slice(i, j < 0 ? undefined : j); };
-      const before = (name, spend) => { const b = body(name); const g = b.indexOf('await requireReelsOn(db, ctx.companyId)'); const s = b.indexOf(spend); return g > 0 && s > 0 && g < s; };
+      const before = (name, spend) => { const b = body(name); const g = b.indexOf('await requireReelsOn(db, ctx.companyId'); const s = b.indexOf(spend); return g > 0 && s > 0 && g < s; };
       ok('reelStartUpload checks the switch before minting an upload slot', before('reelStartUpload', 'await ref.set('));
       ok('reelCreate checks the switch (and the ffmpeg binary) before taking a render slot', before('reelCreate', 'await takeRenderSlot(') && body('reelCreate').indexOf('FFMPEG_MISSING') < body('reelCreate').indexOf('await takeRenderSlot('));
       ok('reelApplyBlur + reelRetry check the switch before taking a render slot', before('reelApplyBlur', 'await takeRenderSlot(') && before('reelRetry', 'await takeRenderSlot('));

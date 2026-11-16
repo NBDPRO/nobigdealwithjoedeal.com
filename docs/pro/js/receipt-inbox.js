@@ -186,6 +186,13 @@
       } catch (e) {
         console.warn('[receipt-inbox] upload/read failed', e && e.code);
         const code = String((e && e.code) || '');
+        // A plan / email refusal (2026-11-14, free accounts get no AI): the
+        // server's words, and the rest of the batch would get the same answer.
+        if (/permission-denied/.test(code) && e && e.message) {
+          toast(e.message, 'warn');
+          if (path) await deleteFile(path);
+          break;
+        }
         toast(/unavailable/.test(code) ? 'AI is switched off right now. Nothing was read.' : /resource-exhausted/.test(code) ? 'Too many at once. Wait a minute and try again.' : 'Could not read that receipt. Try again.', 'error');
         if (path && /unavailable|permission/.test(code)) await deleteFile(path);
       }
@@ -202,7 +209,10 @@
       const res = await call({ storagePath: d.storagePath });
       const r = (res && res.data) || {};
       if (r.skipped) toast(REASONS[r.reason] || 'Not read.', 'info');
-    } catch (e) { toast('Could not read it. Try again.', 'error'); }
+    } catch (e) {
+      const code = String((e && e.code) || '');
+      toast(/permission-denied/.test(code) && e && e.message ? e.message : 'Could not read it. Try again.', 'error');
+    }
     S.busy = false;
     await refreshAll();
   }

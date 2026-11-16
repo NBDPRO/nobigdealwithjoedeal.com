@@ -97,9 +97,13 @@ async function reelsBlocked(db, companyId, getFlags) {
   const sw = RL.reelSwitch(settings, flags);
   return sw.ok ? null : sw.reason;
 }
-async function requireReelsOn(db, companyId) {
+async function requireReelsOn(db, companyId, auth) {
   const why = await reelsBlocked(db, companyId, require('./integrations/killswitch').getFlags);
   if (why) throw new HttpsError('failed-precondition', why);
+  // Free accounts get no AI (Joe, 2026-11-14; AI audit F10): a tenant can
+  // switch reels on itself, and each render runs vision + transcription on
+  // NBD's keys. Paid plan + confirmed email, NBD exempt.
+  await require('./ai-gate').assertAiEntitled(db, auth);
 }
 function randomKey() { return crypto.randomBytes(16).toString('hex'); }
 function sm() { return require('./social-studio')._test; }
@@ -560,7 +564,7 @@ exports.reelStartUpload = onCall(Object.assign({}, callOpts, { timeoutSeconds: 3
     postKind = d.postKind;
   }
   const db = getFirestore();
-  await requireReelsOn(db, ctx.companyId);
+  await requireReelsOn(db, ctx.companyId, request.auth);
   let leadId = null;
   if (d.leadId && purpose === 'clip') { await loadLeadFor(db, d.leadId, ctx.companyId, ctx.uid); leadId = d.leadId; }
   const ref = mediaCol(db, ctx.companyId).doc();
@@ -596,7 +600,7 @@ exports.reelCreate = onCall(Object.assign({}, callOpts, { timeoutSeconds: 60 }),
   const ctx = sm().requireSocialManager(request, (t) => t.role === 'admin');
   const d = request.data || {};
   const db = getFirestore();
-  await requireReelsOn(db, ctx.companyId);
+  await requireReelsOn(db, ctx.companyId, request.auth);
   // Fail before spending a render slot when the binary is not there.
   if (!isEmulator() && !require('./reel-ffmpeg').ffmpegPath()) throw new HttpsError('failed-precondition', FFMPEG_MISSING);
   const lead = d.leadId ? await loadLeadFor(db, d.leadId, ctx.companyId, ctx.uid) : null;
@@ -648,7 +652,7 @@ exports.reelApplyBlur = onCall(Object.assign({}, callOpts, { timeoutSeconds: 30 
   const db = getFirestore();
   const { ref, reel } = await loadReel(db, ctx, (request.data || {}).reelId);
   if (reel.status !== 'rendered' || !RL.blurAvailable(reel)) throw new HttpsError('failed-precondition', 'Auto-blur needs a box for every flagged frame (and no flagged speech). Watch the reel and confirm instead.');
-  await requireReelsOn(db, ctx.companyId);
+  await requireReelsOn(db, ctx.companyId, request.auth);
   await takeRenderSlot(db, ctx.companyId, Date.now());
   await ref.update({ status: 'queued', op: 'blur', blurRequestedBy: ctx.uid, updatedAt: FieldValue.serverTimestamp() });
   return { status: 'queued' };
@@ -660,7 +664,7 @@ exports.reelRetry = onCall(Object.assign({}, callOpts, { timeoutSeconds: 30 }), 
   const { ref, reel } = await loadReel(db, ctx, (request.data || {}).reelId);
   const stale = reel.status === 'rendering' && Date.now() - Number((reel.render || {}).startedAtMs || 0) > RL.STALE_RENDER_MS;
   if (reel.status !== 'failed' && !stale) throw new HttpsError('failed-precondition', 'Only a failed (or stuck) render can be retried.');
-  await requireReelsOn(db, ctx.companyId);
+  await requireReelsOn(db, ctx.companyId, request.auth);
   await takeRenderSlot(db, ctx.companyId, Date.now());
   await ref.update({ status: 'queued', op: reel.op === 'blur' ? 'blur' : 'render', updatedAt: FieldValue.serverTimestamp() });
   return { status: 'queued' };

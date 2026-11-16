@@ -61,3 +61,5 @@
 .mdx-rule.mdx-rule.mdx-rule { border-top: 1px solid var(--br); }
 /* Phone: the Collections queue's row button was 24px tall (visual sweep 2026-10-25; DESIGN.md's 44px floor). */
 @media (max-width:600px){ .mdx-btn-xs.mdx-btn-xs.mdx-btn-xs.mdx-btn-xs { min-height: 44px; } }
+/* The "some figures couldn't load" line (Money dashboard load-error PR #3051): danger colour over .mdx-m12-mt's muted one. */
+.mdx-m12-mt.mdx-m12-mt.mdx-m12-mt.mdx-load-err { color: var(--ui-danger-text, var(--red)); }

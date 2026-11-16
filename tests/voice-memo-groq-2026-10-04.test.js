@@ -40,7 +40,8 @@ function ok(name, cond, detail) {
 let W;
 function reset(over) {
   W = Object.assign({
-    docs: { 'leads/L1': { userId: 'U1' }, 'leads/L2': { userId: 'OTHER' } },
+    // 2026-11-14: transcription needs a paid plan + confirmed email (functions/ai-gate.js).
+    docs: { 'leads/L1': { userId: 'U1' }, 'leads/L2': { userId: 'OTHER' }, 'subscriptions/CO1': { plan: 'pro', status: 'active' } },
     adds: [], fetches: [], limiterCalls: 0,
     aiDisabled: false, rateLimited: false,
     groq: { status: 200, body: { text: '  Check the ridge vent on the north side.  ', duration: 7.4, segments: [] } },
@@ -97,7 +98,7 @@ const mod = require(path.join(FUNCTIONS, 'integrations', 'voice-memo.js'));
 const fn = mod.transcribeVoiceMemo;
 
 const AUDIO = Buffer.alloc(4000, 7).toString('base64');
-const req = (data, token) => ({ auth: { uid: 'U1', token: token || { role: 'sales_rep' } }, data });
+const req = (data, token) => ({ auth: { uid: 'U1', token: token || { role: 'sales_rep', companyId: 'CO1', email_verified: true } }, data });
 async function call(data, token) {
   try { return { res: await fn.run(req(data, token)) }; }
   catch (e) { return { err: e }; }
@@ -145,8 +146,8 @@ const deepgramCalls = () => W.fetches.filter((f) => /deepgram/.test(f.url));
     ok('transcript returned', !err && res.transcript === 'Check the ridge vent on the north side.');
     ok('nothing written', W.adds.length === 0);
     reset();
-    const v = await call({ audioBase64: AUDIO, mimeType: 'audio/webm' }, { role: 'viewer' });
-    ok('a viewer may still transcribe without a lead (unchanged)', !v.err && v.res.transcript.length > 0);
+    const v = await call({ audioBase64: AUDIO, mimeType: 'audio/webm' }, { role: 'viewer', companyId: 'CO1', email_verified: true });
+    ok('a viewer on a paid company may still transcribe without a lead (unchanged)', !v.err && v.res.transcript.length > 0);
     reset();
     const v2 = await call({ audioBase64: AUDIO, mimeType: 'audio/webm', leadId: 'L1' }, { role: 'viewer' });
     ok('a viewer WITH a lead is refused before any spend', v2.err && v2.err.code === 'permission-denied' && W.fetches.length === 0 && W.limiterCalls === 0);

@@ -688,6 +688,31 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   // RECORDED (the money came in) and simply leaves nothing due, exactly as
   // markPaid has always behaved. lastPaymentAt never moves backwards when a
   // rep logs an older check after a newer payment.
+  // Wave-1 money review (2026-11-14, finding 1): a payment bigger than what is
+  // still owed asks first. '' = nothing to ask. A real overpayment can happen
+  // (the customer paid ahead), so this asks rather than refuses; a typo
+  // ($40,000 for a $4,000 check) is caught before it lands in Collected.
+  // balanceCents null/undefined = we could not read the balance: ask anyway.
+  function overpaymentNotice(amount, balanceCents) {
+    const amtC = toCents(amount);
+    if (!(amtC > 0)) return '';
+    const fmt = (c) => formatCurrency(c / 100);
+    if (balanceCents == null || !Number.isFinite(Number(balanceCents))) {
+      return 'Couldn\'t check what is still owed on this invoice. Record ' + fmt(amtC) + ' anyway?';
+    }
+    const balC = Math.max(0, Math.round(Number(balanceCents)));
+    if (amtC <= balC) return '';
+    if (balC === 0) return 'Nothing is owed on this invoice. Record ' + fmt(amtC) + ' anyway? Check the amount first.';
+    return fmt(amtC) + ' is ' + fmt(amtC - balC) + ' more than the ' + fmt(balC)
+      + ' still owed on this invoice. Record ' + fmt(amtC) + ' anyway? Check the amount first.';
+  }
+  // The iOS-PWA-safe ask (tests/pwa-confirm-guard.test.js): the real modal when there is one, else the native confirm.
+  function _askOverpay(m) {
+    const ask = (typeof window.nbdConfirm === 'function') ? window.nbdConfirm
+      : (x) => Promise.resolve(typeof window.confirm === 'function' ? window.confirm(x) : false);
+    return ask(m);
+  }
+
   function applyPaymentToInvoice(invoice, entry) {
     invoice = invoice || {};
     const totalC = toCents(Math.max(0, Number(invoice.total) || 0));
@@ -721,6 +746,60 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       },
     };
   }
+
+  // nbd:payment-reversal:start
+  // Reverse a payment (wave-1 money review 2026-11-14, finding 1). A mistyped
+  // or bounced manual payment is never deleted: the company owner calls
+  // reversePayment (functions/payment-reversal.js), which appends a NEGATIVE
+  // entry for the whole amount, dated the day the original said the money came
+  // in, so every period total nets back to what really arrived. Readers sum
+  // payments[] with negatives (collected-revenue.js and its mirrors); lists and
+  // receipts hide the reversed payment (reversalPairs). A browser cannot write
+  // or undo a negative entry (firestore.rules paymentEntryOk / the Undo branch).
+  const REVERSAL_REASON_MAX = 300;
+  // nbd:reversal-pairs — WHICH payment a reversal cancels, from FROZEN fields only (the rules let an
+  // editor rewrite paymentId / reverses / reversal / reason on an existing entry, never amount, at,
+  // method or recordedBy). Each negative entry cancels the first earlier positive entry with the same
+  // amount, date and method that no other negative entry claimed. Same logic as
+  // functions/payment-reversal.js reversalPairs. → Map(positiveIndex → negativeIndex). Pure.
+  function reversalPairs(payments) {
+    const list = Array.isArray(payments) ? payments : [];
+    const out = new Map();
+    list.forEach((n, j) => {
+      if (!n || !(Number(n.amount) < 0)) return;
+      const c = -Math.round(Number(n.amount) * 100);
+      const t = _tsMs(n.at);
+      for (let i = 0; i < j; i++) {
+        const p = list[i];
+        if (p && !out.has(i) && Math.round((Number(p.amount) || 0) * 100) === c && _tsMs(p.at) === t && p.method === n.method) { out.set(i, j); break; }
+      }
+    });
+    return out;
+  }
+  /** Why payments[index] cannot be reversed, or '' when it can. Pure. Same words as the server. */
+  function reversalBlockedReason(invoice, index) {
+    const inv = invoice || {};
+    const list = Array.isArray(inv.payments) ? inv.payments : [];
+    const p = list[index];
+    if (!p || !Number.isInteger(index)) return 'That payment changed — reopen the invoice and try again';
+    if (!(toCents(Number(p.amount)) > 0)) return 'That entry is not a payment';
+    // Frozen fields only (amount, at, method, recordedBy), as the server decides.
+    if (p.method === 'stripe' || typeof p.recordedBy !== 'string' || !p.recordedBy) {
+      return 'Card and bank payments made online are refunded in Stripe, not reversed here';
+    }
+    if (!isManualPaymentMethod(p.method)) return 'Only check, Zelle, cash, card, ACH or other payments typed in here can be reversed';
+    if (Array.isArray(inv.stripeCreditKeys) && inv.stripeCreditKeys.length > 0 && (p.method === 'card' || p.method === 'ach')) {
+      return 'This invoice has Stripe money matched to it — ask for help reversing a card or bank payment here';
+    }
+    if (reversalPairs(list).has(index)) return 'That payment is already reversed';
+    if (!(_tsMs(p.at) > 0)) return 'That payment has no date';
+    const st = String(inv.status || '').toLowerCase();
+    if (st === 'sending') return 'The invoice is being sent — try again in a minute';
+    if (inv.deleted === true || st === 'void' || st === 'cancelled') return 'The invoice is voided';
+    if (list.length >= 15) return 'This invoice has too many payment lines to add a reversal — ask for help';
+    return '';
+  }
+  // nbd:payment-reversal:end
 
   // Which payments[] entry a rep tapped "Attach proof" on. The index is the
   // fast path, but the array can shift under us (another device logged a
@@ -765,11 +844,18 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   // Display rows for the invoice's payment history (newest first). Pure.
   function paymentHistoryRows(inv) {
     const list = (inv && Array.isArray(inv.payments)) ? inv.payments : [];
+    // A reversed payment stays listed, marked reversed with the reason; the
+    // negative reversal entry itself is not a row of its own.
+    const pairs = reversalPairs(list);
     return list.map((p, index) => {
       p = p || {};
       const k = paymentKey(p);
       const isStripe = p.method === 'stripe';
+      const rev = pairs.has(index) ? (list[pairs.get(index)] || {}) : null;
       return {
+        reversed: !!rev,
+        reversalReason: rev && rev.reason ? String(rev.reason) : '',
+        canReverse: !rev && reversalBlockedReason(inv, index) === '',
         index,
         atMs: k.atMs,
         amount: Number(p.amount) || 0,
@@ -781,7 +867,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         proofName: p.proofName ? String(p.proofName) : '',
         depositedTo: isDepositAccount(p.depositedTo) ? p.depositedTo : '',
         isStripe,
-        canAttach: !isStripe && !p.proofStoragePath,
+        canAttach: !isStripe && !p.proofStoragePath && !rev,
         keyRecordedAtMs: k.recordedAtMs,
       };
     }).filter(r => r.amount > 0)
@@ -810,7 +896,13 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       }
       // The receipt draft for this payment: one tap sends it (2026-10-04).
       const p = (inv.payments || [])[r.index];
-      const rs = receiptStateOf(p);
+      const rs = r.reversed ? 'none' : receiptStateOf(p);
+      const reversed = r.reversed
+        ? `<div class="ipx-m11 ipx-mt2" data-ip-reversed>Reversed${r.reversalReason ? ': ' + escHtml(r.reversalReason) : ''}</div>`
+        : '';
+      const reverse = (r.canReverse && _isCompanyOwner())
+        ? `<button type="button" class="btn btn-ghost ipx-btn40" data-ip-action="reversePayment" data-ip-id="${id}" data-ip-idx="${r.index}"${Number.isFinite(r.keyRecordedAtMs) ? ` data-ip-rec="${r.keyRecordedAtMs}"` : ''} title="Typed the wrong amount, or the check bounced">↶ Reverse</button>`
+        : '';
       const rkey = receiptKeyOf(p, r.index);
       const receipt = rs === 'draft'
         ? `<button type="button" class="btn btn-ghost ipx-btn40" data-ip-action="sendReceipt" data-ip-id="${id}" data-ip-pay="${escHtml(rkey)}" data-send-receipt>✉️ Send receipt</button>`
@@ -820,12 +912,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           <div class="ipx-minw0">
             <div><strong>${escHtml(date)}</strong> · ${escHtml(r.methodLabel)}${ref}</div>
             ${note}
+            ${reversed}
             ${acct}
           </div>
           <div class="ipx-row-fixed">
-            <span class="ipx-b">${escHtml(formatCurrency(r.amount))}</span>
+            <span class="ipx-b"${r.reversed ? ' data-ip-reversed-amt' : ''}>${r.reversed ? '<s>' + escHtml(formatCurrency(r.amount)) + '</s>' : escHtml(formatCurrency(r.amount))}</span>
             ${proof}
             ${receipt}
+            ${reverse}
           </div>
         </div>`;
     }).join('');
@@ -909,11 +1003,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     if (i < 0) return null;
     const p = list[i] || {};
     if (receiptStateOf(p) === 'none') return null;
+    // A reversed payment gets no receipt, and never counts toward "paid so far".
+    const pairs = reversalPairs(list);
+    if (pairs.has(i)) return null;
     const totalC = toCents(Math.max(0, Number(inv.total) || 0)) || 0;
     let paidC = 0;
     for (let j = 0; j <= i; j++) {
       const a = list[j];
-      if (a && Number(a.amount) > 0) paidC += toCents(Number(a.amount)) || 0;
+      if (a && Number(a.amount) > 0 && !pairs.has(j)) paidC += toCents(Number(a.amount)) || 0;
     }
     const balC = Math.max(0, totalC - paidC);
     const atMs = _tsMs(p.at != null ? p.at : p.date);
@@ -3390,6 +3487,17 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    */
   // Owner side = the platform admin, a company_admin, or a solo operator (no role, no company or the company is their own
   // uid); the same set firestore.rules calls backfillWriterOk(). A manager or rep never sees the release button.
+  // The company OWNER (Joe, 2026-11-14: only the owner reverses a payment): the owner claim, or a
+  // solo owner whose company is their own uid. The reversePayment callable checks companies/{id}.ownerId.
+  function _isCompanyOwner() {
+    const c = (typeof window !== 'undefined' && window._userClaims) || {};
+    const u = (typeof window !== 'undefined' && window._user && window._user.uid) || null;
+    if (!u || c.role === 'viewer') return false;
+    // company_admin too: the owner of a company is usually its company_admin, and the owner claim is not always
+    // minted. The callable checks companies/{id}.ownerId and tells a non-owner admin so in plain words.
+    if (c.owner === true || c.role === 'company_admin') return true;
+    return !c.role && (!c.companyId || c.companyId === u);
+  }
   function _isOwnerSide() {
     const c = (typeof window !== 'undefined' && window._userClaims) || {};
     const u = (typeof window !== 'undefined' && window._user && window._user.uid) || null;
@@ -3657,6 +3765,78 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * page has no runTransaction), matched by index + recordedAt / at+amount,
    * so a payment another device logged meanwhile is never clobbered.
    */
+  /**
+   * UI: reverse one manual payment (owner side only). Asks why, confirms,
+   * then calls the reversePayment callable (functions/payment-reversal.js),
+   * which re-checks who is asking and appends the negative entry in one
+   * transaction on the server. → true when done.
+   */
+  async function reversePaymentUI(invoiceId, index, recordedAtMs) {
+    if (!invoiceId || !Number.isInteger(index)) return false;
+    if (!_isCompanyOwner()) { _toast('Only the company owner can reverse a payment.', 'error'); return false; }
+    const db = getDb();
+    const invRef = window.doc(db, 'invoices', invoiceId);
+    let amount, fingerprint;
+    try {
+      const snap = await window.getDoc(invRef);
+      if (!snap.exists()) throw new Error('Invoice not found');
+      const inv = snap.data() || {};
+      const p = (Array.isArray(inv.payments) ? inv.payments : [])[index];
+      if (!p) throw new Error('That payment changed — reopen the invoice and try again');
+      const key = paymentKey(p);
+      if (Number.isFinite(recordedAtMs) && key.recordedAtMs !== recordedAtMs) {
+        throw new Error('That payment changed — reopen the invoice and try again');
+      }
+      const why = reversalBlockedReason(inv, index);
+      if (why) throw new Error(why);
+      amount = Number(p.amount) || 0;
+      // The frozen fingerprint of the row the owner tapped (the rules never let anyone change these four).
+      fingerprint = { index, cents: toCents(amount), atMs: _tsMs(p.at), method: p.method, recordedBy: p.recordedBy };
+    } catch (e) { _toast((e && e.message) || 'Could not load the invoice', 'error'); return false; }
+
+    const ask = (typeof window.nbdPrompt === 'function')
+      ? window.nbdPrompt
+      : (m) => Promise.resolve(typeof window.prompt === 'function' ? window.prompt(m) : null);
+    const typed = await ask('Why reverse this ' + formatCurrency(amount) + ' payment? (for example: typed the wrong amount, check bounced)', '');
+    const reason = _cleanText(typed, REVERSAL_REASON_MAX);
+    if (!reason) {
+      if (typed != null) _toast('A reason is required to reverse a payment.', 'error');   // null = cancelled
+      return false;
+    }
+    const yesNo = (typeof window.nbdConfirm === 'function') ? window.nbdConfirm
+      : (m) => Promise.resolve(typeof window.confirm === 'function' ? window.confirm(m) : false);
+    const ok = await yesNo('Reverse the ' + formatCurrency(amount) + ' payment? It stays in the payment history, marked reversed, and comes off Collected. '
+      + 'If the right amount came in, record that as a new payment afterwards.');
+    if (!ok) return false;
+    try {
+      if (!window._functions || !window._httpsCallable) {
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
+        window._functions = window._functions || mod.getFunctions();
+        window._httpsCallable = window._httpsCallable || mod.httpsCallable;
+      }
+      const res = await window._httpsCallable(window._functions, 'reversePayment')(Object.assign({ invoiceId, reason }, fingerprint));
+      const out = (res && res.data) || {};
+      if (out.ok !== true) throw new Error('the server did not confirm the reversal');
+      _toast('Payment reversed', 'success');
+      // Money is owed again: a live pay link was minted for the smaller balance, so re-mint it (as markPaid does).
+      // Best-effort: the reversal is already saved; a failed re-mint says so.
+      if (Number(out.balanceDue) > 0) {
+        try {
+          const s2 = await window.getDoc(invRef);
+          if (s2.exists() && (s2.data() || {}).stripePaymentLink) await generateStripePaymentLink(invoiceId);
+        } catch (regenErr) {
+          console.warn('reversePayment: payment-link regen failed', regenErr && regenErr.message);
+          _toast('Payment reversed, but the online payment link may still show the old balance. Re-send the invoice.', 'warning');
+        }
+      }
+      if (document.getElementById('nbd-inv-detail-host')) renderInvoiceDetail('nbd-inv-detail-host', invoiceId);
+      return true;
+    } catch (e) {
+      _toast('Could not reverse the payment: ' + ((e && (e.message || e.code)) || 'error'), 'error');
+      return false;
+    }
+  }
+
   async function attachProofUI(invoiceId, index, recordedAtMs) {
     if (!invoiceId) return false;
     const db = getDb();
@@ -3786,13 +3966,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   async function markPaidUI(invoiceId) {
     await ensureDepositedToFlag();
     let balanceDefault = '';
+    let balanceCents = null;   // null = unread: the overpayment check then asks anyway
     try {
       const snap = await window.getDoc(window.doc(getDb(), 'invoices', invoiceId));
       if (snap.exists()) {
         const d = snap.data();
         const bal = (d.balanceDue != null) ? d.balanceDue : d.total;
         const c = toCents(Math.max(0, Number(bal) || 0));
-        if (Number.isFinite(c)) balanceDefault = (c / 100).toFixed(2);
+        if (Number.isFinite(c)) { balanceDefault = (c / 100).toFixed(2); balanceCents = c; }
       }
     } catch (_) { /* default to blank */ }
 
@@ -3915,6 +4096,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           return;
         }
         if (!isManualPaymentMethod(method)) { _toast('Pick a payment method', 'error'); return; }
+        // More than is owed asks first (a "no" keeps the sheet open, nothing written).
+        const over = overpaymentNotice(amount, balanceCents);
+        if (over) {
+          saveBtn.disabled = true;   // a second tap while the question is open must not start a second save
+          const yes = await _askOverpay(over);
+          saveBtn.disabled = false;
+          if (!yes) return;
+        }
         const details = { at, reference: $('#nbd-mp-ref').value, note: $('#nbd-mp-note').value };
         const depSel = $('#nbd-mp-dep');
         if (depSel && depSel.value) details.depositedTo = depSel.value;
@@ -4294,6 +4483,26 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           if (!(totalCents > 0)) { _toast('Enter the job total', 'error'); return; }
           if (!$('#nbd-rp-confirm').checked) { _toast('Confirm the job total first', 'error'); return; }
         }
+        // More than is owed asks first (a "no" keeps the sheet open, nothing written).
+        let owedC = null;
+        if (target.kind === 'existing') {
+          const inv = target.invoices.find(x => x.id === (invSel ? invSel.value : target.invoices[0].id)) || null;
+          if (inv) {
+            const c = toCents(Math.max(0, Number(inv.balanceDue != null ? inv.balanceDue : inv.total) || 0));
+            owedC = Number.isFinite(c) ? c : null;
+          }
+        } else if (target.kind === 'estimate') {
+          owedC = Number(target.totalCents) > 0 ? Number(target.totalCents) : null;
+        } else {
+          owedC = totalCents > 0 ? totalCents : null;
+        }
+        const over = overpaymentNotice(amount, owedC);
+        if (over) {
+          saveBtn.disabled = true;   // a second tap while the question is open must not start a second save
+          const yes = await _askOverpay(over);
+          saveBtn.disabled = false;
+          if (!yes) return;
+        }
         saveBtn.disabled = true;
         saveBtn.textContent = 'Saving…';
         try {
@@ -4389,6 +4598,10 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     buildManualPaymentEntry,
     PAYMENT_BASIS_CATCHUP,
     applyPaymentToInvoice,
+    overpaymentNotice,
+    reversalPairs,
+    reversalBlockedReason,
+    reversePaymentUI,
     paymentKey,
     findPaymentIndex,
     attachProofToPayments,
@@ -4495,6 +4708,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         case 'sendReceipt': {
           const key = t.dataset.ipPay;
           if (typeof IP.sendReceiptUI === 'function' && id && key) IP.sendReceiptUI(id, key);
+          break;
+        }
+        case 'reversePayment': {
+          const idx = parseInt(t.dataset.ipIdx, 10);
+          const rec = t.dataset.ipRec != null ? Number(t.dataset.ipRec) : NaN;
+          if (typeof IP.reversePaymentUI === 'function' && Number.isInteger(idx)) IP.reversePaymentUI(id, idx, rec);
           break;
         }
         case 'viewProof': {

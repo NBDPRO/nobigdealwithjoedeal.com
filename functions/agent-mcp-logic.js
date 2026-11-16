@@ -1121,10 +1121,24 @@ function personalReviews(reviews, limit) {
 // synthetic remainder, else one lump; refunds negative on their own date).
 // tests/agent-mcp-more-tools-2026-10-02.test.js runs both on the same
 // invoices so they cannot drift.
+// What a Connect refund moved back into balanceDue (connect-refund-logic.js),
+// added back to total - balanceDue so the refund comes off once, via refunds[].
+// refundReopenedTotal is client-writable, so it is capped at the server-tagged
+// (reopens:true) refunds[] that returned money; #3064 freezes refunds[] for
+// browsers. Same helper in all six revenue readers.
+function reopenedOf(inv) {
+  var list = Array.isArray(inv.refunds) ? inv.refunds : [], cap = 0;
+  for (var i = 0; i < list.length; i++) {
+    var r = list[i] || {}, a = parseFloat(r.amount);
+    if (r.reopens === true && a > 0 && r.status !== 'failed' && r.status !== 'canceled') cap += Math.round(a * 100);
+  }
+  var v = Math.round((parseFloat(inv.refundReopenedTotal) || 0) * 100);
+  return Math.min(Math.max(0, v), cap) / 100;
+}
 function paymentsOf(inv) {
   const total = parseFloat(inv.total) || 0;
   const bal = inv.balanceDue != null ? (parseFloat(inv.balanceDue) || 0) : 0;
-  const collectedCents = Math.round(Math.max(0, total - bal) * 100);
+  const collectedCents = Math.round(Math.max(0, total - bal + reopenedOf(inv)) * 100);
   let out = [];
   let done = false;
   if (Array.isArray(inv.payments) && inv.payments.length) {
@@ -1132,9 +1146,11 @@ function paymentsOf(inv) {
     inv.payments.forEach((p) => {
       const amt = parseFloat(p && p.amount);
       const at = p && (p.at != null ? p.at : p.date);
-      if (!(amt > 0) || at == null) return;
-      out.push({ amount: amt, at });
+      // A reversal (negative entry, functions/payment-reversal.js planReversal) nets the money back out on the reversed payment's own date.
+      if (!amt || at == null) return;
+      out.push(amt < 0 ? { amount: amt, at, reversal: true } : { amount: amt, at });
       ledgerCents += Math.round(amt * 100);
+      if (amt < 0) return;
       const t = ms(at);
       if (t && t < earliestMs) { earliestMs = t; earliestAt = at; }
     });
@@ -1180,7 +1196,7 @@ function collectedRevenue(invoices, leads, from, to, tz) {
       if (day < from || day > to) return;
       const c = Math.round(p.amount * 100);
       cents += c;
-      if (p.refund) refundCents += -c; else payments++;
+      if (p.refund) refundCents += -c; else if (!p.reversal) payments++;
       const m = day.slice(0, 7);
       byMonth[m] = (byMonth[m] || 0) + c;
       const k = inv.leadId || '(no customer)';

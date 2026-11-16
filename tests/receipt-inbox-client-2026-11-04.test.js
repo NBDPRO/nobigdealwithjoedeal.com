@@ -379,8 +379,19 @@ ok('the card started with the suggested card (3537 = Business debit card), so Ap
 
   // ═══ 13. wiring and hygiene ═══
   console.log('\n13. wiring');
-  const loader = fs.readFileSync(JS('script-loader.js'), 'utf8');
-  ok('script-loader loads the css, the logic and the screen (after the sorter)', /css\/receipt-inbox\.css\?v=1', 'js\/receipt-inbox-logic\.js\?v=1', 'js\/receipt-inbox\.js\?v=1'/.test(loader) && loader.indexOf('receipt-sorter.js') < loader.indexOf('receipt-inbox.js'));
+  // The live ScriptLoader registry (src-kit), not its source text: versions
+  // are asset-version-consistency's job, so a ?v= bump can't break this.
+  {
+    const K = require('./lib/src-kit');
+    const SL = K.loadInVm('docs/pro/js/script-loader.js', { document: { createElement: () => ({}), head: { appendChild() {} }, querySelector: () => null, querySelectorAll: () => [], addEventListener() {}, readyState: 'complete' }, location: { search: '' }, setTimeout, clearTimeout }).ScriptLoader;
+    const holder = Object.keys(SL.bundles).find((k) => SL.bundles[k].some((u) => u.split('?')[0] === 'js/receipt-inbox.js'));
+    const files = holder ? SL.bundles[holder].map((u) => u.split('?')[0]) : [];
+    const at = (f) => files.indexOf(f);
+    ok('script-loader loads the css, the logic and the screen (after the sorter)',
+      at('css/receipt-inbox.css') !== -1 && at('js/receipt-inbox-logic.js') !== -1 && at('js/receipt-inbox.js') !== -1
+      && at('css/receipt-inbox.css') < at('js/receipt-inbox-logic.js') && at('js/receipt-inbox-logic.js') < at('js/receipt-inbox.js')
+      && at('js/receipt-sorter.js') !== -1 && at('js/receipt-sorter.js') < at('js/receipt-inbox.js'), files);
+  }
   ok('the css file exists and uses the brand orange, not an old orange', fs.existsSync(path.join(ROOT, 'docs/pro/css/receipt-inbox.css')) && !/#E8720C|#F08030/i.test(fs.readFileSync(path.join(ROOT, 'docs/pro/css/receipt-inbox.css'), 'utf8')));
   ok('source: no inline style attribute, no inline handler, no eval', !/\bstyle\s*=\s*\\?["'`]/.test(srcText) && !/\bon(click|change|input|load)\s*=/.test(srcText) && !/\beval\(|new Function\(/.test(srcText));
   const idx = JSON.parse(fs.readFileSync(path.join(ROOT, 'firestore.indexes.json'), 'utf8'));

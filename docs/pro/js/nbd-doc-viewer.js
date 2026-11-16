@@ -373,6 +373,9 @@
       if (r && r.emailed) flashStatus('✓ Signing link emailed');
       else if (r && r.signLink) flashStatus('Link created — email is still sending');
       else flashStatus('Could not send — try again');
+      // The contract went out without a locked price (review 2026-11-14):
+      // the bills will follow the estimate as it stands when they sign.
+      if (r && r.priceLocked === false && window.showToast) window.showToast('Sent, but the price is not locked — check the estimate', 'warning');
     } catch (e) {
       if (window.showToast) window.showToast('Send for signature failed: ' + (e && e.message || 'error'), 'error');
       else flashStatus('Send failed');

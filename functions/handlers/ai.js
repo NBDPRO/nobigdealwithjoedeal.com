@@ -409,7 +409,6 @@ exports.publicVisualizerAI = onRequest(
     // Per-IP cap — 5 visualizer calls / hour from a single IP. Each call is
     // a ~$0.01 Haiku request; 5/hour caps cost per IP at ~$0.05/hour worst case.
     if (!(await httpRateLimit(req, res, 'publicVisualizerAI:ip', 5, 3_600_000))) return;
-    if (!(await publicAiDailyCap(res, 'publicVisualizerAI'))) return;
 
     try {
       const { imageBase64, mediaType, selectionsText, notes } = req.body || {};
@@ -426,6 +425,11 @@ exports.publicVisualizerAI = onRequest(
       const safeMediaType = allowedMedia.has(mediaType) ? mediaType : 'image/jpeg';
       const safeSelections = String(selectionsText || '').slice(0, 400);
       const safeNotes = String(notes || '').slice(0, 400);
+
+      // Counted only once the request is valid (2026-11-14, AI audit F6):
+      // counted first, empty requests used up the day's cap for free and
+      // switched the visualizer off for real homeowners.
+      if (!(await publicAiDailyCap(res, 'publicVisualizerAI'))) return;
 
       const anthropicBody = {
         model: 'claude-haiku-4-5-20251001',
@@ -494,12 +498,17 @@ exports.publicVisualizerAI = onRequest(
 //   - the model is forced server-side to the cheapest Haiku tier (the client
 //     cannot select an expensive model)
 //   - max_tokens is capped server-side
-//   - text-only: the request is a single bounded prompt string, never an
-//     arbitrary upstream passthrough
+//   - structured requests only (2026-11-14, AI audit F5): the page sends a
+//     `kind` and its form answers, the server builds the prompt
+//     (public-funnel-ai-logic.js), and a free-text prompt is refused, so it
+//     is not a general-purpose chatbot. The estimate reply is re-serialized
+//     to the roof JSON fields only.
+//   - the body is validated BEFORE the whole-endpoint daily cap is counted,
+//     so empty or junk requests can't use the cap up and switch the AI off
+//     for real homeowners for the day.
 // ═══════════════════════════════════════════════════════════════════════════
 const FUNNEL_AI_MODEL = 'claude-haiku-4-5-20251001';
-const FUNNEL_AI_MAX_PROMPT_CHARS = 6000;
-const FUNNEL_AI_MAX_TOKENS_CAP = 700;
+const { buildFunnelRequest, shapeFunnelOutput } = require('../public-funnel-ai-logic');
 
 exports.publicFunnelAI = onRequest(
   {
@@ -527,27 +536,27 @@ exports.publicFunnelAI = onRequest(
     // Per-IP cap — 10 calls / hour. A full funnel completion is <=2 calls
     // (estimate JSON + note); the headroom covers a couple of retries.
     if (!(await httpRateLimit(req, res, 'publicFunnelAI:ip', 10, 3_600_000))) return;
+    // Validate first: a refused request never counts against the shared
+    // daily cap (AI audit F5, 2026-11-14).
+    const built = buildFunnelRequest(req.body);
+    if (!built.ok) {
+      // Logged (never the field values) so a validator rule that refuses
+      // real homeowners shows up; the pages fall back silently.
+      logger.warn('publicFunnelAI: refused', {
+        kind: req.body && typeof req.body.kind === 'string' ? req.body.kind.slice(0, 20) : null,
+        error: built.error,
+      });
+      res.status(built.status).json({ error: built.error });
+      return;
+    }
     if (!(await publicAiDailyCap(res, 'publicFunnelAI'))) return;
 
     try {
-      const { prompt, maxTokens } = req.body || {};
-      if (typeof prompt !== 'string' || prompt.length === 0) {
-        res.status(400).json({ error: 'prompt required' });
-        return;
-      }
-      if (prompt.length > FUNNEL_AI_MAX_PROMPT_CHARS) {
-        res.status(413).json({ error: 'Prompt too large' });
-        return;
-      }
-      const cappedMax = Math.min(
-        Math.max(parseInt(maxTokens, 10) || 600, 1),
-        FUNNEL_AI_MAX_TOKENS_CAP
-      );
-
       const anthropicBody = {
         model: FUNNEL_AI_MODEL,           // forced — client cannot choose
-        max_tokens: cappedMax,
-        messages: [{ role: 'user', content: prompt }],
+        max_tokens: built.maxTokens,      // per kind, server-owned
+        system: built.system,             // form answers are data, not instructions
+        messages: [{ role: 'user', content: built.prompt }],
       };
 
       const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -570,10 +579,18 @@ exports.publicFunnelAI = onRequest(
       }
       await recordAiSpend(rowFromAnthropic('public-funnel', anthropicBody.model, data), { log: logger });
 
-      // Return only the joined text — never the raw upstream payload.
-      const text = Array.isArray(data.content)
+      // Return only the shaped text — never the raw upstream payload. An
+      // estimate reply that isn't the roof JSON is not passed through; the
+      // page shows its own code-built fallback on any error.
+      const joined = Array.isArray(data.content)
         ? data.content.map(c => (c && c.type === 'text' ? c.text : '')).join('')
         : '';
+      const text = shapeFunnelOutput(built.kind, joined, data.stop_reason);
+      if (text === null) {
+        logger.warn('publicFunnelAI: unusable model reply', { kind: built.kind, stopReason: data.stop_reason || null });
+        res.status(502).json({ error: 'Upstream AI error' });
+        return;
+      }
       res.json({ text });
     } catch (e) {
       const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
