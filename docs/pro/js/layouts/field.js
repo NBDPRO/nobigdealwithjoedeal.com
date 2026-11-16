@@ -169,6 +169,36 @@
   function searchBtn() {
     return '<button type="button" class="fa-sun fa-search" data-fa="search" aria-label="Search customers">Search</button>';
   }
+  // Add a lead from Field (wave-1 field #12, Joe 2026-11-14): the 3-field Quick
+  // Add (tools.js openQuickAddLead, GPS-first) had no touch entry in Field.
+  function newLeadBtn() {
+    return '<button type="button" class="fa-sun fa-newlead" data-fa="new-lead" aria-label="Add a lead">+ Lead</button>';
+  }
+  // The lead's stage, changed in Field: the same track the board's stage menu
+  // and the list view offer (stageOptionsForType), moved through moveCard (the
+  // one stage writer: required fields, Lost reason, offline retry).
+  function stageOptions(lead) {
+    var sk = (lead && (lead._stageKey || lead.stage)) || 'new';
+    var opts = null;
+    try {
+      if (typeof W.stageOptionsForType === 'function') {
+        var jt = lead.jobType || (typeof W.inferJobType === 'function' ? W.inferJobType(lead) : null) || 'insurance';
+        opts = W.stageOptionsForType(jt);
+      }
+    } catch (e) { opts = null; }
+    if (!Array.isArray(opts) || !opts.length) return null;
+    var label = function (k) { return typeof W.stageLabel === 'function' ? W.stageLabel(k) : k; };
+    var list = opts.some(function (o) { return o.value === sk; }) ? opts : [{ value: sk, label: label(sk) }].concat(opts);
+    return list.map(function (o) {
+      return '<option value="' + esc(o.value) + '"' + (o.value === sk ? ' selected' : '') + '>' + esc(o.label || label(o.value)) + '</option>';
+    }).join('');
+  }
+  function stageRow(lead) {
+    if (!lead || !lead.id || typeof W.moveCard !== 'function') return '';
+    var opts = stageOptions(lead);
+    if (!opts) return '';
+    return '<label class="fa-stage">Stage <select class="fa-stage-select" data-fa-stage="' + esc(lead.id) + '" aria-label="Stage">' + opts + '</select></label>';
+  }
   function sunBtn() {
     var on = doc.documentElement.classList.contains('sun');
     return '<button type="button" class="fa-sun" data-fa="sun" aria-pressed="' + on + '">' + (on ? 'Sun: on' : 'Sun') + '</button>';
@@ -183,7 +213,7 @@
     var current = pending[0] || null;
     // the sync dot (kit.js): online / offline and photos still waiting, since the
     // shell covers the header's own connection dot
-    var h = header(new Date().toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }), '<span class="fa-top-end">' + K.syncDot() + searchBtn() + sunBtn() + '</span>');
+    var h = header(new Date().toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }), '<span class="fa-top-end">' + K.syncDot() + newLeadBtn() + searchBtn() + sunBtn() + '</span>');
 
     var lead0 = current && current.leadId ? leadById(current.leadId) : null;
     if (lead0 && lead0.lat != null) loadWeather(lead0.lat, lead0.lng);
@@ -324,9 +354,10 @@
     h += '<div class="fa-lead-name">' + esc(it.name) + '</div>';
     if (it.address) h += '<div class="fa-now-addr">' + esc(it.address) + '</div>';
     h += '<div class="fa-now-why"><span class="fa-do">Why you are here</span> ' + esc(it.why) + '</div>';
+    h += stageRow(lead);
     var tel = K.telUrl(it.phone), sms = K.smsUrl(it.phone);
     h += '<div class="fa-tiles">' +
-      '<button type="button" class="fa-tile" data-fa="capture">' + K.icon('photo') + '<span>Test square</span></button>' +
+      '<button type="button" class="fa-tile" data-fa="capture">' + K.icon('photo') + '<span>' + (camMode() === 'square' ? 'Test square' : 'Photos') + '</span></button>' +
       (tel ? '<a class="fa-tile" href="' + esc(tel) + '">' + K.icon('call') + '<span>Call</span></a>' : '<button type="button" class="fa-tile fa-off" disabled>' + K.icon('call') + '<span>Call</span></button>') +
       (sms ? '<a class="fa-tile" href="' + esc(sms) + '">' + K.icon('text') + '<span>Text</span></a>' : '<button type="button" class="fa-tile fa-off" disabled>' + K.icon('text') + '<span>Text</span></button>') +
       '<button type="button" class="fa-tile" data-fa="voice">' + K.icon('voice') + '<span>Voice note</span></button>' +
@@ -364,6 +395,13 @@
     return h;
   }
 
+  // Camera mode (wave-1 field #10, Joe 2026-11-14): every Field shot used to be
+  // saved as a hail test square (tags hail + test_square + a slope, "Test
+  // square, S: 0 hits"), even a gutter or a siding shot. 'photo' (the default)
+  // is a plain job photo, tagged later in Photo Review like burst shots;
+  // 'square' is the hail test-square counter as before. Kept per device.
+  var CAM_MODE_KEY = 'nbd_field_cam_mode';
+  function camMode() { return ls(CAM_MODE_KEY) === 'square' ? 'square' : 'photo'; }
   function counterLine() {
     var n = S.hits[S.slope] || 0;
     return n + (n === 1 ? ' hit' : ' hits') + ' counted in this square · example guide: ' + EXAMPLE_THRESHOLD +
@@ -371,33 +409,53 @@
   }
   // S.queued is the durable queue's count, or null when it could not be read:
   // "All uploaded" only ever follows a real 0 (audit D30).
+  // Leads with this session's shot count: iOS Safari has no vibrate, so the
+  // count (and the shutter flash) is the only sign a shot was taken
+  // (wave-1 field #11).
   function queueLine() {
+    var line = queueState();
+    return S.shots > 0 ? S.shots + (S.shots === 1 ? ' photo' : ' photos') + (line ? ' · ' + line : '') : line;
+  }
+  function queueState() {
     if (S.queued == null) return S.shots > 0 ? 'Checking uploads... photos are saved on this phone' : '';
     if (!S.online && S.queued > 0) return 'No signal · ' + S.queued + ' queued';
     if (!S.online) return 'No signal · photos will wait on this phone';
     if (S.queued > 0) return S.queued + ' uploading';
     return S.shots > 0 ? 'All uploaded' : '';
   }
+  function flashShutter() {
+    var cam = rootEl && rootEl.querySelector('.fa-cam');
+    if (!cam) return;
+    cam.classList.remove('fa-flash');
+    void cam.offsetWidth; // restart the animation on a quick second shot
+    cam.classList.add('fa-flash');
+    setTimeout(function () { cam.classList.remove('fa-flash'); }, 60); // the CSS fade runs on removal
+  }
   function renderCapture() {
     var lead = S.leadId ? leadById(S.leadId) : null;
     var name = lead ? K.leadName(lead) : 'Customer';
-    var h = '<div class="fa-cam">' +
+    var sq = camMode() === 'square';
+    var h = '<div class="fa-cam' + (sq ? '' : ' fa-cam-photo') + '">' +
       '<video class="fa-video" data-fa-video playsinline muted autoplay></video>' +
-      '<svg class="fa-sq" viewBox="0 0 100 100" aria-hidden="true"><rect x="10" y="10" width="80" height="80" class="fa-sq-box"/>' +
-      '<g class="fa-sq-grid">' + [28, 46, 64, 82].map(function (v) { return '<line x1="' + v + '" y1="10" x2="' + v + '" y2="90"/><line x1="10" y1="' + v + '" x2="90" y2="' + v + '"/>'; }).join('') + '</g></svg>' +
+      (sq ? '<svg class="fa-sq" viewBox="0 0 100 100" aria-hidden="true"><rect x="10" y="10" width="80" height="80" class="fa-sq-box"/>' +
+      '<g class="fa-sq-grid">' + [28, 46, 64, 82].map(function (v) { return '<line x1="' + v + '" y1="10" x2="' + v + '" y2="90"/><line x1="10" y1="' + v + '" x2="90" y2="' + v + '"/>'; }).join('') + '</g></svg>' : '') +
       '<div class="fa-cam-top"><button type="button" class="fa-cam-btn" data-fa="back" aria-label="Close camera">&times;</button>' +
-      '<div class="fa-cam-title">' + esc(name) + '<small>10 ft × 10 ft test square</small></div>' +
+      '<div class="fa-cam-title">' + esc(name) + '<small>' + (sq ? '10 ft × 10 ft test square' : 'Job photo · tag it later in Photo Review') + '</small></div>' +
       '<div class="fa-cam-q" id="faQ">' + esc(queueLine()) + '</div></div>' +
       (S.camError ? '<div class="fa-cam-err" role="alert">' + esc(S.camError) +
         ' <button type="button" class="fa-big" data-fa="file">Use the phone camera</button></div>' : '') +
       '<div class="fa-cam-bottom">' +
-      '<div class="fa-chips" role="group" aria-label="Slope">' + SLOPES.map(function (s) {
+      '<div class="fa-chips fa-modes" role="group" aria-label="Camera mode">' +
+        '<button type="button" class="fa-chip' + (sq ? '' : ' fa-chip-on') + '" data-fa="cam-mode" data-id="photo" aria-pressed="' + !sq + '">Photo</button>' +
+        '<button type="button" class="fa-chip' + (sq ? ' fa-chip-on' : '') + '" data-fa="cam-mode" data-id="square" aria-pressed="' + sq + '">Test square</button>' +
+      '</div>' +
+      (sq ? '<div class="fa-chips" role="group" aria-label="Slope">' + SLOPES.map(function (s) {
         return '<button type="button" class="fa-chip' + (S.slope === s.id ? ' fa-chip-on' : '') + '" data-fa="slope" data-id="' + s.id + '" aria-pressed="' + (S.slope === s.id) + '">' + esc(s.label) + '</button>';
       }).join('') + '</div>' +
       '<div class="fa-count"><button type="button" class="fa-cnt" data-fa="minus" aria-label="One fewer hit">&minus;</button>' +
       '<div class="fa-count-n" id="faN" aria-live="polite">' + (S.hits[S.slope] || 0) + '</div>' +
       '<button type="button" class="fa-cnt" data-fa="plus" aria-label="One more hit">+</button></div>' +
-      '<div class="fa-count-line" id="faLine">' + esc(counterLine()) + '</div>' +
+      '<div class="fa-count-line" id="faLine">' + esc(counterLine()) + '</div>' : '') +
       '<button type="button" class="fa-shutter" data-fa="shutter" aria-label="Take photo"></button>' +
       '</div><input type="file" accept="image/*" capture="environment" class="fa-file" data-fa-file hidden></div>';
     return h;
@@ -669,9 +727,10 @@
     return Promise.resolve(null);
   }
   // One photo -> the existing durable queue (IndexedDB) -> the existing drain.
-  // The slope and hit count are read at the shutter, not when the save lands.
+  // The camera mode, slope and hit count are read at the shutter, not when the
+  // save lands (a held shot can be saved minutes later).
   function saveShot(blob) {
-    var shot = { blob: blob, leadId: S.leadId, slope: S.slope, hits: S.hits[S.slope] || 0 };
+    var shot = { blob: blob, leadId: S.leadId, mode: camMode(), slope: S.slope, hits: S.hits[S.slope] || 0 };
     return ensurePhotos().then(function (P) {
       if (shot.leadId && !(P && typeof P.enqueueForRetry === 'function')) return holdShot(shot);
       return saveShotWith(P, shot);
@@ -711,10 +770,11 @@
   function saveShotWith(P, shot) {
     var blob = shot.blob, leadId = shot.leadId;
     if (!P || typeof P.enqueueForRetry !== 'function' || !leadId) { toast('The photo tools are still loading. Try again in a moment.', 'error'); return Promise.resolve(); }
+    var sq = shot.mode === 'square';
     var sl = slopeTag(shot.slope);
-    var hits = shot.hits;
-    var tags = ['hail', 'test_square', sl.tag];
-    var description = 'Test square, ' + sl.label + ': ' + hits + (hits === 1 ? ' hit' : ' hits') + ' counted in 10 ft x 10 ft';
+    var hits = shot.hits || 0;
+    var tags = sq ? ['hail', 'test_square', sl.tag] : [];
+    var description = sq ? 'Test square, ' + sl.label + ': ' + hits + (hits === 1 ? ' hit' : ' hits') + ' counted in 10 ft x 10 ft' : '';
     var lead = leadById(leadId);
     return getFixQuick().then(function (fix) {
       var cap = P._capture && P._capture.captureContext
@@ -723,7 +783,7 @@
       var uid = (W._user && W._user.uid) || 'anon';
       var uploadId = 'fa_' + uid + '_' + at + '_' + Math.random().toString(36).slice(2, 8);
       return P.enqueueForRetry({
-        blob: blob, leadId: leadId, tags: tags, description: description, location: sl.label,
+        blob: blob, leadId: leadId, tags: tags, description: description, location: sq ? sl.label : '',
         timestamp: at, uploadId: uploadId, preset: 'standard', capture: cap,
       });
     }).then(function (out) {
@@ -748,6 +808,7 @@
     c.width = Math.round(w * sc); c.height = Math.round(h * sc);
     c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
     haptic(25);
+    flashShutter();
     c.toBlob(function (b) { if (b) saveShot(b); }, 'image/jpeg', 0.86);
   }
 
@@ -764,6 +825,11 @@
     }
     ev.preventDefault();
     if (a === 'sun') { setSun(!doc.documentElement.classList.contains('sun')); return; }
+    if (a === 'new-lead') {
+      if (typeof W.openQuickAddLead === 'function') W.openQuickAddLead();
+      else toast('Quick add is still loading. Try again in a moment.', 'info');
+      return;
+    }
     if (a === 'search') {
       if (W.NBDCommand && typeof W.NBDCommand.open === 'function') W.NBDCommand.open();
       else toast('Search is still loading. Try again in a moment.', 'info');
@@ -785,6 +851,7 @@
       return;
     }
     if (a === 'slope') { S.slope = t.getAttribute('data-id') || 'S'; haptic(6); render(); return; }
+    if (a === 'cam-mode') { lsSet(CAM_MODE_KEY, t.getAttribute('data-id') === 'square' ? 'square' : 'photo'); haptic(6); render(); return; }
     if (a === 'plus') { setCount(1); return; }
     if (a === 'minus') { setCount(-1); return; }
     if (a === 'shutter') { shutter(); return; }
@@ -800,6 +867,27 @@
       return;
     }
     if (t.hasAttribute('data-fa-file') && t.files && t.files[0]) { saveShot(t.files[0]); t.value = ''; }
+    var sid = t.getAttribute('data-fa-stage');
+    if (sid) moveStage(t, sid);
+  }
+  // moveCard resolves true when the move went through; anything else (refused,
+  // a missing required field, the Lost picker cancelled, offline) snaps the
+  // select back to the stored stage instead of claiming a move.
+  function moveStage(sel, leadId) {
+    var lead = leadById(leadId);
+    var prev = (lead && (lead._stageKey || lead.stage)) || sel.getAttribute('data-prev') || '';
+    var want = sel.value;
+    if (typeof W.moveCard !== 'function') { sel.value = prev; return Promise.resolve(false); }
+    sel.disabled = true;
+    // Not moved: show the lead's stage as it is NOW, re-read after moveCard
+    // (a lost race with another tab reloads the lead at THAT tab's stage, so
+    // the stage captured before the move would be stale).
+    var current = function () { var l = leadById(leadId); return (l && (l._stageKey || l.stage)) || prev; };
+    return Promise.resolve(W.moveCard(leadId, want)).then(function (ok) {
+      sel.disabled = false;
+      if (ok !== true) sel.value = current();
+      return ok === true;
+    }, function () { sel.disabled = false; sel.value = current(); return false; });
   }
 
   // slide-to-confirm: pointer drag on the knob; keyboard arrows as the accessible path
@@ -952,7 +1040,10 @@
   W.NBDFieldApp = {
     _state: S, _slopes: SLOPES, EXAMPLE_THRESHOLD: EXAMPLE_THRESHOLD, _wrapLines: wrapLines,
     render: render, go: go,
-    _saveShot: saveShot, _retryHeld: retryHeld, _heldCount: function () { return held.length; },
+    _saveShot: saveShot, _retryHeld: retryHeld, _heldCount: function () { return held.length; }, // tests/field-shot-held-until-photos-load-2026-11-14.test.js
     _confirmOnSite: confirmOnSite, // tests/field-onsite-offline-2026-11-14.test.js
+    _queueLine: queueLine, // tests/daily-polish-2026-11-14.test.js
+    _saveShotWith: saveShotWith, _renderCapture: renderCapture, _camMode: camMode,
+    _renderLead: renderLead, _renderToday: renderToday, _onShellChange: onShellChange, _onShellClick: onShellClick, // tests/field-lead-stage-2026-11-14.test.js // tests/field-camera-modes-2026-11-14.test.js
   };
 })();

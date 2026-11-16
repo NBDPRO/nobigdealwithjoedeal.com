@@ -80,12 +80,17 @@ try {
 window.kanbanFilter = kanbanFilter;
 window.kanbanFilterDebounced = kanbanFilterDebounced;
 window.clearCrmSearch = clearCrmSearch;
-window.filterByStage = function(stageKey) {
+// The stage-tile filter is registered with NBDLeadFilters (wave-1 daily #9,
+// 2026-11-14): every lead reload (each return to the tab) re-rendered the whole
+// book and dropped it. Registered, it is recomputed on a refresh like the
+// other board filters, and it gives way to the others (one filter at a time).
+let _stageFilterKey = null;
+function _stageFiltered(stageKey) {
   const _normalize = window.normalizeStage || (s => s);
   // 'tile:<key>' — a dashboard Lead Stages tile (crm-stages.js
   // dashboardTileFor): the same leads the tile counted, not one stage key.
   const tile = /^tile:/.test(String(stageKey || '')) ? String(stageKey).slice(5) : null;
-  const filtered = (window._leads || []).filter(l => {
+  return (window._leads || []).filter(l => {
     const sk = l._stageKey || _normalize(l.stage || 'new');
     if (tile) {
       return typeof window.dashboardTileFor === 'function'
@@ -93,12 +98,52 @@ window.filterByStage = function(stageKey) {
     }
     return sk === stageKey;
   });
-  renderLeads(window._leads, filtered);
+}
+function _paintStageCount(on) {
+  const countSpan = document.getElementById('crmSearchCount');
+  if (!countSpan) return;
+  if (on && _stageFilterKey) countSpan.textContent = _stageFiltered(_stageFilterKey).length + ' in stage';
+  else if (/ in stage$/.test(countSpan.textContent || '')) countSpan.textContent = '';
+}
+function _registerStageFilter() {
+  if (!window.NBDLeadFilters || window.NBDLeadFilters.__stageRegistered) return !!window.NBDLeadFilters;
+  window.NBDLeadFilters.register('stage', { compute: () => _stageFiltered(_stageFilterKey), paint: _paintStageCount });
+  window.NBDLeadFilters.__stageRegistered = true;
+  return true;
+}
+window.filterByStage = function(stageKey) {
+  _stageFilterKey = stageKey;
   const searchInput = document.getElementById('crmSearch');
   if (searchInput) { searchInput.value = ''; }
+  if (_registerStageFilter()) { window.NBDLeadFilters.activate('stage'); return; }
+  // No registry on this page: the one-shot filter it always was.
+  const filtered = _stageFiltered(stageKey);
+  renderLeads(window._leads, filtered);
   const countSpan = document.getElementById('crmSearchCount');
   if (countSpan) countSpan.textContent = filtered.length + ' in stage';
 };
+// Using the search box or the damage filter after picking a stage means the rep
+// moved on: the stage filter steps aside at once (kanbanFilter renders without
+// telling the registry, so a later refresh must not bring the stage back after
+// the search is cleared).
+function _stageStepAside(e) {
+  const id = e && e.target && e.target.id;
+  if (id !== 'crmSearch' && id !== 'crmDmgFilter') return;
+  const F = window.NBDLeadFilters;
+  if (F && F.isActive('stage')) F.deactivate('stage');
+}
+document.addEventListener('input', _stageStepAside, true);
+document.addEventListener('change', _stageStepAside, true);
+// A lead reload re-renders the whole book: put the stage filter back on it.
+window.addEventListener('nbd:data-refreshed', (e) => {
+  if (!e || !e.detail || e.detail.source !== 'leads') return;
+  const F = window.NBDLeadFilters;
+  if (!F || !F.isActive('stage')) return;
+  const s = document.getElementById('crmSearch');
+  const d = document.getElementById('crmDmgFilter');
+  if ((s && String(s.value || '').trim()) || (d && d.value)) { F.deactivate('stage'); return; }
+  F.refresh();
+});
 window.handleCardClick = handleCardClick;
 // Deleted-drawer, delete-confirm, bulk-ops, CRM-search + follow-up-scroll
 // and trash-badge helpers now live behind crm-portal-bridge.js's own

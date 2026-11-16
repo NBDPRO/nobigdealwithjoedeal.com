@@ -1117,6 +1117,12 @@
     "tasks-stay-fresh-2026-11-14.test.js",
     "customer-page-search-all-2026-11-14.test.js",
     "customer-open-tasks-2026-11-14.test.js",
+    "daily-polish-2026-11-14.test.js",
+    "tasks-load-bounded-2026-11-14.test.js",
+    "field-camera-modes-2026-11-14.test.js",
+    "field-lead-stage-2026-11-14.test.js",
+    "touch-targets-2026-11-14.test.js",
+    "offline-banner-weak-signal-2026-11-14.test.js",
     "sign-price-snapshot-2026-11-14.test.js"
   ],
   "smoke": {

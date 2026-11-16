@@ -35,7 +35,7 @@
   // opportunities cards extend it. estimate-followups.js (the Home card both
   // boards read) stays an eager tag in dashboard.html.
   var BUNDLES = {
-    staleleads: ['js/stale-leads-cleanup.js?v=1'],
+    staleleads: ['js/stale-leads-cleanup.js?v=2'],
     leadsourcefixer: ['js/lead-source-fixer.js?v=1'],
     speedtolead: ['js/speed-to-lead.js?v=1'],
     reputation: ['js/reputation.js?v=1'],
