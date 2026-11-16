@@ -115,6 +115,7 @@
   function searchEstimates(query, estimates, leads) {
     const q = normalize(query);
     if (!q) return [];
+    const qDigits = q.replace(/\D+/g, '');
     const leadById = {};
     for (const l of leads) leadById[l.id] = l;
     const results = [];
@@ -128,7 +129,9 @@
       let reason = '';
       if (estNum && estNum.includes(q))             { score += 90; reason = `Estimate #${e.estimateNumber || e.number}`; }
       else if (leadStr && leadStr.includes(q))      { score += 70; }
-      else if (total && total.includes(q.replace(/\D+/g, ''))) { score += 40; reason = `$${Number(total).toLocaleString()}`; }
+      // Amount match only for a query with digits: q.replace(/\D+/g,'') of
+      // "smith" is '', and every total includes '' (wave-1 daily #12).
+      else if (total && qDigits && total.includes(qDigits)) { score += 40; reason = `$${Number(total).toLocaleString()}`; }
       if (score > 0) results.push({ type: 'estimate', estimate: e, lead, score, reason });
     }
     return results.sort((a, b) => b.score - a.score).slice(0, MAX_RESULTS_PER_GROUP);

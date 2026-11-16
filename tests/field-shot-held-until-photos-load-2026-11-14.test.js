@@ -35,7 +35,10 @@ function fieldApp() {
   const K = require(path.join(ROOT, 'docs/pro/js/layouts/kit.js'));
   const toasts = [];
   const listeners = {};
-  const ls = {};
+  // The camera is in Test square mode on this device: the held shot must keep
+  // the slope and hit count from the shutter (Photo mode, the default since
+  // #3094, carries no hail tags at all — tests/field-camera-modes-2026-11-14).
+  const ls = { nbd_field_cam_mode: 'square' };
   const win = {
     NBDLayoutKit: K, LayoutEngine: { implement() {} },
     addEventListener(t, fn) { (listeners[t] = listeners[t] || []).push(fn); },

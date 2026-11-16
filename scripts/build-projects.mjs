@@ -615,7 +615,7 @@ const stripBlock = (service) => {
 <section class="nbd-recent-jobs" id="recent-jobs">
   <div class="nbd-recent-jobs-inner">
     <div class="nbd-recent-jobs-cta">
-      <p>Fresh ${esc(label.toLowerCase())} job photos are coming soon — see completed roofing, siding, and gutter projects with honest price ranges.</p>
+      <p>No ${esc(label.toLowerCase())} jobs are posted here yet. See completed roofing, siding, and gutter projects with honest price ranges.</p>
       <a href="/our-work">See Our Work &rarr;</a>
     </div>
   </div>
@@ -1147,9 +1147,9 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
 <link rel="stylesheet" href="/assets/css/nbd-nav.css">
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
-<!-- nbd:partial nav-standard cta_href="/#contact" -->
+<!-- nbd:partial nav-standard cta_href="/inspect" -->
 <!-- /nbd:partial nav-standard -->
-<!-- nbd:partial mobile-nav-standard cta_href="/#contact" -->
+<!-- nbd:partial mobile-nav-standard cta_href="/inspect" -->
 <!-- /nbd:partial mobile-nav-standard -->
 <main id="main">
   <div class="pd-wrap">

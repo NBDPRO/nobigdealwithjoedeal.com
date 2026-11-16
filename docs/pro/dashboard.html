@@ -79,7 +79,7 @@
 <link rel="modulepreload" href="js/estimate-lead-sync.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=11" as="script">
-<link rel="preload" href="js/crm.js?v=37" as="script">
+<link rel="preload" href="js/crm.js?v=38" as="script">
 <link rel="preload" href="js/maps.js?v=12" as="script">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -167,7 +167,7 @@
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
-<link rel="stylesheet" href="css/dashboard-app.css?v=29">
+<link rel="stylesheet" href="css/dashboard-app.css?v=30">
 <link rel="stylesheet" href="css/ui-primitives.css?v=16">
 <link rel="stylesheet" href="css/care-plan.css?v=1">
 <link rel="stylesheet" media="print" data-late-css href="css/invoice-pipeline.css?v=7">
@@ -7343,7 +7343,7 @@
 <script defer src="js/schedule-window-ui.js?v=1"></script>
 <!-- Today (2026-10-03): the pure plan + THE follow-up rule (followUpDue) that
      crm-pipeline / crm-snooze / analytics-kpi read — before them. -->
-<script defer src="js/today-plan.js?v=9"></script>
+<script defer src="js/today-plan.js?v=10"></script>
 <script defer src="js/crm-leads.js?v=9"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
 <!-- Lead photos on demand (startup audit 2026-10-04): window.NBDPhotoCache
@@ -7365,20 +7365,20 @@
 <script defer src="js/followup-deck.js?v=2"></script>
 <!-- "Sort my customers" (js/sort-customers.js) is a ScriptLoader bundle since 2026-11-08: crm-pipeline.js loads it
      on the first Pipeline render, when the banner's mount (inside tpl-view-crm) exists. -->
-<script defer src="js/crm.js?v=37"></script>
-<script defer src="js/crm-list-view.js?v=9"></script>
-<script defer src="js/tasks.js?v=12"></script>
+<script defer src="js/crm.js?v=38"></script>
+<script defer src="js/crm-list-view.js?v=10"></script>
+<script defer src="js/tasks.js?v=13"></script>
 <script defer src="js/storm-time.js?v=1"></script>
 <script defer src="js/dol-fill.js?v=3"></script>
 <script defer src="js/notif-bell.js?v=9"></script>
-<script defer src="js/agent-inbox.js?v=9"></script>
+<script defer src="js/agent-inbox.js?v=10"></script>
 <!-- Messaging Control Center nav reveal (2026-10-19): flag messagingControlCenter, owner/admin only. -->
 <script defer src="js/messaging-nav.js?v=1"></script>
 <script defer src="js/agent-bots-settings.js?v=6"></script>
 <script defer src="js/buying-intent-strike.js?v=3"></script>
 <script defer src="js/lead-dedup.js?v=4"></script>
 <script defer src="js/dup-review.js?v=1"></script>
-<script defer src="js/global-search.js?v=2"></script>
+<script defer src="js/global-search.js?v=3"></script>
 <script defer src="js/bottleneck-widget.js?v=2"></script>
 <script defer src="js/pwa-install-nudge.js?v=6"></script>
 <!-- Offline edits: "N changes waiting to sync" badge + honest Saved toasts (2026-10-04). -->
@@ -7398,7 +7398,7 @@
 <!-- Flag-gated toolbar features (stale leads clean-up, lead-source fixer, reputation, speed to lead, the two
      follow-up boards) are ScriptLoader bundles since 2026-11-08: dark-features.js fetches one when NBDFlags says its
      flag is on, so a boot with the flags off ships none of them. -->
-<script defer src="js/dark-features.js?v=1"></script>
+<script defer src="js/dark-features.js?v=2"></script>
 <script defer src="js/stale-shares-filter.js?v=3"></script>
 <script defer src="js/lead-snooze.js?v=6"></script>
 <script defer src="js/prefs-sync.js?v=4"></script>
@@ -7448,7 +7448,7 @@
 <script defer src="js/keyboard-viewport.js?v=1"></script>
 <!-- My Skin (my-skin-logic.js + my-skin.js) is the lazy myskin bundle since 2026-11-08: my-skin-boot.js loads it for an account with a skin, or when Settings opens. -->
 <script defer src="js/my-skin-boot.js?v=1"></script>
-<script defer src="js/layout-system.js?v=8"></script>
+<script defer src="js/layout-system.js?v=9"></script>
 <script defer src="js/pixel-mode.js?v=4"></script>
 <script defer src="js/ui.js?v=11"></script>
 <script defer src="js/demo.js?v=5"></script>
@@ -7494,11 +7494,11 @@
      maps.js because it uses window.hav() (haversine distance). -->
 <script defer src="js/smart-calendar.js?v=7"></script>
 <script defer src="js/calendar-feed-ui.js?v=2"></script>
-<script defer src="js/google-calendar-ui.js?v=7"></script>
+<script defer src="js/google-calendar-ui.js?v=8"></script>
 <script defer src="js/d2d-storm-layer.js?v=3"></script>
 <script defer src="js/schedule-planner-logic.js?v=3"></script>
 <script defer src="js/production-logic.js?v=1"></script>
-<script defer src="js/production.js?v=4"></script>
+<script defer src="js/production.js?v=5"></script>
 <!-- Plan Jobs (js/schedule-planner.js) loads on the first Schedule visit since 2026-11-08: production.js registers
      the ScriptLoader bundle and view "schedule", so goTo('schedule') fetches it. -->
 <!-- Voicemail pipeline — record OR upload a voicemail, route through
@@ -7651,7 +7651,7 @@
 
 <!-- W151: offline banner — shows a yellow strip across the top
      when navigator.onLine === false. -->
-<script defer src="js/offline-banner.js?v=2"></script>
+<script defer src="js/offline-banner.js?v=3"></script>
 <!-- Alert-delivery health: red strip for owners/admins when alert_outbox
      shows failed:* email/SMS deliveries in the last 48h (a dead Resend/
      Twilio key otherwise fails silently — email can't announce its own
@@ -7659,7 +7659,7 @@
 <script defer src="js/alert-health-banner.js?v=3"></script>
 <!-- W157: What's New / discoverability bell — surfaces recently-
      shipped tools so they don't sit invisible behind hotkeys. -->
-<script defer src="js/whats-new.js?v=2"></script>
+<script defer src="js/whats-new.js?v=3"></script>
 <!-- Feature flags (F9) — window.NBDFlags for kill switches + gradual rollout -->
 <script defer src="js/feature-flags.js?v=2"></script>
 <!-- Stage B slice 1: flag-gated shadow server aggregates (no UI reads) -->

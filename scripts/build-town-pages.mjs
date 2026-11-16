@@ -176,7 +176,7 @@ function housingParagraph(t) {
 
 function stormBox(t) {
   const T = esc(t.town), n = t.storms.nearbyCount, r = radiusMi(t), s = t.storms;
-  const h3 = pick(t, 'sh', [`⛈️ Storm record near ${T} since 2019`, `⛈️ What NOAA logged around ${T}`, `⛈️ ${T} storm history, 2019–2026`, '⛈️ Recent storms on the record']);
+  const h3 = pick(t, 'sh', [`Storm record near ${T} since 2019`, `What NOAA logged around ${T}`, `${T} storm history, 2019–2026`, 'Recent storms on the record']);
   const noaa = link(NOAA_DB, 'Storm Events Database');
   const lead = pick(t, 'sl', [
     `NOAA’s ${noaa} has ${n} reports of damaging wind, hail an inch or larger, or tornadoes within about ${r} miles of ${T} between January 2019 and June 2026. The biggest:`,
@@ -227,10 +227,10 @@ ${items}
 }
 
 const PERMIT_H3 = {
-  yes: ['📋 Re-roof permits: required here', '📋 Yes, a re-roof needs a permit'],
-  no: ['📋 No building permit for a like-for-like re-roof', '📋 Permits: not for the roof covering'],
-  unknown: ['📋 Permits: not settled in writing', '📋 Permit rules: ask before the tear-off'],
-  varies: ['📋 Permits: it depends on the job', '📋 Permits: structural work, yes'],
+  yes: ['Re-roof permits: required here', 'Yes, a re-roof needs a permit'],
+  no: ['No building permit for a like-for-like re-roof', 'Permits: not for the roof covering'],
+  unknown: ['Permits: not settled in writing', 'Permit rules: ask before the tear-off'],
+  varies: ['Permits: it depends on the job', 'Permits: structural work, yes'],
 };
 function permitBox(t) {
   const p = t.permit;
@@ -249,12 +249,12 @@ ${out.replace(/\n$/, '')}
 }
 
 const FACT_LABEL = {
-  history: ['📜 The backstory', '📜 How it started', '📜 Old bones'],
-  growth: ['📈 When the houses went up', '📈 The building boom', '📈 Growth era'],
-  historic: ['🏛️ Historic district', '🏛️ Preservation rules', '🏛️ Historic homes'],
-  trees: ['🌳 Tree canopy', '🌳 Trees and roofs', '🌳 Under the trees'],
-  hoa: ['🏘️ Subdivisions', '🏘️ Planned communities'],
-  landmark: ['📍 Worth knowing', '📍 Local landmark'],
+  history: ['The backstory', 'How it started', 'Old bones'],
+  growth: ['When the houses went up', 'The building boom', 'Growth era'],
+  historic: ['Historic district', 'Preservation rules', 'Historic homes'],
+  trees: ['Tree canopy', 'Trees and roofs', 'Under the trees'],
+  hoa: ['Subdivisions', 'Planned communities'],
+  landmark: ['Worth knowing', 'Local landmark'],
 };
 function factCards(t) {
   if (!t.facts.length) return '';
@@ -443,28 +443,28 @@ ${cards}
 // (tests/subcontracting-honesty.test.js reads it on the Amelia page).
 const WHY = [
   [
-    ['🤝 You get me, start to finish', 'No franchise, no call center. The person who answers the phone inspects your roof, writes the estimate and supervises the crew.'],
-    ['🤝 One name on the job: mine', 'The guy who climbs your roof writes the estimate and supervises the crew. There’s no salesperson in between, because there isn’t one.'],
-    ['🤝 No hand-offs', 'The crews are independent subs I’ve used for years, and I’m the one who supervises the crew on your roof, from tear-off to cleanup.'],
-    ['🤝 The owner shows up', 'I’m the one on your roof for the inspection, the one who writes the number, and the one who supervises the crew when the work happens.'],
+    ['You get me, start to finish', 'No franchise, no call center. The person who answers the phone inspects your roof, writes the estimate and supervises the crew.'],
+    ['One name on the job: mine', 'The guy who climbs your roof writes the estimate and supervises the crew. There’s no salesperson in between, because there isn’t one.'],
+    ['No hand-offs', 'The crews are independent subs I’ve used for years, and I’m the one who supervises the crew on your roof, from tear-off to cleanup.'],
+    ['The owner shows up', 'I’m the one on your roof for the inspection, the one who writes the number, and the one who supervises the crew when the work happens.'],
   ],
   [
-    ['🛡️ Insurance jobs, documented right', 'I have 7+ years of insurance restoration work behind me. I document the damage, write the line-item estimate and meet your adjuster on the roof after you file. The claim stays yours.'],
-    ['🛡️ Storm work done by the book', 'Once you’ve filed, I meet the adjuster on the roof with photos of every hit and a line-item estimate. You own the claim and make the calls.'],
-    ['🛡️ Your claim, my documentation', 'I bring 7+ years of restoration experience, a photo record of the damage and a line-item estimate. You file the claim and decide what happens with it; I meet the adjuster on the roof when they come.'],
-    ['🛡️ Photos first, then numbers', 'Every damaged spot gets photographed before anything gets priced. That record and my line-item estimate are what I walk your adjuster through after you file.'],
+    ['Insurance jobs, documented right', 'I have 7+ years of insurance restoration work behind me. I document the damage, write the line-item estimate and meet your adjuster on the roof after you file. The claim stays yours.'],
+    ['Storm work done by the book', 'Once you’ve filed, I meet the adjuster on the roof with photos of every hit and a line-item estimate. You own the claim and make the calls.'],
+    ['Your claim, my documentation', 'I bring 7+ years of restoration experience, a photo record of the damage and a line-item estimate. You file the claim and decide what happens with it; I meet the adjuster on the roof when they come.'],
+    ['Photos first, then numbers', 'Every damaged spot gets photographed before anything gets priced. That record and my line-item estimate are what I walk your adjuster through after you file.'],
   ],
   [
-    ['💰 Straight pricing', 'No inflated first number, no “today only” discount, no pressure to sign at the kitchen table. Take the quote, sleep on it, call when you’re ready.'],
-    ['💰 A price you can sit with', 'You get a written number and time to think about it. I don’t do same-day-only deals or pressure closes.'],
-    ['💰 The number holds up', 'Itemized, in writing, and explained line by line. If something on it doesn’t make sense, ask, and I’ll show you on the roof.'],
-    ['💰 No sales tricks', 'The estimate is itemized and in writing, with no expiring “deal” attached. Compare it with anyone’s.'],
+    ['Straight pricing', 'No inflated first number, no “today only” discount, no pressure to sign at the kitchen table. Take the quote, sleep on it, call when you’re ready.'],
+    ['A price you can sit with', 'You get a written number and time to think about it. I don’t do same-day-only deals or pressure closes.'],
+    ['The number holds up', 'Itemized, in writing, and explained line by line. If something on it doesn’t make sense, ask, and I’ll show you on the roof.'],
+    ['No sales tricks', 'The estimate is itemized and in writing, with no expiring “deal” attached. Compare it with anyone’s.'],
   ],
   [
-    ['✅ The NBD Pledge', 'Call about anything I worked on and I’ll come look, free, for as long as you own the home. If it’s my workmanship, I fix it under your written warranty. Full GAF system installs also qualify for enhanced GAF warranty coverage.'],
-    ['✅ The Pledge doesn’t expire', 'For as long as you own the house, a call about my work gets a free visit and a straight answer. Workmanship problems get fixed under the written warranty.'],
-    ['✅ A standing offer', 'While you own the home, anything I worked on gets a free look whenever you call. Workmanship issues are fixed under the written warranty, and full GAF system installs are eligible for enhanced GAF warranty coverage.'],
-    ['✅ I come back', 'Anything I worked on, you can call me about and I’ll come look at no charge while you own the home. If it’s my workmanship, the written warranty covers the fix.'],
+    ['The NBD Pledge', 'Call about anything I worked on and I’ll come look, free, for as long as you own the home. If it’s my workmanship, I fix it under your written warranty. Full GAF system installs also qualify for enhanced GAF warranty coverage.'],
+    ['The Pledge doesn’t expire', 'For as long as you own the house, a call about my work gets a free visit and a straight answer. Workmanship problems get fixed under the written warranty.'],
+    ['A standing offer', 'While you own the home, anything I worked on gets a free look whenever you call. Workmanship issues are fixed under the written warranty, and full GAF system installs are eligible for enhanced GAF warranty coverage.'],
+    ['I come back', 'Anything I worked on, you can call me about and I’ll come look at no charge while you own the home. If it’s my workmanship, the written warranty covers the fix.'],
   ],
 ];
 // Card phrasings are assigned, not hashed: walking the towns in slug order,
@@ -570,7 +570,7 @@ function hailLine(t) {
 function stormCard(t, service) {
   const T = esc(t.town), s = t.storms, r = radiusMi(t), k = 'sv-' + service;
   const evs = [...s.events].sort((a, b) => score(b) - score(a)).slice(0, 3).sort((a, b) => b.date.localeCompare(a.date));
-  const h = pick(t, k + 'h', [`⛈️ What NOAA logged near ${T}`, `⛈️ ${T}’s storm record since 2019`, `⛈️ Storms on the record near ${T}`]);
+  const h = pick(t, k + 'h', [`What NOAA logged near ${T}`, `${T}’s storm record since 2019`, `Storms on the record near ${T}`]);
   const lead = `NOAA’s ${ext(NOAA_DB, 'Storm Events Database')} has ${s.nearbyCount} reports of damaging wind, 1-inch-plus hail or tornadoes within about ${r} miles of ${T} from January 2019 through June 2026. The ${evs.length === 1 ? 'strongest' : `${evs.length} strongest`}:`;
   const items = evs.map((e) => `<strong>${fdate(e.date)}</strong>: ${esc(describe(t, e))} (${ext(noaaUrl(e.noaa), 'NOAA')})`);
   const why = {
@@ -598,13 +598,13 @@ function permitCard(t, service) {
   const out = [];
   let h;
   if (service === 'roof-inspection') {
-    h = pick(t, k + 'h', ['📋 If the inspection turns up work', '📋 Permits, if it comes to that']);
+    h = pick(t, k + 'h', ['If the inspection turns up work', 'Permits, if it comes to that']);
     out.push(para(`The inspection itself needs no permit. If it leads to a re-roof, here is what I know. ${esc(p.summary)} ${pick(t, k + 's', ['Source:', 'See'])} ${ext(p.url, esc(p.authority))}.`));
     if (p.ask) out.push(para(`For a covering-only job, ask ${esc(p.ask)} for the answer at your address.`));
     if (t.historic && t.historic.review) out.push(para(`<strong>Historic districts:</strong> ${esc(t.historic.text)} ${ext(t.historic.url, 'Source')}.`));
   } else {
     const sd = t.siding;
-    h = pick(t, k + 'h', [`📋 Permits for siding in ${T}`, `📋 Siding permits and approvals`]);
+    h = pick(t, k + 'h', [`Permits for siding in ${T}`, `Siding permits and approvals`]);
     if (sd) {
       out.push(para(`${esc(sd.summary)} ${pick(t, k + 's', ['Source:', 'See'])} ${ext(sd.url, esc(sd.authority))}.${sd.ask ? ` I haven’t found a written siding rule beyond that, so ask ${esc(sd.ask)} before work starts.` : ''}`));
       if (sd.review) out.push(para(`<strong>Historic districts:</strong> ${esc(sd.review)} ${ext(sd.reviewUrl, 'Source')}.`));
@@ -622,7 +622,7 @@ function treeCard(t, service) {
   const note = service === 'siding-repair'
     ? 'Walls that stay shaded and damp are where I find swollen trim and mildew behind panels first.'
     : 'Shaded walls stay damp longer, which is where wood trim and fiberboard sheathing fail first.';
-  return card('🌳 Trees and moisture', para(`${esc(f.text)} ${ext(f.url, 'Source')}. ${note}`));
+  return card('Trees and moisture', para(`${esc(f.text)} ${ext(f.url, 'Source')}. ${note}`));
 }
 
 // Checklist items: [id, label, note]. Notes are per housing era; the order

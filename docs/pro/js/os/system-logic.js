@@ -309,6 +309,22 @@
     var seal = typeof b.seal === 'string' ? b.seal.trim().slice(0, 4) : '';
     return seal || companyMark(b.displayName) || companyMark(b.legalName);
   }
+  /**
+   * What the boot / lock mark shows (2026-11-14): the company's logo, else its
+   * letters, else the NBD Pro app icon. Never empty: the boot screen paints
+   * before the profile loads, and an empty mark was a bare orange tile.
+   * A logo src must be https:, a same-site path or a data:image; anything else
+   * is ignored. Returns { kind: 'logo'|'text'|'app', src?, text? }.
+   */
+  function bootMark(o) {
+    var x = o || {};
+    var app = typeof x.appIcon === 'string' && x.appIcon ? x.appIcon : '/pro/img/nbd-icon-192.png';
+    var src = typeof x.logoSrc === 'string' ? x.logoSrc.trim() : '';
+    if (src && (/^https:\/\//i.test(src) || /^\/(?!\/)/.test(src) || /^data:image\//i.test(src))) return { kind: 'logo', src: src };
+    var text = typeof x.text === 'string' ? x.text.trim() : '';
+    if (text) return { kind: 'text', text: text };
+    return { kind: 'app', src: app };
+  }
   /** The boot screen's steps, each { label, done } in order. */
   function bootSteps(s) {
     var x = s || {};
@@ -339,7 +355,7 @@
 
   var api = {
     LOCK_CHOICES: LOCK_CHOICES, lockMinutes: lockMinutes, shouldLock: shouldLock, lockLines: lockLines,
-    companyMark: companyMark, brandMark: brandMark, bootSteps: bootSteps, settingsActions: settingsActions,
+    companyMark: companyMark, brandMark: brandMark, bootMark: bootMark, bootSteps: bootSteps, settingsActions: settingsActions,
     trayItems: trayItems, holdToast: holdToast, toastEntry: toastEntry, clockAlerts: clockAlerts, pushHistory: pushHistory, HISTORY_MAX: HISTORY_MAX,
     groupNotifications: groupNotifications, privateGroups: privateGroups, GROUPS: GROUPS, appsFromNav: appsFromNav, readNav: readNav, navHidden: navHidden,
     systemActions: systemActions, clockText: clockText, driveOff: driveOff,

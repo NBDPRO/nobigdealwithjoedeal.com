@@ -4672,8 +4672,9 @@ body {
   .mn-item.mn-fab .mn-lbl{ display:none; }
   .mn-item.mn-fab.active{ background:var(--orange); }
   .mn-item.mn-fab.active::before{ display:none; }
-  .mn-lbl{font-size:8.5px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--m);transition:all .18s ease;white-space:nowrap;font-weight:600;}
-  .mn-badge{position:absolute;top:3px;right:calc(50% - 18px);background:color-mix(in srgb, var(--red) 80%, #000);color:#fff;font-size:8px;font-weight:700;border-radius:8px;padding:1px 5px;min-width:14px;text-align:center;line-height:1.4;}
+  /* 11px (wave-1 field #13, 2026-11-14): 8.5px was unreadable in sunlight. */
+  .mn-lbl{font-size:11px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--m);transition:all .18s ease;white-space:nowrap;font-weight:600;}
+  .mn-badge{position:absolute;top:3px;right:calc(50% - 18px);background:color-mix(in srgb, var(--red) 80%, #000);color:#fff;font-size:10px;font-weight:700;border-radius:8px;padding:1px 5px;min-width:16px;text-align:center;line-height:1.4;}
   #mobile-more-menu.open{display:block;}
   .mm-overlay.open{display:block;}
 

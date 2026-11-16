@@ -35,6 +35,17 @@
   const LS_KEY = 'nbd-crm-view-mode'; // 'board' (default) | 'list'
   let _sortKey = 'activity';          // name | stage | value | age | activity
   let _sortDir = 1;                   // 1 asc, -1 desc
+  // The sort is kept like the view mode (wave-1 daily #13): it reset to
+  // Activity on every reload.
+  const SORT_KEY = 'nbd-crm-list-sort';
+  const SORT_KEYS = ['name', 'stage', 'value', 'age', 'activity'];
+  try {
+    const saved = JSON.parse(localStorage.getItem(SORT_KEY) || 'null');
+    if (saved && SORT_KEYS.indexOf(saved.key) !== -1 && (saved.dir === 1 || saved.dir === -1)) { _sortKey = saved.key; _sortDir = saved.dir; }
+  } catch (_) { /* no saved sort */ }
+  function _saveSort() {
+    try { localStorage.setItem(SORT_KEY, JSON.stringify({ key: _sortKey, dir: _sortDir })); } catch (_) {}
+  }
   let _lastList = [];                 // cache for header-click re-sorts
 
   // No saved choice → List on a phone, Board elsewhere. The board shows
@@ -181,6 +192,7 @@
   function _sortBy(key) {
     if (_sortKey === key) _sortDir = -_sortDir;
     else { _sortKey = key; _sortDir = (key === 'value' || key === 'activity' || key === 'age') ? -1 : 1; }
+    _saveSort();
     render(_lastList);
   }
 
@@ -349,6 +361,7 @@
     if (sortSel) sortSel.addEventListener('change', () => {
       _sortKey = sortSel.value;
       _sortDir = (_sortKey === 'value' || _sortKey === 'activity' || _sortKey === 'age') ? -1 : 1;
+      _saveSort();
       render(_lastList);
     });
     wrap.querySelectorAll('.cl-stage-select').forEach((sel) => {

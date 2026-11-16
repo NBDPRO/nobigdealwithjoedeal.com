@@ -44,7 +44,19 @@ It lives in one place: `functions/ai-gate.js`.
   - **Estimate and visualizer AI:** `publicFunnelAI` and `publicVisualizerAI` validate the request before they count their daily cap. `publicFunnelAI` takes structured form answers and builds its own prompt. It no longer accepts a free-text prompt.
   - **Image generator:** `visualizerImageGen`, which is off in prod, has its own daily cap (`VISUALIZER_IMAGEGEN_DAILY_CAP`, default 60). It counts only plausible images.
 
+## Shipped and decided (2026-11-15)
+
+- **Live:** all five fixes shipped together as #3105 (merge `44e84596`) on 2026-11-15. The separate PRs (#3058, #3063, #3076, #3079, #3085) were closed as superseded.
+- **Jo's decisions:**
+  - The limits stay as listed: voice hours per company per month (Starter 20, Team 35, Growth 50, Professional 166), 200 voice Claude calls per company per day, vision Starter $25 a month per company, roof analysis 300 a day, image generator 60 a day.
+  - `past_due` tenants lose AI, as the older gates already did. He was asked whether to keep the limits and keep cutting AI for past-due tenants, and answered "Yes to both".
+  - No per-tenant exception for any contractor tenant.
+- **Plan location:** every plan reader keys a tenant's plan on `subscriptions/{companyId}`, the doc Stripe's webhook writes. `scripts/provision-tenant.js` used to seed slug tenants under the owner's uid, where nothing reads it. #3102 fixed it, and its `--check` flags a misplaced plan.
+
 ## Open follow-ups
+
+- **Erasure and slug tenants:** `functions/integrations/erasure-billing.js` looks for Stripe ids at `subscriptions/{uid}`, so for a tenant whose company id is not the owner's uid, an erasure request can miss the live subscription.
+- **Shared gate everywhere:** move `claudeProxy`, `adminAI`, `leadBrief`, `callBrief` and `coachLine` onto `ai-gate.js`.
 
 - **Walkthrough flood:** only confirmed emails should be able to create `visit_captures` (a rules change). A flood of free signups costs no AI money, but it still uses the walkthrough lane.
 - **Roof analysis App Check:** `analyzeRoofPhoto` should verify App Check by hand. It is `onRequest`, where `enforceAppCheck` does nothing.

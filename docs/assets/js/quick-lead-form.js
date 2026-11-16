@@ -61,10 +61,12 @@
     var service = host.getAttribute('data-service') || '';
     var city = host.getAttribute('data-city') || '';
     var uid = 'qlf-' + Math.abs((service + city + host.offsetTop).split('').reduce(function (a, c) { return (a * 31 + c.charCodeAt(0)) | 0; }, 7));
-    var heading = city ? ('Get Your Free ' + esc(city) + ' Estimate') : 'Get Your Free Estimate';
-    var sub = service
-      ? ('Tell Joe where and he\'ll reach out — usually same day. Or just call.')
-      : ('Tell Joe where and he\'ll reach out — usually same day.');
+    // Heading matches the button that brought them here (wave-3 CRO #3/#6,
+    // 2026-11-15): town pages say "Book a free inspection", the siding and
+    // gutter heroes say "Book a free estimate" and jump to this form.
+    var heading = city ? ('Book a Free ' + esc(city) + ' Inspection')
+      : (service ? ('Book a Free ' + esc(service) + ' Estimate') : 'Book a Free Inspection');
+    var sub = 'Name, phone and address. Joe reaches out, usually the same day. Or just call.';
     host.innerHTML =
       '<form class="qlf" novalidate aria-labelledby="' + uid + '-h">' +
         '<h3 class="qlf-title" id="' + uid + '-h">' + heading + '</h3>' +
@@ -76,8 +78,17 @@
           '<label class="qlf-field"><span>Mobile phone *</span><input id="' + uid + '-ph" type="tel" name="tel" autocomplete="tel" inputmode="tel" required></label>' +
         '</div>' +
         '<label class="qlf-field"><span>Street address *</span><input id="' + uid + '-ad" type="text" name="street-address" autocomplete="street-address" placeholder="123 Main St, City" required></label>' +
-        '<label class="qlf-field"><span>Email <em>(optional)</em></span><input id="' + uid + '-em" type="email" name="email" autocomplete="email" inputmode="email"></label>' +
-        '<div data-nbd-intake="' + uid + 'i"></div>' +
+        // Short form (wave-3 CRO #3, 2026-11-15), the /inspect pattern: only
+        // the scheduling choice stays required on screen; email, photos, best
+        // time, insurance and how-heard sit behind one optional "add details"
+        // toggle. The same fields are still posted, so nothing Jo asked for on
+        // 2026-09-30 is dropped. The extras block uses its own attribute so
+        // intake-extras' mountAll never fills it with a second scheduling choice.
+        '<div data-nbd-intake="' + uid + 'i" data-extras="false"></div>' +
+        '<details class="qlf-more"><summary>Add email, photos or details <em>(optional)</em></summary>' +
+          '<label class="qlf-field"><span>Email <em>(optional)</em></span><input id="' + uid + '-em" type="email" name="email" autocomplete="email" inputmode="email"></label>' +
+          '<div data-qlf-extras="' + uid + 'x"></div>' +
+        '</details>' +
         // Honeypot — the gateway drops any submission that fills this. Named
         // nbd_hp, NOT "website": that name matches browser URL-autofill
         // heuristics, and an autofilled honeypot silently drops a real lead.
@@ -96,7 +107,18 @@
     var err = document.getElementById(uid + '-err');
     var ok = document.getElementById(uid + '-ok');
     var btn = document.getElementById(uid + '-btn');
-    ensureIntake();
+    ensureIntake().then(function () {
+      if (!window.NBDIntake) return;
+      // Fill both blocks here too: when intake-extras.js was already loaded by
+      // another form on the page, its own mountAll has run and would miss ours.
+      var main = host.querySelector('[data-nbd-intake="' + uid + 'i"]');
+      if (main && !main.getAttribute('data-nbd-intake-ready')) {
+        main.innerHTML = window.NBDIntake.html(uid + 'i', { extras: false });
+        main.setAttribute('data-nbd-intake-ready', '1');
+      }
+      var more = host.querySelector('[data-qlf-extras]');
+      if (more && !more.childElementCount) more.innerHTML = window.NBDIntake.html(uid + 'x', { sched: false });
+    });
     hydrateRating();
     // First focus in the form: fetch the gateway client now, not at Submit —
     // loading it starts the spam-check (Turnstile) script download too
@@ -149,6 +171,13 @@
       var intake = { fields: {}, files: [] };
       if (window.NBDIntake) {
         intake = window.NBDIntake.read(form, uid + 'i');
+        if (!intake.error) {
+          // The optional details block: same fields as before, read without
+          // a scheduling choice and merged onto the required one.
+          var extra = window.NBDIntake.read(form, uid + 'x', { optional: true });
+          if (extra.error) intake = extra;
+          else { Object.assign(intake.fields, extra.fields); intake.files = extra.files; }
+        }
         if (intake.error) {
           if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid');
           err.textContent = intake.error;

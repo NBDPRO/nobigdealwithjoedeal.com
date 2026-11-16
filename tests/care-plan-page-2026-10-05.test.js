@@ -37,7 +37,8 @@ console.log('\n1. the page markup ships dark');
   const sec = (PAGE.match(/<section class="cp-join" id="careplan-join"[^>]*>/) || [''])[0];
   ok('the signup section exists and is HIDDEN by default', /\bhidden\b/.test(sec));
   const ctas = PAGE.match(/<a href="[^"]*" class="btn-(primary|white)" data-careplan-cta>/g) || [];
-  ok('both "Get My Care Plan" buttons still go to the contact form (/#contact) until the plan is on', ctas.length === 2 && ctas.every((a) => /href="\/#contact"/.test(a)), String(ctas.length));
+  // 2026-11-15 (wave-3 CRO #5): the contact form now opens with "Roof Care Plan" picked.
+  ok('both "Get My Care Plan" buttons still go to the contact form (/?service=care-plan#contact) until the plan is on', ctas.length === 2 && ctas.every((a) => /href="\/\?service=care-plan#contact"/.test(a)), String(ctas.length));
   ok('the script loads deferred, after quick-lead-form.js, with its stylesheet', /<script defer src="\/assets\/js\/quick-lead-form\.js"><\/script>\r?\n<script defer src="\/assets\/js\/care-plan-checkout\.js"><\/script>/.test(PAGE) && /href="\/assets\/css\/care-plan-checkout\.css"/.test(PAGE));
   ok('no inline handlers in the new section', !/careplan-join[\s\S]*?<\/section>/.exec(PAGE)[0].match(/\son[a-z]+=/i));
   ok('the terms checkbox is required; honeypot nbd_hp present', /name="cp_terms" required/.test(PAGE) && /name="nbd_hp"/.test(PAGE));

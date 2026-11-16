@@ -1589,15 +1589,18 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 @media (max-width:768px) and (pointer:coarse) {
   .jump-nav { padding-top:5px; padding-bottom:5px; }
   .jump-nav a { padding-top:11px; padding-bottom:11px; }
-  .tl-pill { display:inline-flex; align-items:center; min-height:36px; padding:0 14px; }
-  .photo-filter-btn, #nbdPhotoSelectToggle { min-height:36px; }
-  .panel-head-actions .btn, .panel-head > .btn, #quickNoteSend { min-height:40px; }
-  [data-action="openNotesModal"] { min-height:36px; }
-  .nbd-photo-bulk-bar select, .nbd-photo-bulk-bar button { min-height:36px; }
-  .doc-actions .doc-btn, .doc-actions .btn { min-height:36px; }
-  .nbd-est-primary { min-height:36px; }
-  #emailUnsubMarkBtn { min-height:32px; }
-  .modal-header > button[data-action^="close"] { min-width:40px; min-height:40px; }
+  /* 44px (Apple's minimum) since 2026-11-14 (wave-1 field #13, Joe's OK); they
+     were 32-40px. The jump-nav chips above stay as they are: taller chips
+     would grow the pinned 48px bar the scroll offsets are built around. */
+  .tl-pill { display:inline-flex; align-items:center; min-height:44px; padding:0 14px; }
+  .photo-filter-btn, #nbdPhotoSelectToggle { min-height:44px; }
+  .panel-head-actions .btn, .panel-head > .btn, #quickNoteSend { min-height:44px; }
+  [data-action="openNotesModal"] { min-height:44px; }
+  .nbd-photo-bulk-bar select, .nbd-photo-bulk-bar button { min-height:44px; }
+  .doc-actions .doc-btn, .doc-actions .btn { min-height:44px; }
+  .nbd-est-primary { min-height:44px; }
+  #emailUnsubMarkBtn { min-height:44px; }
+  .modal-header > button[data-action^="close"] { min-width:44px; min-height:44px; }
 }
 /* A tapped jump-nav chip keeps :hover on a touch screen until the next tap
    elsewhere, so after tapping Contact and scrolling back to Overview the
@@ -2924,7 +2927,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- The one lead event (appointment) writer — Add Event + D2D (2026-10-03). -->
 <script defer src="js/lead-events.js?v=1"></script>
 <!-- "Homeowner picked X — use it?" above the Estimates list (2026-10-03). -->
-<script defer src="js/accepted-tier-chip.js?v=3"></script>
+<script defer src="js/accepted-tier-chip.js?v=4"></script>
 <!-- Knowing your numbers (2026-10-04): the Numbers panel (sold package, real
      close date, why it was lost, storm) — rules in numbers-logic.js, which
      customer-numbers.js loads on demand since 2026-11-08 (only for a sale, a
@@ -3259,7 +3262,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      customer-edit-modal.js, which fills and reads them. -->
 <script defer src="js/schedule-window-ui.js?v=1"></script>
 <!-- Double-booking warning under the schedule picker (Google Calendar free/busy). -->
-<script defer src="js/google-calendar-ui.js?v=7"></script>
+<script defer src="js/google-calendar-ui.js?v=8"></script>
 <script defer src="js/customer-edit-modal.js?v=5"></script>
 <!-- Production strip (2026-10-04): the rules, the planner's schedule-field
      rules (shared with Plan Jobs), the estimate → materials list (quantities
@@ -3268,7 +3271,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/materials-list.js?v=1"></script>
 <script defer src="js/po-name.js?v=1"></script>
 <script defer src="js/production-logic.js?v=1"></script>
-<script defer src="js/production.js?v=4"></script>
+<script defer src="js/production.js?v=5"></script>
 
 <!-- ═══════════════════════════════════════════════════════════════
      Voice Intelligence mount (C4)
@@ -3313,7 +3316,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- Offline edits: "N changes waiting to sync" badge + honest Saved toasts (2026-10-04). -->
 <script defer src="/pro/js/offline-sync-status.js?v=1"></script>
 <!-- W151: offline banner -->
-<script defer src="/pro/js/offline-banner.js?v=2"></script>
+<script defer src="/pro/js/offline-banner.js?v=3"></script>
 <!-- W144: Supplement engine + UI entry point. Estimate-supplement.js
      was already shipped but had no UI surface — supplement-ui.js
      wires the +Supplement button on customer-page estimate rows.

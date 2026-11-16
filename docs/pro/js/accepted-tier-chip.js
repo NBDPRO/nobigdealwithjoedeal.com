@@ -205,7 +205,7 @@
         // deposit draft filed (deposit-draft-logic applyTierTask) is done.
         if (root._customerId) {
           try {
-            await root.updateDoc(root.doc(root.db, 'leads', root._customerId, 'tasks', 'apply-accepted-tier-' + String(pick.est.id).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80)), { done: true });
+            await root.updateDoc(root.doc(root.db, 'leads', root._customerId, 'tasks', 'apply-accepted-tier-' + String(pick.est.id).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80)), { done: true, completedAt: root.serverTimestamp ? root.serverTimestamp() : new Date() });
           } catch (_) { /* no task filed (the pick predates it) — nothing to close */ }
         }
       }

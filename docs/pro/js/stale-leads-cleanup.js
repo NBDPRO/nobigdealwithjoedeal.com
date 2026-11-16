@@ -256,10 +256,31 @@
     if (role === 'admin' || !l.userId || !uid || l.userId === uid) return true;
     return (role === 'company_admin' || role === 'manager') && !!c.companyId && l.companyId === c.companyId;
   }
+  // The boot task load keeps open tasks + the last 30 days of done ones
+  // (2026-11-14), so a lead whose only tasks were finished long ago has an
+  // empty task cache. On open, each such candidate's own tasks are checked
+  // (one doc each); a lead that has any counts as worked and starts unchecked.
+  var _hadTasks = new Set();
+  function taskCacheWithPast() {
+    var tc = Object.assign({}, w._taskCache || {});
+    _hadTasks.forEach(function (id) { if (!(tc[id] && tc[id].length)) tc[id] = [{ id: '_past' }]; });
+    return tc;
+  }
+  async function checkPastTasks() {
+    if (!(w.db && w.getDocs && w.query && w.collection && w.limit)) return;
+    var rows = candidates().filter(function (r) { return r.evidence.indexOf('task') === -1; });
+    for (var i = 0; i < rows.length; i += 20) {
+      await Promise.all(rows.slice(i, i + 20).map(function (r) {
+        return w.getDocs(w.query(w.collection(w.db, 'leads', r.id, 'tasks'), w.limit(1)))
+          .then(function (snap) { if (snap && snap.docs && snap.docs.length) _hadTasks.add(r.id); })
+          .catch(function () { _hadTasks.add(r.id); });   // unknown → treat as worked (safe side)
+      }));
+    }
+  }
   function env() {
     return {
       normalizeStage: w.normalizeStage, canChange: canChange,
-      evidence: function (l) { return evidenceOf(l, { estimates: w._estimates, taskCache: w._taskCache }); },
+      evidence: function (l) { return evidenceOf(l, { estimates: w._estimates, taskCache: taskCacheWithPast() }); },
     };
   }
   // Rows with signs of real work start unchecked (Select all still includes them).
@@ -358,6 +379,12 @@
     doc.body.appendChild(overlay);
     st.unchecked = defaultUnchecked();
     paint();
+    // Leads with only long-done tasks join the unchecked rows once checked.
+    checkPastTasks().then(function () {
+      if (!overlay || st.busy) return;
+      defaultUnchecked().forEach(function (id) { st.unchecked.add(id); });
+      paint();
+    });
     return true;
   }
   function close() {
@@ -512,5 +539,6 @@
   else setTimeout(init, 1500);
   setInterval(syncButton, 60000);
 
-  w.NBDStaleLeads = { open: open, close: close, sync: syncButton, available: available, _pure: pure };
+  w.NBDStaleLeads = { open: open, close: close, sync: syncButton, available: available, _pure: pure,
+    _unchecked: function () { return st.unchecked; } }; // tests/tasks-load-bounded-2026-11-14.test.js
 })(typeof window !== 'undefined' ? window : this);

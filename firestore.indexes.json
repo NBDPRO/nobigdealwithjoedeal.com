@@ -918,6 +918,16 @@
       ]
     },
     {
+      "_comment": "Agent inbox 'They replied STOP' list (docs/pro/js/agent-inbox.js loadSentPhone, 2026-11-14): companyId == tenant, status == 'sent_by_owner', orderBy decidedAt desc, limit 50, so this week's texts are never cut off by older ones. Until it builds the client falls back to the unordered read.",
+      "collectionGroup": "agent_inbox",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "decidedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "_comment": "Messaging Control Center (functions/messaging-center.js, 2026-10-19): where('companyId','==',tenant).where('date','>=',since).orderBy('date','desc') over the last 30 days of sms_log for the owner/admin overview. Without it the source answers FAILED_PRECONDITION and Coverage shows it unavailable.",
       "collectionGroup": "sms_log",
       "queryScope": "COLLECTION",
@@ -1204,6 +1214,66 @@
       "fields": [
         { "fieldPath": "companyId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Bounded task load (2026-11-14, wave-1 daily #10): open tasks only — collectionGroup('tasks').where('userId','==',uid).where('done','==',false).orderBy('createdAt','asc') (today-plan.js boundedTaskQueries). The two older entries above stay for the fallback read while these build.",
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "userId",    "order": "ASCENDING" },
+        { "fieldPath": "done",      "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Bounded task load (2026-11-14): open tasks for company staff — where('companyId','==',co).where('done','==',false).orderBy('createdAt','asc').",
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "done",      "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Bounded task load (2026-11-14): legacy open rows with NO done field (old voicemail.js / tools.js shape, status:'open'; scripts/backfill-lead-tasks-shape.js heals them, unproven in prod) — where('userId','==',uid).where('status','==','open').orderBy('createdAt','asc').",
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "userId",    "order": "ASCENDING" },
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Bounded task load (2026-11-14): the legacy open rows for company staff — where('companyId','==',co).where('status','==','open').orderBy('createdAt','asc').",
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Bounded task load (2026-11-14): tasks done in the last 30 days — where('userId','==',uid).where('done','==',true).where('completedAt','>=',since).orderBy('completedAt','asc').",
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "userId",      "order": "ASCENDING" },
+        { "fieldPath": "done",        "order": "ASCENDING" },
+        { "fieldPath": "completedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Bounded task load (2026-11-14): done in the last 30 days, company staff — where('companyId','==',co).where('done','==',true).where('completedAt','>=',since).orderBy('completedAt','asc').",
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "companyId",   "order": "ASCENDING" },
+        { "fieldPath": "done",        "order": "ASCENDING" },
+        { "fieldPath": "completedAt", "order": "ASCENDING" }
       ]
     },
     {

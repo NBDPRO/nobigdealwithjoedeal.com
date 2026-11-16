@@ -101,7 +101,8 @@
   }
   var saveT = null;
   function writeState(src) {
-    var st = WM.normalizeState({ wins: src.wins, focus: src.focus, icons: src.icons, dock: src.dock, recent: src.recent, desk: src.desk, pins: src.pins }, null);
+    // idle: the member left the desk with no window in front (2026-11-14), so a reload doesn't open the active view
+    var st = WM.normalizeState({ wins: src.wins, focus: src.focus, idle: src.surface !== 'phone' && !src.focus, icons: src.icons, dock: src.dock, recent: src.recent, desk: src.desk, pins: src.pins, rects: src.rects }, null);
     safe(function () { W.LayoutEngine.saveUser({ layoutState: { os: st } }); });
   }
   function save() {
@@ -610,11 +611,12 @@
         safe(function () { O.registerControl({ id: 'os-privacy', label: 'Privacy lock', hint: privacyHint, run: openPrivacy }); });
         return;
       }
-      if (++tries <= 20) S.ctrlT = setTimeout(reg, 1500);   // the system layer loads lazily, often after the layout
     }
-    // system.js has no ready event: past the polls, the tap that opens its Control Center checks once more
-    // (capture, so the tiles are in before the sheet paints; a no-op once registered)
-    if (S && (S.home || desk)) on(doc, 'click', function () { if (!done && tries > 20) reg(); }, true);
+    // the system layer loads lazily, often after the layout: it fires nbd:os-system-ready
+    // when window.NBDOS is up (no 1.5 s poll). The tap that opens its Control Center checks
+    // once more (capture, so the tiles are in before the sheet paints; a no-op once registered).
+    on(W, 'nbd:os-system-ready', reg);
+    if (S && (S.home || desk)) on(doc, 'click', function () { if (!done) reg(); }, true);
     reg();
   }
   // ── the action runner (command-runner.js, the lazy `cmdrunner` bundle): type-anywhere + hot corner on the desk ──
@@ -783,7 +785,9 @@
   function placeWin(rec) {
     var el = winEl(rec.id);
     if (!el) return;
-    var f = rec.zone ? WM.zoneFrac(rec.zone) : rec;
+    // a free window is drawn at least 320 x 240 px and moved in from the edge to fit it,
+    // so its title-bar buttons are never clipped (the saved rect is untouched)
+    var f = rec.zone ? WM.zoneFrac(rec.zone) : WM.fitFloor(rec, WM.minFrac(deskSize()));
     el.style.setProperty('--wx', String(f.x));
     el.style.setProperty('--wy', String(f.y));
     el.style.setProperty('--ww', String(f.w));
@@ -814,6 +818,7 @@
     el.setAttribute('data-win', id);
     el.setAttribute('role', 'region');
     el.setAttribute('aria-label', appLabel(id) + ' window');
+    el.setAttribute('tabindex', '-1');
     var labelHtml = esc(appLabel(id));
     var a = appById(id);
     el.innerHTML = '<div class="os-win-bar" data-osw="bar">' +
@@ -836,7 +841,9 @@
     if (!viewEl(id)) return;
     var rec = winRec(id);
     if (!rec) {
-      var f = WM.cascadeFrac(S.wins.length);
+      // where it was last closed, else the first cascade slot no window on this desk sits in exactly
+      // (the slot used to be the window count: close A, open C, and C landed on B)
+      var f = (S.rects && S.rects[id]) || WM.cascadeFrac(WM.freeCascade(here()));
       rec = { id: id, x: f.x, y: f.y, w: f.w, h: f.h, z: 0, min: false, zone: null, desk: S.desk };
       S.wins.push(rec);
       if (S.order.indexOf(id) === -1) S.order.push(id);
@@ -848,6 +855,9 @@
     adopt(id, el.querySelector('.os-win-body'));
     rec.min = false;
     focusWin(id, { route: o.route !== false });
+    // the member opened it (Start, an icon, the taskbar): keyboard focus goes with it, not to
+    // <body>, the hidden Start box or the taskbar button the repaint just replaced
+    if (o.focus === true) safe(function () { el.focus(); });
   }
   function focusWin(id, opts) {
     var o = opts || {};
@@ -862,13 +872,48 @@
   function minimiseWin(id) {
     var rec = winRec(id);
     if (!rec) return;
+    var had = hadFocus(id);
     rec.min = true;
     var next = WM.nextFocus(here(), id);
     S.focus = next;
-    if (next) focusWin(next); else { paintAllWins(); save(); }
+    if (next) focusWin(next); else { dropActive(); paintAllWins(); save(); }
+    if (had) refocus(next);
+  }
+  // No window shows the CRM's active view any more (the last one closed or
+  // minimised, an empty desk): drop .active, or the router observer reads the
+  // next view-class change as "routed here" and opens / restores / pulls the
+  // desk back to it (2026-11-14). goTo() sets .active afresh on every route.
+  function dropActive() {
+    var act = doc.querySelectorAll('.view.active');
+    for (var i = 0; i < act.length; i++) act[i].classList.remove('active');
+    // the URL still names the app just closed: a reload would deep-link back into it.
+    // Only a route hash is cleared; any other fragment stays.
+    safe(function () {
+      var loc = W.location;
+      if (hashView() && W.history && typeof W.history.replaceState === 'function') W.history.replaceState(null, '', loc.pathname + loc.search);
+    });
+  }
+  // A view the URL names (#/crm or #crm, as dashboard-state.js routeFromHash reads it): a deep link.
+  function hashView() {
+    var m = /^#\/?([a-z][a-z0-9-]*)(?:[/?]|$)/.exec(String((W.location && W.location.hash) || ''));
+    return m && viewEl(m[1]) ? m[1] : null;
+  }
+  // Was keyboard focus inside this window? (its buttons are about to vanish)
+  function hadFocus(id) {
+    var el = winEl(id), a = doc.activeElement;
+    return !!(el && a && el.contains(a));
+  }
+  // Focus goes to the window in front, else the Start button, never <body>.
+  function refocus(next) {
+    var t = (next && winEl(next)) || S.startBtn;
+    if (t && typeof t.focus === 'function') safe(function () { t.focus(); });
   }
   function closeWin(id) {
     var el = winEl(id);
+    var had = hadFocus(id);
+    var gone = winRec(id);
+    // remember its free size and place for the next open (a snap is not a size)
+    if (gone) S.rects = WM.rememberRect(S.rects, id, gone);
     sound('close');
     release(id);
     if (el && el.parentNode) el.parentNode.removeChild(el);
@@ -876,7 +921,33 @@
     S.order = S.order.filter(function (x) { return x !== id; });
     var next = WM.nextFocus(here(), id);
     S.focus = next;
-    if (next) focusWin(next); else { paintAllWins(); save(); }
+    if (next) focusWin(next);
+    else {
+      // No window takes over, so the CRM's router still has the closed view
+      // active. Left there, the router observer (release() just changed the
+      // view's class) read it as "routed here" and opened it again at the
+      // first cascade slot: close looked like re-centre (2026-11-14).
+      dropActive();
+      paintAllWins();
+      save();
+    }
+    if (had) refocus(next);
+  }
+  // the visible windows on this desk, in the order they were opened, one step on from the front
+  function cycleWin(dir) {
+    var list = here().filter(function (w) { return !w.min; })
+      .sort(function (a, b) { return S.order.indexOf(a.id) - S.order.indexOf(b.id); });
+    if (list.length < 2) return;
+    var i = -1;
+    for (var k = 0; k < list.length; k++) if (list[k].id === S.focus) i = k;
+    // nothing visible in front yet: forward starts at the first, back at the last
+    var next = (i < 0 ? list[dir > 0 ? 0 : list.length - 1] : list[(i + dir + list.length) % list.length]).id;
+    focusWin(next);
+    var el = winEl(next);
+    if (el) safe(function () { el.focus(); });
+  }
+  function closeAll() {
+    here().slice().forEach(function (w) { closeWin(w.id); });
   }
   function toggleMax(id) {
     var rec = winRec(id);
@@ -887,7 +958,18 @@
   function showDesktop() {
     var mine = here();
     var anyOpen = mine.some(function (w) { return !w.min; });
-    mine.forEach(function (w) { w.min = anyOpen; });
+    if (anyOpen) {
+      // remember what THIS press hid: the second press puts back only those (Windows'
+      // Show desktop), not windows the member had minimised before
+      S.shownHid = S.shownHid || {};
+      S.shownHid[S.desk] = mine.filter(function (w) { return !w.min; }).map(function (w) { return w.id; });
+      mine.forEach(function (w) { w.min = true; });
+    } else {
+      var mem = S.shownHid && S.shownHid[S.desk];
+      var hid = mem && mem.length ? mem : mine.map(function (w) { return w.id; });
+      mine.forEach(function (w) { if (hid.indexOf(w.id) !== -1) w.min = false; });
+      if (S.shownHid) delete S.shownHid[S.desk];
+    }
     S.focus = anyOpen ? null : WM.nextFocus(mine, null);
     paintAllWins();
     if (S.focus) focusWin(S.focus);
@@ -901,7 +983,7 @@
     S.desk = d;
     closeDeskMenu();
     S.focus = WM.nextFocus(here(), null);
-    if (S.focus) focusWin(S.focus); else { paintAllWins(); save(); }
+    if (S.focus) focusWin(S.focus); else { dropActive(); paintAllWins(); save(); }
     paintDeskBtns();
     if (curAct()) afterAct();   // P2: with workspaces on, the desk showing is the workspace (its focus, widgets, wallpaper)
   }
@@ -914,7 +996,7 @@
     paintAllWins();
     paintDeskBtns();
     // the CRM's active view follows the window left in front on this desk
-    if (S.focus) focusWin(S.focus); else save();
+    if (S.focus) focusWin(S.focus); else { dropActive(); save(); }
   }
   function paintDeskBtns() {
     if (!S.desksEl) return;
@@ -943,19 +1025,90 @@
     }
     m.innerHTML = h;
     anchor.parentNode.appendChild(m);
-    S.deskMenu = m;
-    var first = m.querySelector('button:not([disabled])');
+    S.deskMenu = m; S.deskMenuAnchor = anchor; S.deskMenuFor = id;
+    anchor.setAttribute('aria-expanded', 'true');
+    var first = Array.prototype.slice.call(m.querySelectorAll('button')).filter(function (b) { return !b.hasAttribute('disabled'); })[0];
     if (first) first.focus();
   }
-  function closeDeskMenu() {
+  function closeDeskMenu(returnFocus) {
     if (S && S.deskMenu && S.deskMenu.parentNode) S.deskMenu.parentNode.removeChild(S.deskMenu);
-    if (S) S.deskMenu = null;
+    var a = S && S.deskMenuAnchor;
+    if (a) a.setAttribute('aria-expanded', 'false');
+    if (S) { S.deskMenu = null; S.deskMenuAnchor = null; S.deskMenuFor = null; }
+    if (returnFocus && a && a.isConnected !== false) safe(function () { a.focus(); });
+  }
+  // ── right-click menu on a desktop icon or taskbar button ──
+  function openCtxMenu(id, anchor, x, y) {
+    closeCtxMenu();
+    if (!id || !appById(id)) return;
+    var pinned = S.pins.indexOf(id) !== -1, running = !!winRec(id);
+    var m = doc.createElement('div');
+    m.className = 'os-ctxmenu';
+    m.setAttribute('role', 'menu');
+    m.setAttribute('aria-label', appLabel(id));
+    m.innerHTML =
+      '<button type="button" role="menuitem" class="os-ctxmenu-item" data-osctx="open" data-id="' + esc(id) + '">Open</button>' +
+      '<button type="button" role="menuitem" class="os-ctxmenu-item" data-osctx="pin" data-id="' + esc(id) + '">' + (pinned ? 'Unpin from taskbar' : 'Pin to taskbar') + '</button>' +
+      (running ? '<button type="button" role="menuitem" class="os-ctxmenu-item" data-osctx="close" data-id="' + esc(id) + '">Close</button>' : '');
+    var box = S.deskEl.getBoundingClientRect ? S.deskEl.getBoundingClientRect() : { left: 0, top: 0 };
+    m.style.setProperty('--mx', String(Math.max(0, Math.round((Number(x) || 0) - box.left))) + 'px');
+    m.style.setProperty('--my', String(Math.max(0, Math.round((Number(y) || 0) - box.top))) + 'px');
+    S.deskEl.appendChild(m);
+    // keep it on the desk: a taskbar right-click would open it below the screen edge
+    var mh = m.offsetHeight || 0, mw = m.offsetWidth || 0;
+    if (box.height && mh) m.style.setProperty('--my', String(Math.max(0, Math.min(Math.round((Number(y) || 0) - box.top), Math.round(box.height - mh - 4)))) + 'px');
+    if (box.width && mw) m.style.setProperty('--mx', String(Math.max(0, Math.min(Math.round((Number(x) || 0) - box.left), Math.round(box.width - mw - 4)))) + 'px');
+    S.ctxMenu = m; S.ctxAnchor = anchor;
+    var first = m.querySelector('button');
+    if (first) first.focus();
+  }
+  function closeCtxMenu(returnFocus) {
+    if (!S || !S.ctxMenu) return;
+    if (S.ctxMenu.parentNode) S.ctxMenu.parentNode.removeChild(S.ctxMenu);
+    var a = S.ctxAnchor;
+    S.ctxMenu = null; S.ctxAnchor = null;
+    if (returnFocus && a) {
+      // a taskbar button may have been repainted while the menu was up: its replacement takes focus
+      var t = a.isConnected === false ? (a.getAttribute('data-ostask') ? doc.querySelector('.os-task' + attrSel('data-ostask', a.getAttribute('data-ostask'))) : null) : a;
+      if (t) safe(function () { t.focus(); });
+    }
+  }
+  function ctxAction(what, id) {
+    // Pin repaints the taskbar: focus goes back to (the replacement of) what was right-clicked
+    if (what === 'pin') { togglePin(id); closeCtxMenu(true); return; }
+    closeCtxMenu();
+    if (what === 'open') openWin(id, { focus: true });
+    else if (what === 'close') closeWin(id);
+  }
+  // Up / Down / Home / End through an open menu's items (role=menu)
+  function menuKeys(menu, ev) {
+    var items = Array.prototype.slice.call(menu.querySelectorAll('[role="menuitem"]')).filter(function (b) { return !b.hasAttribute('disabled'); });
+    if (!items.length) return false;
+    var i = items.indexOf(doc.activeElement);
+    var n = ev.key === 'ArrowDown' ? (i + 1) % items.length : ev.key === 'ArrowUp' ? (i <= 0 ? items.length - 1 : i - 1)
+      : ev.key === 'Home' ? 0 : ev.key === 'End' ? items.length - 1 : -1;
+    if (n < 0) return false;
+    ev.preventDefault();
+    items[n].focus();
+    return true;
   }
   // ── pinned apps (ChromeOS shelf / macOS Dock) ──
   function togglePin(id) {
+    if (S.pins.indexOf(id) === -1 && S.pins.length >= WM.MAX_PINS) {
+      // 'warning': the answer to a tap, which Do Not Disturb never holds (it holds info / success)
+      toast('The taskbar is full (' + String(WM.MAX_PINS) + ' pinned apps). Unpin one first.', 'warning');
+      return;
+    }
     S.pins = WM.togglePin(S.pins, id);
     paintTaskbar();
-    if (S.startOpen) S.startEl.querySelector('.os-start-list').innerHTML = startListHtml(S.startEl.querySelector('input').value);
+    if (S.startOpen) {
+      var list = S.startEl.querySelector('.os-start-list');
+      var had = list.contains(doc.activeElement);
+      list.innerHTML = startListHtml(S.startEl.querySelector('input').value);
+      // the re-render dropped the pressed pin: keyboard focus goes to its replacement, not <body>
+      var again = had && list.querySelector(attrSel('data-ospin', id));
+      if (again) again.focus();
+    }
     save();
   }
   // ── overview (macOS Mission Control / GNOME Activities / ChromeOS overview) ──
@@ -990,6 +1143,13 @@
     var rec = winRec(id);
     if (!rec || ev.button > 0) return;
     var desk = deskSize();
+    // resizing a snapped window starts from the snapped rect and leaves the snap (Windows);
+    // the grip used to draw nothing and overwrite the saved free size
+    if (kind === 'size' && rec.zone) {
+      var z = WM.zoneFrac(rec.zone);
+      rec.x = z.x; rec.y = z.y; rec.w = z.w; rec.h = z.h; rec.zone = null;
+      placeWin(rec);
+    }
     var f = rec.zone ? WM.zoneFrac(rec.zone) : rec;
     var start = WM.toPx(f, desk);
     S.drag = { id: id, kind: kind, sx: ev.clientX, sy: ev.clientY, start: start, desk: desk, origin: S.winsEl.getBoundingClientRect(), moved: false, zone: null, pid: ev.pointerId };
@@ -1018,11 +1178,24 @@
       d.zone = WM.snapZone({ x: ev.clientX - d.origin.left, y: ev.clientY - d.origin.top }, d.desk);
       paintSnapPreview(d.zone);
     } else {
-      px = { x: d.start.x, y: d.start.y, w: d.start.w + dx, h: d.start.h + dy };
+      // a size drag stops at the desk edge; past it clampFrac moved x / y instead.
+      // It never goes under the pixel floor (WM.minFrac: 320 x 240, or the fraction on a big desk).
+      // The edge wins over the floor, so the window never jumps sideways mid-resize.
+      var mf = WM.minFrac(d.desk);
+      px = { x: d.start.x, y: d.start.y,
+        w: Math.min(d.desk.w - d.start.x, Math.max(mf.w * d.desk.w, d.start.w + dx)),
+        h: Math.min(d.desk.h - d.start.y, Math.max(mf.h * d.desk.h, d.start.h + dy)) };
     }
     var f = WM.toFrac(px, d.desk);
     rec.x = f.x; rec.y = f.y; rec.w = f.w; rec.h = f.h;
-    placeWin(rec);
+    // the record follows every move; the paint waits for the next frame (one layout
+    // write per frame, not per pointermove). endDrag paints whatever is still waiting.
+    if (typeof W.requestAnimationFrame !== 'function') { placeWin(rec); return; }
+    if (d.frame) return;
+    d.frame = W.requestAnimationFrame(function () {
+      d.frame = null;
+      if (S && S.drag === d) placeWin(rec);
+    });
   }
   function endDrag(ev) {
     var d = S && S.drag;
@@ -1131,7 +1304,7 @@
       '</div>' +
       '<nav class="os-taskbar" aria-label="Taskbar">' +
         '<button type="button" class="os-start-btn" data-osdo="start" aria-expanded="false" aria-controls="osStart">' +
-          '<span class="os-start-mark" aria-hidden="true"></span><span>Start</span></button>' +
+          '<span class="os-start-mark" aria-hidden="true">' + startMarkHtml() + '</span><span>Start</span></button>' +
         '<button type="button" class="os-task os-overview-btn" data-osdo="overview" aria-pressed="false" aria-label="Overview: every window on this desk">▦</button>' +
         '<div class="os-visit-slot"></div>' +
         '<div class="os-task-list" role="group" aria-label="Pinned and open apps"></div>' +
@@ -1176,15 +1349,24 @@
       if (bar && !(ev.target.closest('button'))) toggleMax(bar.parentNode.getAttribute('data-win'));
     });
     on(desk, 'pointerdown', onDeskPointerDown);
+    // middle-click a taskbar button closes that app's window (Windows / most Linux shells)
+    on(desk, 'auxclick', function (ev) {
+      if (ev.button !== 1) return;
+      var tk = ev.target.closest && ev.target.closest('[data-ostask]');
+      if (!tk || !winRec(tk.getAttribute('data-ostask'))) return;
+      ev.preventDefault();
+      closeWin(tk.getAttribute('data-ostask'));
+    });
     on(desk, 'contextmenu', function (ev) {
       var it = ev.target.closest && ev.target.closest('[data-ostask], .os-icon');
-      if (!it) return;
+      if (!it || !appById(it.getAttribute('data-ostask') || it.getAttribute('data-osapp'))) return;
       ev.preventDefault();
-      togglePin(it.getAttribute('data-ostask') || it.getAttribute('data-osapp'));
+      // a small menu (Open, Pin / Unpin, Close), not a silent pin toggle (2026-11-14)
+      openCtxMenu(it.getAttribute('data-ostask') || it.getAttribute('data-osapp'), it, ev.clientX, ev.clientY);
     });
     on(doc, 'pointermove', function (ev) { moveDrag(ev); moveIconDrag(ev); });
-    on(doc, 'pointerup', function (ev) { endDrag(ev); endIconDrag(ev); });
-    on(doc, 'pointercancel', function (ev) { endDrag(ev); endIconDrag(ev); });
+    on(doc, 'pointerup', function (ev) { endDrag(ev); endIconDrag(ev); routeAfterPress(); });
+    on(doc, 'pointercancel', function (ev) { endDrag(ev); endIconDrag(ev); routeAfterPress(); });
     on(desk, 'focusin', function (ev) {
       var w = ev.target.closest && ev.target.closest('.os-win');
       if (w && S.focus !== w.getAttribute('data-win')) focusWin(w.getAttribute('data-win'));
@@ -1193,21 +1375,37 @@
       S.startEl.querySelector('.os-start-list').innerHTML = startListHtml(ev.target.value);
     });
     on(S.startEl.querySelector('input'), 'keydown', function (ev) {
+      if (ev.key === 'ArrowDown') { var one = S.startEl.querySelector('.os-start-app'); if (one) { ev.preventDefault(); one.focus(); } return; }
       if (ev.key !== 'Enter') return;
       ev.preventDefault();
-      var first = S.startEl.querySelector('.os-start-app');
-      if (first) { setStart(false); openWin(first.getAttribute('data-osapp')); }
-      else { setStart(false); openSearch(); }
+      // a Visits row shares .os-start-app but is not an app (no data-osapp)
+      var first = S.startEl.querySelector('.os-start-app[data-osapp]');
+      var q = ev.target.value;
+      if (first) { setStart(false); openWin(first.getAttribute('data-osapp'), { focus: true }); }
+      else { setStart(false); openSearch(q); }   // what was typed goes with it
+    });
+    // Up / Down through Start's results; Up from the first goes back to the box
+    on(S.startEl, 'keydown', function (ev) {
+      if ((ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') || !ev.target.classList || !ev.target.classList.contains('os-start-app')) return;
+      var rows = Array.prototype.slice.call(S.startEl.querySelectorAll('.os-start-app'));
+      var i = rows.indexOf(ev.target);
+      ev.preventDefault();
+      if (ev.key === 'ArrowDown') { if (rows[i + 1]) rows[i + 1].focus(); }
+      else if (i > 0) rows[i - 1].focus();
+      else S.startEl.querySelector('input').focus();
     });
     on(doc, 'keydown', onDeskKey);
     on(doc, 'click', function (ev) {
-      if (S.startOpen && ev.target.closest && !ev.target.closest('.os-start, .os-start-btn')) setStart(false);
+      // a target no longer in the page was re-rendered by its own click (the pin), not an outside click
+      if (S.startOpen && ev.target.closest && ev.target.isConnected !== false && !ev.target.closest('.os-start, .os-start-btn')) setStart(false);
     });
     on(W, 'resize', function () { paintAllWins(); });
 
     // restore the saved session, bottom window first, then follow the active view
+    // the URL's deep link, read first: hydrating a restored window routes, and goTo rewrites the hash
+    var deep = hashView();
     var st = savedState();
-    S.icons = st.icons; S.dock = st.dock; S.recent = st.recent; S.desk = st.desk; S.pins = st.pins;
+    S.icons = st.icons; S.dock = st.dock; S.recent = st.recent; S.desk = st.desk; S.pins = st.pins; S.rects = st.rects || {};
     var restoring = st.wins.slice().sort(function (a, b) { return a.z - b.z; });
     restoring.forEach(function (w) {
       S.wins.push({ id: w.id, x: w.x, y: w.y, w: w.w, h: w.h, z: w.z, min: w.min, zone: w.zone, desk: w.desk });
@@ -1218,11 +1416,13 @@
     });
     S.order = S.wins.map(function (w) { return w.id; });
     var active = doc.querySelector('.content .view.active');
-    var focusId = st.focus || (active ? active.id.slice(5) : null);
+    // an empty desk saved on purpose stays empty (view-home ships .active), unless the URL deep-links an app;
+    // a deep link also wins over the saved front window: a link opens what it links to
+    var focusId = deep || st.focus || (st.idle ? null : (active ? active.id.slice(5) : null));
     paintDeskBtns();
     paintActBtn();
-    if (focusId && viewEl(focusId)) openWin(focusId);
-    else paintAllWins();
+    if (focusId && viewEl(focusId)) openWin(focusId, { focus: false });
+    else { if (st.idle) dropActive(); paintAllWins(); }
     registerDeskSpotlight();
     attachRunner();
   }
@@ -1239,7 +1439,8 @@
   function registerDeskSpotlight() {
     var C = W.NBDCommand;
     if (!C || typeof C.registerAction !== 'function') return;
-    var acts = [{ id: 'os:overview', label: 'Overview: every window', keywords: 'overview mission control activities expose windows', run: function () { setOverview(true); } }];
+    var acts = [{ id: 'os:overview', label: 'Overview: every window', keywords: 'overview mission control activities expose windows', run: function () { setOverview(true); } },
+      { id: 'os:closeall', label: 'Close all windows', keywords: 'close all windows clear desk tidy', run: closeAll }];
     for (var i = 0; i < WM.DESKS; i++) {
       (function (n) {
         acts.push({ id: 'os:desk:' + n, label: 'Go to desk ' + (n + 1), keywords: 'desk workspace space virtual desktop ' + (n + 1), run: function () { switchDesk(n); } });
@@ -1253,9 +1454,30 @@
     deskActs = [];
   }
 
-  function openSearch() {
+  // The Start button's mark: the system layer's company mark when it is up (logo / letters),
+  // else the NBD Pro app icon. Never an empty orange square (2026-11-14).
+  function startMarkHtml() {
+    var m = W.NBDOS && typeof W.NBDOS.mark === 'function' ? safe(function () { return W.NBDOS.mark(); }) : null;
+    if (m && m.kind === 'text' && m.text) return '<span class="os-start-mark-text">' + esc(String(m.text).slice(0, 2)) + '</span>';
+    var src = m && m.src ? m.src : '/pro/img/nbd-icon-192.png';
+    return '<img src="' + esc(src) + '" alt="">';
+  }
+  function paintStartMark() {
+    var s = S && S.startBtn && S.startBtn.querySelector('.os-start-mark');
+    if (s) s.innerHTML = startMarkHtml();
+  }
+  function openSearch(q) {
     if (W.NBDCommand && typeof W.NBDCommand.open === 'function') safe(function () { W.NBDCommand.open(); });
     else if (typeof W.openCmdPalette === 'function') safe(W.openCmdPalette);
+    var text = String(q == null ? '' : q).trim();
+    if (!text) return;
+    // the palette builds its box synchronously; fill it and let it search as if typed
+    setTimeout(function () {
+      var box = doc.getElementById('nbd-cmd-input');
+      if (!box || box.value) return;
+      box.value = text;
+      safe(function () { box.dispatchEvent(new W.Event('input', { bubbles: true })); });
+    }, 0);
   }
   function deskAction(what) {
     if (what === 'start') return setStart(!S.startOpen);
@@ -1289,6 +1511,11 @@
     }
     var mv = t.closest('[data-osmove]');
     if (mv) { moveToDesk(mv.getAttribute('data-win'), Number(mv.getAttribute('data-osmove'))); return; }
+    var ctx = t.closest('[data-osctx]');
+    if (ctx) { ctxAction(ctx.getAttribute('data-osctx'), ctx.getAttribute('data-id')); return; }
+    if (S.ctxMenu && !t.closest('.os-ctxmenu')) closeCtxMenu();
+    // a second press on the same ⧉ closes its menu (it used to close and reopen)
+    var menuWasFor = S.deskMenu ? S.deskMenuFor : null;
     if (S.deskMenu && !t.closest('.os-deskmenu')) closeDeskMenu();
     var dk = t.closest('[data-osdesk]');
     if (dk) { switchDesk(Number(dk.getAttribute('data-osdesk'))); if (S.overview) layoutOverview(); return; }
@@ -1301,16 +1528,16 @@
       if (what === 'min') minimiseWin(id);
       else if (what === 'max') toggleMax(id);
       else if (what === 'close') closeWin(id);
-      else if (what === 'desk') openDeskMenu(id, b);
+      else if (what === 'desk') { if (menuWasFor === id) b.focus(); else openDeskMenu(id, b); }
       return;
     }
     var app = t.closest('[data-osapp]');
-    if (app) { if (S.startOpen) setStart(false); openWin(app.getAttribute('data-osapp')); return; }
+    if (app) { if (S.startOpen) setStart(false); openWin(app.getAttribute('data-osapp'), { focus: true }); return; }
     var task = t.closest('[data-ostask]');
     if (task) {
       var tid = task.getAttribute('data-ostask');
       var rec = winRec(tid);
-      if (rec && S.focus === tid && !rec.min) minimiseWin(tid); else openWin(tid);
+      if (rec && S.focus === tid && !rec.min) minimiseWin(tid); else openWin(tid, { focus: true });
       return;
     }
     var act = t.closest('[data-osdo]');
@@ -1327,7 +1554,22 @@
     var icon = t.closest('.os-icon');
     if (icon && ev.button === 0) S.iconDrag = { id: icon.getAttribute('data-osapp'), sx: ev.clientX, sy: ev.clientY, pid: ev.pointerId, moved: false };
     var win = t.closest('.os-win');
-    if (win && S.focus !== win.getAttribute('data-win')) focusWin(win.getAttribute('data-win'));
+    if (win && S.focus !== win.getAttribute('data-win')) {
+      // raise it now; route once the press (and its click) is over: a view that re-renders
+      // on route would otherwise replace what is under the pointer and lose the click
+      S.pressRoute = win.getAttribute('data-win');
+      focusWin(S.pressRoute, { route: false });
+    }
+  }
+  function routeAfterPress() {
+    var id = S && S.pressRoute;
+    if (!id) return;
+    S.pressRoute = null;
+    setTimeout(function () {
+      if (!S || S.focus !== id) return;
+      var v = viewEl(id);
+      if (v && !v.classList.contains('active')) goToView(id);
+    }, 0);
   }
   // drag an icon onto another to swap their places
   function moveIconDrag(ev) {
@@ -1360,7 +1602,10 @@
   function onDeskKey(ev) {
     if (ev.key === 'Escape' && S.startOpen) { ev.preventDefault(); setStart(false); S.startBtn.focus(); return; }
     if (ev.key === 'Escape' && S.homeEditing) { ev.preventDefault(); setHomeEditing(false); return; }
-    if (ev.key === 'Escape' && S.deskMenu) { ev.preventDefault(); closeDeskMenu(); return; }
+    if (ev.key === 'Escape' && S.ctxMenu) { ev.preventDefault(); closeCtxMenu(true); return; }
+    if (ev.key === 'Escape' && S.deskMenu) { ev.preventDefault(); closeDeskMenu(true); return; }
+    if (S.ctxMenu && S.ctxMenu.contains(doc.activeElement) && menuKeys(S.ctxMenu, ev)) return;
+    if (S.deskMenu && S.deskMenu.contains(doc.activeElement) && menuKeys(S.deskMenu, ev)) return;
     if (ev.key === 'Escape' && S.overview) { ev.preventDefault(); setOverview(false); return; }
     var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((ev.target && ev.target.tagName) || '') || (ev.target && ev.target.isContentEditable);
     // Ctrl+Alt+O overview; Ctrl+Alt+1-4 switch desk; Ctrl+Alt+Shift+1-4 move the focused window there
@@ -1373,6 +1618,13 @@
         return;
       }
       if (!ev.shiftKey && ev.code === 'KeyO') { ev.preventDefault(); setOverview(!S.overview); return; }
+      // Ctrl+Alt+] next window, Ctrl+Alt+[ back, Ctrl+Alt+W close the one in front (2026-11-14).
+      // Alt+Tab and Ctrl+W belong to the OS and the browser; Alt+(backquote) is Pocket's.
+      // AltGr reports Ctrl+Alt on Windows: a character being typed is not a shortcut (as Ctrl+Alt+L does)
+      var altGr = !!(ev.getModifierState && safe(function () { return ev.getModifierState('AltGraph'); }) === true);
+      if ((ev.code === 'BracketRight' || ev.code === 'BracketLeft') && !ev.shiftKey && !altGr) { ev.preventDefault(); cycleWin(ev.code === 'BracketRight' ? 1 : -1); return; }
+      // never on key repeat: holding the chord would close window after window
+      if (!ev.shiftKey && ev.code === 'KeyW' && !altGr) { ev.preventDefault(); if (!ev.repeat && S.focus) closeWin(S.focus); return; }
     }
     // Ctrl+Alt+arrows snap the focused window; never while typing in a field
     if (!(ev.ctrlKey && ev.altKey) || ev.shiftKey || ev.metaKey) return;
@@ -1417,7 +1669,11 @@
       // goTo removes every .active then adds one: settle before reading
       setTimeout(function () { pending = false; onViewChange(); }, 0);
     });
-    S.mo.observe(S.contentEl || doc.body, { attributes: true, attributeFilter: ['class'], subtree: true });
+    // each view's own class (they are all in the page from the start), not every class
+    // change inside every view's content; no views found = the old whole-subtree watch
+    var views = S.contentEl ? S.contentEl.querySelectorAll('.view') : [];
+    if (views.length) for (var vi = 0; vi < views.length; vi++) S.mo.observe(views[vi], { attributes: true, attributeFilter: ['class'] });
+    else S.mo.observe(S.contentEl || doc.body, { attributes: true, attributeFilter: ['class'], subtree: true });
   }
 
   // ═══ PHONE (phase 3) ═══════════════════════════════════════
@@ -1691,6 +1947,7 @@
     S.barEl = bar;
     var st = savedState();
     S.icons = st.icons; S.dock = st.dock; S.recent = st.recent;
+    S.rects = st.rects || {};   // carried through a phone visit: writeState saves the whole os key
     S.wins = st.wins;   // kept as-is so a laptop session survives a phone visit
     S.desk = st.desk; S.pins = st.pins;   // the laptop's desk and taskbar pins too; the next save writes them back
     S.focus = st.focus;
@@ -1834,6 +2091,10 @@
     on(doc, 'keydown', onPocketKey);
     startActs();
     on(W, 'pagehide', flushHome);   // a home edit still waiting is written, not dropped
+    // …and a window move / resize still inside the 700 ms debounce
+    function flushWins() { if (saveT && S) { clearTimeout(saveT); saveT = null; writeState(S); } }
+    on(W, 'pagehide', flushWins);
+    on(doc, 'visibilitychange', function () { if (doc.visibilityState === 'hidden' || doc.hidden) flushWins(); });
     // settings read after mount (a company home published or locked): show what they say now.
     // Every hydrate fires it, the first one included, so repaint only when the home it gives changed.
     S.homeSig = homeSig();
@@ -1843,7 +2104,12 @@
     var claimTries = 0;
     (function claims() {
       if (!S) return;
-      if (W._userClaims && typeof W._userClaims === 'object') return onLayoutPrefs();
+      if (W._userClaims && typeof W._userClaims === 'object') {
+        // the sidebar is filled per role once the claims land: read the apps now, not only at 3 s
+        S.apps = readApps();
+        if (S.surface === 'phone') phonePaint(); else { paintIcons(); paintTaskbar(); paintStartMark(); }
+        return onLayoutPrefs();
+      }
       if (++claimTries <= 120) S.claimsT = setTimeout(claims, 500);   // a minute, like layout-system's poll
     })();
     on(doc, 'nbd:sunlight', paintWp);   // Sunlight on or off: day at once, not at the next tick
@@ -1864,8 +2130,10 @@
     S.appsT = setTimeout(function () {
       if (!S) return;
       S.apps = readApps();
-      if (S.surface === 'phone') phonePaint(); else { paintIcons(); paintTaskbar(); refreshHome(); }
+      if (S.surface === 'phone') phonePaint(); else { paintIcons(); paintTaskbar(); refreshHome(); paintStartMark(); }
     }, 3000);
+    // the system layer (lazy) carries the company mark: repaint the Start button when it is up
+    on(W, 'nbd:os-system-ready', function () { if (S && S.surface !== 'phone') paintStartMark(); });
   }
   function unmount() {
     if (!S) return;

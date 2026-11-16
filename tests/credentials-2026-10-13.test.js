@@ -29,6 +29,22 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const K = require('./lib/src-kit');
+
+// Structure helpers for generated pages (2026-11-15, source-pin ratchet):
+// the "Training" / "Materials we install" checks read the parsed cards and the
+// JSON-LD @ids, not the page text.
+function groupOf(doc, el) {
+  if (!el) return null;
+  const heads = doc.$$('h2.cred-group').filter((h) => h.start < el.start);
+  return heads.length ? heads[heads.length - 1].text.trim() : null;
+}
+function ldIds(doc) {
+  const out = [];
+  const walk = (v) => { if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === 'object') { if (typeof v['@id'] === 'string') out.push(v['@id']); Object.values(v).forEach(walk); } };
+  for (const s of doc.$$('script[type="application/ld+json"]')) { try { walk(JSON.parse(s.html)); } catch (e) { /* a broken block adds nothing */ } }
+  return out;
+}
 
 const ROOT = path.join(__dirname, '..');
 const DOCS = path.join(ROOT, 'docs');
@@ -131,6 +147,41 @@ refuses('a private 001... account ID in any field is refused', (d) => d.credenti
 refuses('a duplicate id is refused', (d) => d.credentials.push(baseRow({ id: 'gaf-certified', order: 950 })), /duplicate id/);
 refuses('a non-https verifyUrl is refused', (d) => d.credentials.push(baseRow({ verifyUrl: 'http://example.test/x' })), /verifyUrl must be an https URL/);
 refuses('a badge that does not exist is refused', (d) => d.credentials.push(baseRow({ badge: '/assets/gaf/nope.png', badgeAlt: 'x' })), /does not exist/);
+
+// ── 3b. training rows (2026-11-14, Lomanco attic-ventilation course) ─────
+// A certificate of completion is not a certification: it gets its own
+// "Training" group, its date reads "Completed", and it adds no
+// EducationalOccupationalCredential node (that type is labelled "certification").
+console.log('\ntraining rows');
+{
+  const f = mirror((d) => d.credentials.push(baseRow({
+    id: 'zz-training', type: 'training', name: 'ZZTRAINING Course', since: '2026-11', order: 920,
+  })));
+  ok('a training row is accepted by the validator', f.run.status === 0, (f.run.stdout + f.run.stderr).trim());
+  const doc = K.parseTags(f.outPage);
+  const card = doc.byId('zz-training');
+  ok('POSITIVE CONTROL: the training row renders as a card', !!card && card.tag === 'article' && card.$('h3').text.trim() === 'ZZTRAINING Course');
+  ok('training rows sit under a "Training" heading', groupOf(doc, card) === 'Training');
+  const meta = card ? card.$('.cred-meta').text : '';
+  ok('its date reads "Completed November 2026"', meta.includes('Completed November 2026'), meta);
+  ok('its card never says "Certified"', !!card && !/Certified/i.test(card.text));
+  const ids = ldIds(doc);
+  ok('no JSON-LD node for a training row (control: the GAF node is there)', ids.some((i) => i.endsWith('#gaf-certified')) && !ids.some((i) => i.endsWith('#zz-training')));
+}
+// A supplier-material row is a brand NBD buys and installs: "Made by", never
+// "Issued by" (nothing was issued) and never "Certified".
+{
+  const f = mirror((d) => d.credentials.push(baseRow({
+    id: 'zz-material', type: 'supplier-material', name: 'ZZMATERIAL Products', order: 930,
+  })));
+  const doc = K.parseTags(f.outPage);
+  const card = doc.byId('zz-material');
+  ok('POSITIVE CONTROL: the material row renders under "Materials we install"', !!card && groupOf(doc, card) === 'Materials we install');
+  const meta = card ? card.$('.cred-meta').text : '';
+  ok('a material row reads "Made by", not "Issued by"', meta.startsWith('Made by ZZ Issuer') && !meta.includes('Issued by'), meta);
+  const ids = ldIds(doc);
+  ok('no JSON-LD node for a material row (control: the GAF node is there)', ids.some((i) => i.endsWith('#gaf-certified')) && !ids.some((i) => i.endsWith('#zz-material')));
+}
 
 // ── 4. real-tree rendered output ─────────────────────────────────────────
 console.log('\nrendered output (committed tree)');

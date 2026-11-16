@@ -14,6 +14,23 @@
 (function () {
   'use strict';
 
+  // Tap-to-call in error and save messages (wave-3 CRO #10, 2026-11-15): the
+  // text is set with textContent, so the number is swapped for a tel: link
+  // here, built with DOM calls (no HTML strings).
+  function telify(el) {
+    // Plain text stays if the page can't build nodes (never in a real browser).
+    if (!el || typeof el.appendChild !== 'function' || typeof document.createElement !== 'function') return;
+    var t = el.textContent || '', n = '(859) 420-7382', i = t.indexOf(n);
+    if (i < 0) return;
+    el.textContent = t.slice(0, i);
+    var a = document.createElement('a');
+    a.href = 'tel:+18594207382';
+    a.textContent = n;
+    el.appendChild(a);
+    var rest = t.slice(i + n.length);
+    if (rest) { var s = document.createElement('span'); s.textContent = rest; el.appendChild(s); }
+  }
+
   var PROXY = 'https://us-central1-nobigdeal-pro.cloudfunctions.net/publicFunnelAI';
   var S = {
     step: 1, address: '', addressFull: null, addressTyped: '', lat: null, lon: null,
@@ -477,7 +494,7 @@
     $('rs-take').textContent = take;
     if (!(lead && lead.ok)) {
       var w = $('rs-report-warn');
-      if (w) { w.style.display = 'block'; w.textContent = 'Heads up: we couldn’t auto-save your info — please call or text Joe at (859) 420-7382 so it isn’t lost.'; }
+      if (w) { w.style.display = 'block'; w.textContent = 'Heads up: we couldn’t auto-save your info — please call or text Joe at (859) 420-7382 so it isn’t lost.'; telify(w); }
     }
     showOnly('rs-report');
     window.scrollTo({ top: 0, behavior: 'smooth' });

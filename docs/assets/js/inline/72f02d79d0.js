@@ -225,3 +225,18 @@ async function submitForm(){
     _formShowError('Something went wrong. Please call or text Joe directly at <a href="tel:+18594207382">(859)&nbsp;420-7382</a>.', []);
   }
 }
+
+// ── ?service=care-plan picks "Roof Care Plan" in the form (wave-3 CRO #5, 2026-11-15) ──
+// The Care Plan page's "Get My Care Plan" buttons land here; without this the
+// homeowner met a generic estimate form with no Care Plan option at all.
+function preselectServiceFromQuery(){
+  try {
+    const want = new URLSearchParams(window.location.search).get('service');
+    const map = { 'care-plan': 'Roof Care Plan' };
+    const el = document.getElementById('fieldService');
+    if (el && want && Object.prototype.hasOwnProperty.call(map, want)) el.value = map[want];
+  } catch (e) {
+    // the form still works with nothing picked
+  }
+}
+preselectServiceFromQuery();

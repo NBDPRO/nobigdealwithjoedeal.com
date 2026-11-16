@@ -141,9 +141,16 @@ test.describe.serial('Field App @shard2', () => {
 
     // Capture: overlay + chips + counter
     await page.locator('[data-fa="capture"]').click();
+    // Photo is the default camera mode (wave-1 field #10, Joe 2026-11-14): no square overlay
+    // until the rep taps Test square, which is then kept on this phone.
+    await page.locator('[data-fa="cam-mode"][data-id="photo"]').waitFor({ state: 'visible' });
+    await expect(page.locator('[data-fa="cam-mode"][data-id="photo"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.fa-sq')).toHaveCount(0);
+    await page.locator('[data-fa="cam-mode"][data-id="square"]').click();
     await page.locator('.fa-sq').waitFor({ state: 'visible' });
+    await expect(page.locator('[data-fa="cam-mode"][data-id="square"]')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.fa-cam-title')).toContainText('10 ft × 10 ft test square');
-    expect(await page.locator('.fa-chip').count()).toBe(6);
+    expect(await page.locator('.fa-chips[aria-label="Slope"] .fa-chip').count()).toBe(6);
     for (let i = 0; i < 3; i++) await page.locator('[data-fa="plus"]').click();
     await expect(page.locator('#faN')).toHaveText('3');
     await expect(page.locator('#faLine')).toContainText('3 hits counted in this square');

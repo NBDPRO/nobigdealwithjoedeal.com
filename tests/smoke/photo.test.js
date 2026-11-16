@@ -1,6 +1,6 @@
 /**
  * tests/smoke/photo.test.js — image pipeline (Storage trigger → WebP
- * variants → srcset), AI Vision auto-tag, imageProxy retirement stubs,
+ * variants → srcset), AI Vision auto-tag, imageProxy/setStorageCors retirement,
  * photo-editor signed-URL migration, photo-engine inline-action
  * delegation in rendered templates.
  */
@@ -13,39 +13,33 @@ const { ROOT, PRO_JS, FUNCTIONS, read, readCustomer, readDashboardMain, readFunc
 module.exports.run = function run(ctx) {
   const { assert, section } = ctx;
 
-section('D8 / R-03: imageProxy stub still emits RFC 8594/9745 deprecation signals');
+section('2026-11-15: imageProxy + setStorageCors deleted (410 stub and CORS one-shot retired)');
 {
-  const src = readFunctionsIndex();
-  assert('imageProxy stub sets Deprecation header',
-    /imageProxy[\s\S]*?res\.set\('Deprecation', 'true'\)/.test(src));
-  assert('imageProxy stub sets Sunset header',
-    /imageProxy[\s\S]*?res\.set\('Sunset',/.test(src));
-  assert('imageProxy stub sets Link rel=successor-version to /signImageUrl',
-    /imageProxy[\s\S]*?rel="successor-version"/.test(src));
-  // The old "imageProxy DEPRECATED call" WARN log is obsolete — the
-  // stub holds no auth and does no work, so there's no per-call log.
-  // Ops visibility comes from the existing cloud_run_revision error-
-  // rate alert (monitoring/alert-functions-error-rate.json) filtering
-  // on imageProxy.
+  const photo = read(path.join(FUNCTIONS, 'handlers/photo.js'));
+  const index = readFunctionsIndex();
+  const map = read(path.join(FUNCTIONS, 'function-map.json'));
+  assert('imageProxy is no longer exported by handlers/photo.js',
+    !/exports\.imageProxy\b/.test(photo));
+  assert('setStorageCors is no longer exported by handlers/photo.js',
+    !/exports\.setStorageCors\b/.test(photo));
+  assert('index.js no longer re-exports imageProxy or setStorageCors',
+    !/exports\.(imageProxy|setStorageCors)\b/.test(index));
+  assert('function-map.json no longer lists imageProxy or setStorageCors',
+    !/"(imageProxy|setStorageCors)"/.test(map));
+  assert('signImageUrl (the successor) is still exported',
+    /exports\.signImageUrl\b/.test(photo) && /exports\.signImageUrl\b/.test(index));
 }
 
-section('R-03: imageProxy retired — 410 Gone stub');
+section('2026-11-15: four no-op audit triggers deleted, auditInvoices kept');
 {
-  const src = readFunctionsIndex();
-  // The old streaming implementation MUST be gone. Its signature
-  // tokens were createReadStream, imageProxy:ip rate limit, and the
-  // DEPRECATED log warning — none should remain.
-  assert('R-03: imageProxy no longer streams via createReadStream',
-    !/imageProxy[\s\S]{0,5000}createReadStream\(\)/.test(src));
-  assert('R-03: imageProxy no longer consumes the imageProxy:ip rate-limit bucket',
-    !/imageProxy:ip/.test(src));
-  assert('R-03: imageProxy stub returns 410 Gone',
-    /exports\.imageProxy[\s\S]{0,2000}status\(410\)/.test(src));
-  assert('R-03: 410 response cites the successor endpoint',
-    /successor:\s*['"]\/signImageUrl['"]/.test(src));
-  // The stub should be cheap — no auth, no Firestore, low concurrency.
-  assert('R-03: stub is cheap (no requireAuth call in the handler body)',
-    !/exports\.imageProxy[\s\S]{0,2000}requireAuth\(/.test(src));
+  const src = read(path.join(FUNCTIONS, 'audit-log.js'));
+  const map = read(path.join(FUNCTIONS, 'function-map.json'));
+  assert('audit-log.js exports only auditInvoices',
+    (src.match(/^exports\.\w+/gm) || []).join(',') === 'exports.auditInvoices');
+  assert('function-map.json drops auditUsers/auditCompanies/auditAccessCodes/auditSubscriptions',
+    !/"(auditUsers|auditCompanies|auditAccessCodes|auditSubscriptions)"/.test(map));
+  assert('function-map.json still lists auditInvoices and the audit_* triggers',
+    /"auditInvoices"/.test(map) && /"audit_users"/.test(map));
 }
 
 section('R-03: photo-editor migrated off imageProxy');

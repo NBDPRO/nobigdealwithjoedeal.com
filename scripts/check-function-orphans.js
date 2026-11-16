@@ -88,11 +88,21 @@ function argValue(flag) {
  * unexplained allowlist is how this check becomes decorative — the same way
  * the deploy comment it replaces did.
  *
- * Empty on purpose right now: after the 2026-09-04 cleanup the fleet matches
+ * Empty on purpose (except the dated retire entries below): after the 2026-09-04 cleanup the fleet matches
  * the code exactly, so there is nothing legitimate to excuse.
  */
 const ALLOW_ORPHANS = {
   // 'someFunction': '2026-01-01 — why this deployed function has no export',
+  // RETIRE-NOOP-FUNCTIONS-2026-11-15: the exports were deleted in #3103 but a
+  // name-scoped deploy never deletes, so the six stay deployed until someone runs
+  // 'firebase functions:delete' by hand. REMOVE THESE SIX LINES in the PR right
+  // after that delete is confirmed (documentation/projects/RETIRE-NOOP-FUNCTIONS-2026-11-15.md).
+  auditUsers: '2026-11-15 — no-op trigger, export removed, awaiting manual functions:delete',
+  auditCompanies: '2026-11-15 — no-op trigger, export removed, awaiting manual functions:delete',
+  auditAccessCodes: '2026-11-15 — no-op trigger, export removed, awaiting manual functions:delete',
+  auditSubscriptions: '2026-11-15 — no-op trigger, export removed, awaiting manual functions:delete',
+  imageProxy: '2026-11-15 — 410 stub, export removed, awaiting manual functions:delete',
+  setStorageCors: '2026-11-15 — one-shot CORS setter, export removed, awaiting manual functions:delete',
   // nightlyFirestoreBackup was carried here on 2026-09-05 while its code was
   // removed but the function was still deployed (the CLI skips deletes whenever
   // any function in a run fails, and onRepSignup fails every deploy by design).

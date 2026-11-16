@@ -272,5 +272,5 @@
   window.addEventListener('hashchange', maybeLoad);
   window.addEventListener('nbd:data-refreshed', maybeLoad);
 
-  window.NBDGoogleCalendarUI = { loadStatus, check, checkRow, busyBetween, freeBusyGaps, _windowFor: windowFor, _windowOf: windowOf, _conflictText: conflictText };
+  window.NBDGoogleCalendarUI = { status: () => _status, loadStatus, check, checkRow, busyBetween, freeBusyGaps, _windowFor: windowFor, _windowOf: windowOf, _conflictText: conflictText };
 })();
