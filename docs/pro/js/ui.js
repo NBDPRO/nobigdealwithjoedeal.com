@@ -424,6 +424,9 @@ async function _cmdHandleRecordingStop(mimeType) {
     _cmdResetMic();
   } catch (e) {
     const msg = (e && e.message) || 'Transcription failed';
+    // A plan / email refusal says what to do (2026-11-14, free accounts get no AI).
+    const code = e && e.code ? String(e.code).replace(/^functions\//, '') : '';
+    if ((code === 'permission-denied' || code === 'unavailable') && e.message) { _cmdResetMic(e.message); return; }
     _cmdResetMic(msg.includes('Rate limit') ? 'Voice rate limit — wait a moment' : 'Voice transcription failed');
   }
 }

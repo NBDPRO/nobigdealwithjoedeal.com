@@ -63,6 +63,9 @@ exports.previewAiPersona = onCall(
       throw new HttpsError('unavailable', 'AI temporarily disabled');
     }
 
+    // Free accounts get no AI (Joe, 2026-11-14; AI audit F8). Before the rate limit.
+    await require('../ai-gate').assertAiEntitled(require('firebase-admin/firestore').getFirestore(), request.auth);
+
     // Each preview is a live Claude call (~$0.0003) — cap to a sane
     // interactive rate so a stuck slider can't hammer the API.
     await callableRateLimit(request, 'previewAiPersona', 60, 3_600_000);

@@ -43,6 +43,9 @@ function reset() {
   // Server-side allowlist: both test companies are switched on unless a test says otherwise.
   W.docs['integrations/receiptInbox/companies/co-a'] = { enabled: true };
   W.docs['integrations/receiptInbox/companies/co-b'] = { enabled: true };
+  // 2026-11-14: AI needs a paid plan (functions/ai-gate.js); both test companies pay.
+  W.docs['subscriptions/co-a'] = { plan: 'pro', status: 'active' };
+  W.docs['subscriptions/co-b'] = { plan: 'pro', status: 'active' };
   LOGS.length = 0;
 }
 const fx = (t) => { W.effects.push(t); };
