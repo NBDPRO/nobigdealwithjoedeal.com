@@ -46,3 +46,19 @@ What each one does:
 - **Shared files.** `layouts/field.js` is shared by #3062, #3078, `fix/daily-polish` and `fix/field-modes`, and `customer-tasks-ui.js` by #3078 and #3086. Expect conflicts when these merge one after another.
 - **Indexes.** The new indexes must deploy before the bounded task load and the STOP list use them. Until they build, both fall back to the old reads on `failed-precondition` only.
 - **Security review.** It found no change in who can read what. It lists emulator cases worth adding for the new STOP-list and task queries; they are in the PR bodies.
+
+## Outcome (2026-11-16)
+Joe chose to bundle by area, so the ten PRs shipped as two bundles. The conductor merged both and verified them live.
+
+- **Bundle Field 1, #3106:** included #3061, #3062, #3078, #3081 and #3086. It is live as cf6ff36d.
+- **Bundle Field 2, #3111:** included #3092, #3093, #3094, #3095 and #3096. It is live as 07ea1ae1 (deploy run 43821485472).
+  - Its seven new indexes were CREATING at deploy, with none in ERROR. Until they build, the `failed-precondition` fallbacks cover the reads.
+- The ten individual PRs are closed as superseded, and their branches are kept.
+
+Learned while landing them:
+- **Field e2e default mode.** Once Photo became the default (#3094), `tests/e2e/field-app.spec.js` has to tap **Test square** before the square checks. The spec's chip count now covers only the six slope chips, because the two mode chips share `.fa-chip`.
+- **Asset versions after each main merge.** Re-check `asset-version-consistency` after every merge from main. Main often bumps the same file to the same `?v=`, so bump past both.
+- **Inline-style ratchet.** The ceiling in `inline-style-ratchet` is shared across all PRs. When a merge pushes it over, use `el.style.cssText` instead of a `style=` attribute.
+
+Still open:
+- **#3095 (field #13):** Joe checks the 44 px targets and the 11 px nav labels on a real phone. The checklist is in the #3095 PR body, and the check is on his morning list.
