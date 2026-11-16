@@ -1390,6 +1390,8 @@ async function run() {
     await assertFails(updateDoc(doc(solo, 'invoices/se-x'), { payments: oneEdit(Lx, 12, (e) => Object.assign({}, e, { at: new Date(longBase - 200 * 3600000) })) }));                 // a new date
     await assertFails(updateDoc(doc(solo, 'invoices/se-x'), { payments: oneEdit(Lx, 0, (e) => Object.assign({}, e, { method: 'zelle' })) }));                                       // a new method
     await assertFails(updateDoc(doc(solo, 'invoices/se-x'), { payments: Lx.slice(1), amountPaid: 130 }));                                                                         // a line dropped
+    await seedLong('se-x12', 0, 'solo1', Object.assign({ payments: longList(12, 'solo1'), amountPaid: 120, balanceDue: 99000 }, bfMarks));
+    await assertFails(updateDoc(doc(solo, 'invoices/se-x12'), { payments: oneEdit(longList(12, 'solo1'), 11, (e) => Object.assign({}, e, { amount: 11 })) }));   // the short last chunk: a new amount on the last line
     // allowed today and still allowed (the rule checks the money fields of every entry, not who edits which entry or how many):
     // (the app edits one entry per write; two entries five or more apart cost two chunks and can still go over the budget for this,
     //  the costliest caller, as every same-length edit did before)
