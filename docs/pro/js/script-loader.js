@@ -511,7 +511,7 @@
     // Never needed by NBD's own company: dashboard-bootstrap.module.js loads
     // it once the company profile lands, only for a non-platform tenant.
     setup: [
-      'js/setup-checklist.js?v=1'
+      'js/setup-checklist.js?v=2'
     ],
     // Away mode (never-forget lane, 2026-10-12): the Home status line, the
     // "While you were away" card and the backup person's cover list. Kicked by
@@ -566,7 +566,7 @@
     // its Settings > Appearance panel. Kicked by today-home.js at Home boot.
     layoutoffer: [
       'css/layout-offer.css?v=1',
-      'js/layout-offer.js?v=1'
+      'js/layout-offer.js?v=2'
     ],
     // Call back now + Needs you (2026-10-16): the speed-to-lead strip in Field
     // and Focus and the money-and-momentum chips in Field and Mission. Kicked by

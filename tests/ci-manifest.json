@@ -459,6 +459,7 @@
     "nbd-os-wallpaper-glance-2026-11-09.test.js",
     "nbd-os-board-2026-11-09.test.js",
     "nbd-os-desk-board-2026-11-09.test.js",
+    "popup-one-click-dismiss-2026-11-16.test.js",
     "nbd-os-phone-drag-2026-11-09.test.js",
     "nbd-os-stack-2026-11-09.test.js",
     "nbd-os-p1-widgets-2026-11-09.test.js",

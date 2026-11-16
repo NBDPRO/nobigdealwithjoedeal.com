@@ -803,15 +803,11 @@ function showToast(msgOrOptions, typeArg) {
 
 // Close specific toast
 function closeToast(toastId) {
+  // Removed at once: .toast has no exit transition, so the old opacity/translate
+  // "slide out" left an invisible toast in the stack, still taking taps, 300 ms.
   const toast = document.getElementById(toastId);
-  if (toast) {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateX(400px)';
-    setTimeout(() => {
-      toast.remove();
-      activeToasts.delete(toastId);
-    }, 300);
-  }
+  if (toast) toast.remove();
+  activeToasts.delete(toastId);
 }
 
 // Execute undo action
