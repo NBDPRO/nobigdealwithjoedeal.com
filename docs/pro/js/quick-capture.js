@@ -113,6 +113,7 @@
     // removed it. pagehide guarantees cleanup regardless of how the
     // page goes away. {once:true} so it self-removes after firing.
     window.addEventListener('pagehide', close, { once: true });
+    _offerUnsent();
   }
 
   function close() {
@@ -246,6 +247,7 @@
       }
     } catch (_) {}
 
+    _hideRetry();
     _recorder.start(1000);
     _isRecording = true;
     _recordingStartMs = Date.now();
@@ -271,24 +273,164 @@
       _resetRecordButton();
       return;
     }
+    // Wave-1 field #1 (2026-11-14): the clip used to live only in memory, so a
+    // failed dictate call (no signal on a roof) threw away up to 5 minutes of
+    // talking. Keep it on the phone BEFORE the network call; it is removed
+    // only once the server has turned it into a transcript.
+    let pendingId = null;
+    _setStatus('Processing your capture…');
+    _isProcessing = true; // no Retry, record or review() in the gap before the call
+    try { pendingId = await _savePending(blob); }
+    catch (e) { console.warn('[NBDQuickCapture] could not keep the clip on this phone:', e); }
+    await _processClip(blob, pendingId);
+  }
+
+  // Send one clip to the server. On failure the clip stays (on the phone when
+  // IndexedDB worked, else in memory) and a Retry button is shown.
+  async function _processClip(blob, pendingId) {
+    _hideRetry();
     _setStatus('Processing your capture…');
     _isProcessing = true;
     try {
       const result = await _summarize(blob);
       if (!result || !result.transcript) {
-        _setStatus('No speech detected — tap to try again.');
+        // An empty transcript can be a transcription hiccup, not silence: the
+        // clip is kept until the rep chooses Retry or Discard.
+        _setStatus('No speech detected. The recording is still on this phone: Retry, or Discard it.');
+        _showRetry(blob, pendingId);
         _resetRecordButton();
         return;
       }
+      await _forgetPending(pendingId);
       _currentResult = result;
       _renderResult(result);
     } catch (e) {
       console.warn('[NBDQuickCapture] processing failed:', e);
-      _setStatus('Capture failed: ' + (e.message || 'try again'));
+      const why = (e && e.message) || 'no connection';
+      _setStatus(pendingId
+        ? 'Could not process it (' + why + '). Your recording is saved on this phone. Tap Retry when you have signal.'
+        : 'Could not process it (' + why + '). Keep this screen open and tap Retry.');
+      _showRetry(blob, pendingId);
       _resetRecordButton();
     } finally {
       _isProcessing = false;
     }
+  }
+
+  function _hideRetry() {
+    const el = document.getElementById('nbd-qc-retry');
+    if (el) el.remove();
+  }
+
+  // Retry + Discard under the status line. Discard needs a second tap, so a
+  // stray tap cannot delete five minutes of audio.
+  function _showRetry(blob, pendingId, label) {
+    _hideRetry();
+    const panel = document.getElementById('nbd-qc-record-panel');
+    if (!panel) return;
+    const row = document.createElement('div');
+    row.id = 'nbd-qc-retry';
+    row.className = 'qc-retry-row';
+    row.style.cssText = 'display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap;';
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.id = 'nbd-qc-retry-btn';
+    retry.textContent = label || 'Retry';
+    retry.style.cssText = 'min-height:44px;padding:0 18px;border:0;border-radius:8px;background:var(--orange, #A14A22);color:#fff;font-weight:700;';
+    retry.addEventListener('click', () => {
+      if (_isProcessing || _isRecording) return;
+      _processClip(blob, pendingId);
+    });
+    const discard = document.createElement('button');
+    discard.type = 'button';
+    discard.id = 'nbd-qc-retry-discard';
+    discard.textContent = 'Discard recording';
+    discard.style.cssText = 'min-height:44px;padding:0 14px;border:1px solid #2a3344;border-radius:8px;background:transparent;color:#94a3b8;';
+    let armed = false;
+    discard.addEventListener('click', async () => {
+      if (!armed) { armed = true; discard.textContent = 'Tap again to delete it'; return; }
+      await _forgetPending(pendingId);
+      _hideRetry();
+      _setStatus('Tap to start recording (up to 5 minutes)');
+    });
+    row.appendChild(retry);
+    row.appendChild(discard);
+    panel.appendChild(row);
+  }
+
+  // ─── Unsent clips kept on the phone ─────────────────────────────
+  // Records hold an ArrayBuffer, not a Blob: WebKit has a history of Blob
+  // references in IndexedDB going unreadable after a restart (see
+  // photo-queue-store.js). A write counts only once its transaction commits.
+  const PENDING_DB = 'nbd-voice-pending';
+  const PENDING_STORE = 'clips';
+
+  function _pendingOpen() {
+    return new Promise((resolve, reject) => {
+      if (!window.indexedDB) { reject(new Error('IndexedDB unavailable')); return; }
+      let req;
+      try { req = window.indexedDB.open(PENDING_DB, 1); }
+      catch (e) { reject(e); return; }
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(PENDING_STORE)) db.createObjectStore(PENDING_STORE, { keyPath: 'id' });
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
+      req.onblocked = () => reject(new Error('IndexedDB blocked'));
+    });
+  }
+
+  async function _pendingTx(mode, fn) {
+    const db = await _pendingOpen();
+    try {
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(PENDING_STORE, mode);
+        let out;
+        tx.oncomplete = () => resolve(out);
+        tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
+        tx.onerror = () => reject(tx.error || new Error('IndexedDB transaction failed'));
+        const r = fn(tx.objectStore(PENDING_STORE));
+        if (r) r.onsuccess = () => { out = r.result; };
+      });
+    } finally {
+      try { db.close(); } catch (_) {}
+    }
+  }
+
+  async function _savePending(blob) {
+    const buf = await blob.arrayBuffer();
+    const id = 'qc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    await _pendingTx('readwrite', (st) => st.put({
+      id, buf, mimeType: blob.type || 'audio/webm', size: blob.size, createdAt: Date.now(),
+    }));
+    return id;
+  }
+
+  async function _listPending() {
+    const rows = await _pendingTx('readonly', (st) => st.getAll());
+    return (Array.isArray(rows) ? rows : []).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  }
+
+  async function _forgetPending(id) {
+    if (!id) return;
+    try { await _pendingTx('readwrite', (st) => st.delete(id)); }
+    catch (e) { console.warn('[NBDQuickCapture] could not clear a sent clip:', e); }
+  }
+
+  // On open: a clip that never made it (failed call, reload, dead battery)
+  // is offered back before anything new is recorded.
+  async function _offerUnsent() {
+    let rows = [];
+    try { rows = await _listPending(); } catch (_) { return; }
+    if (!rows.length || _isRecording || _isProcessing || _currentResult) return;
+    if (!document.getElementById(MODAL_ID)) return;
+    const first = rows[0];
+    const blob = new Blob([first.buf], { type: first.mimeType || 'audio/webm' });
+    _setStatus(rows.length === 1
+      ? 'You have a voice note that was not sent yet.'
+      : 'You have ' + rows.length + ' voice notes that were not sent yet.');
+    _showRetry(blob, first.id, 'Send it now');
   }
 
   function _releaseStream() {
@@ -757,6 +899,7 @@
     close,
     review,
     attachFloatingButton,
+    _listPending, // tests: unsent clips kept on this phone
     // Pure, for tests (2026-10-13): who "this customer" is, and picker order.
     currentCustomer,
     pickerLeads,

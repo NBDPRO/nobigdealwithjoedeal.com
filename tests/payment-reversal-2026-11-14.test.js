@@ -285,6 +285,12 @@ async function callableChecks() {
   db = fakeDb(seedA(full));
   r = await call(owner, Object.assign({}, good, fp(full.payments[3], 3)), db);
   ok('refused: an invoice with 15 payment lines (a 16th would lock it for the browser)', !!r.err && /too many/.test(r.err.message) && db.writes.length === 0, r.err ? r.err.message : 'ALLOWED');
+  // Joe, 2026-11-15 ("Yes, keep 15"): a browser records up to the 14th payment (firestore.rules), so the last one
+  // a browser can record can always be reversed, the reversal being line 15.
+  const long14 = Object.assign(base(), { payments: Array.from({ length: 14 }, (_, k) => ({ paymentId: 'x' + k, amount: 100, at: D(2026, 9, 1 + k), method: 'cash', recordedBy: 'rep1' })), amountPaid: 1400 });
+  db = fakeDb(seedA(long14));
+  r = await call(owner, Object.assign({}, good, fp(long14.payments[13], 13)), db);
+  ok('the last payment a browser can record (the 14th) can be reversed; the reversal is line 15', !r.err && db.writes.length > 0, r.err ? r.err.message : 'ok');
   // Second security pass: the entry is picked by index + frozen fingerprint, never by paymentId.
   const R1 = { paymentId: 'r1', amount: 5000, at: D(2026, 10, 1), method: 'check', recordedBy: 'alice' };
   const F1 = { paymentId: 'r1', amount: 5000, at: D(2026, 10, 20), method: 'cash', recordedBy: 'alice' };   // a rep renamed the fake to the real one's id

@@ -107,13 +107,19 @@ const VALID_ROLES = ['new', 'active', 'job', 'won', 'lost'];
     const helper = helperBody
       ? new Function('window', 'return function _stageRoleForWrite(stage) ' + helperBody)(win)
       : undefined;
+    // 2026-11-14: _createLeadDoc/_saveLead settle their writes through the module's
+    // _settleWrite and remember held creates in _queuedCreates (wave-1 field #4).
+    // No NBDOfflineSync here: the helper's online branch (await, then 'synced').
+    const settleWrite = async (p) => { await p; return 'synced'; };
+    const queuedCreates = new WeakSet();
     // The real _createLeadDoc (2026-11-04), run against the same stubs.
     const createLeadDoc = createBody
-      ? new Function('doc', 'collection', 'setDoc', 'getDoc', 'db', 'console', 'return async function _createLeadDoc(payload) ' + createBody)(
-        stubs.doc, stubs.collection, stubs.setDoc, stubs.getDoc, stubs.db, stubs.console)
+      ? new Function('doc', 'collection', 'setDoc', 'getDoc', 'db', 'console', '_settleWrite', '_queuedCreates', 'return async function _createLeadDoc(payload) ' + createBody)(
+        stubs.doc, stubs.collection, stubs.setDoc, stubs.getDoc, stubs.db, stubs.console, settleWrite, queuedCreates)
       : undefined;
-    const names = Object.keys(stubs).concat(['_stageRoleForWrite', '_createLeadDoc']);
-    const vals = names.map((n) => (n === '_stageRoleForWrite' ? helper : n === '_createLeadDoc' ? createLeadDoc : stubs[n]));
+    const names = Object.keys(stubs).concat(['_stageRoleForWrite', '_createLeadDoc', '_settleWrite', '_queuedCreates']);
+    const extra = { _stageRoleForWrite: helper, _createLeadDoc: createLeadDoc, _settleWrite: settleWrite, _queuedCreates: queuedCreates };
+    const vals = names.map((n) => (n in extra ? extra[n] : stubs[n]));
     // eslint-disable-next-line no-new-func
     const fn = new Function(...names, 'return async (data) => ' + saveBody)(...vals);
     return { fn, writes, win };

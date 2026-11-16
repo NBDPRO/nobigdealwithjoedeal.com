@@ -170,7 +170,7 @@ console.log('\nLAZY PLAN JOBS: registration on the real script-loader.js');
   {
     const a = arrive({ hash: '#/schedule', leads: [lead] });
     ok('arriving on #/schedule after load: it starts its render wait at once (readyState is not "loading")', a.timers.length === 1);
-    ok('…and lazy-loads the Calendar panel, as before', a.loads.indexOf('/pro/js/schedule-calendar-panel.js?v=1') >= 0, a.loads);
+    ok('…and lazy-loads the Calendar panel, as before', a.loads.indexOf('/pro/js/schedule-calendar-panel.js?v=2') >= 0, a.loads);
     a.flush(1);
     ok('…then paints Plan Jobs into the stamped template (panel shown, the job listed)', a.els.schedPlanPanel.hidden === false && /Needs a date/.test(a.els.schedPlanBody.innerHTML) && /data-id="L1"/.test(a.els.schedPlanBody.innerHTML), a.els.schedPlanBody.innerHTML.slice(0, 120));
     ok('the global is exposed for the guarded callers (production.js, layouts/crew.js)', !!a.win.NBDSchedulePlannerUI && typeof a.win.NBDSchedulePlannerUI.render === 'function');
@@ -231,7 +231,7 @@ console.log('\nLAZY PLAN JOBS: registration on the real script-loader.js');
     ok('goTo stamps the template BEFORE it preloads the view, so the planner finds its panel', go.indexOf('_hydrateViewTemplate(name);') > 0 && go.indexOf('_hydrateViewTemplate(name);') < go.indexOf('preloadForView(name)'));
     const cust = read('docs/pro/customer.html');
     ok('the customer page loads only the rules, as before', !/<script\b[^>]*schedule-planner\.js/.test(cust) && /schedule-planner-logic\.js\?v=\d+/.test(cust));
-    ok('production.js cache-buster bumped on both pages (v=3)', /<script defer src="js\/production\.js\?v=3"><\/script>/.test(dash) && /<script defer src="js\/production\.js\?v=3"><\/script>/.test(cust));
+    ok('production.js cache-buster bumped on both pages (v=4)', /<script defer src="js\/production\.js\?v=4"><\/script>/.test(dash) && /<script defer src="js\/production\.js\?v=4"><\/script>/.test(cust));
     ok('script-loader.js is untouched by this lane', !/schedule-planner/.test(LOADER));
     ok('this suite is in the node bucket', read('tests/ci-manifest.json').indexOf('"lazy-schedule-planner-2026-11-08.test.js"') >= 0);
   }

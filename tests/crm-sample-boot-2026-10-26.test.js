@@ -80,7 +80,10 @@ function ok(name, cond, detail) {
   for (const [name, files] of Object.entries(want)) {
     for (const f of files) {
       const hits = pages[name].filter((l) => l.file === f);
-      ok(name + ': ' + f + ' is linked once, at ?v=2', hits.length === 1 && hits[0].v === '2', JSON.stringify(hits));
+      // At ?v=2 or later (2026-11-15: customer-tasks.css moved to v=3 for the
+      // Open tasks block; tests/asset-version-consistency-2026-11-14 owns the
+      // exact numbers now).
+      ok(name + ': ' + f + ' is linked once, at ?v=2 or later', hits.length === 1 && Number(hits[0].v) >= 2, JSON.stringify(hits));
     }
   }
   const shared = {};

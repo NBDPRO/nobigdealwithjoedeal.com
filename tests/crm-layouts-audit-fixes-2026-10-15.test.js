@@ -275,7 +275,9 @@ console.log('\nD21. light mode at boot');
   const blk = DS.slice(DS.indexOf("const autoOn = localStorage.getItem('nbd_auto_theme')"), DS.indexOf('// Boot the theme immediately'));
   ok('a page the preboot stamped data-mode="light" loads the theme engine at boot', /const light = document\.documentElement\.getAttribute\('data-mode'\) === 'light';/.test(blk) && /\|\| light\) kick\(\);/.test(blk));
   ok('"auto" also loads it when the phone switches to light later', /matchMedia\('\(prefers-color-scheme: light\)'\)/.test(blk) && /if \(ev\.matches\) kick\(\);/.test(blk));
-  ok('the preboot is still the one that decides the mode (head, blocking)', /<script src="js\/theme-mode-preboot\.js\?v=1"><\/script>/.test(read('docs/pro/dashboard.html')) && /js\/dashboard-state\.js\?v=12/.test(read('docs/pro/dashboard.html')));
+  // (dashboard-state.js's ?v= is tests/asset-version-consistency-2026-11-14.test.js's job now: one
+  // version everywhere, re-versioned when the file changes. A hand-pinned v=12 here broke on every bump.)
+  ok('the preboot is still the one that decides the mode (head, blocking)', /<script src="js\/theme-mode-preboot\.js\?v=1"><\/script>/.test(read('docs/pro/dashboard.html')));
 }
 
 console.log('\nD30. Field: "All uploaded" only after a real 0');

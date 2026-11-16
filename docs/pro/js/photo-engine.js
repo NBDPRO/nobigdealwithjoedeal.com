@@ -909,28 +909,45 @@
     });
   }
 
+  // Resolves a JPEG thumbnail, or null when this browser cannot decode the
+  // image (a HEIC on desktop Chrome, a truncated file). It used to have no
+  // error path at all: an undecodable photo left the promise pending forever,
+  // which held the upload queue's `_draining` flag and stopped every photo
+  // behind it (wave-1 field #8, 2026-11-14). The upload then uses the full
+  // image as its own thumbnail instead.
   function generateThumbnail(blob) {
+    const THUMB_TIMEOUT_MS =
+      (typeof window !== 'undefined' && window.__nbdThumbTimeoutMs) || 15000;
     return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          const size = 200;
-          canvas.width = size;
-          canvas.height = size;
+      let done = false;
+      const finish = (v) => { if (done) return; done = true; clearTimeout(timer); resolve(v || null); };
+      const timer = setTimeout(() => finish(null), THUMB_TIMEOUT_MS);
+      try {
+        const reader = new FileReader();
+        reader.onerror = () => finish(null);
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onerror = () => finish(null);
+          img.onload = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              const size = 200;
+              canvas.width = size;
+              canvas.height = size;
 
-          const scale = Math.max(size / img.width, size / img.height);
-          const x = (size / 2) - (img.width / 2) * scale;
-          const y = (size / 2) - (img.height / 2) * scale;
-          ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+              const scale = Math.max(size / img.width, size / img.height);
+              const x = (size / 2) - (img.width / 2) * scale;
+              const y = (size / 2) - (img.height / 2) * scale;
+              ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
 
-          canvas.toBlob(resolve, 'image/jpeg', 0.8);
+              canvas.toBlob((b) => finish(b), 'image/jpeg', 0.8);
+            } catch (_) { finish(null); }
+          };
+          img.src = e.target.result;
         };
-        img.src = e.target.result;
-      };
-      reader.readAsDataURL(blob);
+        reader.readAsDataURL(blob);
+      } catch (_) { finish(null); }
     });
   }
 
@@ -1231,33 +1248,7 @@
       fallback.accept = 'image/*,.heic,.heif,.avif';
       fallback.capture = 'environment';
       fallback.multiple = true;
-      fallback.onchange = async (e) => {
-        const files = Array.from(e.target.files || []);
-        if (!files.length) return;
-        // Audit 2026-08-02 (silent-failure class): the old handler tried
-        // window.handlePhotoFiles — defined NOWHERE in the repo — then a bare
-        // handleFileSelect that only exists on customer.html, while this
-        // bundle loads on the dashboard. Net effect: every picked file was
-        // silently dropped. Upload directly (File extends Blob; tags can be
-        // edited in the gallery afterwards) and ALWAYS say what happened.
-        let uploaded = 0, failedCount = 0;
-        for (const file of files) {
-          try {
-            await uploadPhotoToFirebase(file, leadId, [], '', '');
-            uploaded++;
-          } catch (err) {
-            failedCount++;
-            console.error('[photo-engine] fallback upload failed:', err);
-          }
-        }
-        if (failedCount && !uploaded) {
-          showToast('Could not save the selected photos', 'error');
-        } else if (failedCount) {
-          showToast(`${uploaded} photo${uploaded === 1 ? '' : 's'} uploaded, ${failedCount} failed`, 'warning');
-        } else {
-          showToast(`${uploaded} photo${uploaded === 1 ? '' : 's'} uploaded`, 'success');
-        }
-      };
+      fallback.onchange = (e) => _saveFallbackFiles(Array.from(e.target.files || []), leadId);
       fallback.click();
       showToast('Camera unavailable — using file picker', 'warning');
       return;
@@ -1636,6 +1627,32 @@
     }
     _kickDrain();
     return outcome;
+  }
+
+  // Camera denied → the file chooser. Audit 2026-08-02 found every picked
+  // file silently dropped; the 2026-08 fix uploaded directly, so with no
+  // signal they failed with "Could not save the selected photos" and no copy
+  // was kept (wave-1 field #2, 2026-11-14). Each file now takes the burst
+  // path: held in the durable queue first, uploaded behind it.
+  async function _saveFallbackFiles(files, leadId) {
+    if (!files || !files.length) return { held: 0, failed: 0 };
+    let held = 0, failedCount = 0;
+    for (const file of files) {
+      let out = null;
+      try { out = await _saveBurstShot(file, leadId, null); }
+      catch (err) { console.error('[photo-engine] fallback save failed:', err); }
+      if (out && (out.queued || out.uploaded)) held++;
+      else failedCount++;
+    }
+    const n = (k) => k + ' photo' + (k === 1 ? '' : 's');
+    if (failedCount && !held) {
+      showToast('Could not save the selected photos', 'error');
+    } else if (failedCount) {
+      showToast(n(held) + ' saved, ' + failedCount + ' could not be saved', 'warning');
+    } else {
+      showToast(n(held) + ' saved. They upload on their own, even with no signal.', 'success');
+    }
+    return { held, failed: failedCount };
   }
 
   // Drain behind the shutter. One drain at a time (flushUploadQueue is
@@ -2081,7 +2098,10 @@
     // toast over the viewfinder after every shot.
     const quiet = !!(opts && opts.quiet);
     if (_draining) return 0;
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) return 0;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      _scheduleRetry('offline'); // keep a running retry chain alive (no new chain)
+      return 0;
+    }
     _draining = true;
     _drainAgain = false;
     let sent = 0;
@@ -2091,6 +2111,8 @@
     // without ever being sent, so a drain can empty the queue entirely with
     // `sent === 0`. See the sync block at the end.
     let removed = 0;
+    let consecutiveFails = 0;
+    let skipped = 0;
     try {
       const items = await _pendingItems();
       for (const item of items) {
@@ -2127,27 +2149,70 @@
           sent++;
           removed++;
         } catch (e) {
-          // Still offline (or the upload is failing for another reason).
-          // Stop here and leave this item AND everything after it queued.
-          stalled = true;
-          break;
+          // The photo stays queued either way; nothing here deletes it.
+          // Wave-1 field #7 (2026-11-14): this used to stop the whole drain on
+          // ANY error, so one photo that always fails (a file the server
+          // rejects) held every healthy photo behind it forever. Now one
+          // failure moves on to the next photo; two in a row means the
+          // connection (not the photo) is the problem, so stop there. A
+          // retryable:false error is about this page (Firebase not ready),
+          // not the photo: stop and let the next drain try again.
+          consecutiveFails++;
+          if ((e && e.retryable === false) || consecutiveFails >= 2) {
+            stalled = true;
+            break;
+          }
+          skipped++;
+          continue;
         }
+        consecutiveFails = 0;
       }
+      if (skipped && !stalled) stalled = true; // a skipped photo is still owed
       if (sent && !quiet && typeof showToast === 'function') {
         showToast(sent === 1 ? '✓ 1 queued photo uploaded' : `✓ ${sent} queued photos uploaded`, 'success');
       }
       await _syncMarkerAfterDrain(removed);
+    } catch (e) {
+      // Reading the queue itself failed: photos may still be owed, so keep
+      // the timed retry running rather than cancelling it.
+      console.warn('[PhotoEngine] drain failed:', e && e.message);
+      stalled = true;
     } finally {
       _draining = false;
       // A burst shot landed mid-drain: one more pass for it — unless this
       // pass stalled on a failure, where an immediate retry would only fail
-      // again (the `online` event and boot recovery take it from there).
+      // again.
       if (_drainAgain && !stalled) {
         _drainAgain = false;
         setTimeout(() => { flushUploadQueue({ quiet: quiet }); }, 0);
       }
+      _scheduleRetry(stalled);
     }
     return sent;
+  }
+
+  // Timed retry for a stalled drain. Drains used to run only at boot, on the
+  // `online` event and after a shot, and weak signal on a roof often never
+  // fires `online` (the phone never fully dropped). Back off 30 s, 1, 2, 4,
+  // then every 5 minutes while photos are owed; a clean drain resets it.
+  let _retryTimer = null;
+  let _retryDelayMs = 0;
+  function _scheduleRetry(stalled) {
+    if (!stalled) {
+      _retryDelayMs = 0;
+      if (_retryTimer) { clearTimeout(_retryTimer); _retryTimer = null; }
+      return;
+    }
+    if (_retryTimer) return;
+    // Offline (navigator.onLine false): only keep an existing chain going;
+    // the `online` event starts a fresh drain, so there is no new chain here.
+    if (stalled === 'offline' && !_retryDelayMs) return;
+    const base =(typeof window !== 'undefined' && window.__nbdPhotoRetryBaseMs) || 30000;
+    _retryDelayMs = _retryDelayMs ? Math.min(_retryDelayMs * 2, 10 * base) : base;
+    _retryTimer = setTimeout(() => {
+      _retryTimer = null;
+      flushUploadQueue({ quiet: true });
+    }, _retryDelayMs);
   }
 
   // Bounded on purpose. This runs INSIDE flushUploadQueue's try, so the
@@ -2327,11 +2392,18 @@
       await uploadBytes(photoRef, blob);
       const photoUrl = await getDownloadURL(photoRef);
 
-      // Generate and upload thumbnail
+      // Generate and upload thumbnail. A photo this browser cannot decode
+      // gets no thumbnail object: the full image doubles as its thumbnail
+      // and thumbStoragePath stays null (every delete path skips a null).
       const thumbBlob = await generateThumbnail(blob);
-      const thumbRef = ref(window._storage, thumbPath);
-      await uploadBytes(thumbRef, thumbBlob);
-      const thumbUrl = await getDownloadURL(thumbRef);
+      let thumbUrl = photoUrl;
+      let thumbStoragePath = null;
+      if (thumbBlob) {
+        const thumbRef = ref(window._storage, thumbPath);
+        await uploadBytes(thumbRef, thumbBlob);
+        thumbUrl = await getDownloadURL(thumbRef);
+        thumbStoragePath = thumbPath;
+      }
 
       // Derive a normalized `phase` field from the user-selected tags.
       // The customer page's photo panel (customer-tasks-ui.js) buckets on
@@ -2378,7 +2450,7 @@
         // delete path has to parse the download URL — fragile and prone
         // to orphaning Storage objects when URLs include encoded paths.
         storagePath: photoPath,
-        thumbStoragePath: thumbPath,
+        thumbStoragePath,
         thumbUrl,
         tags,
         phase,
@@ -2434,7 +2506,7 @@
         url: photoUrl,
         thumbUrl,
         storagePath: photoPath,
-        thumbStoragePath: thumbPath,
+        thumbStoragePath,
         fileSize: blob.size
       };
       let createdDoc = false;
@@ -2862,7 +2934,9 @@
     _capture: { phaseForStage, phaseFromTags, haversineMeters, onSiteFor, captureContext, ON_SITE_RADIUS_M },
     // Burst internals, exposed for the behavioural suite
     // (tests/field-photos-client-2026-10-04.test.js) and the E2E.
-    _burst: { saveBurstShot: _saveBurstShot, readCaptureMode: _readCaptureMode, showBurstDone: _showBurstDone },
+    _burst: { saveBurstShot: _saveBurstShot, readCaptureMode: _readCaptureMode, showBurstDone: _showBurstDone, saveFallbackFiles: _saveFallbackFiles },
+    // Exposed for tests/photo-queue-unblock-2026-11-14.test.js.
+    _generateThumbnail: generateThumbnail,
     // Synchronous, reads the in-memory mirror. Accurate once _syncMirror()
     // has run; use queuedPhotoCountDurable() if you need the storage truth
     // without depending on that having happened yet.

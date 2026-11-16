@@ -108,6 +108,8 @@ function planAutoText({ env, call, lead, nowMs }) {
   if (!d) return { send: false, reason: 'no_number' };
   if (!call.leadId || !lead) return { send: false, reason: 'no_lead' };
   if (lead.deleted === true || lead.deletedAt) return { send: false, reason: 'deleted' };
+  // Archived (2026-11-15): archiving a lead can mean "do not contact".
+  if (lead.archived === true) return { send: false, reason: 'archived' };
   // The consent is the LEAD's; it covers the number that lead gave us.
   const leadNums = [lead.phone, lead.phoneNumber, lead.altPhone, lead.phoneDigits].map(digits10).filter(Boolean);
   if (leadNums.indexOf(d) === -1) return { send: false, reason: 'number_mismatch' };
