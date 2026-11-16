@@ -151,7 +151,9 @@ function mkRes() {
       './push-functions': { sendCustomNotification: async () => ({ sent: 1 }) },
       './opt-out': { isOptedOut: async () => ({ optedOut: false }), READ_TIMEOUT_MS: 100, optOutKey: (p) => p },
       './texting-gate': { tenantKeyOfRecord: () => OWNER, NBD_OWNER_UID: OWNER, textingStatus: async () => ({ allowed: true }) },
-      './send-window': { withinRecipientWindow: () => true },
+      // lead-alert requires './sms-send-window'. Pin texting hours open so the
+      // switches-on control passes at any hour (it failed at 00:40 with the real window).
+      './sms-send-window': Object.assign({}, require(F('sms-send-window.js')), { withinRecipientWindow: () => true }),
     };
     let LA;
     try { LA = fresh(F('lead-alert.js')); } catch (e) { ok('lead-alert loaded under stubs', false, String(e && e.stack || e)); }
@@ -560,7 +562,9 @@ function mkRes() {
       './push-functions': { sendCustomNotification: async () => ({ sent: 1 }) },
       './opt-out': { isOptedOut: async () => ({ optedOut: false }), READ_TIMEOUT_MS: 100, optOutKey: (p) => p },
       './texting-gate': { tenantKeyOfRecord: () => OWNER, NBD_OWNER_UID: OWNER, textingStatus: async () => ({ allowed: true }) },
-      './send-window': { withinRecipientWindow: () => true },
+      // lead-alert requires './sms-send-window'. Pin texting hours open so the
+      // switches-on control passes at any hour (it failed at 00:40 with the real window).
+      './sms-send-window': Object.assign({}, require(F('sms-send-window.js')), { withinRecipientWindow: () => true }),
     };
     fresh(F('lead-alert.js'));
     const LA = fresh(F('estimate-funnel-triggers.js'));
