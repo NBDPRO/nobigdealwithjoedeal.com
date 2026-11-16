@@ -774,6 +774,84 @@ service cloud.firestore {
              == request.auth.token.get('companyId', '');
     }
 
+    // 2026-11-14 (Jo's decision): managers do not delete leads. "Delete lead"
+    // is a SOFT delete (an update that sets deleted / deletedAt), so it rode
+    // the staff branch of the update rule below: a manager could bin any
+    // teammate's lead, which the hard-delete rule never allowed. Setting OR
+    // clearing a soft-delete marker (delete, restore from the Deleted bin;
+    // isDeleted is honoured by some readers too; e2eTestData hides a lead from
+    // the agent tools, Home strips, storm mode, mission/coach, closes-this-week
+    // and DOL fill, and the E2E suites tag their own leads with it after the
+    // fact, so it is the owner side's rather than frozen) is now held to the hard-delete
+    // rule's writers: the lead's own non-viewer owner, a company_admin, or a
+    // platform admin. A manager keeps every other edit. Unchanged markers
+    // never trigger the check. When they change, `deleted` must be a bool (or
+    // absent): a string or number hid the lead from the board without ever
+    // putting it in the Deleted bin (which queries deleted == true).
+    // The company_admin branch carries NO tenant check of its own: it relies on
+    // the update rule's outer clause, which only lets a company_admin reach
+    // this far on a lead whose companyId == myCompanyId() (or one they own).
+    // Moving this helper anywhere without that pin would widen it.
+    // Jo (2026-11-14, decision a): managers do not delete leads AT ALL, not
+    // even ones they own, so the owner branch excludes the manager role as
+    // well as viewer. Shared by the lead's soft delete and hard delete, and by
+    // the jobs under a lead (ownerUid = the lead's userId).
+    function ownerSideDeleter(ownerUid) {
+      return request.auth.token.get('role', '') in ['admin', 'company_admin']
+        || (isOwner(ownerUid) && !(request.auth.token.get('role', '') in ['viewer', 'manager']));
+    }
+    function softDeleteWriteOk() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['deleted', 'deletedAt', 'isDeleted', 'e2eTestData'])
+        || (ownerSideDeleter(resource.data.userId)
+            && request.resource.data.get('deleted', false) is bool);
+    }
+
+    // Lead archive (2026-11-14, Jo: managers archive instead of deleting).
+    // WHO is the leads update rule's own writer set (the owner unless a viewer,
+    // or a manager / company_admin of the lead's company); this checks the
+    // SHAPE whenever archived / archivedAt / archivedBy change: archived is a
+    // bool; archiving stamps archivedBy == the caller and archivedAt ==
+    // request.time; un-archiving clears both to null. The dashboard hides
+    // archived leads from the board, map and search and lists them in the
+    // Archived drawer (crm-portal-bridge.js), where Un-archive lives.
+    function archiveWriteOk() {
+      let d = request.resource.data;
+      return !d.diff(resource.data).affectedKeys().hasAny(['archived', 'archivedAt', 'archivedBy'])
+        || (d.get('archived', null) == true
+            && d.get('archivedBy', null) == request.auth.uid
+            && d.get('archivedAt', null) == request.time)
+        || (d.get('archived', null) == false
+            && d.get('archivedAt', null) == null
+            && d.get('archivedBy', null) == null);
+    }
+
+    // CREATE (2026-11-14 review): a lead may not be born hidden by someone who
+    // could not hide it by an update. Live markers (absent, or false / null)
+    // are fine for anyone who may create (the CSV import writes deleted:false);
+    // anything else needs ownerSideDeleter on the creator (who is the owner:
+    // the create rule pins userId == uid) and a bool `deleted`.
+    function leadCreateMarkersOk() {
+      let d = request.resource.data;
+      return (d.get('deleted', false) == false && d.get('deletedAt', null) == null
+              && d.get('isDeleted', false) == false && d.get('e2eTestData', false) == false)
+        || (ownerSideDeleter(request.auth.uid) && d.get('deleted', false) is bool);
+    }
+
+    // leads/{id}/jobs/{jobId} (2026-11-14): a job's deleted / deletedAt /
+    // isDeleted are held to the same writers (jobs readers skip deleted ==
+    // true: invoices, today plan, agent tools, morning brief, owner digest,
+    // production flow). On create, any marker counts; on update, a change.
+    // The company_admin branch relies on the job rule's parentLeadInMyCompany.
+    function jobSoftDeleteOk(leadId) {
+      let keys = ['deleted', 'deletedAt', 'isDeleted'];
+      let touched = resource == null
+        ? request.resource.data.keys().hasAny(keys)
+        : request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
+      return !touched
+        || (ownerSideDeleter(get(/databases/$(database)/documents/leads/$(leadId)).data.get('userId', ''))
+            && request.resource.data.get('deleted', false) is bool);
+    }
+
     // ── LEADS ─────────────────────────────────────────
     // companyId is required on create. The Rock 3 backfill
     // (PR #56 audit/backfill callable) stamped companyId on every
@@ -820,11 +898,18 @@ service cloud.firestore {
       // shared kanban is fully workable — but provenance is frozen
       // (didNotChange userId/companyId: managers edit content, they don't
       // reassign ownership or re-tenant a lead; reassignment ships as its
-      // own feature). DELETE stays owner + same-company company_admin —
+      // own feature). The soft delete (deleted / deletedAt) is held to the
+      // same writers as DELETE (softDeleteWriteOk, 2026-11-14), so a manager
+      // cannot bin or restore a lead either. DELETE stays owner + same-company company_admin —
       // managers manage the board, only the lead owner or the tenant owner
       // destroys data. Legacy docs without companyId stay owner-only for
       // both (the company clause errors-to-deny on the absent key).
-      allow update: if isAdmin()
+      // _test hides a lead for everyone (the dashboard loader drops _test
+      // docs, the Deleted bin never lists them, nothing un-hides them), so no
+      // client may set, change or clear it on UPDATE, whatever the role
+      // (2026-11-14 review). Only a create carries it (the Settings rules
+      // probe); the admin SDK skips rules. e2eTestData: softDeleteWriteOk.
+      allow update: if (isAdmin() && didNotChange(['_test']))
         || (
           (
             (isOwner(resource.data.userId) && notViewer())
@@ -837,6 +922,8 @@ service cloud.firestore {
           // admin-SDK-only; the sole client write is the rep's Mark Paid / Mark
           // Unpaid toggle (owed<->paid), carved out below. See onReferralLeadWrite.
           && didNotChange(['userId', 'companyId'])
+          // The rules-probe flag (see above): frozen for owner and staff too.
+          && didNotChange(['_test'])
           // activeJobId names the job the lead's fields describe
           // (functions/jobs-mirror.js). Server-owned in phase 1: a client
           // re-saving the same value is fine, changing it is not.
@@ -873,10 +960,14 @@ service cloud.firestore {
           && confirmedSourceWriteOk()
           && openClaimIdOk()
           && projectConsentWriteOk()
+          && softDeleteWriteOk()
+          && archiveWriteOk()
           && scheduleWindowOk()
           && portalNoteOk()
         );
-      allow delete: if (isOwner(resource.data.userId) && notViewer())
+      // Jo (2026-11-14, decision a): a manager does not delete a lead, even one
+      // they own (ownerSideDeleter's owner branch excludes manager and viewer).
+      allow delete: if (isOwner(resource.data.userId) && ownerSideDeleter(resource.data.userId))
         || isAdmin()
         || (isCompanyAdmin()
             && resource.data.companyId != null
@@ -900,6 +991,13 @@ service cloud.firestore {
         // customerId (CSV import may carry one) cannot claim another
         // tenant's reserved prefix (security batch 2026-10-03).
         && leadCreateHasNoServerFields()
+        // Delete markers: the same writers as on update (leadCreateMarkersOk).
+        && leadCreateMarkersOk()
+        // Archive (2026-11-14 review): a lead is never born archived, so
+        // archivedBy / archivedAt cannot be forged at create; archiving is
+        // an update, checked by archiveWriteOk.
+        && request.resource.data.get('archived', false) == false
+        && !request.resource.data.keys().hasAny(['archivedAt', 'archivedBy'])
         // Server-minted doc ids (calcom__<booking>, <collection>__<id>) belong
         // to the webhook / bridge; a client may not squat one.
         && !leadId.matches('^(calcom|thumbtack_leads)__.*')
@@ -1311,9 +1409,14 @@ service cloud.firestore {
         allow create, update: if isAuth() && notViewer()
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
               || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
-          && jobWriteOk(leadId);
+          && jobWriteOk(leadId)
+          && jobSoftDeleteOk(leadId);
+        // Owner side only (2026-11-14): the lead's non-manager owner or a
+        // same-company company_admin; a manager deletes no job, even on a lead
+        // they own.
         allow delete: if isAuth() && notViewer()
-          && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+          && ((isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
+               && request.auth.token.get('role', '') != 'manager')
               || (isCompanyAdmin() && parentLeadInMyCompany(leadId)));
 
         // ── MATERIAL ORDERS (production flow, 2026-10-04) ──
@@ -1471,16 +1574,155 @@ service cloud.firestore {
     match /supplements/{supplementId} {
       // read and delete were one line; split 2026-09-25 so delete can carry
       // notViewer() (decision B) without touching read.
-      allow read: if isOwner(resource.data.userId) || isAdmin();
-      allow delete: if (isOwner(resource.data.userId) && notViewer()) || isAdmin();
+      // Finding 5 (2026-11-14): the office invoices a job whose supplement a
+      // rep entered, so same-company STAFF (company_admin / manager, the
+      // /invoices + /expenses readers) read it too. Same shape as /invoices:
+      // companyId must be non-null AND equal the caller's claim, so a legacy
+      // supplement with no companyId stays owner-only (absent-key access errors
+      // to deny, never widens) and another tenant never matches. Query-safe for
+      // where('parentEstimateId','==') + where('companyId','==',claim).
+      // A read of an id that does not exist answers "does not exist" (second
+      // security pass M-B, 2026-11-14): the office's invoice cross-checks the
+      // lead timeline by supplement id, and a denied read of a deleted doc
+      // looked like "forbidden" and blocked the invoice for good. It reveals
+      // only that no supplement has that random id.
+      allow read: if (resource == null && isAuth())
+        || isOwner(resource.data.userId) || isAdmin()
+        || (isCompanyStaff()
+            && resource.data.companyId != null
+            && resource.data.companyId == myCompanyId());
+      // Soft delete only (M-B): the owner sets deleted: true (the owner update
+      // branch), which staff can still read and the invoice never bills. A hard
+      // delete is the platform admin's.
+      allow delete: if isAdmin();
       // Freeze the provenance on this financial doc: a saved supplement can't be
-      // re-owned or re-pointed to a different parent estimate. Supplements are
-      // created append-only (addDoc, versioned), so a legit update keeps userId +
-      // parentEstimateId stable → passes; only tampering trips the guard.
+      // re-owned, re-tenanted, moved to another lead or re-pointed to another
+      // parent estimate. Supplements are created append-only (addDoc,
+      // versioned), so a legit update keeps all of that stable.
+      //
+      // The invoiced stamp is the SERVER's (functions/supplement-invoice.js
+      // createSupplementInvoice, Joe 2026-11-14): no client branch writes it.
+      // Only supStampClearOk (the company_admin, a stamp whose invoice is gone
+      // or void) and the platform admin touch it.
+      //
+      // Approval (Joe, 2026-11-14): the OWNER branch (the rep who wrote it) may
+      // record submitted / denied and edit notes, but never approve: it cannot
+      // move status into or out of approved / partial, change supplementTotal,
+      // submission.approvedAmount or the approval record, and once approved
+      // (or billed) it cannot change status, submission or the deleted flag.
+      // supApproveOk is the owner SIDE's branch (company_admin of the company,
+      // a solo owner, the platform admin) and requires the approval record.
       allow update: if (isOwner(resource.data.userId) && notViewer()
-            && didNotChange(['userId', 'parentEstimateId']))
+            && didNotChange(['userId', 'companyId', 'parentEstimateId', 'leadId', 'invoicedInvoiceId', 'invoicedAt',
+                             'supplementTotal', 'approvalEvidence', 'approvedBy', 'approvedAt'])
+            && supOwnerStatusOk())
+        || supApproveOk()
+        || supStampClearOk()
         || isAdmin();
-      allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid;
+      // Create (security review HIGH 2, 2026-11-14): companyId is required and
+      // pinned to the caller's tenant (the /expenses create shape), AND the
+      // supplement must name a parent estimate the caller may bill — their own,
+      // or (staff) one in their company — carrying that estimate's companyId
+      // and lead, born a 'draft' and unbilled. Without it a rep could add an
+      // "approved" supplement to a teammate's job and the office's team query
+      // would bill it; without the companyId pin a rep could aim one at a
+      // VICTIM tenant's estimate.
+      allow create: if isAuth() && notViewer()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.companyId is string
+        && request.resource.data.companyId.size() > 0
+        && (request.resource.data.companyId == request.auth.token.get('companyId', '')
+            || (request.auth.token.get('companyId', '') == '' && ownsTenantByUid(request.resource.data.companyId)))
+        && request.resource.data.get('status', '') == 'draft'
+        && request.resource.data.get('invoicedInvoiceId', null) == null
+        && !request.resource.data.keys().hasAny(['approvedBy', 'approvedAt', 'approvalEvidence'])
+        && supParentOk(request.resource.data);
+    }
+
+    // The rep's own status changes (Joe, 2026-11-14): never into or out of
+    // approved / partial, never the approved amount, and an approved or billed
+    // supplement's status, carrier response and deleted flag stay as they are.
+    function supOwnerStatusOk() {
+      let n = request.resource.data;
+      let r = resource.data;
+      let ap = ['approved', 'partial'];
+      return (n.get('status', '') == r.get('status', '') || (!(n.get('status', '') in ap) && !(r.get('status', '') in ap)))
+        && n.get('submission', {}).get('approvedAmount', null) == r.get('submission', {}).get('approvedAmount', null)
+        && ((!(r.get('status', '') in ap) && r.get('invoicedInvoiceId', null) == null)
+            || didNotChange(['status', 'submission', 'deleted']));
+    }
+
+    // The owner SIDE of the supplement's company (Joe, 2026-11-14): its
+    // company_admin, a solo owner (no role / company claim, the company keyed
+    // by their uid), or the platform admin (role 'admin', isAdmin()).
+    function supApproverOk(cid) {
+      return isAdmin()
+        || (cid != '' && request.auth.token.get('role', '') == 'company_admin'
+            && request.auth.token.get('companyId', '') == cid)
+        || (cid != '' && request.auth.token.get('role', '') == '' && request.auth.token.get('companyId', '') == ''
+            && ownsTenantByUid(cid));
+    }
+    // Approval evidence: a note (1..1000 characters, not blank) and/or a
+    // document under the company's own folder.
+    function supEvidenceOk(ev, cid) {
+      return ev is map
+        && ((ev.get('note', '') is string && ev.get('note', '').trim().size() > 0 && ev.get('note', '').size() <= 1000)
+            || (ev.get('path', '') is string
+                && ev.get('path', '').matches('^companies/' + cid + '/supplement-evidence/[A-Za-z0-9_. -]{1,200}$')
+                && !ev.get('path', '').matches('.*[.][.].*')));
+    }
+    // The owner side approves, re-prices or records a response on an
+    // UNBILLED supplement. Moving it to approved / partial (or keeping it
+    // there) carries the approval record: approvedBy == caller, approvedAt ==
+    // the server time, approvalEvidence.
+    function supApproveOk() {
+      let n = request.resource.data;
+      let r = resource.data;
+      let cid = r.get('companyId', '');
+      return notViewer() && supApproverOk(cid)
+        && r.get('invoicedInvoiceId', null) == null
+        && n.diff(r).affectedKeys().hasOnly(['status', 'supplementTotal', 'submission', 'approvalEvidence',
+                                              'approvedBy', 'approvedAt', 'updatedAt', 'reason', 'deleted'])
+        && (!(n.get('status', '') in ['approved', 'partial'])
+            || (n.get('approvedBy', '') == request.auth.uid
+                && n.get('approvedAt', null) == request.time
+                && supEvidenceOk(n.get('approvalEvidence', null), cid)));
+    }
+
+    // The parent estimate a NEW supplement names (security review HIGH 2): the
+    // caller's own estimate, or one in their company for staff; the supplement
+    // carries that estimate's companyId (a legacy estimate with none: only its
+    // owner, under their own tenant) and, when the estimate has a lead, that
+    // lead. A missing estimate errors to deny. One get().
+    function supParentOk(d) {
+      let e = get(/databases/$(database)/documents/estimates/$(d.parentEstimateId)).data;
+      let ecid = e.get('companyId', '');
+      let staff = request.auth.token.get('role', '') in ['company_admin', 'manager'];
+      return d.parentEstimateId is string
+        && (e.get('userId', '') == request.auth.uid
+            || (staff && ecid != '' && ecid == request.auth.token.get('companyId', '')))
+        && (ecid == d.companyId || (ecid == '' && e.get('userId', '') == request.auth.uid))
+        && (e.get('leadId', null) == null || d.get('leadId', null) == e.get('leadId', null));
+    }
+
+    // Clearing a STRANDED stamp (second security pass M-A, 2026-11-14): the
+    // company_admin of the supplement's company (or a claimless solo owner of
+    // it) may remove invoicedInvoiceId + invoicedAt, and nothing else, once the
+    // invoice it names no longer exists or is void / cancelled / deleted, so
+    // the supplement bills again. Never while that invoice is live.
+    function supStampClearOk() {
+      let id = resource.data.get('invoicedInvoiceId', '');
+      let cid = resource.data.get('companyId', '');
+      let invPath = /databases/$(database)/documents/invoices/$(id);
+      return id is string && id.size() > 0 && cid != ''
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['invoicedInvoiceId', 'invoicedAt'])
+        && request.resource.data.get('invoicedInvoiceId', null) == null
+        && request.resource.data.get('invoicedAt', null) == null
+        && ((request.auth.token.get('role', '') == 'company_admin' && cid == request.auth.token.get('companyId', ''))
+            || (request.auth.token.get('companyId', '') == '' && ownsTenantByUid(cid)))
+        && (!exists(invPath)
+            || get(invPath).data.get('status', '') in ['void', 'cancelled']
+            || get(invPath).data.get('deleted', false) == true);
     }
 
     // ── EXPENSES (job costs / supplier spend) ─────────
@@ -1653,11 +1895,16 @@ service cloud.firestore {
         || (resource.data.get('status', '') == 'sending' && resource.data.get('sendingPriorStatus', '') == 'draft')
         || backfillWriterOk();
     }
-    // The total is the owner side's to change once an invoice has left draft or carries a payment.
+    // The total is the owner side's to change once an invoice has left draft or carries a payment,
+    // and ALWAYS on a server-made supplement invoice (security review H1, 2026-11-15; only
+    // functions/supplement-invoice.js writes supplementIds): a rep or manager cannot change what
+    // it bills. Checked only in this rarely-run branch: the invoice update rule sits at the
+    // 1000-expression budget (the 12-payment pins), so its other money fields are a follow-up.
     function invoiceTotalOk() {
       return request.resource.data.get('total', 0) == resource.data.get('total', 0)
         || backfillWriterOk()
-        || (resource.data.get('status', '') == 'draft' && resource.data.get('payments', []).size() == 0);
+        || (resource.data.get('status', '') == 'draft' && resource.data.get('payments', []).size() == 0
+            && !('supplementIds' in resource.data));
     }
     // Presence of the key is enough (any value, any type: 'true', 1, 'yes'), and 'source' is compared without case:
     // a rep cannot slip a near-miss marker past the owner-side check.
@@ -1665,13 +1912,13 @@ service cloud.firestore {
       return d.keys().hasAny(['backfilled', 'backfillKey', 'paymentBackfill'])
         || (d.get('source', '') is string && d.get('source', '').lower() == 'backfill');
     }
-    // On an update the markers are frozen: set at create, never added, changed or removed.
+    // On an update the markers are frozen: set at create, never added, changed or removed. backfilled, backfillKey and
+    // paymentBackfill are frozen in the invoice update rule's didNotChange list (one expression each, where three
+    // get() comparisons cost several: the rule runs at the 1000-expression budget, 2026-11-15); 'source' may change
+    // but never into or out of 'backfill', in any case.
     function backfillMarksFrozen() {
-      return request.resource.data.get('backfilled', null) == resource.data.get('backfilled', null)
-        && request.resource.data.get('backfillKey', null) == resource.data.get('backfillKey', null)
-        && request.resource.data.get('paymentBackfill', null) == resource.data.get('paymentBackfill', null)
-        && ((request.resource.data.get('source', '') is string && request.resource.data.get('source', '').lower() == 'backfill')
-            == (resource.data.get('source', '') is string && resource.data.get('source', '').lower() == 'backfill'));
+      return (request.resource.data.get('source', '') is string && request.resource.data.get('source', '').lower() == 'backfill')
+            == (resource.data.get('source', '') is string && resource.data.get('source', '').lower() == 'backfill');
     }
     // status is one of the words the app writes (the server's own writes skip rules). 'Paid' / 'PAID' / 'paid ' are not
     // words, so they cannot dodge the lowercase 'paid' gates above. An existing odd legacy value may stay as it is.
@@ -1754,7 +2001,11 @@ service cloud.firestore {
       let enters = !(r.get('status', '') in ['void', 'cancelled']) && d.get('status', '') in ['void', 'cancelled'];
       let newlyDeleted = d.get('deleted', false) == true && r.get('deleted', false) != true;
       return backfillWriterOk()
+        // An invoice that billed supplements is voided by the owner side only
+        // (second security pass M-A, 2026-11-14), so a $1 throwaway invoice
+        // cannot strand them; the company_admin can then clear the stamps.
         || (!leaves
+            && r.get('supplementIds', []).size() == 0
             && ((!invoiceCarriesMoney(r) && !invoiceCarriesMoney(d))
                 || (invoiceCarriesMoney(r) && !enters && !newlyDeleted
                     && d.get('payments', []) == r.get('payments', [])
@@ -3978,6 +4229,10 @@ service cloud.firestore {
         // A new invoice carries no money: payments arrive one at a time through Record Payment (checked on update),
         // so nobody can create an invoice that is already "paid" with a back-dated payment.
         && request.resource.data.get('payments', []) is list && request.resource.data.get('payments', []).size() == 0
+        // An invoice that bills insurance supplements is made by the server
+        // (functions/supplement-invoice.js, Joe 2026-11-14), never a browser.
+        && request.resource.data.get('supplementIds', []) is list && request.resource.data.get('supplementIds', []).size() == 0
+        && request.resource.data.get('supplementTotal', 0) == 0
         && !request.resource.data.keys().hasAny(invoiceServerOnlyKeys())
         && request.resource.data.get('paidAt', null) == null
         && request.resource.data.get('lastPaymentAt', null) == null
@@ -4004,7 +4259,9 @@ service cloud.firestore {
           // jobId frozen (R3-6); leadId frozen once set — a lead-less
           // invoice may be attached once, to a lead the writer can reach
           // (leadIdStable, 2026-10-05).
-          && didNotChange(['createdBy', 'companyId', 'estimateId', 'createdAt', 'jobId', 'refunds', 'stripeCreditKeys'])
+          // supplementIds frozen (2026-11-14): the supplements this invoice
+          // billed (their stamps point here) cannot be dropped off it.
+          && didNotChange(['createdBy', 'companyId', 'estimateId', 'createdAt', 'jobId', 'supplementIds', 'backfilled', 'backfillKey', 'paymentBackfill', 'refunds', 'stripeCreditKeys'])
           && leadIdStable()
           && backfillMarksFrozen()
           && invoiceVoidNoted()
@@ -4022,9 +4279,12 @@ service cloud.firestore {
         );
       // An invoice that carries money is never hard-deleted from a browser, by anyone (Joe, 2026-11-14: money keeps its
       // trail). The owner side voids it instead (invoiceVoidOwnerOk), which keeps the record.
+      // An invoice that billed supplements (supplementIds) is the owner side's to delete (second security pass M-A,
+      // 2026-11-14): deleting a throwaway invoice must not leave those supplements stamped "billed" with no bill.
       allow delete: if (resource == null || !invoiceCarriesMoney(resource.data))
         && (isAdmin()
-            || (isOwner(resource.data.createdBy) && notViewer())
+            || (isOwner(resource.data.createdBy) && notViewer()
+                && (resource.data.get('supplementIds', []).size() == 0 || backfillWriterOk()))
             || (isCompanyAdmin()
                 && resource.data.companyId != null
                 && resource.data.companyId == myCompanyId()));

@@ -10,6 +10,10 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "invoice-supplements-company-2026-11-14.test.js",
+    "supplement-invoice-callable-2026-11-14.test.js",
+    "lead-archive-2026-11-14.test.js",
+    "lead-delete-owner-side-2026-11-14.test.js",
     "payment-overpay-confirm-2026-11-14.test.js",
     "payment-reversal-2026-11-14.test.js",
     "project-consent-ui-2026-11-09.test.js",
@@ -1683,6 +1687,8 @@
     "firestore-rules.os-daily-goals.test.js",
     "firestore-rules.os-coach-ai.test.js",
     "firestore-rules.os-team.test.js",
+    "firestore-rules.lead-soft-delete.test.js",
+    "firestore-rules.lead-archive.test.js",
     "firestore-rules.portal-note.test.js",
     "firestore-rules.job-conflict-notice.test.js",
     "firestore-rules.doc-drafts.test.js",
@@ -1701,6 +1707,7 @@
     "firestore-rules.morning-brief-state.test.js",
     "firestore-rules.confirmed-source.test.js",
     "firestore-rules.month-close.test.js",
+    "firestore-rules.supplements-company.test.js",
     "firestore-rules.reputation.test.js",
     "firestore-rules.receipt-inbox.test.js",
     "firestore-rules.call-briefs.test.js",

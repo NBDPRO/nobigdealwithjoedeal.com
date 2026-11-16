@@ -1321,7 +1321,7 @@ if (typeof window.PhotoEngine === 'undefined' || typeof window.InspectionReportE
 // and says so; ScriptLoader drops the dead tag, so the next tap fetches again.
 if (typeof window.KanbanContextMenu === 'undefined') {
   const _kcmSl = window.ScriptLoader;
-  if (_kcmSl && _kcmSl.bundles && !_kcmSl.bundles.kanbanctx) _kcmSl.bundles.kanbanctx = ['js/kanban-context-menu.js?v=4'];
+  if (_kcmSl && _kcmSl.bundles && !_kcmSl.bundles.kanbanctx) _kcmSl.bundles.kanbanctx = ['js/kanban-context-menu.js?v=6'];
   const _kcmStub = { __nbdLazyKanbanCtxStub: true, close: function () {} };
   const _kcmLoad = function () {
     const sl = window.ScriptLoader;

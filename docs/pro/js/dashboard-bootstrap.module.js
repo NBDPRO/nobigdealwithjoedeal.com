@@ -1636,9 +1636,16 @@
       }
     } catch (_) { /* best-effort */ }
   }
+  // Archived leads (archived === true) apart from the live book (2026-11-14).
+  function _splitArchived(list) {
+    const live = [], archived = [];
+    for (const l of list) (l && l.archived === true ? archived : live).push(l);
+    return { live, archived };
+  }
   function _resetLeadsCache() {
     window._leadsLoaded = false;
     window._leads = [];
+    window._archivedLeads = undefined;
     _leadsCacheUid = null;
     // The next account gets a full cold-start retry budget and a clean
     // load-status banner, not the previous account's leftovers.
@@ -3157,7 +3164,10 @@
       // Sourcing the filter at hydration so the data isn't in the
       // browser at all.
       const _userRole = (window._userClaims && window._userClaims.role) || null;
-      window._leads = snap.docs
+      // Archive (2026-11-14): archived leads leave the board, kanban, map,
+      // search and every other reader of window._leads; the Archived drawer
+      // (crm-portal-bridge.js) lists window._archivedLeads with Un-archive.
+      const _split = _splitArchived(snap.docs
         .map(d => ({id:d.id,...d.data()}))
         .filter(l => !l.deleted)
         .filter(l => l._test !== true) // NEW-C5: never surface a stray testFirestoreRules() probe doc as a real lead
@@ -3170,7 +3180,9 @@
           const ta = a.createdAt?.toDate?.()?.getTime() || 0;
           const tb = b.createdAt?.toDate?.()?.getTime() || 0;
           return tb - ta;
-        });
+        }));
+      window._leads = _split.live;
+      window._archivedLeads = _split.archived;
       // Normalize stages: convert legacy display names → internal keys
       window._leads.forEach(l => {
         if (l.stage) l._stageKey = normalizeStage(l.stage);

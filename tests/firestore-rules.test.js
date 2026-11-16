@@ -2149,14 +2149,17 @@ async function run() {
   await assertFails(setDoc(doc(alice,  'leads/leadTeamA/portal_messages/pm2'), { from: 'rep', text: 'forged' }));
   await assertFails(updateDoc(doc(alice, 'leads/leadTeamA/portal_messages/pm1'), { text: 'edited' }));
   await assertFails(setDoc(doc(admin,  'leads/leadTeamA/portal_messages/pm3'), { from: 'rep', text: 'even admin' }));
-  // supplements: owner-only read/delete (+ platform admin) — CURRENT contract,
-  // company staff are NOT granted; create must carry the caller's uid; update
+  // supplements: a LEGACY supplement (no companyId, like sup-a) stays owner-only
+  // read/delete (+ platform admin): company staff are NOT granted on it (the
+  // same-company staff read of a companyId-stamped one, 2026-11-14, is in
+  // firestore-rules.supplements-company.test.js); create must carry the
+  // caller's uid and their tenant's companyId; update
   // may neither re-own nor re-point parentEstimateId; cross-tenant denied.
   await assertSucceeds(getDoc(doc(alice,   'supplements/sup-a')));
   await assertSucceeds(getDoc(doc(admin,   'supplements/sup-a')));
   await assertFails(getDoc(doc(bob,        'supplements/sup-a')));
   await assertFails(getDoc(doc(coAdmin,    'supplements/sup-a')));
-  await assertSucceeds(setDoc(doc(alice, 'supplements/sup-new'),   { userId: 'alice', leadId: 'leadTeamA', parentEstimateId: 'est-ok', version: 2, status: 'draft' }));
+  await assertSucceeds(setDoc(doc(alice, 'supplements/sup-new'),   { userId: 'alice', companyId: 'co-a', leadId: 'leadTeamA', parentEstimateId: 'est-ok', version: 2, status: 'draft' }));
   await assertFails(setDoc(doc(alice,    'supplements/sup-forge'), { userId: 'bob',   leadId: 'leadB',     parentEstimateId: 'est-x',  version: 1 }));
   await assertFails(setDoc(doc(anon,     'supplements/sup-anon'),  { userId: 'alice', parentEstimateId: 'est-ok' }));
   await assertSucceeds(updateDoc(doc(alice, 'supplements/sup-a'), { status: 'sent' }));
@@ -2164,7 +2167,10 @@ async function run() {
   await assertFails(updateDoc(doc(alice,    'supplements/sup-a'), { userId: 'bob' }));
   await assertFails(updateDoc(doc(bob,      'supplements/sup-a'), { status: 'void' }));
   await assertFails(deleteDoc(doc(bob,      'supplements/sup-a')));
-  await assertSucceeds(deleteDoc(doc(alice, 'supplements/sup-new')));
+  // Soft delete only since 2026-11-14 (second security pass M-B): the owner
+  // flags it deleted; a hard delete is the platform admin's.
+  await assertFails(deleteDoc(doc(alice, 'supplements/sup-new')));
+  await assertSucceeds(updateDoc(doc(alice, 'supplements/sup-new'), { deleted: true }));
   // connectAccounts: same-tenant read (a rep must resolve the collect-online
   // capability), solo uid==companyId read, cross-tenant + anon denied, and
   // NO client write of any kind — flipping chargesEnabled from devtools would
@@ -2421,7 +2427,7 @@ async function run() {
   // payload for an update that is otherwise legal for the owner.
   const top = {
     estimates:         { mk: (u) => ({ userId: u, companyId: CO, total: 100 }),                  upd: { note: 'x' } },
-    supplements:       { mk: (u) => ({ userId: u, parentEstimateId: 'e1', version: 1 }),          upd: { note: 'x' } },
+    supplements:       { mk: (u) => ({ userId: u, companyId: CO, parentEstimateId: 'e34-' + u, version: 1, status: 'draft' }), upd: { note: 'x' }, noDelete: true }, // soft delete only (2026-11-14)
     expenses:          { mk: (u) => expDoc(u, CO, null, 'Lowes'),                                 upd: { amountCents: 500 } },
     recurringExpenses: { mk: (u) => ({ userId: u, companyId: CO, amountCents: 5000, costType: 'overhead' }), upd: { amountCents: 6000 } },
     suppliers:         { mk: (u) => ({ userId: u, companyId: CO, displayName: 'Supply' }),        upd: { displayName: 'Supply 2' } },
@@ -2461,6 +2467,9 @@ async function run() {
     const db = ctx.firestore();
     for (const u of ['vx', 'rx']) {
       await setDoc(doc(db, 'leads/' + LEAD[u]), { userId: u, companyId: CO, name: u + ' lead' });
+      // A supplement names a parent estimate the writer may bill (2026-11-14); kept
+      // apart from estimates/s34-<u>, which this matrix deletes first.
+      await setDoc(doc(db, 'estimates/e34-' + u), { userId: u, companyId: CO });
       for (const [c, d] of Object.entries(top)) await setDoc(doc(db, c + '/s34-' + u), d.mk(u));
       for (const [s, d] of Object.entries(sub)) await setDoc(doc(db, 'leads/' + LEAD[u] + '/' + s + '/s34'), d.mk());
       await setDoc(doc(db, 'leads/' + LEAD[u] + '/ai_drafts/s34'), { userId: u, leadId: LEAD[u], status: 'pending', draftText: 'hi' });

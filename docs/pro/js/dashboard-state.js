@@ -177,6 +177,7 @@ const _NBD_MODAL_CLOSE_FNS = {
   tipsModal:                   'closeTips',
   cmdPalette:                  'closeCmdPalette',
   deletedDrawer:               'closeDeletedDrawer',
+  archivedDrawer:              'closeArchivedDrawer',
   historicalImagery:           'closeHistoricalImagery',
   uploadDoc:                   'closeUploadDoc',
 };

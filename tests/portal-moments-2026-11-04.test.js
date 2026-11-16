@@ -151,6 +151,11 @@ const reset = () => { S.auto = { enabled: true, reason: null }; S.guard = { send
   db = makeDb(Object.assign({}, LEAD, { email: 'not-an-email' })); rs = resendStub();
   r = await T.sendMoment('L1', M, { db, env: ENV_ON, resend: rs });
   ok('no valid email → not sent', r.reason === 'no_email' && rs.sent.length === 0);
+  // 2026-11-15: archiving a lead can mean "do not contact".
+  reset();
+  db = makeDb(Object.assign({}, LEAD, { archived: true })); rs = resendStub();
+  r = await T.sendMoment('L1', M, { db, env: ENV_ON, resend: rs });
+  ok('archived lead → not sent, no claim', r.reason === 'archived' && rs.sent.length === 0 && !db.writes.some((w) => w[0] === 'create'), JSON.stringify(r));
   reset(); S.unsub = { suppressed: true };
   db = makeDb(LEAD); rs = resendStub();
   r = await T.sendMoment('L1', M, { db, env: ENV_ON, resend: rs });

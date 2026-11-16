@@ -44,10 +44,19 @@ function extractFn(src, sig) {
   return src.slice(start, i);
 }
 const allow = (SRC.match(/^const BULK_LEAD_FIELDS = new Set\([^\n]*\);$/m) || [''])[0];
+// One top-level `const NAME = …;` line, cut by position (not a text assertion).
+const constLine = (n) => { const i = SRC.indexOf('\nconst ' + n + ' = '); return i < 0 ? '' : SRC.slice(i + 1, SRC.indexOf('\n', i + 1)); };
 const code = [allow,
   extractFn(SRC, 'async function commitBulkLeadOp('),
   extractFn(SRC, 'async function bulkAssignField('),
   extractFn(SRC, 'async function bulkAssignCarrier('),
+  // bulkDelete's role check (2026-11-14): the rep rig below has claims, so
+  // the guard leaves out the teammate's lead it may not delete.
+  constLine('NO_LEAD_DELETE'),
+  constLine('LEAD_ROLE_LOADING'),
+  'let _binLeads = {};',
+  extractFn(SRC, 'function _leadDeletePerm('),
+  extractFn(SRC, 'function _mayDeleteLead('),
   extractFn(SRC, 'async function bulkDelete('),
 ].join('\n') + '\nglobalThis.api = { bulkAssignCarrier, bulkDelete };';
 
