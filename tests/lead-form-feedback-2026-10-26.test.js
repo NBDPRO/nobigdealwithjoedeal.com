@@ -333,10 +333,15 @@ function fakeEls(ids) {
     let created = null; let sub2 = null;
     fresh.inspectForm.addEventListener = (t, fn) => { if (t === 'submit') sub2 = fn; };
     fresh.inspectForm.appendChild = (n) => { created = n; };
-    const doc2 = { readyState: 'complete', getElementById: (id) => (id === 'inspectFormError' ? null : fresh[id] || null), createElement: () => fakeEls(['p']).p, addEventListener() {} };
+    // createElement keeps appended children, so the tel: link and the rest of the message are read back.
+    const kept = () => { const p = fakeEls(['p']).p; p.children = []; p.appendChild = (c) => { p.children.push(c); }; return p; };
+    const doc2 = { readyState: 'complete', getElementById: (id) => (id === 'inspectFormError' ? null : fresh[id] || null), createElement: kept, addEventListener() {} };
     vm.runInNewContext(read('docs/assets/js/inspect-form.js'), { window, document: doc2, FormData, URLSearchParams, console: { error() {}, warn() {}, log() {} } });
     sub2({ preventDefault() {} }); await settle();
-    ok('a failed send shows the gateway\'s plain reason in the red box', !!created && created.textContent === friendly, created && created.textContent);
+    // The phone number is a tel: link since 2026-11-15 (wave-3 CRO #10): read
+    // the text the way a browser shows it, children included.
+    const shown = (n) => (n ? String(n.textContent || '') + (n.children || []).map(shown).join('') : '');
+    ok('a failed send shows the gateway\'s plain reason in the red box', !!created && shown(created) === friendly, shown(created));
   }
   console.log('\nfunnel-4 — the pages carry the bumped cache keys and the font preloads');
   {

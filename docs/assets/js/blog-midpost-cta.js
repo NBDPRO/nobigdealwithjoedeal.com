@@ -18,7 +18,7 @@
       '<h3>Joe answers his own phone.</h3>'+
       '<p>No call center, no gatekeeper. If you want a straight answer about your roof, text or call.</p>'+
       '<div class="bmc-actions">'+
-        '<a href="tel:8594207382" class="bmc-btn bmc-btn-primary">📞 (859) 420-7382</a>'+
+        '<a href="tel:+18594207382" class="bmc-btn bmc-btn-primary">📞 (859) 420-7382</a>'+
         '<a href="/estimate" class="bmc-btn bmc-btn-secondary">Get a Free Estimate →</a>'+
       '</div>';
     // Find where this h2 sits inside prose, insert the CTA after the NEXT <p> so it feels mid-thought
