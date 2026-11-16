@@ -1100,6 +1100,17 @@
     "voicemail-retag-backfill-2026-11-09.test.js",
     "plan-checkout-guard-2026-11-14.test.js",
     "portal-signed-views-2026-11-14.test.js",
+    "safe-reload-on-deploy-2026-11-14.test.js",
+    "voice-note-kept-on-failure-2026-11-14.test.js",
+    "photo-queue-unblock-2026-11-14.test.js",
+    "field-shot-held-until-photos-load-2026-11-14.test.js",
+    "new-lead-save-offline-2026-11-14.test.js",
+    "notes-save-offline-2026-11-14.test.js",
+    "field-onsite-offline-2026-11-14.test.js",
+    "customer-task-event-save-guard-2026-11-14.test.js",
+    "tasks-stay-fresh-2026-11-14.test.js",
+    "customer-page-search-all-2026-11-14.test.js",
+    "customer-open-tasks-2026-11-14.test.js",
     "sign-price-snapshot-2026-11-14.test.js"
   ],
   "smoke": {
