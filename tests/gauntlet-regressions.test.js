@@ -276,7 +276,8 @@ console.log('\nCompany-keyed billing reads (AI surfaces)');
   // companyId, and classifyPhoto reads subscriptions/{billingKey}.
   assert('photo-vision.js plan read keyed by companyId claim',
     /billingKey: \(request\.auth\.token && request\.auth\.token\.companyId\) \|\| uid/.test(pv)
-    && /billingKey: photo\.companyId \|\| photo\.userId/.test(pv)
+    // 2026-11-14: the trigger prefers the company the AI gate resolved.
+    && /billingKey: \(ent && ent\.companyId\) \|\| photo\.companyId \|\| photo\.userId/.test(pv)
     && /subscriptions\/\$\{billingKey \|\| uid\}/.test(pv));
   const rv = read('functions/receipt-vision.js');
   assert('receipt-vision.js plan read keyed by companyId claim',

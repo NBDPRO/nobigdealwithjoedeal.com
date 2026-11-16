@@ -143,7 +143,7 @@
      the first tap/key, a non-Home goTo(), a ?query link, or idle after load. -->
 <script defer src="js/late-css.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=224"></script>
+<script src="js/script-loader.js?v=226"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -7450,7 +7450,7 @@
 <script defer src="js/my-skin-boot.js?v=1"></script>
 <script defer src="js/layout-system.js?v=8"></script>
 <script defer src="js/pixel-mode.js?v=4"></script>
-<script defer src="js/ui.js?v=10"></script>
+<script defer src="js/ui.js?v=11"></script>
 <script defer src="js/demo.js?v=5"></script>
 <script defer src="js/icons.js?v=4"></script>
 <script defer src="js/nbd-comms.js?v=6"></script>
@@ -7466,7 +7466,7 @@
 <script defer src="js/customer-checklist.js?v=2"></script>
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
-<script defer src="js/photo-ai.js?v=3"></script>
+<script defer src="js/photo-ai.js?v=4"></script>
 <script defer src="js/invoice-pipeline.js?v=42"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
@@ -7506,7 +7506,7 @@
      activity entry, and auto-create tasks from extracted action items.
      Loaded after voice-memo.js (sibling module) — they coexist; this
      adds the summary + upload + auto-task layer. -->
-<script defer src="js/voicemail.js?v=5"></script>
+<script defer src="js/voicemail.js?v=6"></script>
 <!-- estimate-config.js MUST load before estimates.js + estimate-builder-v2.js;
      it exposes window.NBD_ESTIMATE_CONFIG which both engines read. -->
 <script defer src="js/estimate-config.js?v=10"></script>
@@ -7621,7 +7621,7 @@
 <!-- Voice memo recorder + Deepgram client (F8) -->
 <script defer src="js/voice-memo.js?v=2"></script>
 <!-- W128: NBD Whisper — dictate-anywhere with AI cleanup -->
-<script defer src="js/nbd-whisper.js?v=3"></script>
+<script defer src="js/nbd-whisper.js?v=4"></script>
 <!-- W130: NBD Quick Capture — voice scratchpad with summarize + save-to-lead routing -->
 <script defer src="js/quick-capture.js?v=6"></script>
 <!-- W132: Quick Capture inbox — past captures, search, re-link, archive -->
