@@ -84,8 +84,8 @@
       if (typed != null) toast('A reason is required to void an invoice.', 'error');
       return false;
     }
-    var yesNo = typeof W.nbdConfirm === 'function' ? W.nbdConfirm
-      : function (m) { return Promise.resolve(typeof W.confirm === 'function' ? W.confirm(m) : false); };
+    // The iOS-PWA-safe ask (tests/pwa-confirm-guard.test.js): the real modal when there is one, else the native confirm.
+    var yesNo = typeof window.nbdConfirm === 'function' ? window.nbdConfirm : function (m) { return Promise.resolve(typeof window.confirm === 'function' ? window.confirm(m) : false); /* nbdConfirm fallback */ };
     if (!(await yesNo('Void this ' + money(total) + ' invoice? It stays on file marked void with your reason, and nobody owes it any more.'))) return false;
     try {
       await W.updateDoc(ref, voidPatchFor(note, uid(), new Date()));
