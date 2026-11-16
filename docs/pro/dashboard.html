@@ -162,7 +162,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=47"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=48"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -7327,7 +7327,7 @@
      companyId/serverTimestamp stamping across every write to /leads,
      /photos, /estimates. New write sites should prefer NBDRepos;
      existing call sites migrate at their own pace. -->
-<script defer src="js/repos.js?v=3"></script>
+<script defer src="js/repos.js?v=4"></script>
 <!-- Step 4b (2026-05-16): crm.js (175KB) was split into four sibling
      modules + a thin shim. Load order is locked:
        leads → pipeline → snooze → portal-bridge → crm (shim)
@@ -7367,10 +7367,10 @@
      on the first Pipeline render, when the banner's mount (inside tpl-view-crm) exists. -->
 <script defer src="js/crm.js?v=37"></script>
 <script defer src="js/crm-list-view.js?v=9"></script>
-<script defer src="js/tasks.js?v=11"></script>
+<script defer src="js/tasks.js?v=12"></script>
 <script defer src="js/storm-time.js?v=1"></script>
 <script defer src="js/dol-fill.js?v=3"></script>
-<script defer src="js/notif-bell.js?v=8"></script>
+<script defer src="js/notif-bell.js?v=9"></script>
 <script defer src="js/agent-inbox.js?v=9"></script>
 <!-- Messaging Control Center nav reveal (2026-10-19): flag messagingControlCenter, owner/admin only. -->
 <script defer src="js/messaging-nav.js?v=1"></script>
@@ -7498,7 +7498,7 @@
 <script defer src="js/d2d-storm-layer.js?v=3"></script>
 <script defer src="js/schedule-planner-logic.js?v=3"></script>
 <script defer src="js/production-logic.js?v=1"></script>
-<script defer src="js/production.js?v=3"></script>
+<script defer src="js/production.js?v=4"></script>
 <!-- Plan Jobs (js/schedule-planner.js) loads on the first Schedule visit since 2026-11-08: production.js registers
      the ScriptLoader bundle and view "schedule", so goTo('schedule') fetches it. -->
 <!-- Voicemail pipeline — record OR upload a voicemail, route through
@@ -7601,7 +7601,7 @@
      boot only for a first-run rep or how-to's Restart Tour, else by Settings → Help → Start Tour. -->
 <!-- (theme-overlays/sounds/achievements/gx ride the lazy `theme` bundle — see
      the note at the theme-engine slot above.) -->
-<script src="js/dashboard-sw-bootstrap.js?v=2"></script>
+<script src="js/dashboard-sw-bootstrap.js?v=3"></script>
 <script defer src="js/mobile-nav-customizer.js?v=7"></script>
 <script defer src="js/connection-status-btn.js?v=5"></script>
 <!-- admin-manager must load eagerly — it gates the #nav-admin visibility
@@ -7623,11 +7623,11 @@
 <!-- W128: NBD Whisper — dictate-anywhere with AI cleanup -->
 <script defer src="js/nbd-whisper.js?v=4"></script>
 <!-- W130: NBD Quick Capture — voice scratchpad with summarize + save-to-lead routing -->
-<script defer src="js/quick-capture.js?v=6"></script>
+<script defer src="js/quick-capture.js?v=7"></script>
 <!-- W132: Quick Capture inbox — past captures, search, re-link, archive -->
 <script defer src="js/quick-capture-inbox.js?v=4"></script>
 <!-- W133: Cmd+K command palette — fuzzy search leads, actions, views -->
-<script defer src="js/command-palette.js?v=8"></script>
+<script defer src="js/command-palette.js?v=9"></script>
 <!-- Visit recorder launcher (2026-10-13): entry points only; the recorder, its
      IndexedDB store and screens load on the first tap or when a recording is
      still on the phone. -->

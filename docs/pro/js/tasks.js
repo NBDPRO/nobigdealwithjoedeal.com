@@ -137,7 +137,12 @@ function _taskStamps(leadId) {
   if (lead&&lead.companyId) out.companyId = lead.companyId;
   return out;
 }
+// Bumped by every task write on this page. A whole-cache read that started
+// before a write must not land after it and wipe the change (review of the
+// 30 s refresh, 2026-11-14): loadAllTasks discards such a read and reads again.
+let _taskEditGen = 0;
 async function _saveTask(leadId, text, dueDate) {
+  _taskEditGen++;
   try {
     const ref = await addDoc(collection(db,'leads',leadId,'tasks'),Object.assign(_taskStamps(leadId),{text:text.trim(),done:false,dueDate:dueDate||'',createdAt:serverTimestamp()}));
     return ref.id;
@@ -150,6 +155,7 @@ async function _saveTask(leadId, text, dueDate) {
 // no explanation. A boolean (matching _saveTask's null-on-failure idiom)
 // keeps the call sites one-liners; the console.error stays for desktop.
 async function _toggleTask(leadId, taskId, done) {
+  _taskEditGen++;
   try {
     await updateDoc(doc(db,'leads',leadId,'tasks',taskId), {
       done,
@@ -159,6 +165,7 @@ async function _toggleTask(leadId, taskId, done) {
   } catch(e){ console.error('toggleTask error:', e); return false; }
 }
 async function _deleteTask(leadId, taskId) {
+  _taskEditGen++;
   try { await deleteDoc(doc(db,'leads',leadId,'tasks',taskId)); return true; }
   catch(e){ console.error('deleteTask error:', e); return false; }
 }
@@ -194,13 +201,29 @@ async function _loadAllTasksGroup() {
   if (full !== flat) { Object.keys(by).forEach(k=>{ by[k] = []; }); full.forEach((t,i)=>by[keys[i]].push(t)); }
   return { by, fromCache: !!(snap.metadata && snap.metadata.fromCache) };
 }
-async function loadAllTasks(opts) {
+// One load at a time: a second ask while one runs gets the same promise (the
+// tab-return refresh, the calendar button and the cache retry can all ask at
+// once, and two whole-cache reads finishing out of order lost the newer one).
+let _taskLoadP = null;
+function loadAllTasks(opts) {
+  if (_taskLoadP) return _taskLoadP;
+  _taskLoadP = _loadAllTasksOnce(opts).finally(() => { _taskLoadP = null; });
+  return _taskLoadP;
+}
+async function _loadAllTasksOnce(opts) {
   const retry = !!(opts && opts.retry);
   if (!retry) _taskCacheRetries = 0;
   let fromCache = false;
+  const gen = _taskEditGen;
   if (_taskLoadMode === 'group') {
     try {
       const r = await _loadAllTasksGroup();
+      if (r && gen !== _taskEditGen) {
+        // A task was written while this read was in flight: its result may
+        // predate the write. Keep the cache (which has the write) and read again.
+        setTimeout(() => { loadAllTasks(); }, 0);
+        return;
+      }
       if (r) {
         const next = {};
         (window._leads||[]).forEach(l=>{ if (l && l.id) next[l.id] = []; });
@@ -209,8 +232,17 @@ async function loadAllTasks(opts) {
         fromCache = r.fromCache;
       } else _taskLoadMode = 'per-lead';
     } catch (e) {
-      console.warn('[tasks] one-query load refused — per-lead fallback:', e && (e.code || e.message));
-      _taskLoadMode = 'per-lead';
+      const code = e && e.code;
+      if (code === 'permission-denied' || code === 'failed-precondition') {
+        // Rules or index not deployed: the per-lead read takes over for the session.
+        console.warn('[tasks] one-query load refused — per-lead fallback:', code);
+        _taskLoadMode = 'per-lead';
+      } else {
+        // A network blip is not a refusal: keep the one-query mode and the
+        // tasks already shown, and let the bounded retry below try again.
+        console.warn('[tasks] task load failed; keeping the cached tasks:', e && (e.code || e.message));
+        fromCache = true;
+      }
     }
   }
   if (_taskLoadMode === 'per-lead') {
@@ -221,6 +253,7 @@ async function loadAllTasks(opts) {
     fromCache = _tasksFromCache.size > 0;
   }
   _tasksLoaded = true;
+  _tasksLoadedAt = Date.now();
   renderTodayTasks();
   renderLeads(window._leads, window._filteredLeads);
   // Wave 13: tell the notification bell tasks just refreshed.
@@ -233,13 +266,23 @@ async function loadAllTasks(opts) {
     setTimeout(() => { loadAllTasks({ retry: true }); }, _TASK_CACHE_RETRY_MS);
   }
 }
-// Boot: once the lead book is in (and again if the account changes); a lead
-// refresh after that only repaints from the cache.
+// Boot: once the lead book is in (and again if the account changes). A later
+// lead refresh (the tab-return reload in dashboard-sw-bootstrap.js, a manual
+// refresh) re-reads the tasks too when the last read is older than
+// TASK_FRESH_MS: tasks, promises and appointments added from the phone,
+// another tab or the server used to stay missing from Today, the bell, the
+// card badges and the Schedule calendar until a full reload (wave-1 daily #1,
+// 2026-11-14). A refresh inside that window only repaints from the cache.
 let _taskBootUid = null;
+let _tasksLoadedAt = 0;
+const TASK_FRESH_MS = 30000;
 function _bootTasks() {
   if (window._leadsLoaded !== true) return;
   const uid = (window._user&&window._user.uid) || null;
-  if (_taskBootUid !== null && _taskBootUid === uid) { renderTodayTasks(); return; }
+  if (_taskBootUid !== null && _taskBootUid === uid) {
+    if (Date.now() - _tasksLoadedAt > TASK_FRESH_MS) { loadAllTasks(); return; }
+    renderTodayTasks(); return;
+  }
   _taskBootUid = uid;
   loadAllTasks();
 }
@@ -268,6 +311,7 @@ async function _setTaskUndone(leadId, taskId) {
 async function _setTaskDue(leadId, taskId, ymd) {
   const t = _cachedTask(leadId, taskId); const prev = t ? t.dueDate : undefined;
   if (t) t.dueDate = ymd;
+  _taskEditGen++;
   try { await updateDoc(doc(db,'leads',leadId,'tasks',taskId), { dueDate: ymd }); }
   catch (e) { if (t) t.dueDate = prev; console.error('setTaskDue error:', e); return false; }
   renderTodayTasks();
@@ -434,7 +478,14 @@ async function addTask(){
   if(!text){ if(typeof showToast==='function')showToast('Type a task first','info'); inp.focus(); return; }
   if(!_taskModalLeadId){ if(typeof showToast==='function')showToast('Open a lead to add a task','info'); return; }
   inp.value='';
-  await _saveTask(_taskModalLeadId,text,due.value||'');
+  // _saveTask answers null when the write failed. The text used to vanish with
+  // nothing added and nothing said (wave-1 daily #2): put it back and say so.
+  const id = await _saveTask(_taskModalLeadId,text,due.value||'');
+  if(!id){
+    if(!inp.value) inp.value=text;
+    if(typeof showToast==='function')showToast('Task not saved. Check your connection and tap + Add again.','error');
+    return;
+  }
   renderTaskList(await _loadTasks(_taskModalLeadId));
 }
 // Wave 28: Enter-key submit on the task input. Replaces the inline

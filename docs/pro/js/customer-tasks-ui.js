@@ -226,21 +226,41 @@ function _taskNotify(msg, kind) {
   if (kind === 'error') console.error('[tasks]', msg); else console.log('[tasks]', msg);
 }
 
+// Wave-1 (2026-11-14, daily #6 / field #3): Save Task and Save Event had no
+// busy guard, so a double-tap wrote the task twice; and offline addDoc never
+// resolves (it waits for the server's ack), so the modal hung open although
+// the write was already in Firestore's on-phone queue. settle() answers
+// 'queued' once the phone is offline or the ack is slow.
+function _taskSettle(p) {
+  const S = window.NBDOfflineSync;
+  if (S && typeof S.settle === 'function') return S.settle(p);
+  return Promise.resolve(p).then(() => 'synced');
+}
+const _taskSaving = { task: false, event: false };
+function _taskBusy(kind, on) {
+  _taskSaving[kind] = on;
+  const btn = document.querySelector('[data-action="' + (kind === 'task' ? 'saveTask' : 'saveEvent') + '"]');
+  if (btn) btn.disabled = !!on;
+}
+
 window.saveEvent = async function() {
   // 2026-09-25: a viewer is read-only (Jo's decision B; role-gate.js).
   if (window.NBDRole && !window.NBDRole.guard()) return;
+  if (_taskSaving.event) return;
   const title = document.getElementById('eventTitle').value.trim();
   const when = document.getElementById('eventWhen').value;
   const notes = document.getElementById('eventNotes').value.trim();
   if (!title) { _taskNotify('Enter an event title', 'warning'); return; }
   if (!when) { _taskNotify('Pick a date and time', 'warning'); return; }
   if (!window._customerId) { _taskNotify('Customer ID not found', 'error'); return; }
+  _taskBusy('event', true);
   try {
     // The one event writer (lead-events.js, 2026-10-03) — D2D's "Appointment
     // Set" books through it too. Inline copy kept only for a stale cache.
+    let sync;
     if (window.NBDLeadEvents && typeof window.NBDLeadEvents.add === 'function') {
-      await window.NBDLeadEvents.add(window._customerId, { title: title, when: when, notes: notes, source: 'manual' });
-    } else await window.addDoc(window.collection(window.db, 'leads', window._customerId, 'tasks'), {
+      sync = await _taskSettle(window.NBDLeadEvents.add(window._customerId, { title: title, when: when, notes: notes, source: 'manual' }));
+    } else sync = await _taskSettle(window.addDoc(window.collection(window.db, 'leads', window._customerId, 'tasks'), {
       type: 'event',
       leadId: window._customerId,
       userId: window.auth.currentUser?.uid || null,
@@ -252,22 +272,30 @@ window.saveEvent = async function() {
       source: 'manual',
       createdAt: window.serverTimestamp(),
       createdBy: window.auth.currentUser?.email || 'Unknown'
-    });
+    }));
     window.closeEventModal();
-    const leadSnap = await window.getDoc(window.doc(window.db, 'leads', window._customerId));
-    if (leadSnap.exists()) {
-      await loadTimeline(window._customerId, leadSnap.data());
-    }
+    if (sync === 'queued') { showToast('📅 Event saved on this phone. It syncs when you have signal.', 'success'); return; }
+    // Saved: a refresh that fails must not read as "could not save" (a retap
+    // would book the event twice).
+    try {
+      const leadSnap = await window.getDoc(window.doc(window.db, 'leads', window._customerId));
+      if (leadSnap.exists()) {
+        await loadTimeline(window._customerId, leadSnap.data());
+      }
+    } catch (refreshErr) { console.warn('[saveEvent] saved; the timeline refresh failed:', refreshErr); }
     showToast('📅 Event added to the timeline', 'success');
   } catch (error) {
     console.error('Error saving event:', error);
     showToast('Could not save event — try again', 'error');
+  } finally {
+    _taskBusy('event', false);
   }
 };
 
 window.saveTask = async function() {
   // 2026-09-25: a viewer is read-only (Jo's decision B; role-gate.js).
   if (window.NBDRole && !window.NBDRole.guard()) return;
+  if (_taskSaving.task) return;
   const title = document.getElementById('taskTitle').value.trim();
   const dueDate = document.getElementById('taskDueDate').value;
   const priority = document.getElementById('taskPriority').value;
@@ -283,6 +311,7 @@ window.saveTask = async function() {
     return;
   }
   
+  _taskBusy('task', true);
   try {
     // Task unification: the CANONICAL store is the leads/{leadId}/tasks
     // subcollection — the same one the dashboard (tasks.js), notification
@@ -290,7 +319,7 @@ window.saveTask = async function() {
     // top-level 'tasks' collection write made customer-page tasks
     // invisible everywhere else (and vice versa). `text` mirrors `title`
     // because the dashboard renders t.text.
-    await window.addDoc(window.collection(window.db, 'leads', window._customerId, 'tasks'), {
+    const sync = await _taskSettle(window.addDoc(window.collection(window.db, 'leads', window._customerId, 'tasks'), {
       leadId: window._customerId,
       userId: window.auth.currentUser?.uid || null,
       title: title,
@@ -301,15 +330,19 @@ window.saveTask = async function() {
       done: false,
       createdAt: window.serverTimestamp(),
       createdBy: window.auth.currentUser?.email || 'Unknown'
-    });
+    }));
 
     closeTaskModal();
+    if (sync === 'queued') { showToast('✓ Task saved on this phone. It syncs when you have signal.', 'success'); return; }
 
-    // Reload timeline to show new task
-    const leadSnap = await window.getDoc(window.doc(window.db, 'leads', window._customerId));
-    if (leadSnap.exists()) {
-      await loadTimeline(window._customerId, leadSnap.data());
-    }
+    // Reload timeline to show new task. Saved already: a failed refresh must
+    // not read as "Task not saved" (a retap would write it twice).
+    try {
+      const leadSnap = await window.getDoc(window.doc(window.db, 'leads', window._customerId));
+      if (leadSnap.exists()) {
+        await loadTimeline(window._customerId, leadSnap.data());
+      }
+    } catch (refreshErr) { console.warn('[saveTask] saved; the timeline refresh failed:', refreshErr); }
     
     // Show success feedback
     showToast('✓ Task added successfully', 'success');
@@ -317,8 +350,159 @@ window.saveTask = async function() {
   } catch (error) {
     console.error('Error saving task:', error);
     _taskNotify('Task not saved: ' + ((error && error.message) || 'unknown error'), 'error');
+  } finally {
+    _taskBusy('task', false);
   }
 };
+
+// ── Open tasks block (wave-1 daily #8, 2026-11-14) ─────────────────────
+// The customer page could only add and tick tasks: none could be deleted,
+// edited or rescheduled, and open ones sat in the timeline by CREATION date
+// with a raw "2026-11-20", so old ones got buried. This block lists open tasks
+// and upcoming events, due soonest first, with Done / Reschedule / Delete.
+(function () {
+  const BLOCK_ID = 'openTasksBlock';
+  let _leadId = null;
+  let _rows = [];
+
+  function _ymd(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  // 'Overdue · Mon, Nov 10' | 'Due today' | 'Due tomorrow' | 'Due Fri, Nov 20' | 'No due date'
+  function dueLabel(ymd, now) {
+    const s = String(ymd || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return { text: 'No due date', kind: 'none' };
+    const base = now || new Date();
+    const today = _ymd(base);
+    const t = new Date(base); t.setDate(t.getDate() + 1);
+    const nice = new Date(s + 'T12:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    if (s < today) return { text: 'Overdue · ' + nice, kind: 'overdue' };
+    if (s === today) return { text: 'Due today', kind: 'today' };
+    if (s === _ymd(t)) return { text: 'Due tomorrow', kind: 'soon' };
+    return { text: 'Due ' + nice, kind: 'later' };
+  }
+  // Open tasks (not done) and events from today on; soonest first, undated last.
+  // eventAt is a UTC ISO string: its LOCAL date is what "today" means here (a
+  // 9 pm event is already tomorrow in UTC).
+  function _eventDay(t) {
+    const at = new Date(t.eventAt);
+    return isNaN(at) ? '' : _ymd(at);
+  }
+  function openRows(tasks, now) {
+    const today = _ymd(now || new Date());
+    const key = (t) => (t.type === 'event' ? _eventDay(t) : String(t.dueDate || '').slice(0, 10)) || '9999-99-99';
+    return (Array.isArray(tasks) ? tasks : []).filter((t) => {
+      if (!t || !t.id || t.done) return false;
+      if (t.type === 'event') return !!t.eventAt && _eventDay(t) >= today;
+      return true;
+    }).sort((a, b) => key(a).localeCompare(key(b)));
+  }
+  const _ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  function _esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => _ESC[c]); }
+
+  function render(leadId, tasks) {
+    _leadId = leadId;
+    _rows = openRows(tasks);
+    const el = document.getElementById(BLOCK_ID);
+    if (!el) return;
+    if (!_rows.length) { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    el.innerHTML = '<div class="ot-head">Open tasks <span class="ot-count">' + _rows.length + '</span></div>' + _rows.map((t) => {
+      const ev = t.type === 'event';
+      let when;
+      if (ev) {
+        const at = new Date(t.eventAt);
+        when = { text: isNaN(at) ? 'Event' : '📅 ' + at.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }), kind: 'event' };
+      } else when = dueLabel(t.dueDate);
+      return '<div class="ot-row" data-ot-id="' + _esc(t.id) + '">' +
+        (ev ? '' : '<button type="button" class="ot-btn ot-done" data-ot-action="done" aria-label="Mark done: ' + _esc(t.title || t.text || 'task') + '">✓</button>') +
+        '<div class="ot-main"><div class="ot-title">' + _esc(t.title || t.text || (ev ? 'Event' : 'Task')) + '</div>' +
+        '<div class="ot-due ot-' + when.kind + '">' + _esc(when.text) + '</div></div>' +
+        '<button type="button" class="ot-btn" data-ot-action="move">Reschedule</button>' +
+        '<button type="button" class="ot-btn ot-del" data-ot-action="delete">Delete</button>' +
+        '</div>';
+    }).join('');
+  }
+
+  function _settle(p) {
+    const S = window.NBDOfflineSync;
+    if (S && typeof S.settle === 'function') return S.settle(p);
+    return Promise.resolve(p).then(() => 'synced');
+  }
+  async function _refresh() {
+    try {
+      const snap = await window.getDoc(window.doc(window.db, 'leads', _leadId));
+      if (snap.exists() && typeof loadTimeline === 'function') await loadTimeline(_leadId, snap.data());
+    } catch (e) { console.warn('[open-tasks] refresh failed:', e && e.message); }
+  }
+  function _ref(id) { return window.doc(window.db, 'leads', _leadId, 'tasks', id); }
+
+  // A write, settled (offline it is held on the phone), then a best-effort refresh.
+  async function _write(promise, okMsg) {
+    let sync;
+    try { sync = await _settle(promise); }
+    catch (e) {
+      console.error('[open-tasks] write failed:', e);
+      if (typeof window.showToast === 'function') window.showToast('Not saved: ' + ((e && e.message) || 'try again'), 'error');
+      return false;
+    }
+    if (typeof window.showToast === 'function') {
+      window.showToast(sync === 'queued' ? okMsg + ' on this phone. It syncs when you have signal.' : okMsg, 'success');
+    }
+    if (sync !== 'queued') await _refresh();
+    return true;
+  }
+
+  function _startMove(row, t) {
+    if (row.querySelector('.ot-move')) return;
+    const ev = t.type === 'event';
+    const input = document.createElement('input');
+    input.type = ev ? 'datetime-local' : 'date';
+    input.className = 'ot-move';
+    input.setAttribute('aria-label', ev ? 'New date and time' : 'New due date');
+    if (!ev && t.dueDate) input.value = String(t.dueDate).slice(0, 10);
+    input.addEventListener('change', async () => {
+      if (!input.value) return;
+      input.disabled = true;
+      const patch = ev ? { eventAt: new Date(input.value).toISOString() } : { dueDate: input.value };
+      const ok = await _write(window.updateDoc(_ref(t.id), patch), ev ? 'Event moved' : 'Task rescheduled');
+      if (ok) { Object.assign(t, patch); render(_leadId, _rows); }
+      else input.disabled = false;
+    });
+    row.appendChild(input);
+    try { input.focus(); if (typeof input.showPicker === 'function') input.showPicker(); } catch (_) { /* picker is a nicety */ }
+  }
+
+  document.addEventListener('click', async (e) => {
+    const btn = e.target && e.target.closest ? e.target.closest('#' + BLOCK_ID + ' [data-ot-action]') : null;
+    if (!btn) return;
+    // 2026-09-25: a viewer is read-only (role-gate.js).
+    if (window.NBDRole && !window.NBDRole.guard()) return;
+    const row = btn.closest('[data-ot-id]');
+    const id = row && row.getAttribute('data-ot-id');
+    const t = _rows.find((r) => r.id === id);
+    if (!t || !_leadId) return;
+    const act = btn.getAttribute('data-ot-action');
+    if (act === 'move') { _startMove(row, t); return; }
+    if (act === 'done') {
+      btn.disabled = true;
+      if (await _write(window.updateDoc(_ref(id), { done: true, completedAt: window.serverTimestamp() }), 'Task done')) {
+        t.done = true; render(_leadId, _rows);
+      } else btn.disabled = false;
+      return;
+    }
+    if (act === 'delete') {
+      // Two taps: a stray tap on a phone must not delete a task.
+      if (btn.getAttribute('data-armed') !== '1') { btn.setAttribute('data-armed', '1'); btn.textContent = 'Tap again to delete'; return; }
+      btn.disabled = true;
+      if (await _write(window.deleteDoc(_ref(id)), t.type === 'event' ? 'Event deleted' : 'Task deleted')) {
+        _rows = _rows.filter((r) => r.id !== id); render(_leadId, _rows);
+      } else btn.disabled = false;
+    }
+  });
+
+  window.NBDOpenTasks = { render: render, dueLabel: dueLabel, openRows: openRows };
+})();
 
 // Toggle task completion
 window.toggleTask = async function(taskId, newDoneState) {

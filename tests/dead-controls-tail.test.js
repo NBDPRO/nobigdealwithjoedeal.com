@@ -169,10 +169,13 @@ console.log('DEAD CONTROLS — palette globals, lazy bundles, maps redraw, toast
     && /window\.showToast\(msg, type\)/.test(pl));
   ok('the phantom handlePhotoFiles branch is gone from photo-engine',
     !/handlePhotoFiles/.test(pe) && !/handleFileSelect\(\{ target: \{ files \} \}\)/.test(pe));
-  ok('camera fallback uploads picked files directly and always reports',
-    /uploadPhotoToFirebase\(file, leadId, \[\], '', ''\)/.test(pe)
-    && /Could not save the selected photos/.test(pe)
-    && /photo\$\{uploaded === 1 \? '' : 's'\} uploaded/.test(pe));
+  // 2026-11-14 (wave-1 field #2): picked files now ride the durable queue
+  // (_saveFallbackFiles → _saveBurstShot) instead of a direct upload that lost
+  // them offline; behaviour in tests/photo-queue-unblock-2026-11-14.test.js.
+  ok('camera fallback saves picked files through the queue and always reports',
+    /fallback\.onchange = \(e\) => _saveFallbackFiles\(/.test(pe)
+    && /_saveBurstShot\(file, leadId, null\)/.test(pe)
+    && /Could not save the selected photos/.test(pe));
   // The real toast global this all rides on must stay early on dashboard.
   const boot = read('dashboard-ui-prefs-boot.js');
   ok('dashboard-ui-prefs-boot still defines window.showToast (load-bearing for lazy bundles)',

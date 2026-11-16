@@ -82,9 +82,13 @@ function fakeFirestore(mode) {
   const createBody = bodyAfter(DASH, 'async function _createLeadDoc(payload)');
   ok('POSITIVE CONTROL: _createLeadDoc found', !!createBody);
   const warns = [];
-  const makeCreate = (fs_) => new Function('doc', 'collection', 'setDoc', 'getDoc', 'db', 'console',
+  // 2026-11-14: _createLeadDoc/_saveLead settle their writes through the module's
+  // _settleWrite and remember held creates in _queuedCreates (wave-1 field #4).
+  // No NBDOfflineSync here: the helper's online branch (await, then 'synced').
+  const _settleWrite = async (p) => { await p; return 'synced'; };
+  const makeCreate = (fs_) => new Function('doc', 'collection', 'setDoc', 'getDoc', 'db', 'console', '_settleWrite', '_queuedCreates',
     'return async function _createLeadDoc(payload) ' + createBody)(
-    fs_.doc, fs_.collection, fs_.setDoc.bind(fs_), fs_.getDoc.bind(fs_), {}, { warn: (m) => warns.push(m) });
+    fs_.doc, fs_.collection, fs_.setDoc.bind(fs_), fs_.getDoc.bind(fs_), {}, { warn: (m) => warns.push(m) }, _settleWrite, new WeakSet());
   const payload = { firstName: 'A', userId: 'u1', companyId: 'co1' };
   async function run(mode) {
     const f = fakeFirestore(mode);
