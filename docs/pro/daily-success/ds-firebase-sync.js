@@ -12,7 +12,7 @@
 import { initializeApp, getApps } from '/assets/vendor/firebase/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged } from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
 import {
-  getFirestore, doc, getDoc, setDoc, getDocs,
+  getFirestore, doc, getDocFromServer, setDoc, getDocsFromServer,
   collection, writeBatch, serverTimestamp
 } from '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
 import { connectEmulatorsIfLocal } from '/pro/js/nbd-emulator-connect.js';
@@ -48,6 +48,12 @@ const SETTINGS = [
   { key: 'nbd_ds_snapshot', field: 'dsSnapshot' },     // what the personal bots read (review-ui publish)
   { key: 'nbd_ds_eod',      field: 'dsEod' },          // end-of-day review: one short note per date
   { key: 'nbd_ds_money',    field: 'dsMoney' },        // money tab: paycheck plan (nicknames + amounts only)
+  // Device-only until 2026-11-14 (audit #2): a lost phone, or another account signing in on it, took these with it.
+  // firstMerge: how to combine this device's never-synced copy with the cloud's on the first sync (ds-sync-logic mergeFirstSync).
+  { key: 'nbd_ds_measurements',   field: 'dsMeasurements',  firstMerge: 'dateSite' }, // body measurements (mm, one per site per day)
+  { key: 'nbd_ds_coach_routines', field: 'dsCoachRoutines', firstMerge: 'id' },       // Workout Coach saved routines
+  { key: 'nbd_ds_coach_custom',   field: 'dsCoachCustom',   firstMerge: 'id' },       // Workout Coach custom lifts
+  { key: 'nbd_ds_coach_ready',    field: 'dsCoachReady',    firstMerge: 'map' },      // morning check-ins (sleep / soreness / energy)
 ];
 const WKEY = 'nbd_ds_workouts'; // Workout Coach sessions (users/{uid}/ds_workouts)
 
@@ -91,6 +97,7 @@ const showError = (text) => { showBadge(text, null, BADGE_ERR_MS); chipFailed();
 // ── the one sync chip (audit M9) ──────────────────────────────────────────
 // js/sync-chip-ui.js draws the persistent state into #sdot from these events: { cloud, signedIn, at }. The pill above stays as the
 // short confirmation. A failure is retried with backoff (sync-chip-logic.js), at once when the network comes back, or by a tap on the chip.
+let _pullOwed = false;   // a merge was deferred while a field had focus: the retry must pull again
 let _cloud = 'idle', _synced = false, _user = null, _attempt = 0, _retryT = null;
 const emit = (cloud, extra) => {
   _cloud = cloud;
@@ -115,7 +122,8 @@ async function retrySync() {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) { emit('failed'); return; }
   _retrying = true;
   try {
-    if (!_synced) { _quiet = true; try { await onAuth(_user); } finally { _quiet = false; } return; }
+    // Not synced yet, or a merge was put off while Jo typed (a re-pull on return): run the whole pull + merge again, not just a push.
+    if (!_synced || _pullOwed) { _quiet = true; try { await onAuth(_user); } finally { _quiet = false; } return; }
     emit('syncing');
     try {
       const sent = await pushToFirestore(readJson(STORE, []));
@@ -141,15 +149,24 @@ function editingNow() {
 
 const readJson = (k, fallback) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? fallback : v; } catch (_) { return fallback; } };
 
+// The floors a win day is counted from: the same list and keys as the Dash (app.js getFloors / renderDash: floormet-<id>, 67%).
+// The old list (l-sleep, l-workout, ...) named keys no page ever had, so the cloud win streak was always 0 (audit 2026-11-14 #6).
+function floorIds() {
+  try { if (typeof window.getFloors === 'function') { const f = window.getFloors(); if (Array.isArray(f) && f.length) return f.map((x) => String(x.id)); } } catch (_) { /* fall through to the stored config */ }
+  const cfg = readJson('nbd_user_config', null);
+  if (cfg && Array.isArray(cfg.floors) && cfg.floors.length) return cfg.floors.map((x) => String(x.id));
+  return ['qs1', 'qs2', 'qs3', 'qs4', 'qs5'];   // app.js getDefaultFloors
+}
+
 function computeStreaks(pages) {
   let runD = 0, runW = 0, runWin = 0, maxD = 0, maxW = 0, maxWin = 0;
   let totalDoors = 0, totalCloses = 0, totalRevenue = 0;
   const sorted = [...pages].sort((a, b) => a.dk > b.dk ? 1 : -1);
+  const floors = floorIds();
   for (const p of sorted) {
     const d = p.data || {}, kpi = p.kpi || {};
     const doors = kpi.doors || 0;
-    const floors = ['l-sleep','l-workout','l-protein','l-task','l-journal'];
-    const pct = floors.filter(f => d[f] === '1').length / floors.length;
+    const pct = floors.length ? floors.filter(f => d['floormet-' + f] === '1').length / floors.length : 0;
     runD = doors >= 60 ? runD + 1 : 0;
     runW = d['habit-1-0'] === '1' ? runW + 1 : 0;
     runWin = pct >= 0.67 ? runWin + 1 : 0;
@@ -220,7 +237,10 @@ async function pushToFirestore(pages) {
 async function pullFromFirestore() {
   if (!_uid) return null;
   try {
-    const snap = await getDocs(collection(db, 'users', _uid, 'ds_pages'));
+    // From the SERVER (audit 2026-11-14 #4): offline, a plain getDocs resolves an EMPTY snapshot from the cache instead of failing,
+    // and the merge below then queued every local page over the cloud (undoing other devices' deletes and newer edits on reconnect).
+    // Offline this now fails: the chip says so and the 'online' retry pulls before it pushes.
+    const snap = await getDocsFromServer(collection(db, 'users', _uid, 'ds_pages'));
     const pages = [];
     snap.forEach(d => { const data = d.data(); delete data._uid; delete data._updatedAt; delete data.deletedAt; pages.push(data); });
     return pages;
@@ -238,9 +258,11 @@ async function pushSettingsOrThrow() {
   const patch = {};
   for (const s of SETTINGS) {
     const loc = localSetting(s);
-    if (loc.value == null) continue;
+    // Never-stamped (written before it synced, or before 2026-11-14 for the device-only lists): wait for syncSettings to compare
+    // it with the cloud copy and stamp it. Sent with a fresh stamp here, it would beat another device's newer copy unseen.
+    if (loc.value == null || !loc.at) continue;
     patch[s.field] = loc.value;
-    patch[s.field + 'At'] = loc.at || Date.now();
+    patch[s.field + 'At'] = loc.at;
   }
   if (!Object.keys(patch).length) return;
   await setDoc(doc(db, 'userSettings', _uid), patch, { merge: true });
@@ -254,14 +276,21 @@ async function pushSettings() {
 // Returns true when a cloud copy was restored into localStorage.
 async function syncSettings() {
   let cloudDoc = {};
-  try { const snap = await getDoc(doc(db, 'userSettings', _uid)); cloudDoc = snap.exists() ? (snap.data() || {}) : {}; }
-  catch (e) { return false; }
+  // A failed read throws (it used to return false): onAuth marks the sync failed, so the chip never says synced over settings it could not read.
+  const snap = await getDocFromServer(doc(db, 'userSettings', _uid));
+  cloudDoc = snap.exists() ? (snap.data() || {}) : {};
   let restored = false, needPush = false;
   for (const s of SETTINGS) {
     const loc = localSetting(s);
     const cv = cloudDoc[s.field];
     const cloud = { value: cv && typeof cv === 'object' ? cv : null, at: Number(cloudDoc[s.field + 'At']) || 0 };
-    const which = L().pickSettings(loc, cloud);
+    let which = L().pickSettings(loc, cloud);
+    // Never synced here and the cloud already has a copy: merge both instead of replacing this device's list.
+    if (which === 'cloud' && s.firstMerge && loc.value != null && !loc.at) {
+      localStorage.setItem(s.key, JSON.stringify(L().mergeFirstSync(s.firstMerge, loc.value, cloud.value)));
+      localStorage.setItem(s.key + '_at', String(Date.now()));
+      restored = true; needPush = true; continue;
+    }
     if (which === 'cloud') {
       localStorage.setItem(s.key, JSON.stringify(cloud.value));
       localStorage.setItem(s.key + '_at', String(cloud.at || Date.now()));
@@ -270,10 +299,14 @@ async function syncSettings() {
       }
       restored = true;
     } else if (which === 'local' && JSON.stringify(loc.value) !== JSON.stringify(cloud.value)) {
+      // Seen against the cloud now: a never-stamped local copy gets its stamp here, so the push below sends it.
+      if (!loc.at) localStorage.setItem(s.key + '_at', String(Date.now()));
       needPush = true;
     }
   }
   if (needPush) await pushSettingsOrThrow();
+  // The coach keeps its routines and custom lifts in memory: reload them after a restore (custom lifts join the library).
+  if (restored) { try { window.dispatchEvent(new CustomEvent('nbd-ds-settings-restored')); } catch (_) { /* the next coach action reloads them */ } }
   return restored;
 }
 
@@ -284,7 +317,7 @@ async function syncWorkouts() {
   if (!_uid || !window.NBDCoach || !L()) return;
   const cloud = [];
   // A failed read propagates (no silent skip): the chip must not say synced over a workout sync that did not happen.
-  const snap = await getDocs(collection(db, 'users', _uid, 'ds_workouts'));
+  const snap = await getDocsFromServer(collection(db, 'users', _uid, 'ds_workouts'));   // server only, same reason as the pages pull
   snap.forEach(d => { const x = d.data(); delete x._uid; delete x._updatedAt; cloud.push(x); });
   const merged = window.NBDCoach.mergeSessions(readJson(WKEY, []), cloud);
   // A full / private-mode localStorage must not abort the cloud pushes below; the failure is rethrown at the end so the caller shows it.
@@ -374,11 +407,13 @@ async function onAuth(user) {
     // Typing in a field (or an edit not yet collected) must not be redrawn away by a merge, least of all by a background retry:
     // leave the phone copy alone and try again in a few seconds.
     if (changedLocal && editingNow()) {
+      _pullOwed = true;
       emit('syncing');
       clearTimeout(_retryT);
       _retryT = setTimeout(retrySync, 3000);
       return;
     }
+    _lastPull = Date.now(); _pullOwed = false;   // cleared only once a pull really merged (a failed one stays owed)
     if (changedLocal) {
       localStorage.setItem(STORE, JSON.stringify(merged.pages));
       if (typeof window.loadPages === 'function') window.loadPages();
@@ -398,4 +433,22 @@ async function onAuth(user) {
     else { _synced = true; showBadge(merged.pages.length + ' days loaded', '#2ECC8A'); chipOk(); }
   } catch(e) { showError('Sync error'); }
 }
+// Pull again when the app comes back (audit 2026-11-14 #5). The pull used to run only at sign-in, so a phone left open on
+// today's page kept its old copy while another device logged to the same day, and its next save (the whole page, newer mt)
+// threw those entries away. At most every 15 s; never offline, mid-sync, or while a field is being typed in (onAuth defers).
+let _lastPull = 0, _lastTry = 0;
+const REPULL_MS = 15000;
+async function refreshOnReturn() {
+  if (!_uid || !_user || !_synced || _retrying) return;
+  if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  if (Date.now() - Math.max(_lastPull, _lastTry) < REPULL_MS) return;   // a failed pull is throttled too
+  _lastTry = Date.now();
+  _retrying = true; _quiet = true;
+  try { await onAuth(_user); } catch (e) { console.warn('[ds-sync] re-pull failed', e && e.code); }
+  finally { _quiet = false; _retrying = false; }
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('visibilitychange', refreshOnReturn);
+if (typeof window.addEventListener === 'function') window.addEventListener('pageshow', refreshOnReturn);
+
 onAuthStateChanged(auth, onAuth);

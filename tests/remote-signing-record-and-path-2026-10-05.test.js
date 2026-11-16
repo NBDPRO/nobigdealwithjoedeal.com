@@ -72,7 +72,7 @@ function makeStorage(files) {
     _files: m, downloads, saves,
   };
 }
-const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './await-briefly', 'crypto'];
+const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './await-briefly', './signed-price', 'crypto'];
 function loadFn(db, storage) {
   const file = path.join(FN, 'remote-signing.js');
   class HttpsError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
@@ -82,7 +82,7 @@ function loadFn(db, storage) {
     'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => 'stub' }) },
     'firebase-functions/v2': { logger },
     'firebase-admin/firestore': { getFirestore: () => db, Timestamp: { fromMillis: (ms) => ({ toMillis: () => ms }) },
-      FieldValue: { serverTimestamp: () => ({ __fv: 'ts' }) } },
+      FieldValue: { serverTimestamp: () => ({ __fv: 'ts' }), delete: () => ({ __fv: 'delete' }) } },
     'firebase-admin/storage': { getStorage: () => storage },
     './integrations/upstash-ratelimit': { httpRateLimit: async () => true },
     './shared': { callableRateLimit: async () => {}, assertNotViewer: () => {} },

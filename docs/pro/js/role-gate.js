@@ -148,6 +148,8 @@
     // 📎 Attach proof both write the invoice's payments[] ledger (and upload to
     // Storage, which refuses a viewer). 📎 View stays: reading.
     '[data-ip-action="markPaid"]', '[data-ip-action="attachProof"]',
+    // ↶ Reverse a payment (2026-11-14): owner side only, rendered only for it.
+    '[data-ip-action="reversePayment"]',
     // ✉️ Send receipt emails the customer and writes payments[] (2026-10-04).
     '[data-ip-action="sendReceipt"]',
     // Kanban card "+" (no tasks yet = "Add a task"). A card WITH tasks keeps

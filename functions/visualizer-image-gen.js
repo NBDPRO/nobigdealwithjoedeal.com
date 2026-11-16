@@ -522,6 +522,18 @@ exports.visualizerImageGen = onRequest(
       const allowedMedia = new Set(['image/jpeg', 'image/png', 'image/webp']);
       const mediaType = allowedMedia.has(body.mediaType) ? body.mediaType : 'image/jpeg';
 
+      // A real photo, not a few bytes (2026-11-14): only a plausible JPEG /
+      // PNG / WebP counts against the daily cap below, so a stranger can't
+      // use the day up with junk that Replicate would reject anyway.
+      const head = Buffer.from(imageBase64.slice(0, 24), 'base64');
+      const looksLikeImage = (head[0] === 0xFF && head[1] === 0xD8 && head[2] === 0xFF)
+        || (head[0] === 0x89 && head.toString('ascii', 1, 4) === 'PNG')
+        || (head.toString('ascii', 0, 4) === 'RIFF' && head.toString('ascii', 8, 12) === 'WEBP');
+      if (imageBase64.length < 8000 || !looksLikeImage) {
+        res.status(400).json({ error: 'invalid_image' });
+        return;
+      }
+
       // Sanitize the structured `selections` block the new frontend sends.
       // Only the fields the prompt builder actually reads are kept. Hex
       // values are validated against #RRGGBB to keep us from injecting
@@ -570,6 +582,21 @@ exports.visualizerImageGen = onRequest(
 
       const prompt = buildPrompt(selections);
       const modelForRequest = pickModelForSelections(selections);
+
+      // Whole-endpoint daily cap (2026-11-14, AI audit F7): the per-IP limit
+      // doesn't bound spend for a caller rotating IPs, and each image costs
+      // Replicate credit. Counted only for a valid request, just before the
+      // paid call. Override: VISUALIZER_IMAGEGEN_DAILY_CAP. A limiter-store
+      // failure refuses (503): unknown spend on a public endpoint is "no".
+      try {
+        const cap = require('./env-number').envCap(process.env.VISUALIZER_IMAGEGEN_DAILY_CAP, 60);
+        await require('./integrations/upstash-ratelimit').enforceRateLimit('visualizerImageGen:global', 'GLOBAL_DAILY', cap, 86_400_000);
+      } catch (e) {
+        if (e && e.rateLimited) { res.status(429).json({ error: 'daily_limit' }); return; }
+        logger.error('visualizerImageGen: daily cap check failed', { err: e && e.message });
+        res.status(503).json({ error: 'unavailable' });
+        return;
+      }
 
       const inputDataUrl = 'data:' + mediaType + ';base64,' + imageBase64;
       const result = await generateViaReplicate(prompt, inputDataUrl, modelForRequest);

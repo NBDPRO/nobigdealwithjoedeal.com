@@ -103,13 +103,15 @@ function anthropicStub(caption, calls) {
   ok('photo-vision exports the trigger door', typeof PV.onPhotoCreatedClassify === 'function' && typeof T.handlePhotoCreated === 'function');
 
   const killOff = { isAiDisabled: async () => false };
+  // 2026-11-14: the photo owner's AI entitlement (functions/ai-gate.js); a paying tenant here.
+  const paid = async () => ({ ok: true });
   const photo = (extra) => Object.assign({ userId: 'u1', companyId: 'c1', leadId: 'L1', url: 'https://dl.example/p.jpg' }, extra || {});
 
   await guard(async () => {
     const calls = [];
     const db = makeDb({ 'photos/p1': photo() });
     const out = await T.handlePhotoCreated('p1', db.data['photos/p1'],
-      { db, killswitch: killOff, apiKey: 'k', fetchImpl: anthropicStub('Hail bruising on the north slope.', calls) });
+      { db, killswitch: killOff, entitled: paid, apiKey: 'k', fetchImpl: anthropicStub('Hail bruising on the north slope.', calls) });
     ok('a newly stored photo is classified (an imported / drag-dropped one, not only the camera\'s)', calls.length === 1 && out && out.suggestion, JSON.stringify(out));
     ok('the suggestion lands on the photo doc', db.data['photos/p1'].aiSuggestion && db.data['photos/p1'].aiSuggestion.damageType === 'hail');
     ok('the in-flight claim is cleared afterwards', !('aiClassifyClaimAt' in db.data['photos/p1']));
@@ -122,7 +124,7 @@ function anthropicStub(caption, calls) {
       && Object.keys(db.data).some((k) => /^ai_spend_monthly\//.test(k)), spendKey && JSON.stringify(db.data[spendKey]));
 
     const again = await T.handlePhotoCreated('p1', db.data['photos/p1'],
-      { db, killswitch: killOff, apiKey: 'k', fetchImpl: anthropicStub('x', calls) });
+      { db, killswitch: killOff, entitled: paid, apiKey: 'k', fetchImpl: anthropicStub('x', calls) });
     ok('an already-classified photo is never paid for twice', again.skipped && again.reason === 'already-classified' && calls.length === 1);
   });
   await guard(async () => {
@@ -141,14 +143,15 @@ function anthropicStub(caption, calls) {
   await guard(async () => {
     const calls = [];
     const db = makeDb({ 'photos/p4': photo(), 'leadCostMeter/L1': { visionUsd: 10 } });
-    const out = await T.handlePhotoCreated('p4', db.data['photos/p4'], { db, killswitch: killOff, apiKey: 'k', fetchImpl: anthropicStub('x', calls) });
+    const out = await T.handlePhotoCreated('p4', db.data['photos/p4'], { db, killswitch: killOff, entitled: paid, apiKey: 'k', fetchImpl: anthropicStub('x', calls) });
     ok('the existing $10/lead cap holds on the trigger door', out.skipped && out.reason === 'lead-cap' && calls.length === 0);
     ok('and the claim is released so a later door can try', !('aiClassifyClaimAt' in db.data['photos/p4']));
     const db2 = makeDb({ 'photos/p5': photo(), 'subscriptions/c1': { plan: 'starter' } });
     const month = new Date().toISOString().slice(0, 7);
-    db2.data['userCostMeter/u1__' + month] = { visionUsd: 25 };
-    const o2 = await T.handlePhotoCreated('p5', db2.data['photos/p5'], { db: db2, killswitch: killOff, apiKey: 'k', fetchImpl: anthropicStub('x', calls) });
-    ok('and the per-user monthly cap, resolved from the photo\'s company plan', o2.skipped && o2.reason === 'user-cap' && calls.length === 0);
+    // 2026-11-14 (AI audit F4): the monthly cap is the company's.
+    db2.data['companyCostMeter/c1__' + month] = { visionUsd: 25 };
+    const o2 = await T.handlePhotoCreated('p5', db2.data['photos/p5'], { db: db2, killswitch: killOff, entitled: paid, apiKey: 'k', fetchImpl: anthropicStub('x', calls) });
+    ok('and the per-company monthly cap, resolved from the photo\'s company plan', o2.skipped && o2.reason === 'company-cap' && calls.length === 0);
     const off = await T.handlePhotoCreated('p5', db2.data['photos/p5'], { db: db2, killswitch: { isAiDisabled: async () => true }, apiKey: 'k', fetchImpl: anthropicStub('x', calls) });
     ok('the aiDisabled kill switch stops it', off.skipped && off.reason === 'ai-disabled' && calls.length === 0);
   });
@@ -162,7 +165,7 @@ function anthropicStub(caption, calls) {
     // Claim wording: no claim talk reaches a caption.
     const calls = [];
     const db = makeDb({ 'photos/p6': photo() });
-    await T.handlePhotoCreated('p6', db.data['photos/p6'], { db, killswitch: killOff, apiKey: 'k',
+    await T.handlePhotoCreated('p6', db.data['photos/p6'], { db, killswitch: killOff, entitled: paid, apiKey: 'k',
       fetchImpl: anthropicStub('Hail bruising on the third course. Recommend filing an insurance claim — this should be covered.', calls) });
     const cap = db.data['photos/p6'].aiSuggestion.caption;
     ok('a caption with claim talk keeps the observation and drops the claim sentence', cap === 'Hail bruising on the third course.', JSON.stringify(cap));
@@ -172,7 +175,7 @@ function anthropicStub(caption, calls) {
     const key = crypto.createHash('sha256').update('https://dl.example/p7.jpg').digest('hex').slice(0, 32);
     const db2 = makeDb({ 'photos/p7': photo({ url: 'https://dl.example/p7.jpg' }),
       ['visionCache/' + key]: { suggestion: { phase: 'After', damageType: 'none', caption: 'New roof installed. Insurance will cover the deductible.', confidence: 0.9 } } });
-    const o2 = await T.handlePhotoCreated('p7', db2.data['photos/p7'], { db: db2, killswitch: killOff, apiKey: 'k', fetchImpl: anthropicStub('x', calls) });
+    const o2 = await T.handlePhotoCreated('p7', db2.data['photos/p7'], { db: db2, killswitch: killOff, entitled: paid, apiKey: 'k', fetchImpl: anthropicStub('x', calls) });
     ok('a cache hit is free and its old caption is filtered on the way out', o2.cached === true && o2.suggestion.caption === 'New roof installed.', JSON.stringify(o2.suggestion));
 
     const S = require(path.join(FN, 'photo-caption-safety.js'));

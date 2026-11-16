@@ -663,13 +663,19 @@
         var reason = d && d.reason;
         setScanStatus(
           reason === 'unsupported-format' ? 'That image format can’t be auto-read — enter the details manually.'
-          : reason === 'user-cap' ? 'Monthly AI limit reached — enter the details manually.'
+          : reason === 'user-cap' || reason === 'company-cap' ? 'Monthly AI limit reached — enter the details manually.'
           : 'Couldn’t scan this one — enter the details manually.', 'warn');
         return;
       }
       applyExtraction(d);
     } catch (e) {
       console.warn('[expenses] scan failed', e);
+      // A plan / email refusal says what to do (2026-11-14, free accounts get no AI).
+      var code = e && e.code ? String(e.code).replace(/^functions\//, '') : '';
+      if ((code === 'permission-denied' || code === 'unavailable') && e.message) {
+        setScanStatus(e.message + ' Enter the details manually (the receipt is still attached).', 'warn');
+        return;
+      }
       setScanStatus('Scan failed — enter the details manually (the receipt is still attached).', 'error');
     } finally { if (btn) btn.disabled = false; }
   }

@@ -77,7 +77,19 @@
           }));
         } catch (_) {}
       }
-      throw new Error(msg + ' (' + res.status + ')');
+      // 403 / 503 from the plan gate (2026-11-14): every other photo in a
+      // batch would get the same answer, so the batch stops and says why.
+      const planRefusal = (res.status === 403 || res.status === 503) && data && data.error && !/^Forbidden$/.test(data.error);
+      if (planRefusal) {
+        try {
+          window.dispatchEvent(new CustomEvent('nbd:ai-classify-skipped', {
+            detail: { photoId, reason: 'not-entitled', message: data.error }
+          }));
+        } catch (_) {}
+      }
+      const err = new Error(msg + ' (' + res.status + ')');
+      if (planRefusal) err.stopBatch = true;
+      throw err;
     }
     return data.analysis;
   }
@@ -271,7 +283,7 @@
         }
         // If we hit the daily cap, stop — there's no value in burning
         // through the rest knowing they'll all 429.
-        if (err.message && /limit reached/i.test(err.message)) {
+        if (err.stopBatch || (err.message && /limit reached/i.test(err.message))) {
           summary.failed += (todo.length - i - 1);
           break;
         }

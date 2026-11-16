@@ -1210,7 +1210,7 @@ exports.submitEsignEnvelope = onRequest(
         const m = ESL.signedCopyEmail({ brand: env.companyName, tenantKey: env.companyId || env.ownerUid, name: s.typedName || s.name, title: env.title, attached: attach });
         const r = await IO.sendMail(Object.assign({ to: s.email, subject: m.subject, html: m.html },
           attach ? { attachments: [{ filename: 'signed-' + tok.envelopeId + '.pdf', content: signedBuf.toString('base64') }] } : {}), { legal: true });
-        copies.push({ signerId: s.id, emailed: !!r.emailed, stubbed: !!r.stubbed, at: Date.now() });
+        copies.push({ signerId: s.id, emailed: !!r.emailed, attached: attach, stubbed: !!r.stubbed, at: Date.now() });
       } catch (e) {
         logger.error('[submitEsignEnvelope] signed copy email failed', { envelopeId: tok.envelopeId, err: e.message });
         copies.push({ signerId: s.id, emailed: false, reason: String(e.message).slice(0, 120) });
@@ -1268,7 +1268,10 @@ exports.submitEsignEnvelope = onRequest(
       });
     }
 
-    res.status(200).json({ ok: true, complete: true, copyEmailed: copies.some((c) => c.emailed) });
+    // copyEmailed = THIS signer's copy went out WITH the PDF attached (a too-large
+    // PDF sends an "ask your rep" email), so their page only promises what
+    // actually arrives (2026-11-14).
+    res.status(200).json({ ok: true, complete: true, copyEmailed: copies.some((c) => c.emailed && c.attached && c.signerId === signer.id) });
   }
 );
 
