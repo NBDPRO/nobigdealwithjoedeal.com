@@ -833,7 +833,7 @@
   // file runs before DOMContentLoaded, so a #/schedule deep link finds it.
   const SL = window.ScriptLoader;
   if (SL && SL.bundles && SL.views) {
-    if (!SL.bundles.schedule) SL.bundles.schedule = ['js/schedule-planner.js?v=7'];
+    if (!SL.bundles.schedule) SL.bundles.schedule = ['js/schedule-planner.js?v=8'];
     if (!SL.views.schedule) SL.views.schedule = ['schedule'];
   }
 
