@@ -158,6 +158,41 @@ function isFollowUpEvent(collection, data) {
     ESTIMATE_EVENT_TYPES.indexOf(String((data || {}).type || '')) !== -1;
 }
 
+// Started estimates (2026-11-14, Joe): the /estimate funnel now saves the lead
+// when the homeowner taps Continue on step 1 (name, phone, address), marked
+// estimateStage 'started', and the finished funnel updates that same lead to
+// 'completed' (submitPublicLead's leadToken path, estimate-funnel.js). Only the
+// server writes the field (submitPublicLead accepts 'started' on a create and
+// nothing else). Joe decided NO automatic message goes to a lead that has not
+// finished: lead-alert skips both homeowner acks for it and lead-followup skips
+// it, whatever the automation switches say. A legacy lead (no field) is a
+// finished one, as before.
+const ESTIMATE_STAGE_STARTED = 'started';
+const ESTIMATE_STAGE_COMPLETED = 'completed';
+function isStartedEstimate(collection, data) {
+  return collection === 'estimate_leads' && String((data || {}).estimateStage || '') === ESTIMATE_STAGE_STARTED;
+}
+// The first line of a started lead's CRM note. Removed again, exactly, when
+// the homeowner finishes (estimate-funnel.js).
+const STARTED_ESTIMATE_NOTE = 'Started an estimate on the website and has not finished it yet (left after the first step). No message was sent to them.';
+
+// What the homeowner picked in the estimator, as CRM note lines. Shared by the
+// bridge (a lead saved finished) and the finish update (a started lead).
+function estimateContextLines(data) {
+  data = data || {};
+  const out = [];
+  const ctx = [];
+  if (data.service) ctx.push(String(data.service) + (data.roofType ? ' (' + String(data.roofType) + ')' : ''));
+  if (data.timeline) ctx.push('timeline: ' + String(data.timeline));
+  if (ctx.length) out.push('Instant Estimate — ' + ctx.join(' · '));
+  const shown = ballparkText(data);
+  if (shown) out.push('Shown ' + shown + ' (the site\'s ballpark range)');
+  // Client-reported only: the browser says the OTP step passed. Nothing on
+  // the server checks it, so it is labelled as such and never relied on.
+  if (data.phoneVerified === true) out.push('Phone verified by text code (reported by form)');
+  return out;
+}
+
 // Best-effort name split: the public kinds carry a single `name` (or
 // `nomineeName`), except `contact` which already has firstName.
 function splitName(data) {
@@ -224,15 +259,8 @@ function mapPublicLeadToLead(args) {
   // actually asked for, not just a name and address. Fields are present
   // only post-M-04 allowlist expansion; older docs simply add no line.
   if (collection === 'estimate_leads') {
-    const ctx = [];
-    if (data.service) ctx.push(String(data.service) + (data.roofType ? ' (' + String(data.roofType) + ')' : ''));
-    if (data.timeline) ctx.push('timeline: ' + String(data.timeline));
-    if (ctx.length) notesParts.push('Instant Estimate — ' + ctx.join(' · '));
-    const shown = ballparkText(data);
-    if (shown) notesParts.push('Shown ' + shown + ' (the site\'s ballpark range)');
-    // Client-reported only: the browser says the OTP step passed. Nothing on
-    // the server checks it, so it is labelled as such and never relied on.
-    if (data.phoneVerified === true) notesParts.push('Phone verified by text code (reported by form)');
+    if (isStartedEstimate(collection, data)) notesParts.unshift(STARTED_ESTIMATE_NOTE);
+    notesParts.push(...estimateContextLines(data));
   }
 
   const doc = {
@@ -277,6 +305,9 @@ function mapPublicLeadToLead(args) {
   // Server-set by submitPublicLead only (the public collections deny client
   // writes). public-measure.js skips the paid roof measurement for it.
   if (data.duplicateLead === true) doc.duplicateLead = true;
+  // A step-1 /estimate save (see isStartedEstimate): the card says so until
+  // the homeowner finishes and estimate-funnel.js flips it to 'completed'.
+  if (isStartedEstimate(collection, data)) doc.estimateStage = ESTIMATE_STAGE_STARTED;
 
   // Coordinates (2026-09-06). The /estimate wizard geocodes the address at
   // step 1 and the gateway now persists lat/lon on the public lead; carry
@@ -419,6 +450,11 @@ module.exports = {
   ballparkText,
   shouldBridgeStorm,
   isFollowUpEvent,
+  isStartedEstimate,
+  estimateContextLines,
+  ESTIMATE_STAGE_STARTED,
+  ESTIMATE_STAGE_COMPLETED,
+  STARTED_ESTIMATE_NOTE,
   looksLikeUid,
   resolveBridgeTarget,
   bridgeDocId,

@@ -168,6 +168,7 @@
     "inspect-short-form-2026-10-06.test.js",
     "inspect-cro-draft-2026-10-06.test.js",
     "estimate-funnel-lost-lead-banner-2026-10-05.test.js",
+    "estimate-step1-save-2026-11-14.test.js",
     "portal-photo-exif-2026-10-03.test.js",
     "leaderboard-rep-names-2026-09-28.test.js",
     "gate-before-warranty-writes-2026-09-28.test.js",

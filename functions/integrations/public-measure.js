@@ -418,6 +418,9 @@ exports.publicRoofMeasure = onRequest(
         const snap = await ref.get();
         if (!snap.exists) { res.status(404).json({ error: 'Not found' }); return; }
         const d = snap.data() || {};
+        // The homeowner moved the address after the step-1 save (2026-11-14,
+        // estimate-funnel.js): the measurement is for the old building.
+        if (d.publicMeasurementVoid === true) { res.status(200).json({ ok: true, pending: true }); return; }
         if (d.publicMeasurement && d.publicMeasurement.measured) {
           res.status(200).json({ ok: true, pending: false, measurement: d.publicMeasurement });
           return;

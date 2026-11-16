@@ -115,7 +115,7 @@ function leadFollowupWorld(opts) {
     'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => 'k-' + n }) },
     'firebase-functions/v2': { logger: L.logger },
     './integrations/heartbeat': { onSchedule: (o, h) => ({ __handler: h }) },
-    './lead-bridge-logic': { isFollowUpEvent: () => false },
+    './lead-bridge-logic': { isFollowUpEvent: () => false, isStartedEstimate: () => false },
     './email-suppression': {
       READ_TIMEOUT_MS: 1000,
       gateCommercialEmail: async () => ({ suppressed: false, headers: {}, tags: [] }),

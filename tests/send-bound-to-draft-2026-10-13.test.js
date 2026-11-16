@@ -183,7 +183,7 @@ function makeWorld(opts) {
     './integrations/upstash-ratelimit': limiter,
     './integrations/_shared': { secretOr: (s, d) => d },
     './integrations/heartbeat': { onSchedule: (o, h) => ({ __opts: o, __handler: h }) },
-    './lead-bridge-logic': { isFollowUpEvent: () => false },
+    './lead-bridge-logic': { isFollowUpEvent: () => false, isStartedEstimate: () => false },
   };
   const self = { stubs, docs, events, sends, adds, logs, mutate };
   return self;

@@ -124,6 +124,9 @@ exports.leadFollowUpSweep = onSchedule(
         if (sent >= auto.maxPerRun) { logger.info('leadFollowUp: per-run cap reached', { cap: auto.maxPerRun }); break sweep; }
         const d = doc.data() || {};
         if (L.isFollowUpEvent(collection, d)) { skipped++; continue; }
+        // A started /estimate that was never finished: no automatic message
+        // (Joe, 2026-11-14), whatever the switches say.
+        if (L.isStartedEstimate(collection, d)) { skipped++; continue; }
         if (d.followUpEmailSentAt) { skipped++; continue; }
         if (d.followUpEmailSuppressedAt) { skipped++; continue; }
         // Claimed by a prior sweep right before its Resend call (below): stays
