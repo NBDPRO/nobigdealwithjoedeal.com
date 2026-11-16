@@ -102,11 +102,27 @@ html[data-layout="os"][data-os-surface="desk"] .content > .view { display: none 
 }
 .os-snap[hidden] { display: none; }
 
+/* right-click menu on an icon or taskbar button (2026-11-14) */
+.os-ctxmenu {
+  position: absolute; left: var(--mx, 0px); top: var(--my, 0px); z-index: var(--z-dropdown, 100);
+  display: flex; flex-direction: column; min-width: 180px; padding: var(--ui-space-1, 4px);
+  background: var(--s); color: var(--t); border: 1px solid var(--ui-line-divider, var(--br));
+  border-radius: var(--ui-radius-md, 8px); box-shadow: var(--ui-elev-2);
+}
+.os-ctxmenu-item {
+  min-height: 36px; padding: 0 var(--ui-space-3, 12px); text-align: left; background: transparent; color: var(--t);
+  border: 0; border-radius: var(--ui-radius-sm, 6px); cursor: pointer; font-size: var(--ui-fs-body-sm, 13px);
+}
+.os-ctxmenu-item:hover, .os-ctxmenu-item:focus-visible { background: var(--s2); outline: none; }
+@media (any-pointer: coarse) { .os-ctxmenu-item { min-height: 44px; } }
+
 /* taskbar */
 .os-taskbar {
   display: flex; align-items: center; gap: var(--ui-space-1, 4px); flex-shrink: 0;
   height: 52px; padding: 0 var(--ui-space-2, 8px);
   background: color-mix(in srgb, var(--s) 94%, transparent); border-top: 1px solid var(--ui-line-divider, var(--br));
+  /* an iPad's home indicator sits over the bottom edge (2026-11-14) */
+  box-sizing: content-box; padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .os-start-btn, .os-task {
   display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 var(--ui-space-3, 12px);
@@ -115,7 +131,12 @@ html[data-layout="os"][data-os-surface="desk"] .content > .view { display: none 
   transition: background-color var(--ui-dur-hover, 140ms) var(--ui-ease, ease);
 }
 .os-start-btn { font-weight: 700; }
-.os-start-mark { width: 18px; height: 18px; border-radius: var(--ui-radius-xs, 4px); background: var(--orange); }
+.os-start-mark { display: inline-flex; width: 18px; height: 18px; border-radius: var(--ui-radius-xs, 4px); overflow: hidden; }
+.os-start-mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.os-start-mark-text {
+  display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;
+  background: var(--orange); color: var(--accent-fg, var(--bg)); font-size: 9px; font-weight: 800;
+}
 .os-start-btn:hover, .os-task:hover { background: var(--s2); }
 .os-start-btn:focus-visible, .os-task:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 2px var(--orange)); }
 .os-start-btn[aria-expanded="true"] { background: var(--s2); }
@@ -152,8 +173,9 @@ html[data-layout="os"][data-os-surface="desk"] .content > .view { display: none 
 .os-start-empty { grid-column: 1 / -1; padding: var(--ui-space-2, 8px); }
 .os-start-foot { display: flex; justify-content: space-between; gap: var(--ui-space-2, 8px); border-top: 1px solid var(--ui-line-hair, var(--br)); padding-top: var(--ui-space-2, 8px); }
 
-/* touch screens (tablets): bigger window controls, the 44px floor */
-@media (pointer: coarse) {
+/* touch screens (tablets, and touchscreen laptops whose PRIMARY pointer is a mouse):
+   bigger window controls, the 44px floor */
+@media (any-pointer: coarse) {
   .os-win-bar { height: 48px; }
   .os-win-btn { width: 44px; height: 44px; }
   .os-win-grip { width: 28px; height: 28px; }
@@ -348,12 +370,13 @@ html[data-os-buttons="linux"] .os-win-btns [data-osw="min"],
 html[data-os-buttons="linux"] .os-win-btns [data-osw="max"] { display: none; }
 html[data-os-buttons="linux"] .os-win-btns [data-osw="close"] { border-radius: 50%; background: color-mix(in srgb, var(--t) 10%, transparent); width: 26px; height: 26px; }
 html[data-os-buttons="linux"] .os-win-title { text-align: center; }
-@media (pointer: coarse) {
+@media (any-pointer: coarse) {
   html[data-os-buttons="mac"] .os-win-btns .os-win-btn { width: 44px; height: 44px; }
   html[data-os-buttons="mac"] .os-win-btns .os-win-btn::before { width: 16px; height: 16px; margin: -8px 0 0 -8px; }
   html[data-os-buttons="linux"] .os-win-btns [data-osw="close"] { width: 44px; height: 44px; }
   .os-desk-btn, .os-start-pin { width: 44px; height: 44px; }
   .os-deskmenu-item { min-height: 44px; }
+  .os-start-pin { opacity: .8; }   /* no hover on a touch screen: the pin can't hide until hovered */
 }
 
 /* ── visits (2026-11-07): Record visit, Recent visits, Unfiled visits as apps ──

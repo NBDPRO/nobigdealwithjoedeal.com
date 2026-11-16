@@ -103,8 +103,9 @@ r = mark({ platform: false, override: { seal: '<b>' } });
 ok('the mark is plain text (escaped by the caller, so the seal passes through as typed)', r.text === '<b>', r.text);
 
 console.log('wiring');
-ok('the boot screen draws markText()', /os-boot-mark" aria-hidden="true">' \+ esc\(markText\(\)\)/.test(DOM));
-ok('the lock screen draws markText()', /os-lock-mark" aria-hidden="true">' \+ esc\(markText\(\)\)/.test(DOM));
+// 2026-11-14: "both screens draw markText()" is now executed, not grepped:
+// tests/nbd-os-boot-mark-2026-11-14.test.js runs the real system.js and reads the
+// company's letters off the live boot mark and the live lock mark.
 ok('the header\'s letters are read only behind the platform-identity gate',
   body.indexOf('_isNbdPlatformTenant') >= 0 && body.indexOf('_isNbdPlatformTenant') < body.indexOf("header .logo-mark"));
 ok('the tenant mark goes through the pure rule on the raw brand override', /L\.brandMark\(/.test(body) && /_brandOverride/.test(body));
