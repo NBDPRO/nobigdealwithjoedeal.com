@@ -61,7 +61,7 @@ async function run() {
   const solo   = env.authenticatedContext('solo1',  {}).firestore();
   const anon  = env.unauthenticatedContext().firestore();
 
-  const { setDoc, doc, getDoc, updateDoc, deleteDoc, deleteField, collectionGroup } = require('firebase/firestore');
+  const { setDoc, doc, getDoc, updateDoc, deleteDoc, deleteField, collectionGroup, runTransaction } = require('firebase/firestore');
 
   // ─── Seed ALL state in a single withSecurityRulesDisabled call.
   // Multiple calls conflict on Firestore settings in v10+ of the
@@ -1302,7 +1302,41 @@ async function run() {
   });
   const p15 = (await getDoc(doc(alice, 'invoices/pay15'))).data().payments;
   await assertSucceeds(updateDoc(doc(alice, 'invoices/pay15'), { payments: p15.map((e, i) => (i === 0 ? Object.assign({}, e, { proofStoragePath: 'payment-proofs/alice/pay15/1_a.jpg' }) : e)), status: 'overdue' }));
-  await assertSucceeds(updateDoc(doc(admin, 'invoices/pay15'), { notes: 'admin on the largest list' }));   // the admin's money check fits the budget too
+  await assertSucceeds(updateDoc(doc(admin, 'invoices/pay15'), { notes: 'admin on the largest list' }));
+  // Record payment on the LIVE shape (2026-11-15 hotfix): the Record payment sheet makes a draft invoice, then markPaid
+  // writes amountPaid / depositPaid / balanceDue / status / paidAt / lastPaymentAt / payments / updatedAt in a transaction.
+  // After Money B the invoice update rule went over the 1000-expression budget on that write for a platform-admin owner
+  // and a solo owner (live: Joe could not record a payment). A pure append is now one list comparison.
+  {
+    const rpOwner = (uid, claims) => env.authenticatedContext(uid, claims).firestore();
+    const joeOwn = rpOwner('joeown', { role: 'admin', companyId: 'joeown' });
+    const coOwn = rpOwner('coown', { role: 'company_admin', companyId: 'coown' });
+    const rpNow = new Date();
+    const rpInv = (uid, extra) => Object.assign({ leadId: null, estimateId: null, customerId: null, customerName: 'synthetic', customerEmail: '', customerPhone: '', status: 'draft',
+      items: [{ description: 'Roofing work - job total', quantity: 1, unitPrice: 40, total: 40 }], subtotal: 40, tax: 0, taxRate: 0, total: 40, supplementTotal: 0, depositAmount: 0, depositPaid: false,
+      amountPaid: 0, balanceDue: 40, stripeInvoiceId: null, stripePaymentLink: null, dueDate: rpNow, sentAt: null, paidAt: null, viewedAt: null, notes: '', depositTerms: '', depositRepNote: '',
+      kyInsuranceHold: false, emergencyServices: false, terms: 'Net 7.', createdAt: rpNow, updatedAt: rpNow, createdBy: uid, companyId: uid, jobId: null, source: 'record_payment',
+      totalConfirmedBy: uid, totalConfirmedAt: rpNow }, extra || {});
+    const rpEntry = (uid, amount, at, i) => ({ amount, method: 'cash', at, recordedBy: uid, recordedAt: at, paymentId: 'mp_' + uid + (i || 0), payer: 'homeowner', receipt: { status: 'draft' } });
+    const rpPay = (db, id, uid, amount) => { const at = new Date(); return runTransaction(db, async (tx) => { await tx.get(doc(db, 'invoices/' + id)); tx.update(doc(db, 'invoices/' + id), { amountPaid: amount, depositPaid: true, balanceDue: Math.max(0, 40 - amount), status: amount >= 40 ? 'paid' : 'partial', paidAt: amount >= 40 ? at : null, lastPaymentAt: at, payments: [rpEntry(uid, amount, at)], updatedAt: at }); }); };
+    await env.withSecurityRulesDisabled(async (ctx) => { const d = ctx.firestore();
+      for (const [id, uid] of [['rp-joe40', 'joeown'], ['rp-joe400', 'joeown'], ['rp-co', 'coown'], ['rp-solo', 'solo1'], ['rp-joe-void', 'joeown'], ['rp-joe-money', 'joeown']]) await setDoc(doc(d, 'invoices/' + id), rpInv(uid));
+      const fourteen = Array.from({ length: 14 }, (_, i) => rpEntry('joeown', 1, new Date(Date.now() - (30 - i) * 3600000), i + 1));
+      await setDoc(doc(d, 'invoices/rp-joe15'), rpInv('joeown', { total: 100, balanceDue: 86, amountPaid: 14, status: 'partial', payments: fourteen }));
+      await setDoc(doc(d, 'invoices/rp-joe-proof'), rpInv('joeown', { total: 100, balanceDue: 90, amountPaid: 10, status: 'partial', payments: [rpEntry('joeown', 10, new Date(Date.now() - 3600000), 7)] }));
+    });
+    await assertSucceeds(rpPay(joeOwn, 'rp-joe40', 'joeown', 40));        // a platform-admin owner records the first payment on a fresh invoice (the live case)
+    await assertSucceeds(rpPay(joeOwn, 'rp-joe400', 'joeown', 400));      // …and an overpayment, after the sheet asks
+    await assertSucceeds(rpPay(coOwn, 'rp-co', 'coown', 40));             // a company_admin owner still records
+    await assertSucceeds(rpPay(solo, 'rp-solo', 'solo1', 40));            // a solo owner (no claims) records
+    const at15 = new Date(); const l14 = (await getDoc(doc(joeOwn, 'invoices/rp-joe15'))).data().payments;
+    await assertSucceeds(updateDoc(doc(joeOwn, 'invoices/rp-joe15'), { payments: l14.concat([rpEntry('joeown', 1, at15, 15)]), amountPaid: 15, balanceDue: 85, lastPaymentAt: at15 }));   // the 15th payment
+    await assertSucceeds(updateDoc(doc(joeOwn, 'invoices/rp-joe-void'), { deleted: true, voidNote: 'entered twice' }));   // the owner voids an invoice with no money
+    const lp = (await getDoc(doc(joeOwn, 'invoices/rp-joe-proof'))).data().payments;
+    await assertSucceeds(updateDoc(doc(joeOwn, 'invoices/rp-joe-proof'), { payments: [Object.assign({}, lp[0], { proofStoragePath: 'payment-proofs/joeown/rp-joe-proof/1_a.jpg' })] }));   // a proof photo on a payment
+    await assertFails(updateDoc(doc(admin, 'invoices/rp-joe-money'), { amountPaid: 40, balanceDue: 0 }));   // the platform admin still cannot rewrite money without a payment entry
+    await assertFails(updateDoc(doc(joeOwn, 'invoices/rp-joe-money'), { amountPaid: 40, balanceDue: 0 }));  // nor can the admin who made it
+  }   // the admin's money check fits the budget too
   // a legacy status that the send lock holds is restored as it was; a legacy 'Paid' is never restored
   await env.withSecurityRulesDisabled(async (ctx) => {
     const d = ctx.firestore();
