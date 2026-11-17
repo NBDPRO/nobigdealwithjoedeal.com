@@ -5,8 +5,8 @@
  * The block between the SHARED markers is a byte-for-byte copy of the same block in
  * functions/price-logic.js. tests/price-logic-2026-11.test.js fails if the two drift
  * apart, so units, money, the evidence ladder, the ranking and the sanitizers behave
- * the same on the server and on the phone. Edit the server file first, then copy
- * the block here.
+ * the same on the server and on the phone. Edit the server file first, then run
+ * node scripts/sync-price-logic.js.
  *
  * Nothing here reads or writes anything, and no price is ever invented: a missing
  * conversion is null, never a guess.
@@ -488,8 +488,14 @@ function sanitizeObservation(row, ctx) {
   if (typeof row.offerId !== 'string' || !/^[A-Za-z0-9_-]{1,120}$/.test(row.offerId)) return plBad('bad_offer');
   if (CALLER_KINDS.indexOf(row.kind) === -1) return plBad('bad_kind');
   if (!plIsPosInt(row.priceMicros) || row.priceMicros > PL_MAX_PRICE_MICROS) return plBad('bad_price');
-  var uom = normaliseUom(row.statedUnit != null && row.statedUnit !== '' ? row.statedUnit : row.uomRaw);
-  if (!uom || !uom.unit) return plBad('needs_unit');
+  // A store export has no unit column. On those channels only, a row with no unit
+  // is kept as "price as stated": it has no per-catalog-unit price until the
+  // offer's pack is confirmed (catalogMicrosFor).
+  var nullUnitOk = plNullUnitChannel(ctx.channel);
+  var unitText = row.statedUnit != null && row.statedUnit !== '' ? row.statedUnit : row.uomRaw;
+  var noUnit = unitText == null || unitText === '';
+  var uom = (nullUnitOk && noUnit) ? { unit: null, per: 1 } : normaliseUom(unitText);
+  if (!uom || (!uom.unit && !(nullUnitOk && noUnit))) return plBad('needs_unit');
   var per = row.per == null ? uom.per : row.per;
   if (per !== 1 && per !== 100 && per !== 1000) return plBad('bad_per');
   if (PL_PRICE_TYPES.indexOf(row.priceType) === -1) return plBad('bad_price_type');
@@ -518,14 +524,117 @@ function sanitizeObservation(row, ctx) {
     loc = row.locationId;
   }
   var doc = row.doc || {};
+  // The store number and the offer stub travel only on the store-export channels.
+  var storeNumber = null, stub = null;
+  if (nullUnitOk) {
+    storeNumber = plTextOrNull(row.storeNumber, 20);
+    if (row.offer != null) {
+      stub = sanitizeStub(row.offer);
+      if (stub === null) return plBad('bad_offer');
+    }
+  }
   return { ok: true, value: {
     offerId: row.offerId, kind: row.kind, priceMicros: row.priceMicros, per: per, statedUnit: uom.unit,
     uomRaw: plText(row.uomRaw != null ? row.uomRaw : row.statedUnit, 20), qty: qty, extCents: ext,
     priceType: row.priceType, taxIncluded: row.taxIncluded, delivered: typeof row.delivered === 'boolean' ? row.delivered : null,
     locationId: loc, observedOn: row.observedOn, validThroughOn: through,
     doc: { type: PL_DOC_TYPES.indexOf(doc.type) !== -1 ? doc.type : 'none', ref: plText(doc.ref, 80) },
-    note: plText(row.note, 200)
+    note: plText(row.note, 200), storeNumber: storeNumber, offer: stub
   } };
+}
+
+// Channels whose rows may arrive with no unit (a store's purchase export, and the
+// one-time copy of the legacy price book, which was built from the same exports).
+var NULL_UNIT_CHANNELS = ['hd_csv', 'legacy_pricebook'];
+function plNullUnitChannel(ch) { return NULL_UNIT_CHANNELS.indexOf(ch) !== -1; }
+
+/** The few fields of an offer a receipt line can state: { supplierId, sku, title, internetSku }, or null. */
+function sanitizeStub(s) {
+  if (!s || typeof s !== 'object' || !plOkSupplierId(s.supplierId)) return null;
+  var sku = s.sku == null ? '' : String(s.sku).replace(/^\s+|\s+$/g, '');
+  if (!sku || sku.length > 40 || /[\u0000-\u001F\u007F]/.test(sku)) return null;
+  return { supplierId: s.supplierId, sku: sku, title: plText(s.title, 160) || sku, internetSku: plTextOrNull(s.internetSku, 40) };
+}
+
+/**
+ * A minimal, unlinked offer built from a receipt line. sanitizePack refuses a pack
+ * with no purchase unit, so the unknown pack is written out here.
+ */
+function stubOffer(stub) {
+  var s = sanitizeStub(stub);
+  if (s === null) return null;
+  var reg = supplierOf(s.supplierId);
+  return {
+    v: 1, supplierId: s.supplierId, sku: s.sku, skuKind: reg.skuKinds.length ? reg.skuKinds[0] : 'none',
+    altIds: { upc: null, model: null, internetSku: s.internetSku, mfrPart: null },
+    title: s.title, brand: null, url: null, productId: null,
+    variant: { color: null, size: null, style: null },
+    tiers: ['good'], match: 'exact',
+    pack: { purchaseUnit: null, catalogUnit: null, num: null, den: null, status: 'unknown', basis: null, verified: false, verifiedBy: null, verifiedAtMs: null, note: '' },
+    watch: false, active: true
+  };
+}
+
+/**
+ * The price of one catalog unit for a stored row: { micros, flag }. A row with a
+ * unit goes through toCatalogMicros. A row with no unit (a store export) is read as
+ * priced per the offer's purchase unit, and only when the supplier is a retail
+ * store and a person has confirmed the pack; otherwise it has no per-unit price.
+ */
+function catalogMicrosFor(row, offer) {
+  row = row || {}; offer = offer || {};
+  var pack = offer.pack;
+  if (row.statedUnit != null) return toCatalogMicros(row.priceMicros, row.per, row.statedUnit, pack);
+  var ch = (row.source && row.source.channel) || row.channel;
+  var sup = supplierOf(offer.supplierId);
+  if (plNullUnitChannel(ch) && sup && sup.type === 'retail' && validPack(pack) && pack.verified === true) {
+    return toCatalogMicros(row.priceMicros, row.per, pack.purchaseUnit, pack);
+  }
+  return { micros: null, flag: null };
+}
+
+/**
+ * One legacy price-book purchase ({ store, sku, desc, cents, qty, date, ref }) as a
+ * ledger row, or null when it can not be one (no SKU, no price, a bad date, a store
+ * the registry does not know). The offer id equals the legacy keyFor(store, sku).
+ */
+function legacyPurchaseToRow(p) {
+  p = p || {};
+  var stub = plLegacyStub(p.store, p.sku, p.desc);
+  var cents = Math.round(Number(p.cents));
+  if (stub === null || !plIsPosInt(cents) || plDateMs(p.date) === null) return null;
+  var micros = centsToMicros(cents);
+  if (!Number.isSafeInteger(micros) || micros > PL_MAX_PRICE_MICROS) return null;
+  var qty = Number(p.qty);
+  return {
+    offerId: offerIdFor(stub.supplierId, stub.sku), kind: 'paid', priceMicros: micros,
+    priceType: 'net', taxIncluded: false, observedOn: String(p.date),
+    qty: (isFinite(qty) && qty > 0) ? qty : null,
+    doc: { type: 'receipt', ref: plText(p.ref, 80) },
+    offer: stub
+  };
+}
+
+/** The legacy key's two halves as a stub (store and SKU cleaned exactly as the legacy keyFor cleans them), or null. */
+function plLegacyStub(store, sku, desc) {
+  var s = String(store == null ? '' : store).toLowerCase().replace(/[^a-z0-9]/g, '');
+  var k = String(sku == null ? '' : sku).replace(/^\s+|\s+$/g, '').replace(/[^A-Za-z0-9-]/g, '');
+  if (!s || !k || k.length > 40 || !plOkSupplierId(s)) return null;
+  return { supplierId: s, sku: k, title: plText(desc, 160) || k, internetSku: null };
+}
+
+/** One legacy price-book item as { offerId, offer, rows }: an unlinked stub and one paid row per history entry. */
+function legacyItemToLedger(key, item) {
+  item = item || {};
+  var stub = plLegacyStub(item.store, item.sku, item.desc);
+  if (stub === null) return { offerId: null, offer: null, rows: [] };
+  var rows = [], hist = Array.isArray(item.history) ? item.history : [];
+  for (var i = 0; i < hist.length; i++) {
+    var h = hist[i] || {};
+    var r = legacyPurchaseToRow({ store: item.store, sku: item.sku, desc: item.desc, cents: h.cents, qty: h.qty, date: h.date, ref: h.ref });
+    if (r) rows.push(r);
+  }
+  return { offerId: offerIdFor(stub.supplierId, stub.sku), offer: stubOffer(stub), rows: rows };
 }
 
 function plPoint(r, cm) {
@@ -551,7 +660,7 @@ function summarize(offer, rows, nowMs, quoteValidDays) {
     if (!all[i] || all[i].voided === true) continue;
     var copy = {}, src = all[i];
     for (var key in src) if (Object.prototype.hasOwnProperty.call(src, key)) copy[key] = src[key];
-    copy.catalogMicros = toCatalogMicros(src.priceMicros, src.per, src.statedUnit, pack).micros;
+    copy.catalogMicros = catalogMicrosFor(src, offer).micros;
     live.push(copy);
   }
   var best = bestForOffer(live, nowMs, quoteValidDays, false);
@@ -599,7 +708,9 @@ function flagOn(flagsDefault, flagsMine) {
     KINDS: KINDS, CALLER_KINDS: CALLER_KINDS, evidenceLevel: evidenceLevel, currentRows: currentRows, bestForOffer: bestForOffer,
     offerIdFor: offerIdFor, obsIdFor: obsIdFor, urlAllowedFor: urlAllowedFor,
     sanitizeSupplierAccount: sanitizeSupplierAccount, sanitizePack: sanitizePack, sanitizeOffer: sanitizeOffer,
-    sanitizeObservation: sanitizeObservation, summarize: summarize, flagOn: flagOn
+    sanitizeObservation: sanitizeObservation, summarize: summarize, flagOn: flagOn,
+    NULL_UNIT_CHANNELS: NULL_UNIT_CHANNELS, stubOffer: stubOffer, catalogMicrosFor: catalogMicrosFor,
+    legacyPurchaseToRow: legacyPurchaseToRow, legacyItemToLedger: legacyItemToLedger
   };
   root.NBDPriceLogic = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
