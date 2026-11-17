@@ -483,7 +483,8 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-17  1117/74/1270 -> 1127/74/1281, the supplier price ledger slice 1: three node suites (price-logic-2026-11,
 //               price-ledger-server-2026-11, price-fixture-privacy) and one wired-individually (firestore-rules.price-ledger).
 //               The floor was already stale by 7 node / 7 disk on main before this PR. MEASURED via --check.
-const FLOORS = { node: 1127, smoke: 74, disk: 1281 };
+//   2026-11-17  1127/74/1281 -> 1129/74/1283 after merging main (#3127 added two node suites). MEASURED via --check.
+const FLOORS = { node: 1129, smoke: 74, disk: 1283 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
