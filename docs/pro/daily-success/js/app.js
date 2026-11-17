@@ -1162,6 +1162,25 @@ function nbdSetThemeClass(id) {
   if (id !== 'default') c.add('theme-' + id);
 }
 
+/* ── CUSTOM THEME TOKENS (2026-11-17) ───────────────────────────────── */
+// A saved custom theme has no stylesheet block, so only --bg / --bar / --ac were ever set for it and its text and muted
+// colours were dropped (cream cards, black body text on any page colour). js/custom-theme-logic.js derives the full token
+// row from all five colours; it is laid inline here and taken back off when another theme is applied.
+let _nbdCustomLaid = [];
+function _nbdClearCustom() {
+  const R = document.documentElement.style;
+  _nbdCustomLaid.forEach((p) => R.removeProperty(p));
+  _nbdCustomLaid = [];
+}
+function _nbdLayCustom(t) {
+  const C = window.NBDCustomTheme;
+  const c = C && t && t.cat === 'custom' ? C.normCustom(t) : null;
+  if (!c) return false;
+  const R = document.documentElement.style, v = C.derive(c);
+  Object.keys(v).forEach((p) => { R.setProperty(p, v[p]); _nbdCustomLaid.push(p); });
+  return true;
+}
+
 /* ── APPLY THEME ──────────────────────────────────────────────────── */
 function nbdApplyTheme(id) {
   const t = _nbdGetTheme(id);
@@ -1174,7 +1193,8 @@ function nbdApplyTheme(id) {
   nbdSetThemeClass(id);
   // 2. data-theme attr (v3 system)
   document.documentElement.setAttribute('data-theme', id);
-  // 3. Force --ac + legacy DS vars immediately
+  // 3. Force --ac + legacy DS vars immediately (a previous custom theme's tokens come off first)
+  _nbdClearCustom();
   const R = document.documentElement.style;
   R.setProperty('--ac',     t.accent);
   R.setProperty('--orange', t.accent);
@@ -1182,6 +1202,8 @@ function nbdApplyTheme(id) {
   // bg/surface for DS pages that use --bg/--bar
   R.setProperty('--bg',  t.bg  || '#0A0C0F');
   R.setProperty('--bar', t.s   || '#13171d');
+  // 3b. a custom theme: every token, from all five of its colours (overrides the three set just above)
+  _nbdLayCustom(t);
   // 4. Persist — write the legacy key AND the canonical engine key (PR #557 F-1
   //    cross-surface convergence) so a theme picked on this standalone page
   //    survives the dashboard's canonical-key read instead of being silently
@@ -1383,6 +1405,7 @@ window.buildWelcomeThemePicker = () => {};  // DS welcome modal — no-op, full 
     R.setProperty('--gold',   t.accent);
     R.setProperty('--bg',     t.bg  || '#0A0C0F');
     R.setProperty('--bar',    t.s   || '#13171d');
+    _nbdLayCustom(t);
     _nbd_activeTheme = t.id;
     _nbdUpdateLabels(t);
   }

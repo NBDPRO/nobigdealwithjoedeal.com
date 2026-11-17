@@ -69,8 +69,24 @@
   // Settings pulled from the cloud (rotation, routines, custom lifts): the card shows them at once.
   window.addEventListener('nbd-ds-settings-restored', drawCard);
   // ── Theme: this app's own, or the Daily Success one ────────────────────────
+  // The custom themes saved on this device (made in Daily Success, or arrived with the account) join the ten built-in ones.
+  function drawCustomOptions(sel, T) {
+    if (!sel || !T || typeof T.customs !== 'function' || typeof document.createElement !== 'function') return;
+    const list = T.customs();
+    const key = list.map((c) => c.id + ':' + c.name).join('|');
+    if (sel.dataset && sel.dataset.customs === key) return;   // already showing exactly these
+    if (sel.dataset) sel.dataset.customs = key;
+    const old = $('waThemeCustom');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    if (!list.length) return;
+    const group = document.createElement('optgroup');
+    group.id = 'waThemeCustom'; group.label = 'Custom';
+    list.forEach((c) => { const o = document.createElement('option'); o.value = c.id; o.textContent = c.name; group.appendChild(o); });
+    sel.appendChild(group);
+  }
   function drawTheme() {
     const sel = $('waTheme'), T = window.NBDWorkoutTheme;
+    drawCustomOptions(sel, T);
     if (sel && T && typeof T.own === 'function') sel.value = T.own();
     const acc = $('waAccent');
     if (acc && T && typeof T.ownAccent === 'function') acc.value = T.ownAccent();

@@ -30,6 +30,9 @@
  *
  *  12. ...and its own accent: the Accent control picks an accent, "Theme default" (none), or "Same as Daily Success".
  *
+ *  13. Custom themes: a Daily Success custom theme (five free colours) is drawn from all five, stays readable whatever was picked,
+ *      comes off cleanly when the theme changes, takes an accent, and can be the Workout app's own theme.
+ *
  * Structure and behaviour, not file text (tests/lib/src-kit.js): tags and attributes, CSS declarations, the scripts run in a vm.
  *
  * Run: node tests/ds-workout-installable-2026-11-16.test.js
@@ -496,5 +499,78 @@ console.log('\n12. The Workout app can wear its own accent');
   ok('an accent that arrived with the account shows in the control', accEl.value === 'none');
 }
 
+console.log('\n13. Custom themes in the Workout app');
+{
+  const CT = require('../docs/pro/daily-success/js/custom-theme-logic.js');   // the colours themselves: tests/custom-theme-2026-11-17.test.js
+  const mk = (n, accent, bg, s, tc, m, name) => ({ id: 'custom-170000000000' + n, name: name || 'Custom ' + n, cat: 'custom', plan: 'command', accent, bg, s, tc, m });
+  const C1 = mk(1, '#22AA66', '#101820', '#1c2836', '#f0f0f0', '#99aabb', 'Night shift');
+  const C2 = mk(2, '#aa2266', '#f4f1ea', '#ffffff', '#221a12', '#6a5f55');
+  function customApp(store) {
+    const attrs = {}, inline = {}, sent = [];
+    const html = { getAttribute: (k) => (k in attrs ? attrs[k] : null), setAttribute: (k, v) => { attrs[k] = String(v); },
+      style: { setProperty: (p, v) => { inline[p] = v; }, removeProperty: (p) => { delete inline[p]; } } };
+    const docL = {};
+    const win = { addEventListener: () => {}, NBDLook: { changed: () => { sent.push(store.nbd_wk_theme || ''); } } };
+    kit.loadInVm(['docs/pro/daily-success/js/accent-logic.js', 'docs/pro/daily-success/js/custom-theme-logic.js', 'docs/pro/workout/js/workout-theme.js'], { window: win,
+      document: { documentElement: html, visibilityState: 'visible', addEventListener: (n, f) => { docL[n] = f; } },
+      localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } }, getComputedStyle: () => ({ getPropertyValue: () => '#12161c' }) });
+    return { T: win.NBDWorkoutTheme, A: win.NBDAccent, attrs, inline, sent, store, back: () => docL.visibilitychange() };
+  }
+  const a = customApp({ 'nbd-customs': JSON.stringify([C1, C2]), nbd_pro_theme: C1.id });
+  const T = a.T;
+  ok('a custom theme Daily Success saved is worn, not replaced by the default skin', a.attrs['data-theme'] === C1.id);
+  ok('it is drawn with exactly the colours Daily Success uses for it (one shared function)', JSON.stringify(a.inline) === JSON.stringify(CT.derive(CT.normCustom(C1))), JSON.stringify(a.inline));
+  ok('all five of its colours show: page, surface, text, muted, and the accent as text', a.inline['--bg'] === '#101820' && a.inline['--paper'] === '#1c2836' && a.inline['--ink'] === '#f0f0f0' && a.inline['--muted'] === '#99aabb' && a.inline['--ac-text'] === '#22aa66', JSON.stringify(a.inline));
+  a.store.nbd_pro_theme = 'ocean'; a.back();
+  ok('switching to a built-in theme takes every custom colour back off', a.attrs['data-theme'] === 'ocean' && Object.keys(a.inline).length === 0, Object.keys(a.inline).join());
+  a.store.nbd_pro_theme = C2.id; a.back();
+  ok('and another custom theme lays its own', a.attrs['data-theme'] === C2.id && a.inline['--bg'] === '#f4f1ea' && a.inline['--ink'] === '#221a12');
+  ok('a custom theme whose colours are not on this device shows as the default skin', customApp({ nbd_pro_theme: C1.id }).attrs['data-theme'] === 'default' && customApp({ 'nbd-customs': 'not json', nbd_pro_theme: C1.id }).attrs['data-theme'] === 'default');
+  ok('a stored entry that is not a well-formed custom theme is not offered or worn', customApp({ 'nbd-customs': JSON.stringify([Object.assign({}, C1, { bg: 'red' })]), nbd_pro_theme: C1.id }).attrs['data-theme'] === 'default'
+    && T.customs(() => JSON.stringify([C1, Object.assign({}, C2, { tc: '#fff' }), C1])).map((c) => c.id).join() === C1.id);
+
+  const acc = customApp({ 'nbd-customs': JSON.stringify([C2]), nbd_pro_theme: C2.id, nbd_ds_accent: 'teal' });
+  const teal = acc.A.ACCENTS.find((x) => x.id === 'teal');
+  ok('an accent over a custom theme: its fill, and its text tint for a light card and a light page', acc.inline['--ac'] === teal.fill && acc.inline['--ac-text'] === teal.onLight && acc.inline['--page-ac'] === teal.onLight, JSON.stringify(acc.inline));
+  const accDark = customApp({ 'nbd-customs': JSON.stringify([mk(3, '#e0a030', '#f4f1ea', '#3a2f25', '#221a12', '#6a5f55')]), nbd_pro_theme: 'custom-1700000000003', nbd_ds_accent: 'teal' });
+  ok('on a light page with dark cards the card gets the light tint and the page the dark one', accDark.inline['--ac-text'] === teal.onDark && accDark.inline['--page-ac'] === teal.onLight);
+  delete acc.store.nbd_ds_accent; acc.back();
+  ok('taking the accent off goes back to the theme\'s own accent', acc.inline['--ac'] === '#aa2266' && acc.inline['--ac-text'] === '#aa2266');
+
+  const own = customApp({ 'nbd-customs': JSON.stringify([C1, C2]), nbd_pro_theme: 'ocean' });
+  ok('a custom theme can be the Workout app\'s own, handed to the sync', own.T.setOwn(C2.id) === C2.id && own.attrs['data-theme'] === C2.id && own.sent.join() === C2.id);
+  ok('one that is not on this device cannot', own.T.setOwn('custom-999') === '' && own.attrs['data-theme'] === 'ocean');
+
+  // the Theme control lists them
+  const mkNode = (tag) => ({ tag, id: '', label: '', value: '', textContent: '', dataset: {}, children: [], parentNode: null,
+    appendChild(c) { c.parentNode = this; this.children.push(c); if (c.id) byId[c.id] = c; return c; }, removeChild(c) { this.children = this.children.filter((x) => x !== c); if (c.id) delete byId[c.id]; return c; } });
+  const byId = {};
+  const selEl = mkNode('select'); selEl.id = 'waTheme'; byId.waTheme = selEl;
+  let list = [CT.normCustom(C1), CT.normCustom(C2)];
+  const docL = {};
+  const doc = { readyState: 'complete', visibilityState: 'visible', addEventListener: (n, f) => { (docL[n] = docL[n] || []).push(f); }, getElementById: (id) => byId[id] || null, createElement: mkNode };
+  const win = { addEventListener: () => {}, NBDWorkoutTheme: { own: () => C1.id, setOwn: (v) => v, customs: () => list } };
+  kit.loadInVm(['docs/pro/workout/js/workout-app.js'], { window: win, document: doc, navigator: { onLine: true }, setTimeout: () => 0, clearTimeout: () => {} });
+  const group = () => selEl.children.find((c) => c.tag === 'optgroup');
+  ok('the Theme control lists this device\'s custom themes by name, in a Custom group', !!group() && group().label === 'Custom' && group().children.map((o) => o.value + '=' + o.textContent).join() === C1.id + '=Night shift,' + C2.id + '=Custom 2');
+  ok('and shows the one in use', selEl.value === C1.id);
+  docL.visibilitychange.forEach((f) => f());
+  ok('drawing again does not list them twice', selEl.children.filter((c) => c.tag === 'optgroup').length === 1 && group().children.length === 2);
+  list = [CT.normCustom(C2)];
+  docL.visibilitychange.forEach((f) => f());
+  ok('a changed list is redrawn', group().children.map((o) => o.value).join() === C2.id);
+  list = [];
+  docL.visibilitychange.forEach((f) => f());
+  ok('with none left the group goes away', !group());
+
+  const css = kit.read('docs/pro/workout/workout-app.css');
+  const decl = (sel, prop) => (kit.cssRule(css, sel) || {})[prop] || '';
+  ok('text straight on the page uses the page hooks, each falling back to the skin\'s own colour (the ten skins draw as before)',
+    decl('body', 'color') === 'var(--page-ink,var(--ink))' && decl('.wa-link-quiet', 'color') === 'var(--page-muted,var(--muted))' && decl('.wa-link', 'color') === 'var(--page-ac,var(--ac-text))' && decl('.wa-main .wc-card', 'color') === 'var(--ink)',
+    [decl('body', 'color'), decl('.wa-link-quiet', 'color'), decl('.wa-link', 'color'), decl('.wa-main .wc-card', 'color')].join(' | '));
+  const head = wDoc.$('head');
+  const pos = (file) => { const s = head.$$('script').find((x) => pathOf(x.attr('src') || '').split('/').pop() === file); return s ? s.start : -1; };
+  ok('the shared colour logic loads before the theme script, at the Daily Success version', pos('custom-theme-logic.js') > -1 && pos('custom-theme-logic.js') < pos('workout-theme.js') && dScripts.has(wSrcs[at('custom-theme-logic.js')]));
+}
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

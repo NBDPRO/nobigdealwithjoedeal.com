@@ -122,8 +122,52 @@ version of this suite had 22). The suite was rewritten to ask structural questio
    headless Chromium: Daily Success on Ocean + Teal; Workout picked Rose, then Theme default, then Same as Daily Success; Daily Success
    stayed Teal throughout; the Start button stayed at 4.5:1 or better across 2 themes x 8 accents. Headless Chromium, one profile: Workout picked Ember, Daily Success
    stayed default then picked Ocean + Teal, Workout stayed Ember, "Same as Daily Success" took it to Ocean + Teal.
-   **Limits:** (a) a saved custom theme shows as the default skin in the Workout app, and its id only means something on the device that
-   made it; (b) NOT exercised against the real cloud or on a phone: the sync is tested against the harness's fake Firestore;
+   **Custom themes (same day, after #3122 merged; Jo: "make custom themes work in the workout app too").**
+   - Finding first: **Daily Success itself only half-applies a saved custom theme.** `nbdApplyTheme` sets `--bg`, `--bar` and the accent;
+     the Text and Muted colours are saved (`nbd-customs`: `{ id: 'custom-<time>', name, accent, bg, s, tc, m }`) but only the live preview
+     (`_nbdApplyCustomVars`) ever uses them, and no stylesheet block matches `data-theme="custom-..."`, so `--paper`, `--ink`, `--rule` and
+     `--muted` are EMPTY. Measured in headless Chromium: cards stay cream (`rgb(245,243,239)`) and body text is black on whatever
+     background was picked. NOT fixed here (it touches every tracker module's colours); it is Jo's call.
+   - So the Workout app does not copy that. `workout-theme.js` (`?v=3`) reads `nbd-customs`, checks each entry (custom id, five six-digit
+     hex colours) and `derive()` sets the page's colours inline from all five. Because the colours are free picks it keeps the result
+     readable: text under 4.5:1 on its surface becomes black or white, muted under 3:1 becomes the text colour, an accent that cannot
+     carry text falls back to the text colour, and accent-filled buttons take black or white text. The page and the cards / bar get
+     separate text colours (they can be far apart). `workout-app.css` (`?v=6`) gained `--wa-*` hooks for this; every hook falls back
+     to the value the ten built-in skins always used.
+   - The Theme control lists this device's custom themes in a "Custom" group, so one can also be the Workout app's own theme.
+   - `look-sync.js` (`?v=3`): a record that names a custom theme carries its definition (`custom: { id, name, accent, bg, s, tc, m }`).
+     `restore()` adds it to the device list, and to app.js's in-memory `_nbd_customs` on Daily Success, before the theme is applied, so a
+     phone that never made the theme can draw it. A definition is only accepted for the theme the record names.
+   - Tests: `look-sync` 64 checks, `ds-workout-installable` 154 (400 random five-colour themes, every text colour measured). 27 deliberate
+     breaks, all caught (one only after a check was added). Headless Chromium: five sample themes incl. a light page with dark cards, a
+     pale accent and deliberately unreadable picks, nothing under 4.5:1 (muted 3:1) on the home screen or the floor prompt; the ten
+     built-in skins unchanged; a synced custom theme arriving on each real page is drawn, listed, and survives a reload.
+   - Not covered: inside the coach's full-screen logger the muted / rule colours of a LIGHT theme sit on its fixed dark background (true
+     of the built-in light skins in Daily Success too); only its accent-filled buttons were made safe.
+   **Daily Success fixed too (same day; Jo: "Yes, fix it"), and both apps now draw a custom theme from ONE function.**
+   - `docs/pro/daily-success/js/custom-theme-logic.js` (`NBDCustomTheme`): what counts as a custom theme, and `derive()`, the full token
+     row from the five colours. The Workout app's own copy of this (above) was removed; `workout-theme.js` (`?v=4`) and `look-sync.js`
+     both use it. Loaded before `app.js` on Daily Success and before `workout-theme.js` on the Workout app.
+   - `app.js`: `_nbdLayCustom(t)` lays the row inline in `nbdApplyTheme` and at boot; `_nbdClearCustom()` takes it off before the next
+     theme. `accent-ui.js` (`?v=3`) re-applied the theme's RAW accent and cleared `--ac-text` / `--ac-on-dark` every time `data-theme`
+     changed; for a custom theme it now uses the derived fill and puts those two back.
+   - What `derive()` keeps true, because the tracker's styles count on it: the bar carries light text (a light surface cannot be the bar:
+     the theme's dark text colour is, else near-black, as Warm Paper does); `--on-dark` / `--ac-on-dark` read on the bar AND on the three
+     surfaces that stay dark in every skin (coach logger, week-glance panel, onboarding banner); every accent-FILLED control paints white
+     text on `--ac`, so an accent too pale for white is darkened, keeping its hue, only as far as needed (the accent as picked is still
+     used as text where it reads). Text under 4.5:1 becomes black or white; readable picks are used exactly as chosen.
+   - Three page rules assumed a built-in skin: `body` colour now `var(--page-ink,var(--ink))`; the accent words on the banner use
+     `--ac-on-dark`; a ghost button on the banner takes `--on-dark` (this one was also 1.5:1 on the built-in Light and Warm Paper skins,
+     so those improved); under `[data-theme^="custom-"]` the "not earned" box takes the page accent. The two rules older suites pin
+     (`daily-success-theme-sweep`, `daily-success-themes`) are byte-identical; the new behaviour is in separate rules.
+   - Measured with a live sweep in headless Chromium (every piece of text on the Dashboard and today's page against what is behind it):
+     before, a custom theme had 11-14 low spots (down to 1.3:1) and Light / Warm Paper had 2; after, 0 for all six custom samples (dark,
+     light, light page + dark cards, dark page + light cards, pale accent, unreadable picks) and 0 for default / light / paper / midnight.
+     Both apps compute identical tokens for a custom theme. The sweep is a manual script, not a CI test.
+   - Tests: `tests/custom-theme-2026-11-17.test.js` (34 checks; 400 random themes x 25 colour pairings), `ds-workout-installable` 151,
+     `look-sync` 64. 38 deliberate breaks, all caught (one only after a check was tightened).
+   - Not swept: the overlays (Money, Sunday review, onboarding wizard, appearance picker), the Notebook, the other seven layouts, print.
+   **Limits:** (a) a pale custom accent shows darker on buttons than the colour picked (its text uses still show it as picked); (b) NOT exercised against the real cloud or on a phone: the sync is tested against the harness's fake Firestore;
    (c) a pick made in the first seconds on a brand-new install, before its first sync has finished, is stamped newer than the look chosen
    elsewhere and wins; (d) the records are account data, cleared on an account switch (the Daily Success device theme stays, the Workout
    app's own theme goes back to following until the account's copy arrives).

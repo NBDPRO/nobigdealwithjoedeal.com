@@ -65,7 +65,8 @@
   --shad:0 2px 12px rgba(0,0,0,.2);--tt:#7a98c0;--tb:#2a4a7e;
   --sbg:#fff;--stxt:#1a1a1a;--mbg:#f5f3ef;
 }
-body{background:var(--bg);font-family:'Barlow',sans-serif;color:var(--ink);min-height:100vh;min-height:100dvh;}
+/* --page-ink: text straight on the page. Only a custom theme sets it (js/custom-theme-logic.js: its page and cards can be far apart); the ten skins fall back to --ink as before. */
+body{background:var(--bg);font-family:'Barlow',sans-serif;color:var(--page-ink,var(--ink));min-height:100vh;min-height:100dvh;}
 
 /* SAFE AREA (audit Q6): the notch / status bar height. Everything pinned under the header adds it, so nothing slides beneath. */
 :root{--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);}
@@ -96,7 +97,7 @@ body{background:var(--bg);font-family:'Barlow',sans-serif;color:var(--ink);min-h
 .onboard-banner{position:fixed;top:calc(52px + var(--sat));left:0;right:0;z-index:270;background:#151e2b;border-bottom:2px solid var(--ac);border-top:1px solid rgba(249,115,22,.2);padding:9px 16px;display:none;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;min-height:44px;}
 .onboard-banner.visible{display:flex;}
 .ob-msg{font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.04em;font-weight:600;color:#aab;white-space:nowrap;}
-.ob-msg span{color:var(--ac-text,var(--ac));font-weight:700;}
+.ob-msg span{color:var(--ac-on-dark,var(--ac-text,var(--ac)));font-weight:700;}
 .ob-btns{display:flex;gap:6px;align-items:center;}
 .ob-dismiss{background:transparent;border:none;cursor:pointer;color:#8fa1b8;font-size:16px;padding:0 4px;line-height:1;margin-left:6px;}
 .ob-dismiss:hover{color:#aaa;}
@@ -161,6 +162,9 @@ button,input,select,textarea{font-family:inherit;}
 .floor-egg-title{font-family:'Barlow Condensed',sans-serif;font-size:20px;letter-spacing:.1em;}
 .floor-egg.earned .floor-egg-title{color:#4caf82;}
 .floor-egg.not-earned .floor-egg-title{color:var(--ac-text,#d97706);}
+/* A custom theme (2026-11-17): this box sits straight on the page, which can be far from the cards --ac-text was picked for. */
+[data-theme^="custom-"] .floor-egg.not-earned{border-color:var(--page-ac,var(--ac-text,#d97706));}
+[data-theme^="custom-"] .floor-egg.not-earned .floor-egg-title{color:var(--page-ac,var(--ac-text,#d97706));}
 .floor-egg-goose{font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;color:rgba(255,255,255,.55);margin-top:3px;}
 
 /* DAY SCORE */
@@ -848,6 +852,8 @@ body.has-banner .today-bar{top:calc(148px + var(--sat));}
    letters sit on dark navy but used a light-surface ink; (3) captions in light grey on white cards (.rn row numbers,
    .wc-lbl, the weight deltas, the delete x); (4) orange on dark (PDF, date rows, sync pill) one notch under 4.5:1. */
 :root .dhero .btn-ghost,:root .wc-ov .btn-ghost{color:var(--on-dark,#c3cfdf);}
+/* The onboarding banner is dark in every skin too (2026-11-17): its ghost button was the card ink, 1.5:1 on Light and Warm Paper. */
+:root .onboard-banner .btn-ghost{color:var(--on-dark,#c3cfdf);}
 :root .dhero .btn-gold{color:var(--ac-on-dark,var(--gold));}
 :root .prd-d{color:var(--ac-text,var(--gold));}
 :root .tab .tx{color:var(--on-dark,#a9b8cc);}
@@ -1185,6 +1191,7 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <script src="/pro/daily-success/js/sync-chip-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/sync-chip-ui.js?v=1"></script>
 <script src="/pro/daily-success/js/nav-router.js?v=2"></script>
+<script src="/pro/daily-success/js/custom-theme-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/app.js"></script>
 <script src="/pro/daily-success/js/notebook-ui.js?v=2"></script>
 <script src="/pro/daily-success/js/exercise-notes-logic.js?v=1"></script>
@@ -1235,8 +1242,8 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <script src="/pro/daily-success/js/export-logic.js?v=2" defer></script>
 <script src="/pro/daily-success/js/export-ui.js?v=2" defer></script>
 <script src="/pro/daily-success/js/accent-logic.js?v=1" defer></script>
-<script src="/pro/daily-success/js/accent-ui.js?v=2" defer></script>
-<script src="/pro/daily-success/js/look-sync.js?v=2" defer></script>
+<script src="/pro/daily-success/js/accent-ui.js?v=3" defer></script>
+<script src="/pro/daily-success/js/look-sync.js?v=3" defer></script>
 <script src="/pro/daily-success/js/stats-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/stats-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/a11y-ui.js?v=2" defer></script>
