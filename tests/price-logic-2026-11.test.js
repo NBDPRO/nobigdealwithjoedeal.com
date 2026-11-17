@@ -190,7 +190,7 @@ console.log('\nSanitizers');
   ok('the fixture offer is accepted with its pack', off.ok === true && off.value.pack.status === 'known' && off.value.pack.den === 3 && off.value.pack.verified === false, off);
   ok('the second fixture offer has an unknown pack with no ratio', same([L.sanitizeOffer(FX.offers[1]).value.pack.status, L.sanitizeOffer(FX.offers[1]).value.pack.num], ['unknown', null]));
   const O = (patch) => L.sanitizeOffer(Object.assign({}, FX.offers[0], patch));
-  ok('offer: a bad supplier, an over-long SKU and a missing title are refused', O({ supplierId: 'x' }).reason === 'bad_supplier' && O({ sku: 'T'.repeat(41) }).reason === 'bad_sku' && O({ title: '  ' }).reason === 'title_required');
+  ok('offer: a bad supplier, an over-long SKU and a missing title are refused', O({ supplierId: 'x' }).reason === 'bad_supplier' && O({ sku: 'TEST-' + 'X'.repeat(36) }).reason === 'bad_sku' && O({ title: '  ' }).reason === 'title_required');
   ok('offer: a bad product id, tier, match and UPC are refused',
     O({ productId: 'a b' }).reason === 'bad_product' && O({ tiers: ['gold'] }).reason === 'bad_tiers' && O({ match: 'close' }).reason === 'bad_match' && O({ altIds: { upc: '12ab' } }).reason === 'bad_upc');
   ok('offer: a pack with a zero, a fraction or an unknown unit is refused',
@@ -223,7 +223,7 @@ console.log('\nSanitizers');
     R({ observedOn: '2026-11-19' }).reason === 'bad_date' && R({ observedOn: '1999-12-31' }).reason === 'bad_date' && R({ observedOn: '2026-02-30' }).reason === 'bad_date' && R({ observedOn: '11/17/2026' }).reason === 'bad_date');
   ok('observation: tomorrow is allowed', R({ observedOn: '2026-11-18' }).ok === true);
   ok('observation: a bad valid-through date, quantity, extension and branch are refused',
-    R({ validThroughOn: 'soon' }).reason === 'bad_valid_through' && R({ qty: -1 }).reason === 'bad_qty' && R({ extCents: 1.5 }).reason === 'bad_ext' && R({ locationId: 'Main Branch' }).reason === 'bad_location');
+    R({ validThroughOn: 'soon' }).reason === 'bad_valid_through' && R({ qty: -1 }).reason === 'bad_qty' && R({ extCents: 11.11 }).reason === 'bad_ext' && R({ locationId: 'Main Branch' }).reason === 'bad_location');
   const sent = R({ compare: false, attested: true, source: { channel: 'abc_api' }, latest: {}, levelAtWrite: 1, catalogMicros: 1111, productId: 'p', supplierId: 's', match: 'exact', pack: PACK3, claimedKind: 'paid' });
   ok('observation: provenance a caller sends is not carried through', sent.ok && ['compare', 'attested', 'source', 'latest', 'levelAtWrite', 'catalogMicros', 'productId', 'supplierId', 'match', 'pack', 'claimedKind'].every((k) => !(k in sent.value)), Object.keys(sent.value || {}));
   ok('observation: a document type nobody knows becomes none; text is clipped', R({ doc: { type: 'memo', ref: 'TEST-' + 'R'.repeat(200) } }).value.doc.type === 'none' && R({ doc: { type: 'quote', ref: 'TEST-' + 'R'.repeat(200) } }).value.doc.ref.length === 80 && R({ note: 'n'.repeat(500) }).value.note.length === 200);
