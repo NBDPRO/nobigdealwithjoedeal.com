@@ -18,7 +18,13 @@ before relying on it; where a step says something was not read, it was not.
 |---|---|---|
 | Purchase sales tax applied to a supplier price going into the cost book | 7.8% | slice 3 (comparison), slice 4 (approval) |
 | Price move that raises an alert | 5% | slice 3 |
-| Margin floor a cost change is checked against | 20% (the same floor Jo set for thin tiers on 2026-11-09). A change that takes a product under it needs an explicit confirm; it is not a refusal | slice 4 |
+| Margin floor a cost change is checked against | 30% (Jo, 2026-11-17, after first answering 20%; 35% is the target he prices toward, not the floor). A change that takes a product under it needs an explicit confirm; it is not a refusal | slice 4 |
+
+The catalog's own price floor is a different thing and is still 20% after labor
+(`tests/catalog-price-floor-2026-11-09.test.js`, set 2026-11-09). The 54 products
+lifted then sit at about 20%, so they are under this 30% line until their sells
+are raised. Raising them is a separate pricing change that needs Jo's OK on a
+private before-and-after list; it is not part of slice 2.
 
 These are settings, not costs. They become `priceConfig/main` in slice 3.
 
