@@ -136,7 +136,7 @@ const est = (cost, extra) => Object.assign({ mode: 'cash', total: 10780, tax: 78
     });
     ok('the save payload carries the note', payload && payload.floorConfirm && payload.floorConfirm.by === 'u_owner' && payload.floorConfirm.marginPct === 20, payload && payload.floorConfirm);
     const src = read('estimate-v2-ui.js');
-    ok('a reopened estimate restores its own note, and a new estimate starts with none', /state\.floorConfirm = \(doc\.floorConfirm && typeof doc\.floorConfirm === 'object'\)/.test(src) && /floorConfirm: state\.floorConfirm,\r?\n  \}\);/.test(src));
+    ok('a reopened estimate restores its own note, and a new estimate starts with none', /state\.floorConfirm = \(doc\.floorConfirm && typeof doc\.floorConfirm === 'object'\)/.test(src) && /const _FRESH_ESTIMATE = JSON\.stringify\(\{[\s\S]{0,900}?floorConfirm: state\.floorConfirm,/.test(src));
     const order = (fn, a, b) => { const body = src.slice(src.indexOf(fn)); const i = body.indexOf(a), j = body.indexOf(b); return i !== -1 && j !== -1 && i < j; };
     ok('the deal link gates before it saves, so a confirm is saved with the estimate', order('async function _prepareDealLink(say) {', '_floorGate(estimate, say)', 'await save()'));
     ok('send for signature gates before it saves', order('async function sendForSignature(opts) {', "return 'floor';", 'save({'));

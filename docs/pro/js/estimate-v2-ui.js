@@ -249,7 +249,15 @@
     // owner or admin confirms sending this estimate under the company's floor
     // ({ by, role, marginPct, floorPct, atMs }), else null. Saved and reopened;
     // never customer-facing.
-    floorConfirm: null
+    floorConfirm: null,
+    // "Use this price" (2026-11-17): a per-ESTIMATE raise that brings a
+    // line-item job up to the company's margin floor. floorMarkupPct replaces
+    // the shop's material markup for this estimate only (line prices rise, the
+    // printed Profit % does not move); floorProfitPct is the fallback for a
+    // job with no material to mark up. null = the shop's own rates. Saved and
+    // reopened; the shop's Settings are never touched.
+    floorMarkupPct: null,
+    floorProfitPct: null
   };
 
   // The per-estimate half of `state` as it stands at page load — what "a new
@@ -263,6 +271,7 @@
     minJobCharge: state.minJobCharge, jobType: state.jobType, workKind: state.workKind,
     upgrades: state.upgrades, upgradeLog: state.upgradeLog,
     floorConfirm: state.floorConfirm,
+    floorMarkupPct: state.floorMarkupPct, floorProfitPct: state.floorProfitPct,
   });
 
   // ── Job Template estimates reopened here (review 2026-09-25) ───────
@@ -2946,6 +2955,13 @@
       const shopMin = shopRepairMinimum();
       if (shopMin > 0) settings.minJobCharge = shopMin;
     }
+    // "Use this price": this estimate's own raise to the margin floor, over
+    // the shop's rates. Never on an insurance scope (exempt from the floor).
+    if (state.jobMode !== 'insurance') {
+      const fm = _floorPctOrNull(state.floorMarkupPct), fp = _floorPctOrNull(state.floorProfitPct);
+      if (fm !== null) settings.materialMarkupPct = fm;
+      if (fp !== null) settings.profitPct = fp;
+    }
     // Resolve catalog scope first. If there are no catalog items,
     // start with an empty shell so the pass-through lines can
     // produce a valid { lines, subtotal, total } structure.
@@ -3805,16 +3821,104 @@
     const facts = 'This job is at ' + v.marginPct.toFixed(1) + '% margin before tax. Your company floor is ' + floor + '%.'
       + (need ? ' A price of $' + Math.ceil(need / 100).toLocaleString() + ' before tax reaches it.' : '');
     const role = MF.callerRole();
-    if (!MF.canFinalizeUnder(role)) {
-      const msg = facts + ' Raise the price, or save it as a draft for an owner or admin to send.';
+    const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
+    const tell = (msg) => {
       if (typeof say === 'function') say(msg, 'error');
       if (typeof window.showToast === 'function') window.showToast(msg, 'warning');
+    };
+
+    // 1. Offer the raise (anyone; it only ever raises this estimate's price).
+    const plan = _floorRaisePlan();
+    if (plan.ok) {
+      const how = plan.kind === 'profit'
+        ? ' This job has no material to mark up, so the raise goes on the profit percentage, which the customer document prints (' + Math.round(plan.pct * 100) + '%).'
+        : ' The line prices rise; the profit percentage on the customer document stays as it is.';
+      const use = await ask(facts + ' Raise this estimate to $' + Math.round(plan.preTaxCents / 100).toLocaleString() + ' before tax ($' + Math.round(plan.totalCents / 100).toLocaleString() + ' with tax)?' + how);
+      if (use) {
+        _floorRaiseApply(plan);
+        if (typeof window.showToast === 'function') window.showToast('Price raised to reach your floor. This estimate only; your Settings are unchanged.', 'ok');
+        return true;
+      }
+    }
+
+    // 2. Not raised. A rep or a manager stops here; a draft still saves.
+    if (!MF.canFinalizeUnder(role)) {
+      tell(facts + (plan.ok ? '' : ' ' + _FLOOR_NO_RAISE[plan.reason]) + ' Raise the price, or save it as a draft for an owner or admin to send.');
       return false;
     }
-    const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
-    const yes = await ask(facts + ' Send it at this price anyway?');
+
+    // 3. The owner or a company admin may send it as it is, with a private note.
+    const yes = await ask(facts + (plan.ok ? '' : ' ' + _FLOOR_NO_RAISE[plan.reason]) + ' Send it at this price anyway?');
     if (!yes) return false;
-    state.floorConfirm = MF.confirmNote({ uid: (window._user && window._user.uid) || '', role: role, marginPct: v.marginPct, floorPct: floor, atMs: Date.now() });
+    let reason = '';
+    if (typeof window.nbdPrompt === 'function') {
+      try { reason = String((await window.nbdPrompt('Reason for going under your floor (optional, kept private):', '')) || '').replace(/\s+/g, ' ').trim().slice(0, 200); } catch (_) { reason = ''; }
+    }
+    const note = MF.confirmNote({ uid: (window._user && window._user.uid) || '', role: role, marginPct: v.marginPct, floorPct: floor, atMs: Date.now() });
+    if (note && reason) note.reason = reason;
+    state.floorConfirm = note;
+    return true;
+  }
+
+  // A stored per-estimate rate: a finite number from 0 up to 10 (1000%), else null.
+  function _floorPctOrNull(v) {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    return (Number.isFinite(n) && n >= 0 && n <= 10) ? n : null;
+  }
+  const _FLOOR_NO_RAISE = {
+    per_sq: 'This is a per-square price, so it is raised with the price per square, not here.',
+    no_cost: 'There is no cost on this job to work a price from.',
+    no_reach: 'No raise on this estimate reaches the floor.',
+    not_under: '',
+  };
+
+  // What "Use this price" would do to THIS estimate, without doing it:
+  //   { ok, kind: 'markup' | 'profit', pct, preTaxCents, totalCents }
+  // or { ok: false, reason }. It tries the real engine with a trial rate and
+  // keeps the smallest rate (to a tenth of a percent) at which the job is no
+  // longer under the floor, so rounding, a minimum charge, upgrades, fees and
+  // a discount are all accounted for by the same code that prices the job.
+  // State is restored before it returns.
+  function _floorRaisePlan() {
+    const MF = window.NBDMarginFloor;
+    const fail = (reason) => ({ ok: false, reason: reason });
+    if (!MF) return fail('not_under');
+    if (state.jobMode === 'insurance') return fail('not_under');
+    if (_perSqOverlayApplies()) return fail('per_sq');
+    const keepClean = state._reopenedClean, keepM = state.floorMarkupPct, keepP = state.floorProfitPct;
+    const restore = () => { state._reopenedClean = keepClean; state.floorMarkupPct = keepM; state.floorProfitPct = keepP; };
+    try {
+      state._reopenedClean = false;
+      const before = getCurrentEstimate();
+      if (!before) return fail('no_cost');
+      const v0 = MF.view(before);
+      if (v0.state !== 'under') return fail(v0.known ? 'not_under' : 'no_cost');
+      const kind = (Number(before.materialCost) > 0) ? 'markup' : 'profit';
+      const key = kind === 'markup' ? 'floorMarkupPct' : 'floorProfitPct';
+      const base = Number(kind === 'markup' ? before.materialMarkupPct : before.profitPct);
+      const lo0 = Number.isFinite(base) && base >= 0 ? base : 0;
+      const clears = (pct) => { state[key] = pct; const e = getCurrentEstimate(); return (e && MF.view(e).state !== 'under') ? e : null; };
+      // Whole tenths of a percent, so the stored rate is short and exact enough.
+      let lo = Math.round(lo0 * 1000), hi = lo + 5000;          // up to +500 points
+      if (!clears(hi / 1000)) return fail('no_reach');
+      while (hi - lo > 1) { const mid = Math.floor((lo + hi) / 2); if (clears(mid / 1000)) hi = mid; else lo = mid; }
+      const after = clears(hi / 1000);
+      if (!after) return fail('no_reach');
+      const j = MF.jobFromEstimate(after);
+      return { ok: true, kind: kind, pct: hi / 1000, preTaxCents: j.preTaxCents, totalCents: Math.round(Number(after.total) * 100) };
+    } catch (e) {
+      return fail('no_reach');
+    } finally { restore(); }
+  }
+
+  // Apply a plan from _floorRaisePlan to this estimate (never to Settings).
+  function _floorRaiseApply(plan) {
+    if (!plan || plan.ok !== true) return false;
+    if (plan.kind === 'markup') state.floorMarkupPct = plan.pct; else state.floorProfitPct = plan.pct;
+    state._reopenedClean = false;   // re-resolve live, stop replaying the saved numbers
+    state.floorConfirm = null;      // the job is no longer under the floor
+    try { if (typeof render === 'function') render(); } catch (_) { /* nothing to draw in a test or a closed builder */ }
     return true;
   }
 
@@ -4672,6 +4776,8 @@
       memberDiscount: estimate.memberDiscount ? Object.assign({}, estimate.memberDiscount) : null,
       // Margin floor: the private under-floor confirm, or null. Internal only.
       floorConfirm: (state.floorConfirm && typeof state.floorConfirm === 'object') ? Object.assign({}, state.floorConfirm) : null,
+      floorMarkupPct: _floorPctOrNull(state.floorMarkupPct),
+      floorProfitPct: _floorPctOrNull(state.floorProfitPct),
     });
   }
 
@@ -4994,6 +5100,9 @@
     state.minJobCharge = _savedMinJobCharge(doc, state.passThru);
     // The under-floor confirm belongs to the doc, never to the previous session.
     state.floorConfirm = (doc.floorConfirm && typeof doc.floorConfirm === 'object') ? Object.assign({}, doc.floorConfirm) : null;
+    // The per-estimate floor raise, so an edit after reopening keeps it.
+    state.floorMarkupPct = _floorPctOrNull(doc.floorMarkupPct);
+    state.floorProfitPct = _floorPctOrNull(doc.floorProfitPct);
     // Upgrade rows (stage 2, 2026-09-25): kept whole, out of the catalog
     // scope, and re-added after the engine by _applyUpgradeLines — the same
     // "restore it or the first edit drops it" fix as the fees above, plus tax.
@@ -6738,6 +6847,8 @@
       applyNote: applyNote,   // tests/estimate-reopen-min-job-2026-11-14.test.js
       marginLineHtml: _marginLineHtml,   // tests/margin-floor-display-2026-11-17.test.js
       floorGate: _floorGate,             // tests/margin-floor-gate-2026-11-17.test.js
+      floorRaisePlan: _floorRaisePlan,   // tests/margin-floor-use-price-2026-11-17.test.js
+      floorRaiseApply: _floorRaiseApply,
       floorConfirm: function (v) { if (arguments.length) state.floorConfirm = v; return state.floorConfirm; },
       collectDraft: collectDraft,
       getState: () => state,
