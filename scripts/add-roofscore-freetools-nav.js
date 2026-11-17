@@ -39,7 +39,7 @@ const DESK_INSERT = '<li><a href="/roof-score" style="color:var(--orange-light,#
 const MOB_ANCHOR = /<a href="\/storm-alerts" style="color:#f08030">Storm Alerts<\/a>/;
 const MOB_INSERT_BEFORE = '<a href="/roof-score" style="color:#f08030">Roof Score</a>\n  ';
 
-const MOB_STORM_CHECK = /<a href="\/storm-check" style="color:#f08030">Is It Worth a Claim\?<\/a>/;
+const MOB_STORM_CHECK = /<a href="\/storm-check" style="color:#f08030">Storm Damage Check<\/a>/;
 const MOB_INSERT_AFTER = '\n  <a href="/inspect" style="color:#f08030">Free 24-Hr Inspection</a>\n  <a href="/free-tools" style="color:#f08030">All Free Tools</a>';
 
 let deskTouched = 0, mobTouched = 0, bothTouched = 0, alreadyDone = 0;
@@ -61,7 +61,7 @@ for (const file of PAGES) {
     hitMob = true;
   }
   if (MOB_STORM_CHECK.test(next)) {
-    next = next.replace(MOB_STORM_CHECK, '<a href="/storm-check" style="color:#f08030">Is It Worth a Claim?</a>' + MOB_INSERT_AFTER);
+    next = next.replace(MOB_STORM_CHECK, '<a href="/storm-check" style="color:#f08030">Storm Damage Check</a>' + MOB_INSERT_AFTER);
   }
 
   if (next !== orig) {
