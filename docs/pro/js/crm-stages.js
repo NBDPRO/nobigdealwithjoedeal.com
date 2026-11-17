@@ -1329,3 +1329,27 @@ export function resolvePipelineConfig(raw) {
 
   return { stageMeta, views, roleOf, errors };
 }
+
+/**
+ * Tenant-aware stage classifiers that read the pipeline config at CALL time
+ * (repo sweep 2026-11-17, M2). customer.html used the static stageRole above,
+ * which only knows built-in keys, so a tenant's custom won / lost / job stage
+ * read as 'new' there and stage-write.js saved stageRole:'new' with no
+ * closedAt or lost reason. Same rules as dashboard-bootstrap's
+ * applyPipelineConfig. getPipelines() → companyProfile.pipelines (or
+ * nothing); a getter or resolve that throws falls back to the built-in roles.
+ */
+export function liveRoleHelpers(getPipelines) {
+  const roleOf = (k) => {
+    let raw = null;
+    try { raw = typeof getPipelines === 'function' ? getPipelines() : null; } catch (_) { raw = null; }
+    try { return resolvePipelineConfig(raw || null).roleOf(k); } catch (_) { return stageRole(k); }
+  };
+  return {
+    stageRole: roleOf,
+    isWonStage: (k) => roleOf(k) === ROLE.WON,
+    isLostStage: (k) => roleOf(k) === ROLE.LOST,
+    isJobStage: (k) => { const r = roleOf(k); return normalizeStage(k) === S.CONTRACT_SIGNED || r === ROLE.JOB || r === ROLE.WON; },
+    isTerminalStage: (k) => { const r = roleOf(k); return r === ROLE.WON || r === ROLE.LOST; },
+  };
+}

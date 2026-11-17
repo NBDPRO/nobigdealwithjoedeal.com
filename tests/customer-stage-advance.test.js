@@ -120,8 +120,11 @@ ok('…and progressStage itself no longer calls updateDoc directly for the stage
   'a surviving direct updateDoc means the transaction is being bypassed on this path');
 ok('runTransaction is exposed on window (so commitStageChange gets the guard here, not the racy fallback)',
   /window\.runTransaction\s*=\s*runTransaction/.test(boot));
-ok('window.stageRole is wired (so stage-write.js stamps stageRole from this page too)',
-  /window\.stageRole\s*=\s*_stageRole/.test(boot));
+// 2026-11-17 (repo sweep M2): tenant-aware via crm-stages.js liveRoleHelpers,
+// not the static _stageRole (a custom won stage saved stageRole:'new').
+// tests/customer-custom-stage-role-2026-11-17.test.js covers the behaviour.
+ok('window.stageRole is wired tenant-aware (so stage-write.js stamps the custom stage\'s own role from this page too)',
+  /window\.stageRole\s*=\s*_liveRoles\.stageRole/.test(boot) && !/window\.stageRole\s*=\s*_stageRole\s*;/.test(boot));
 ok('window.stageLabel is wired tenant-aware (so activity notes use the resolved label, not just the raw key)',
   /window\.stageLabel\s*=\s*\(k\)\s*=>/.test(boot) && /_resolvePipelineConfig\(window\._companyProfile/.test(boot));
 
