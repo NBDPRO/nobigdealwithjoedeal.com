@@ -32,6 +32,12 @@ function walk(dir, out) {
 }
 const doc = (r) => K.parseTags(K.read(r));
 const squash = (s) => s.replace(/\s+/g, ' ').trim();
+const LEX = new Set(['areas/lexington-ky', 'areas/georgetown-ky', 'areas/richmond-ky', 'areas/winchester-ky', 'areas/nicholasville-ky', 'areas/versailles-ky',
+  'services/hail-damage-lexington-ky', 'services/storm-damage-lexington-ky', 'services/roof-replacement-lexington-ky'].map((p) => 'docs/' + p + '.html'));
+const LEX_CAL = 'https://cal.com/nobigdeal/roof-inspection-lexington';
+// Eight towns keep their 2026-10-07 Search Console titles; six keep that pass's descriptions too
+const GSC_TITLE = new Set(['fort-mitchell-ky', 'indian-hill-oh', 'amelia-oh', 'mt-orab-oh', 'loveland-oh', 'montgomery-oh', 'mason-oh', 'cincinnati-oh']);
+const GSC_DESC = new Set(['fort-mitchell-ky', 'indian-hill-oh', 'amelia-oh', 'mt-orab-oh', 'loveland-oh', 'montgomery-oh']);
 const pages = [...walk(path.join(DOCS, 'areas'), []), ...walk(path.join(DOCS, 'services'), [])];
 const docs = new Map(pages.map((r) => [r, doc(r)]));
 
@@ -42,7 +48,7 @@ section('1. one booking path on area and service pages');
     for (const a of d.$$('a')) {
       const href = a.attr('href') || '';
       const label = squash(a.text);
-      if (href.startsWith('https://cal.com/')) bad.cal.push(r);
+      if (href.startsWith('https://cal.com/') && !(LEX.has(r) && href === LEX_CAL)) bad.cal.push(r);
       if (/Email Joe/.test(label)) bad.email.push(r);
       if (label === 'Request Estimate') bad.req.push(r);
       if (href === '/#contact' && a.classes.some((c) => c.startsWith('btn-')) && /^(Get My Free Estimate|Request Estimate)/.test(label)) bad.contact.push(r);
@@ -52,6 +58,11 @@ section('1. one booking path on area and service pages');
   ok('no "Email Joe" link', bad.email.length === 0, bad.email.slice(0, 3).join(', '));
   ok('no "Request Estimate" button', bad.req.length === 0, bad.req.slice(0, 3).join(', '));
   ok('no /#contact estimate button', bad.contact.length === 0, bad.contact.slice(0, 3).join(', '));
+  const lexBad = [...LEX].filter((r) => {
+    const a = docs.get(r).$$('.cta-section a, .final-cta a').filter((x) => (x.attr('href') || '') === LEX_CAL);
+    return a.length !== 1 || squash(a[0].text) !== 'Book a free inspection' || a[0].attr('target') !== '_blank' || !a[0].attr('rel').includes('noopener');
+  });
+  ok('the 9 Central KY pages book on the Lexington cal.com event (/inspect cannot route Lexington)', LEX.size === 9 && lexBad.length === 0, lexBad.join(', '));
   const fl = docs.get('docs/areas/florence-ky.html').$$('.cta-section a').map((a) => (a.attr('href') || '') + ' | ' + squash(a.text));
   ok('Florence final CTA is the phone link then /inspect "Book a free inspection"',
     fl.length === 2 && fl[0].startsWith('tel:+18594207382') && fl[1] === '/inspect | Book a free inspection', fl.join(' ;; '));
@@ -108,21 +119,42 @@ section('5. town pages: one title pattern, own description, own Cincinnati H1');
     const d = docs.get(r);
     const title = squash(d.$('title').text).replace(/&amp;/g, '&');
     const desc = meta(d, 'name', 'description');
-    if (title !== 'Roofing, Siding & Gutters in ' + t.town + ', ' + t.state + ' | NBD' || title.length > 60) titleBad.push(r + ' => ' + title);
+    if (!GSC_TITLE.has(t.slug) && (title !== 'Roofing, Siding & Gutters in ' + t.town + ', ' + t.state + ' | NBD' || title.length > 60)) titleBad.push(r + ' => ' + title);
+    if (GSC_TITLE.has(t.slug) && !title.startsWith(t.town + ', ' + t.state + ' Roofer | ')) titleBad.push(r + ' lost its GSC title => ' + title);
     if (!d.$('title').html.includes('&amp;') || /&(?!amp;)/.test(d.$('title').html)) ampBad.push(r);
-    if (desc.length < 120 || desc.length > 155 || !desc.includes(t.town + ', ' + t.state) || !desc.includes(String(t.housing.medianYearBuilt))) descBad.push(r + ' (' + desc.length + ')');
+    if (desc.length < 120 || desc.length > 155 || (!GSC_DESC.has(t.slug) && (!desc.includes(t.town + ', ' + t.state) || !desc.includes(String(t.housing.medianYearBuilt))))) descBad.push(r + ' (' + desc.length + ')');
     if (seen.has(desc)) dup.push(r + ' = ' + seen.get(desc)); else seen.set(desc, r);
     const ogt = meta(d, 'property', 'og:title');
     if (ogt !== meta(d, 'name', 'twitter:title') || !ogt.startsWith('Roofing, Siding & Gutters in ' + t.town) ||
       meta(d, 'property', 'og:description') !== desc || meta(d, 'name', 'twitter:description') !== desc) socialBad.push(r);
   }
-  ok(towns.length + ' town pages share the title "Roofing, Siding & Gutters in <Town>, <ST> | NBD" (<= 60 chars)', titleBad.length === 0, titleBad.slice(0, 3).join(' | '));
+  ok((towns.length - GSC_TITLE.size) + ' town pages share the title "Roofing, Siding & Gutters in <Town>, <ST> | NBD" (<= 60 chars); the 8 GSC towns keep "<Town>, <ST> Roofer | ..."', titleBad.length === 0, titleBad.slice(0, 3).join(' | '));
   ok('every & in a title is written &amp;', ampBad.length === 0, ampBad.slice(0, 3).join(', '));
-  ok('every description is 120-155 chars and names its town and its Census build year', descBad.length === 0, descBad.slice(0, 3).join(' | '));
+  ok('every description is 120-155 chars; the generated ones name their town and Census build year', descBad.length === 0, descBad.slice(0, 3).join(' | '));
   ok('no two town descriptions are the same', dup.length === 0, dup.slice(0, 3).join(' | '));
   ok('og/twitter titles and descriptions agree with the page', socialBad.length === 0, socialBad.slice(0, 3).join(', '));
   const h1 = squash(docs.get('docs/areas/cincinnati-oh.html').$('h1').text);
   ok('Cincinnati area H1 does not repeat the homepage "Cincinnati roofer" wording', h1 !== '' && !h1.toLowerCase().includes('roofer'), h1);
+}
+
+section('6. follow-ups: unsourced / outcome wording, breadcrumbs, remaining booking buttons');
+{
+  const flo = squash(docs.get('docs/areas/florence-ky.html').$('.city-hero-content p').text);
+  ok('Florence hero no longer claims "busiest roofing market" or that other contractors won\'t cross the river', !flo.includes('busiest') && !flo.includes('cross the river') && flo.includes('same pricing'), flo);
+  const cl = docs.get('docs/services/hail-damage-clarksville-oh.html');
+  const clText = cl.$$('.faq-a').map((e) => squash(e.text)).join(' ') + cl.$$('script[type="application/ld+json"]').map((e) => e.html).join(' ');
+  ok('Clarksville no longer says "you have a claim right" or "definitively"', !clText.includes('claim right') && !clText.includes('definitively') && clText.includes('so you can decide whether to file a claim'));
+  const an = squash(docs.get('docs/services/roof-repair-anderson-township-oh.html').$$('.inc-item').map((e) => e.text).join(' | '));
+  ok('Anderson Twp roof-repair scope no longer says it identifies if a claim is worth pursuing', !an.includes('worth pursuing') && an.includes('documents the damage so you can decide whether to file a claim'));
+  const hail = pages.filter((r) => /^docs\/services\/hail-damage-[a-z-]+-(oh|ky)\.html$/.test(r) && !r.endsWith('insurance-claim.html'));
+  const crumb = hail.filter((r) => { const d = docs.get(r); return d.$$('.breadcrumb span, .breadcrumb a').some((e) => squash(e.text).startsWith('Hail Damage Repair')) || d.$$('script[type="application/ld+json"]').some((e) => e.html.includes('Hail Damage Repair')); });
+  ok(hail.length + ' hail town pages: breadcrumbs say "Hail Damage Inspection", not "Repair"', crumb.length === 0, crumb.slice(0, 3).join(', '));
+  const ic = docs.get('docs/services/hail-damage-insurance-claim.html').$$('.final-cta a').map((a) => a.attr('href'));
+  ok('hail-damage-insurance-claim final CTA books through /inspect, not /book', ic.includes('/inspect') && !ic.includes('/book'), ic.join(', '));
+  const cp = docs.get('docs/services/roof-care-plan.html');
+  const cpBook = cp.$$('a').filter((a) => squash(a.text) === 'Book a free inspection');
+  ok('roof-care-plan "start with an inspection" links are /inspect "Book a free inspection"', cpBook.length === 3 && cpBook.every((a) => a.attr('href') === '/inspect') && !cp.$$('a').some((a) => squash(a.text).startsWith('Start with a free inspection')), String(cpBook.length));
+  ok('roof-care-plan keeps its plan sign-up buttons', cp.$$('a[data-careplan-cta]').length >= 2);
 }
 
 T.done();

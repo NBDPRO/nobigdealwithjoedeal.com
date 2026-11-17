@@ -42,14 +42,23 @@ function walk(dir, out) {
 }
 const rel = (p) => path.relative(DOCS, p).split(path.sep).join('/');
 
+// Central KY pages book on the Lexington cal.com event: /inspect's "Pick My Time"
+// is hardcoded to the Cincinnati event and cannot route Lexington leads (Jo, 2026-11-17).
+const LEX_CAL = 'https://cal.com/nobigdeal/roof-inspection-lexington';
+const LEX_PAGES = new Set(['areas/lexington-ky.html', 'areas/georgetown-ky.html', 'areas/richmond-ky.html', 'areas/winchester-ky.html',
+  'areas/nicholasville-ky.html', 'areas/versailles-ky.html', 'services/hail-damage-lexington-ky.html',
+  'services/storm-damage-lexington-ky.html', 'services/roof-replacement-lexington-ky.html']);
+
 // ── 1. CTA ────────────────────────────────────────────────────────────
-function ctaButtons(h) {
+function ctaButtons(h, lex) {
   // cal.com buttons -> /inspect. Keep the calendar icon and the arrow if there was one.
   h = h.replace(/<a href="https:\/\/cal\.com\/[^"]*"[^>]*?class="(btn-cal|btn-white)"[^>]*>([\s\S]*?)<\/a>/g, (m, cls, inner) => {
     const svg = (inner.match(/<svg[\s\S]*?<\/svg>/) || [''])[0];
     const arrow = /→|&rarr;/.test(inner) ? ' →' : '';
-    return '<a href="/inspect" class="' + cls + '">' + (svg ? svg + ' ' : '') + 'Book a free inspection' + arrow + '</a>';
+    const open = lex ? '<a href="' + LEX_CAL + '" target="_blank" rel="noopener noreferrer" class="' + cls + '">' : '<a href="/inspect" class="' + cls + '">';
+    return open + (svg ? svg + ' ' : '') + 'Book a free inspection' + arrow + '</a>';
   });
+  if (lex) h = h.replace(/<a href="\/inspect" class="(btn-cal|btn-white)">/g, '<a href="' + LEX_CAL + '" target="_blank" rel="noopener noreferrer" class="$1">');
   // "Email Joe" mailto and "Request Estimate" -> gone (own line, with its indent)
   h = h.replace(/\n[ \t]*<a href="mailto:[^"]*"[^>]*>[^<]*Email Joe<\/a>/g, '');
   h = h.replace(/\n[ \t]*<a href="\/#contact"[^>]*>Request Estimate<\/a>/g, '');
@@ -77,14 +86,29 @@ function heroProof(h) {
 
 // ── 4. area titles / descriptions ─────────────────────────────────────
 const escAmp = (s) => s.replace(/&/g, '&amp;');
+// Eight towns keep the 2026-10-07 Search Console titles ("<Town> Roofer | ...", see
+// tests/seo-gsc-titles-2026-10-07.test.js); six of them keep that pass's descriptions too
+// (Mason and Cincinnati had none pinned and take the generated one). Jo, 2026-11-17.
+const GSC = {
+  'fort-mitchell-ky': ['Fort Mitchell, KY Roofer | Roof Repair & Replacement | NBD', 'Roof repair, replacement and gutters in Fort Mitchell, KY. Half the homes here date to 1971 or earlier. Free inspection from Joe himself. Fully insured.'],
+  'indian-hill-oh': ['Indian Hill, OH Roofer | Roof Repair & Replacement | NBD', 'Roofing, siding and gutters in Indian Hill, OH. Half the homes here date to 1974 or earlier. Joe gets on your roof himself for a free inspection.'],
+  'amelia-oh': ['Amelia, OH Roofer | Roof Repair & Free Estimates | NBD', 'Roof repair, replacement and siding in Amelia, OH. Half the homes here date to 1995 or earlier. Free inspection and estimate from Joe. Fully insured.'],
+  'mt-orab-oh': ['Mt. Orab, OH Roofer | Roof Repair & Replacement | NBD', 'Roof repair, leak repair and roof replacement in Mount Orab, OH. Half the homes in Mt. Orab date to 1994 or earlier. Free inspection from Joe himself.'],
+  'loveland-oh': ['Loveland, OH Roofer | Roofing, Siding & Gutters | NBD', 'Roofing, siding and gutters in Loveland, OH. Half the homes here date to 1985 or earlier. See real Loveland jobs, then book a free inspection.'],
+  'montgomery-oh': ['Montgomery, OH Roofer | Siding Contractor & Roofing | NBD', 'Roofing and siding in Montgomery, OH. Half the homes here date to 1976 or earlier. See Montgomery siding repairs with prices, then book a free inspection.'],
+  'mason-oh': ['Mason, OH Roofer | Roofing, Siding & Storm Damage | NBD', null],
+  'cincinnati-oh': ['Cincinnati, OH Roofer | Roofing, Siding & Storm Damage | NBD', null],
+};
 function areaHead(h, t) {
   const place = t.town + ', ' + t.state;
-  const title = 'Roofing, Siding & Gutters in ' + place + ' | NBD';
+  let title = 'Roofing, Siding & Gutters in ' + place + ' | NBD';
   const social = 'Roofing, Siding & Gutters in ' + place + ' | No Big Deal Home Solutions';
   const county = t.county.indexOf(' / ') < 0 ? ' (' + t.county + ')' : '';
   const lead = 'Roofing, siding and gutters in ' + place + '. The median home here was built in ' + t.housing.medianYearBuilt + county + '. ';
   let desc = lead + 'Free inspection from Joe Deal: (859) 420-7382.';
   if (desc.length > 155) desc = lead + 'Free inspection: (859) 420-7382.';
+  const g = GSC[t.slug];
+  if (g) { title = g[0]; if (g[1]) desc = g[1]; }
   h = h.replace(/<title>[^<]*<\/title>/, '<title>' + escAmp(title) + '</title>');
   h = h.replace(/(<meta name="description" content=")[^"]*(")/, '$1' + escAmp(desc) + '$2');
   h = h.replace(/(<meta property="og:title" content=")[^"]*(")/, '$1' + escAmp(social) + '$2');
@@ -116,6 +140,25 @@ function hailHeadings(h) {
 const MT_ORAB_OLD = 'My free inspection tells you definitively whether a claim is worth pursuing.';
 const MT_ORAB_NEW = 'My free inspection documents what is on your roof, with photos, so you can decide whether to file a claim.';
 
+// ── follow-ups (Jo, 2026-11-17) ───────────────────────────────────────
+const CLARKSVILLE_OLD = "My free inspection tells you definitively whether damage exists. If it does, you have a claim right. If it doesn't, you know where you stand.";
+const CLAIM_DOCS = 'My free inspection documents what is on your roof, with photos, so you can decide whether to file a claim.';
+const FLORENCE_OLD = "Florence's mix of residential neighborhoods and commercial corridors makes it Northern Kentucky's busiest roofing market. Many Cincinnati-based contractors won't cross the river — I do, with the same pricing and the same guarantees.";
+const FLORENCE_NEW = 'Florence mixes residential neighborhoods and commercial corridors. I work Northern Kentucky the same way I work Greater Cincinnati, with the same pricing and the same guarantees.';
+const ANDERSON_OLD = 'Storm damage assessment — identifies if a claim is worth pursuing';
+const ANDERSON_NEW = 'Storm damage assessment — documents the damage so you can decide whether to file a claim';
+function followUps(r, h) {
+  if (r === 'areas/florence-ky.html') h = h.split(FLORENCE_OLD).join(FLORENCE_NEW);
+  if (r === 'services/hail-damage-clarksville-oh.html') h = h.split(CLARKSVILLE_OLD).join(CLAIM_DOCS);
+  if (r === 'services/roof-repair-anderson-township-oh.html') h = h.split(ANDERSON_OLD).join(ANDERSON_NEW);
+  // serviceType is already "Hail Damage Roof Inspection"; what still said "Repair" is the
+  // breadcrumb (visible crumb + BreadcrumbList name) on the hail-damage town pages.
+  if (/^services\/hail-damage-[a-z-]+-(oh|ky)\.html$/.test(r) && r !== 'services/hail-damage-insurance-claim.html') h = h.split('Hail Damage Repair').join('Hail Damage Inspection');
+  if (r === 'services/hail-damage-insurance-claim.html') h = h.replace('Or book online: <a href="/book">see all appointment types →</a>', 'Or book online: <a href="/inspect">Book a free inspection →</a>');
+  if (r === 'services/roof-care-plan.html') h = h.replace(/<a href="\/services\/roof-inspection"([^>]*)>Start with a free inspection<\/a>/g, '<a href="/inspect"$1>Book a free inspection</a>');
+  return h;
+}
+
 // ── drive ─────────────────────────────────────────────────────────────
 const touched = new Map();
 function edit(file, fn) {
@@ -139,7 +182,8 @@ for (const f of all) {
   const other = !/^(blog\/|index\.html$)/.test(r);
   if (!(inAreas || inServices || other)) continue;
   edit(f, (h) => {
-    if (inAreas || inServices) h = ctaButtons(h);
+    if (inAreas || inServices) h = ctaButtons(h, LEX_PAGES.has(r));
+    h = followUps(r, h);
     if (other) h = annBar(h);
     if (inServices) h = heroProof(h);
     if (inAreas) {
