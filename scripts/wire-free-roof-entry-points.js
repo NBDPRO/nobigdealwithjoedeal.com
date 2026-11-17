@@ -94,7 +94,8 @@ for (const file of walk(ROOT)) {
   let html = fs.readFileSync(file, 'utf8');
   let changed = false;
 
-  const ann = injectAnnSlide(html);
+  // 2026-11-17 (Jo): the announcement-bar slide was removed site-wide; do not re-add it.
+  const ann = { html, changed: false }; // was injectAnnSlide(html)
   if (ann.changed) { html = ann.html; changed = true; stats.annAdded++; }
 
   const foot = injectFooterLink(html);
