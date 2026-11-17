@@ -1,8 +1,28 @@
 # Live supplier pricing, slice 3: supplier files, compare suppliers, alerts (2026-11-17)
 
-Status: **built on branch `claude/supplier-pricing-slice-3-d1af71` (2026-11-17),
-ships dark behind `supplierPricing`.** This note carries no cost, price or
-account number.
+Status: **merged (#3157) and deployed 2026-11-17, dark behind `supplierPricing`
+(on for Jo only).** This note carries no cost, price or account number.
+
+## Update 2026-11-17 (night): the reps' sheets are loaded
+
+With Jo's OK on each preview, in his browser, through Import prices:
+
+- Supplier accounts added: SRS (Peyton Van Horn; branches Florence, the usual
+  one, and Ft Thomas) and QXO (Jay Kirby; branch Cincinnati 291). Delivery fee
+  set at the middle of the range Jo gave; minimum order and account number left
+  blank.
+- SRS quote for Florence: 44 prices saved, 1 line skipped (priced at zero on
+  the quote). SRS quote for Ft Thomas: 18 prices saved; one line says TUB and
+  stays "needs a unit" until it is re-entered (the TUB fix came after it). Both
+  are before tax, good through 2026-11-22.
+- QXO: two quotes for one item, before tax, good through 2026-12-29 (the date
+  was in the saved line's own note).
+- All 63 items are unlinked. Next for Jo: link them (suggestions are shown),
+  set each pack size, and type the tax rate and alert threshold in Company
+  Settings. The source CSVs stay in his private money folder, not the repo.
+- Follow-up fixes in #3158: TUB as a unit, `live_price` as a price column, and
+  the result line no longer says "need a unit" for items that only lack a pack
+  size.
 
 - Lane note: [LIVE-SUPPLIER-PRICING-2026-11-17](LIVE-SUPPLIER-PRICING-2026-11-17.md)
 - Design: [LIVE-SUPPLIER-PRICING-DESIGN-2026-11-17](LIVE-SUPPLIER-PRICING-DESIGN-2026-11-17.md)

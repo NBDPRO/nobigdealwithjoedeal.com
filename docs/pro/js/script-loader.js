@@ -141,7 +141,7 @@
       // Supplier price history (2026-11-17, flag supplierPricing): hd-import.js
       // sends each receipt line to it as well. Same files and keys as the
       // estimates bundle; they do nothing while the flag is off.
-      'js/price-logic.js?v=3',
+      'js/price-logic.js?v=4',
       'js/price-ledger.js?v=3',
       // Receipt import search / filter + type-ahead job picker (2026-10-19): inert until the receiptSorterQueue flag is on.
       'css/receipt-review.css?v=1', 'js/receipt-filter-logic.js?v=1', 'js/receipt-review-ui.js?v=1',
@@ -282,12 +282,12 @@
       'js/price-book.js?v=2',
       // Supplier price ledger (2026-11-17, flag supplierPricing): the
       // "Stores & prices" sheet on each product card. Dark unless the flag is on.
-      'js/price-logic.js?v=3',
+      'js/price-logic.js?v=4',
       'css/price-ledger.css?v=2',
       'js/price-ledger.js?v=3',
       'js/price-offers-ui.js?v=3',
       // Slice 3: Import prices and Compare suppliers (owner / company admins).
-      'js/price-import.js?v=1',
+      'js/price-import.js?v=2',
       'js/price-compare-ui.js?v=1',
       'js/estimate-labor-catalog.js?v=2',
       'js/estimate-builder-v2.js?v=15',
