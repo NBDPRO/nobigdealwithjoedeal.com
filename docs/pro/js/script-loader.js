@@ -287,7 +287,7 @@
       'js/price-ledger.js?v=3',
       'js/price-offers-ui.js?v=3',
       // Slice 3: Import prices and Compare suppliers (owner / company admins).
-      'js/price-import.js?v=1',
+      'js/price-import.js?v=2',
       'js/price-compare-ui.js?v=1',
       'js/estimate-labor-catalog.js?v=2',
       'js/estimate-builder-v2.js?v=15',
