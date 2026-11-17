@@ -285,6 +285,7 @@ section.hx-hero{position:relative;padding:0;background:var(--navy-dark);color:va
 .hx-hero h1 span{color:var(--orange-light)}
 .hx-proof{list-style:none;margin:var(--s3) 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px var(--s3);font-size:.82rem;font-weight:700;color:var(--white)}
 .hx-proof li{display:inline-flex;align-items:center;gap:6px}
+.hx-storm{margin:var(--s2) 0 0;max-width:34em;font-size:.95rem;line-height:1.5;color:rgba(255,255,255,.92)}
 .hx-proof li::before{content:"";width:6px;height:6px;border-radius:100px;background:var(--orange)}
 .hx-cta{margin-top:var(--s4)}
 
@@ -306,6 +307,8 @@ section.hx-hero{position:relative;padding:0;background:var(--navy-dark);color:va
 .hj-note{font-size:.74rem;font-style:italic;color:var(--gray)}
 .hj-more{display:inline-flex;align-items:center;min-height:var(--tap);margin-top:var(--s1);font-weight:700;font-size:.92rem;color:var(--orange-dark);text-decoration:none}
 .hj-more:hover{text-decoration:underline}
+.home-jobs-note{background:var(--off-white);padding:0 0 var(--s5)}
+.home-jobs-note p{margin:0;font-size:.85rem;color:var(--gray)}
 
 /* HOW: what happens when you book — a timeline, not icon cards */
 section.home-how{background:var(--navy-dark);color:var(--white);padding:var(--s6) 0}
@@ -660,6 +663,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 </script>
 <!-- /nbd:partial schema-entity -->
 <link rel="stylesheet" href="/assets/css/nbd-nav.css">
+<link rel="stylesheet" href="/assets/css/quick-lead-form.css">
 <link rel="stylesheet" href="/assets/css/hero-video.css?v=1">
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
@@ -758,10 +762,15 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   <p class="hx-cap">The crew I bring in &middot; <b>real job</b>, not stock</p>
   <div class="hx-wrap">
     <h1>The Cincinnati &amp; N. KY roofer <span>who answers his own phone.</span></h1>
+    <p class="hx-storm">Hail or wind damage? I document it with photos, and if you file a claim I meet your adjuster. Whether to file is your call.</p>
     <ul class="hx-proof" aria-label="Credentials">
       <li>GAF Certified&trade;</li>
       <li>TAMKO Pro Gold</li>
-      <li><span><span data-nbd-gr-rating-wrap hidden><span data-nbd-gr-rating></span> on Google</span><span data-nbd-gr-rating-fallback>Real Google reviews</span></span></li>
+      <li>Fully insured</li>
+      <!-- Google chip: ships hidden and empty, no static fallback (2026-11-17).
+           google-reviews-widget.js reveals it only once a live rating arrives,
+           so a failed fetch leaves no "Real Google reviews" claim without proof. -->
+      <li data-nbd-gr-rating-wrap hidden><span data-nbd-gr-rating></span> on Google</li>
       <li>Cincinnati &amp; N. KY</li>
     </ul>
     <div class="hx-cta">
@@ -807,6 +816,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   </div>
 </section>
 <!-- OURWORK-HOME-END -->
+<div class="home-jobs-note"><div class="hx-wrap"><p>Each job above is a full roof replacement, not a repair.</p></div></div>
 
 <!-- WHAT HAPPENS WHEN YOU BOOK — #process and #about are inbound anchors
      from ~45 pages' nav/footer, so both ids live here. -->
@@ -856,45 +866,6 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   </div>
 </section>
 
-<!-- WELCOME VIDEO: "Meet Thursday", a 34-second self-hosted look at the free
-     inspection (Jo, 2026-10-05; re-finished in Remotion 2026-10-06; v3 cut live 2026-10-07). One place to swap it: replace the files
-     /assets/video/thursday-welcome.mp4 + .en.vtt and
-     /assets/img/thursday-welcome-poster.webp, then bump ?v= in this block.
-     No autoplay; preload="none" fetches nothing until Play. The width/height
-     attributes + aspect-ratio reserve the box (CLS 0). media-src 'self' is
-     already in the firebase.json CSP. tests/home-welcome-video-2026-10-05.test.js -->
-<style>
-.intro-video-section{background:var(--off-white);padding:var(--s6) 0}
-.iv-grid{display:grid;gap:var(--s3);align-items:center}
-.iv-copy{text-align:center}
-.intro-video-section .eyebrow{color:var(--orange-dark);margin-bottom:6px}
-.intro-video-section .sec-title{margin:0 0 10px}
-.iv-desc{color:var(--gray);line-height:1.6;font-size:1rem;max-width:34em;margin:0 auto}
-.iv-frame{width:100%;max-width:260px;margin:0 auto}
-.iv-video{display:block;width:100%;height:auto;aspect-ratio:9/16;border-radius:8px;background:var(--navy-dark);box-shadow:0 14px 40px rgba(18,34,61,.25)}
-.iv-video:focus-visible{outline:3px solid var(--orange);outline-offset:3px}
-@media(min-width:769px){
-  .iv-grid{grid-template-columns:minmax(0,1fr) 300px;gap:var(--s5)}
-  .iv-copy{text-align:left}
-  .iv-desc{margin:0}
-  .iv-frame{max-width:300px}
-}
-</style>
-<section class="intro-video-section" id="intro-video" aria-labelledby="iv-h">
-  <div class="hx-wrap iv-grid">
-    <div class="iv-copy">
-      <p class="eyebrow">Meet Thursday</p>
-      <h2 class="sec-title" id="iv-h">A quick look at your <span>free inspection</span></h2>
-      <p class="iv-desc">About 30 seconds on what happens when Joe comes out: what he checks on the roof, the photos you get, and your options after. Thursday is our AI presenter.</p>
-    </div>
-    <div class="iv-frame">
-      <video class="iv-video" controls playsinline preload="none" width="540" height="960" poster="/assets/img/thursday-welcome-poster.webp?v=3" aria-label="Meet Thursday, our AI presenter: a quick look at your free inspection" title="Meet Thursday, our AI presenter">
-        <source src="/assets/video/thursday-welcome.mp4?v=3" type="video/mp4">
-        <track kind="captions" src="/assets/video/thursday-welcome.en.vtt?v=3" srclang="en" label="English">
-      </video>
-    </div>
-  </div>
-</section>
 
 <section class="reviews-section" id="reviews">
   <div class="section-inner">
@@ -937,6 +908,48 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   </div>
 </section>
 <script src="/assets/js/google-reviews-widget.js" defer></script>
+
+<!-- WELCOME VIDEO: "Meet Thursday", a 34-second self-hosted look at the free
+     inspection (Jo, 2026-10-05; re-finished in Remotion 2026-10-06; v3 cut live 2026-10-07). One place to swap it: replace the files
+     /assets/video/thursday-welcome.mp4 + .en.vtt and
+     /assets/img/thursday-welcome-poster.webp, then bump ?v= in this block.
+     No autoplay; preload="none" fetches nothing until Play. The width/height
+     attributes + aspect-ratio reserve the box (CLS 0). media-src 'self' is
+     already in the firebase.json CSP. tests/home-welcome-video-2026-10-05.test.js -->
+<style>
+.intro-video-section{background:var(--off-white);padding:var(--s6) 0}
+.iv-grid{display:grid;gap:var(--s3);align-items:center}
+.iv-copy{text-align:center}
+.intro-video-section .eyebrow{color:var(--orange-dark);margin-bottom:6px}
+.intro-video-section .sec-title{margin:0 0 10px}
+.iv-desc{color:var(--gray);line-height:1.6;font-size:1rem;max-width:34em;margin:0 auto}
+.iv-frame{width:100%;max-width:260px;margin:0 auto}
+.iv-video{display:block;width:100%;height:auto;aspect-ratio:9/16;border-radius:8px;background:var(--navy-dark);box-shadow:0 14px 40px rgba(18,34,61,.25)}
+.iv-ai-label{display:inline-block;margin:0 0 var(--s1);padding:3px 10px;border:1px solid var(--navy);border-radius:100px;font-size:.78rem;font-weight:800;letter-spacing:.04em;color:var(--navy);background:var(--white)}
+.iv-video:focus-visible{outline:3px solid var(--orange);outline-offset:3px}
+@media(min-width:769px){
+  .iv-grid{grid-template-columns:minmax(0,1fr) 300px;gap:var(--s5)}
+  .iv-copy{text-align:left}
+  .iv-desc{margin:0}
+  .iv-frame{max-width:300px}
+}
+</style>
+<section class="intro-video-section" id="intro-video" aria-labelledby="iv-h">
+  <div class="hx-wrap iv-grid">
+    <div class="iv-copy">
+      <p class="eyebrow">Meet Thursday</p>
+      <h2 class="sec-title" id="iv-h">A quick look at your <span>free inspection</span></h2>
+      <p class="iv-desc">About 30 seconds on what happens when Joe comes out: what he checks on the roof, the photos you get, and your options after. Thursday is our AI presenter.</p>
+    </div>
+    <div class="iv-frame">
+      <p class="iv-ai-label">AI-generated presenter</p>
+      <video class="iv-video" controls playsinline preload="none" width="540" height="960" poster="/assets/img/thursday-welcome-poster.webp?v=3" aria-label="Meet Thursday, our AI presenter: a quick look at your free inspection" title="Meet Thursday, our AI presenter">
+        <source src="/assets/video/thursday-welcome.mp4?v=3" type="video/mp4">
+        <track kind="captions" src="/assets/video/thursday-welcome.en.vtt?v=3" srclang="en" label="English">
+      </video>
+    </div>
+  </div>
+</section>
 
 <!-- FAQ — the five questions homeowners ask most. The FAQPage JSON-LD below
      mirrors these word for word (tests/faq-schema-sync-2026-10-03.test.js). -->
@@ -997,73 +1010,10 @@ footer.foot a,.review-footer a{color:#bd5728!important}
       </div>
     </div>
 
+      <!-- Short inspect form (2026-11-17): the same data-nbd-quick-form component the
+           town pages use. The long estimate form that lived here is gone. -->
       <div class="contact-right">
-        <div class="contact-form-card">
-          <div class="cf-title">Free Estimate Request</div>
-          <div class="cf-sub">I will get back to you personally — usually same day.</div>
-
-          <div id="formSuccess" class="form-success" role="status" aria-live="polite" aria-atomic="true">
-            <div class="form-success-icon" style="color:#22a06b" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" style="width:48px;height:48px;stroke-width:2.5"><circle cx="12" cy="12" r="10"/><polyline points="7 12 11 16 17 9"/></svg></div>
-            <h3>You're All Set!</h3>
-            <p>Your request is in. I will reach out personally within a few hours — usually same day.</p>
-          </div>
-
-          <form id="formFields" novalidate>
-            <p class="form-required-note"><span style="color:#bd5728;">*</span> = required</p>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="fieldFirst">First Name <span class="req">*</span></label>
-                <input type="text" id="fieldFirst" placeholder="John" autocomplete="given-name" required>
-              </div>
-              <div class="form-group">
-                <label for="fieldLast">Last Name</label>
-                <input type="text" id="fieldLast" placeholder="Smith" autocomplete="family-name">
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="fieldPhone">Mobile phone <span class="req">*</span></label>
-                <input type="tel" id="fieldPhone" placeholder="(859) 555-1234" autocomplete="tel" inputmode="tel" required>
-              </div>
-              <div class="form-group">
-                <label for="fieldEmail">Email <span class="form-optional">(optional)</span></label>
-                <input type="email" id="fieldEmail" placeholder="your@email.com" autocomplete="email" inputmode="email">
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="fieldAddress">Street address <span class="req">*</span></label>
-              <input type="text" id="fieldAddress" placeholder="123 Main St, Mason, OH" autocomplete="street-address" required>
-            </div>
-            <div class="form-group">
-              <label for="fieldService">Service Needed</label>
-              <select id="fieldService">
-                <option value="">— Select a Service —</option>
-                <option>Roof Replacement</option>
-                <option>Roof Repair</option>
-                <option>Siding Replacement</option>
-                <option>Siding Repair</option>
-                <option>Gutter Replacement</option>
-                <option>Storm Damage / Insurance Claim</option>
-                <option>Interior Repair</option>
-                <option>Roof Care Plan</option>
-                <option>Other / Not Sure</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="fieldMessage">Tell Me About Your Project</label>
-              <textarea id="fieldMessage" maxlength="1500" placeholder="Describe what's going on — we'll get back to you with honest answers and a fair quote."></textarea>
-            </div>
-            <!-- Scheduling choice (required), photos, best time, insurance, how heard — js/intake-extras.js -->
-            <div data-nbd-intake="hp"></div>
-            <div style="position:absolute;left:-9999px;" aria-hidden="true"><label for="fieldNbdHp">Leave blank</label><input type="text" id="fieldNbdHp" tabindex="-1" autocomplete="off"></div>
-            <label class="sc-consent"><input type="checkbox" id="fieldConsent"><span>I agree to receive text messages and calls from No Big Deal Home Solutions (No Big Deal Solutions LLC) at the number above about my request, including my results, appointment confirmations and reminders, estimate and project updates, and replies to my questions. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></span></label>
-            <p id="formError" class="form-error" role="alert" hidden></p>
-            <p class="nbd-trust-line"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating-wrap hidden><span data-nbd-gr-rating></span> on Google</span><span data-nbd-gr-rating-fallback>Real Google reviews</span> &middot; Fully insured &middot; Joe on every roof</p>
-            <button class="form-submit" id="leadFormSubmit">Get My Free Estimate →</button>
-            <script defer  src="/assets/js/inline/72fb917108.js"></script>
-            <p class="form-note">🔒 No spam, no pressure. I will reach out personally — usually same day.</p>
-          </form>
-        </div>
+        <div data-nbd-quick-form data-service-query data-sub="Name, phone and address. Reply within 24 hours, usually the same day. Or just call." data-ok="Got it! Reply within 24 hours, usually the same day." data-btn="Book my free inspection"></div>
       </div>
   </div>
 </section>
@@ -1226,6 +1176,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
      (C-3); submissions route through submitPublicLead. -->
 <script defer  src="/assets/js/inline/7cd8e505ab.js"></script>
 <script defer src="/assets/js/public-lead-submit.js"></script>
+<script defer src="/assets/js/quick-lead-form.js"></script>
 <script defer src="/assets/js/intake-extras.js?v=4"></script>
 <script defer  src="/assets/js/inline/0214ed5eea.js"></script>
 <script defer  src="/assets/js/inline/72f02d79d0.js?v=5"></script>

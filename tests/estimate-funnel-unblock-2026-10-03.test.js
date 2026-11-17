@@ -641,7 +641,7 @@ function fillContact(d) {
       ['docs/storm-check.html', 'id="sc-submit"'],
       ['docs/storm-alerts.html', 'id="alertSignupBtn"'],
       ['docs/inspect.html', 'id="inspectSubmit"'],
-      ['docs/index.html', 'id="leadFormSubmit"'],
+      // docs/index.html: #contact is the JS-built quick form since 2026-11-17 (its trust line is covered by the quick-form row below).
     ];
     for (const [p, submitId] of pages) {
       const h = read(p);
@@ -650,6 +650,7 @@ function fillContact(d) {
       ok(p.replace('docs/', '/') + ': the trust line sits directly above Submit', !!m && iSub > m.index && iSub - m.index < 400, m ? (iSub - m.index) : 'no line');
       ok(p.replace('docs/', '/') + ': loads google-reviews-widget.js so the rating is live', /<script[^>]*src="\/assets\/js\/google-reviews-widget\.js"[^>]*><\/script>/.test(h));
     }
+    ok('/index.html: #contact hosts the quick form and loads its script + the rating widget', /data-nbd-quick-form/.test(read('docs/index.html')) && /quick-lead-form\.js/.test(read('docs/index.html')) && /google-reviews-widget\.js/.test(read('docs/index.html')));
     const q = read('docs/assets/js/quick-lead-form.js');
     const iT = q.search(TL), iB = q.indexOf("'<button class=\"qlf-btn\" type=\"submit\"");
     ok('the service/area quick form (JS-built on 185 generated pages) renders the line above its Submit', iT > 0 && iB > iT && iB - iT < 400);

@@ -408,7 +408,7 @@ function labelText(src, id) {
 const PAGES_V1 = [
   ['docs/storm-check.html', 'sc-consent'], ['docs/roof-score.html', 'rs-consent'],
   ['docs/storm-report.html', 'sr-consent'],
-  ['docs/index.html', 'fieldConsent'],
+  // docs/index.html: its #fieldConsent box was removed 2026-11-17; #contact hosts the quick form, covered by the quick-lead-form.js row below.
   ['docs/assets/js/quick-lead-form.js', "' + uid + '-consent"],
 ];
 

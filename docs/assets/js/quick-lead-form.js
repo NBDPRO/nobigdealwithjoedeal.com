@@ -60,17 +60,33 @@
   function render(host) {
     var service = host.getAttribute('data-service') || '';
     var city = host.getAttribute('data-city') || '';
+    // data-service-query (homepage, 2026-11-17): the Care Plan page's buttons land on
+    // /?service=care-plan#contact. A whitelisted ?service= tags the lead with that
+    // service; it never changes the heading. An unknown value tags nothing.
+    var queryService = '';
+    if (host.getAttribute('data-service-query') !== null) {
+      try {
+        var want = new URLSearchParams(window.location.search).get('service');
+        var known = { 'care-plan': 'Roof Care Plan' };
+        if (want && Object.prototype.hasOwnProperty.call(known, want)) queryService = known[want];
+      } catch (e) { /* nothing tagged */ }
+    }
     var uid = 'qlf-' + Math.abs((service + city + host.offsetTop).split('').reduce(function (a, c) { return (a * 31 + c.charCodeAt(0)) | 0; }, 7));
     // Heading matches the button that brought them here (wave-3 CRO #3/#6,
     // 2026-11-15): town pages say "Book a free inspection", the siding and
     // gutter heroes say "Book a free estimate" and jump to this form.
     var heading = city ? ('Book a Free ' + esc(city) + ' Inspection')
       : (service ? ('Book a Free ' + esc(service) + ' Estimate') : 'Book a Free Inspection');
-    var sub = 'Name, phone and address. Joe reaches out, usually the same day. Or just call.';
+    // Optional per-host copy (2026-11-17, homepage): data-sub / data-ok / data-btn
+    // override the sub line, the success message and the button label. Absent, the
+    // defaults below apply, so every existing page renders exactly as before.
+    var sub = host.getAttribute('data-sub') || 'Name, phone and address. Joe reaches out, usually the same day. Or just call.';
+    var okMsg = host.getAttribute('data-ok') || 'Got it! Joe will reach out shortly — usually same day.';
+    var btnLabel = host.getAttribute('data-btn') || 'Send — Joe calls you back';
     host.innerHTML =
       '<form class="qlf" novalidate aria-labelledby="' + uid + '-h">' +
         '<h3 class="qlf-title" id="' + uid + '-h">' + heading + '</h3>' +
-        '<p class="qlf-sub">' + sub + '</p>' +
+        '<p class="qlf-sub">' + esc(sub) + '</p>' +
         '<div class="qlf-msg qlf-err" id="' + uid + '-err" role="alert" tabindex="-1"></div>' +
         '<div class="qlf-msg qlf-ok" id="' + uid + '-ok" role="status" tabindex="-1"></div>' +
         '<div class="qlf-row">' +
@@ -99,7 +115,7 @@
         '<label class="sc-consent"><input type="checkbox" id="' + uid + '-consent"><span>I agree to receive text messages and calls from No Big Deal Home Solutions (No Big Deal Solutions LLC) at the number above about my request, including my results, appointment confirmations and reminders, estimate and project updates, and replies to my questions. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></span></label>' +
         // Trust line above Submit (2026-10-03). Rating hydrated live (hydrateRating).
         '<p class="qlf-trust"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating-wrap hidden><span data-nbd-gr-rating></span> on Google</span><span data-nbd-gr-rating-fallback>Real Google reviews</span> &middot; Fully insured &middot; Joe on every roof</p>' +
-        '<button class="qlf-btn" type="submit" id="' + uid + '-btn">Send &mdash; Joe calls you back</button>' +
+        '<button class="qlf-btn" type="submit" id="' + uid + '-btn">' + esc(btnLabel) + '</button>' +
         '<div class="qlf-alt">Rather talk now? <a href="tel:+18594207382">Call or text (859) 420-7382</a></div>' +
       '</form>';
 
@@ -203,15 +219,15 @@
           phone: phone,
           address: address,
           email: email,
-          service: service,
-          message: (service || city) ? ('Page: ' + [service, city].filter(Boolean).join(' — ')) : '',
+          service: service || queryService,
+          message: (service || queryService || city) ? ('Page: ' + [service || queryService, city].filter(Boolean).join(' — ')) : '',
           nbd_hp: document.getElementById(uid + '-hp').value, // honeypot
           tcpaConsent: consent === true,
           source: 'page-form:' + (window.location.pathname || '')
         }, intake.fields));
       }).then(function (out) {
         if (!out || !out.ok) { var fail = new Error((out && out.reason) || 'failed'); fail.friendly = !!(out && out.friendly); throw fail; }
-        ok.textContent = 'Got it! Joe will reach out shortly — usually same day.';
+        ok.textContent = okMsg;
         btn.textContent = 'Sent ✓';
         reveal(ok);
         if (window.NBDIntake) {
@@ -221,7 +237,7 @@
           form.insertBefore(after, ok.nextSibling);
           window.NBDIntake.afterSubmit(after, {
             prefix: uid + 'i', fields: intake.fields, files: intake.files, photoToken: out.photoToken || null,
-            firstName: firstName, phone: phone, email: email, address: address, service: service
+            firstName: firstName, phone: phone, email: email, address: address, service: service || queryService
           }).then(function () { form.reset(); });
         } else {
           form.reset();
@@ -231,7 +247,7 @@
         // other failure gets the generic line. The raw text is console-only.
         console.warn('[quick-lead-form] send failed:', e2 && e2.message);
         err.textContent = e2 && e2.friendly ? e2.message : 'Could not send — please call or text (859) 420-7382.';
-        btn.disabled = false; btn.textContent = 'Send — Joe calls you back';
+        btn.disabled = false; btn.textContent = btnLabel;
         reveal(err);
       });
     });

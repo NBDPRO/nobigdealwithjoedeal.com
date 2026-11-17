@@ -91,9 +91,10 @@ function read(rel) { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); }
 
   const homeHtml = read('docs/index.html');
   const homeJs = read('docs/assets/js/inline/72f02d79d0.js');
-  ok('homepage renders id="fieldNbdHp"', homeHtml.includes('id="fieldNbdHp"'));
-  ok('homepage honeypot keeps tabindex="-1"',
-     /id="fieldNbdHp"[^>]*tabindex="-1"/.test(homeHtml));
+  // 2026-11-17: #contact hosts the quick form, whose nbd_hp honeypot the component builds.
+  ok('homepage #contact hosts the quick form (its honeypot is the component\'s nbd_hp)', /data-nbd-quick-form/.test(homeHtml) && !homeHtml.includes('id="fieldNbdHp"'));
+  ok('quick-lead-form honeypot keeps tabindex="-1" and name="nbd_hp"',
+     /qlf-hp[\s\S]{0,80}name="nbd_hp" tabindex="-1"/.test(read('docs/assets/js/quick-lead-form.js')));
   ok('homepage inline JS checks fieldNbdHp',
      homeJs.includes("getElementById('fieldNbdHp')"));
 }

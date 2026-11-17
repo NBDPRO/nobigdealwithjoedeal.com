@@ -189,7 +189,7 @@ function runInspect({ name, address, phone, response }) {
     ok('/inspect labels the field "Mobile phone"', /<label for="f-phone">Mobile phone<\/label>/.test(html));
     ok('/inspect phone input is type=tel with a placeholder', /<input type="tel" id="f-phone"[^>]*placeholder="\(859\) 555-1234"/.test(html));
     ok('/inspect carries the nbd_hp honeypot, keyboard-invisible, autocomplete off', /<input type="text" id="f-nbd-hp" name="nbd_hp" tabindex="-1" autocomplete="off">/.test(html));
-    ok('the homepage contact form labels the field "Mobile phone"', /<label for="fieldPhone">Mobile phone <span class="req">\*<\/span><\/label>/.test(read('docs/index.html')));
+    ok('the homepage contact form (the quick form) labels the field "Mobile phone"', /data-nbd-quick-form/.test(read('docs/index.html')) && /<span>Mobile phone \*<\/span>/.test(read('docs/assets/js/quick-lead-form.js')));
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);
