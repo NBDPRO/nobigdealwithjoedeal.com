@@ -485,6 +485,25 @@ These are all fixed in the Oct 13 plan's drafts; none has shipped.
 
 ---
 
+### Part 6. Long documents or "click to read" links with checkboxes? (Jo asked 2026-11-17)
+
+**Recommendation: a hybrid. Keep the signed contract short and complete, put the high-risk items on the page as required checkbox lines, and make any "read more" section part of the same signed document, never an outside link.**
+
+| Item | Where it goes | Why |
+| --- | --- | --- |
+| Price, scope, payment terms, late interest, card fee, restocking, lien, warranty summary, dispute terms | In the signed document itself, visible on the page | A term the homeowner never had to see is the one a court strikes (Ohio CSPA ORC 1345.03, Kentucky KRS 367.170); an invoice-only fee is already unenforceable in Ohio. |
+| Statutory notices: Kentucky SB 153 notices (bold, 10pt or larger, before the signatures), the cancellation notice and form, the FTC cooling-off statement, Ohio $25,000+ contents | In the document, on paper and in the PDF, never behind a link | The statutes say how they must appear. A link does not satisfy them. |
+| Card fee | Shown as its own line before the pay button, and in the contract | Card-network rules require disclosure at the point of payment. |
+| Acknowledgments: attic and ventilation, property condition, photo consent, texting consent, e-sign consent | A checkbox or initials line with a short summary on the page; the full text expandable inside the same signing screen | These are the ones lawyers fight about, so each needs its own recorded yes. |
+| Long standard boilerplate (severability, assignment, notices) | An expandable section inside the signed PDF | Fine to fold on screen as long as it prints in the PDF the homeowner receives. |
+
+**Why not simply lengthen every document:** a 12-page contract on a phone gets scrolled past and initialed blindly, which weakens the record more than it helps.
+**Why not links alone:** "click here to read" checkboxes work for software terms, but a roofing contract is a home-solicitation sale with printed-notice rules, and a homeowner can say they never saw an outside page. Courts enforce clickwrap when the notice is conspicuous and the agreement is clearly manifested, so the checkbox and the text must be on the same screen as the button that signs.
+
+**What the build records for each checkbox (so it holds up later):** the exact text version (for example `ATTIC_ACK_V1`), the time, the device, and a digest of the whole document. The inventory found the in-person and remote HTML signing paths record none of this today (Oct 13 inventory, sections 3.4 and 7). The e-sign pages already support checkbox sheets that show the surrounding text (`esign-sign.js`, `openCheckSheet`).
+
+**Attorney question Q44:** is a required checkbox beside an expandable section, inside the same signed PDF, conspicuous enough for the Kentucky and Ohio notice rules, and is "scroll to the end before the box enables" worth building? (Ties to Q26.)
+
 ## Part 5. Per-template liability audit
 
 Three focused audits ran in parallel (5A, 5B, 5C). The earlier broad extraction agent was superseded by them. Findings are from reading the source; no renderer was run, so each should be reconfirmed in the app before a fix ships.
