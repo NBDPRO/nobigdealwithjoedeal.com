@@ -49,6 +49,9 @@
       { "source": "/services/tamko-storm-series/", "destination": "/services/tamko-impact-resistant-shingles", "type": 301 },
       { "source": "/services/tamko-storm-series/index", "destination": "/services/tamko-impact-resistant-shingles", "type": 301 },
       { "source": "/services/tamko-storm-series/index.html", "destination": "/services/tamko-impact-resistant-shingles", "type": 301 },
+      { "_comment": "Blog slug renamed (2026-11-17): same invented \"Storm Series\" name as the service page above. /blog/gaf-timberline-vs-tamko-storm-series became /blog/gaf-timberline-vs-tamko-impact-resistant-shingles (TAMKO's own product naming; the sibling post keeps /blog/gaf-timberline-hdz-vs-tamko-stormfighter-flex). Both old forms 301 so the post's existing impressions and backlinks carry over.",
+        "source": "/blog/gaf-timberline-vs-tamko-storm-series", "destination": "/blog/gaf-timberline-vs-tamko-impact-resistant-shingles", "type": 301 },
+      { "source": "/blog/gaf-timberline-vs-tamko-storm-series.html", "destination": "/blog/gaf-timberline-vs-tamko-impact-resistant-shingles", "type": 301 },
       { "_comment": "/pro/codex was a client-side meta-refresh stub to the AI Selection Codex at /pro/ai-tool-finder — the last http-equiv=refresh in docs/. Same treatment as /financing above: a proper server 301, and the stub file removed. Internal links and the nav pageMaps now point straight at the target.",
         "source": "/pro/codex", "destination": "/pro/ai-tool-finder", "type": 301 },
       { "_comment": "Demo merge (2026-10-06, Jo): the long /pro/demo tool tour and the old drag-the-pipeline sandbox were replaced by ONE guided job story at /pro/sandbox (storm to paid, sample data, browser-only). demo.html is deleted; these 301s keep every old link, bookmark and in-app Demo nav entry landing on the new demo. Trailing * catches the .html and cleanUrls forms.",
@@ -338,6 +341,13 @@
       },
       {
         "source": "/pro/register",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
+        ]
+      },
+      {
+        "_comment": "The rest of /pro/sw.js's NO_CACHE_HTML set (2026-11-17 sweep #28). The SW stopped intercepting navigations (INFRA-1), so the never-cache promise for these pages rests on this header; until now they rode the '**' default public, max-age=300, so a security fix to e.g. /pro/portal could be served stale for 5 minutes from the CDN or browser. After '**' so last-match-wins gives no-store; no later block sets Cache-Control on these paths. tests/sw-sweep-lows-2026-11-17.test.js checks every path in NO_CACHE_HTML.",
+        "source": "/pro/@(portal|estimate-view|analytics|leaderboard|ask-joe|ai-tree|ai-tool-finder|understand|project-codex|stripe-success|account-erasure)",
         "headers": [
           { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
         ]

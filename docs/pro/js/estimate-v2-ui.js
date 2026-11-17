@@ -2680,7 +2680,16 @@
     return {};
   }
 
+  // Markup / overhead / profit and, since 2026-11-17 (repo sweep M5), the
+  // shop's "Round to": line-item totals were always rounded to $25 here.
+  // estimate-builder-v2.js lineItemSettings is the one reader (Job Templates
+  // uses it too); the loop below is only reached if that file is not loaded.
   function shopLineItemRates() {
+    try {
+      if (window.EstimateBuilderV2 && typeof window.EstimateBuilderV2.lineItemSettings === 'function') {
+        return window.EstimateBuilderV2.lineItemSettings() || {};
+      }
+    } catch (_) { /* fall through to the local read */ }
     const s = shopSettings();
     const out = {};
     ['materialMarkupPct', 'overheadPct', 'profitPct'].forEach(function (k) {
@@ -2691,6 +2700,8 @@
       const v = Number(raw);
       if (Number.isFinite(v) && v >= 0) out[k] = v;
     });
+    const r = (s.roundTo === null || s.roundTo === undefined || s.roundTo === '') ? NaN : Number(s.roundTo);
+    if (Number.isFinite(r) && r > 0) out.roundTo = r;
     return out;
   }
 
@@ -2794,7 +2805,7 @@
     if (U && typeof U.totalsWithUpgrades === 'function') {
       const t = U.totalsWithUpgrades({
         subtotal: estimate.subtotal, tax: estimate.tax, grandTotal: estimate.total,
-        minJobApplied: estimate.minJobApplied, minJobCharge: estimate.minJobCharge, roundTo: 25,
+        minJobApplied: estimate.minJobApplied, minJobCharge: estimate.minJobCharge, roundTo: shopLineItemRates().roundTo || 25,
       }, { upgradeCents: upgCents, taxCents: taxCents, errors: [] });
       estimate.subtotal = t.subtotal;
       estimate.tax = t.tax;
@@ -2972,8 +2983,11 @@
         source:    p.source || 'passthru',
         qtyOverridden: false
       });
-      estimate.subtotal = (estimate.subtotal || 0) + amt;
-      estimate.total    = (estimate.total    || 0) + amt;
+      // In cents (repo sweep 2026-11-17, L7): float dollars left residue in the
+      // saved money fields ($325 + $0.10 + $0.10 = 325.20000000000005).
+      const amtCents = Math.round(amt * 100);
+      estimate.subtotal = (Math.round((Number(estimate.subtotal) || 0) * 100) + amtCents) / 100;
+      estimate.total    = (Math.round((Number(estimate.total)    || 0) * 100) + amtCents) / 100;
       estimate.materialRetail = estimate.materialRetail || 0;
     }
 
@@ -2985,7 +2999,7 @@
     // scope total — insurance prices off the approved scope, never a retail tier,
     // so we gate on jobMode too. priceMode reflects what actually set grandTotal.
     const passThruSum = (state.passThru || [])
-      .reduce((s, p) => s + (Number(p.amount) || 0), 0);
+      .reduce((s, p) => s + Math.round((Number(p.amount) || 0) * 100), 0) / 100;
     estimate.priceMode = 'line-item';   // flipped to 'per-sq' only when the overlay applies
     if (_perSqOverlayApplies()) {
       const tiers = window.EstimateBuilderV2.calculateAllTiers(buildPerSqInput());
@@ -2996,14 +3010,14 @@
       // (a smaller resurrection of the V2-2 bug this fix exists to kill).
       if (passThruSum) {
         _v2Tiers().forEach(k => {
-          if (tiers[k]) tiers[k].total = (Number(tiers[k].total) || 0) + passThruSum;
+          if (tiers[k]) tiers[k].total = (Math.round((Number(tiers[k].total) || 0) * 100) + Math.round(passThruSum * 100)) / 100;
         });
       }
       const chosen = tiers[state.tier] || tiers.better;
       if (chosen) {
         estimate.internalLineItemTotal = estimate.total;   // cost basis (Internal View)
         estimate.total    = chosen.total;                  // tier price + passThru (all-in)
-        estimate.subtotal = (Number(chosen.subtotal) || 0) + passThruSum;
+        estimate.subtotal = (Math.round((Number(chosen.subtotal) || 0) * 100) + Math.round(passThruSum * 100)) / 100;
         estimate.taxRate  = chosen.taxRate;
         estimate.tax      = chosen.tax;
         // The chosen tier's floor, not the line-item basis's (2026-10-05
@@ -3738,8 +3752,25 @@
       Labor: <strong>$${Math.round(estimate.laborCost).toLocaleString()}</strong><br>
       OH+Profit: <strong>$${Math.round(estimate.overhead + estimate.profit).toLocaleString()}</strong>
       ${taxDisplay}
-      <br><span style="color:var(--green,#065f46);">Margin: <strong>${estimate.internal.marginPct.toFixed(1)}%</strong> ($${Math.round(estimate.internal.margin).toLocaleString()})</span>
+      <br>${_marginLineHtml(estimate)}
     `;
+  }
+
+  // The rollup's margin line (2026-11-17). Margin is measured BEFORE sales tax
+  // on the price the customer pays (js/margin-floor.js): tax is money passed
+  // through, and counting it read a few points high. A job with an uncosted
+  // line says so instead of showing a margin. The band shows only when the
+  // company has set a floor; with none set there is just the figure.
+  function _marginLineHtml(estimate) {
+    const MF = window.NBDMarginFloor;
+    if (!MF) {
+      const i = (estimate && estimate.internal) || {};
+      return (typeof i.marginPct === 'number' && Number.isFinite(i.marginPct))
+        ? 'Margin: <strong>' + i.marginPct.toFixed(1) + '%</strong>' : 'Margin: <strong>—</strong>';
+    }
+    const v = MF.view(estimate);
+    if (!v.known) return 'Margin: <strong>unknown</strong> (a line has no cost) ' + MF.badgeHtml(v);
+    return 'Margin before tax: <strong>' + v.marginPct.toFixed(1) + '%</strong> ($' + Math.round(v.marginCents / 100).toLocaleString() + ') ' + MF.badgeHtml(v);
   }
 
   function render() {
@@ -6647,6 +6678,7 @@
       rehydrateFromSaved: rehydrateFromSaved,
       effectiveEstimate: effectiveEstimate,
       applyNote: applyNote,   // tests/estimate-reopen-min-job-2026-11-14.test.js
+      marginLineHtml: _marginLineHtml,   // tests/margin-floor-display-2026-11-17.test.js
       collectDraft: collectDraft,
       getState: () => state,
       // Display helpers. Pure, and the two that decide whether the scope

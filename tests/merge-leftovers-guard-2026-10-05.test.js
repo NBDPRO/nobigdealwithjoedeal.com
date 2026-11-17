@@ -122,7 +122,7 @@ const knownName = (k) => Object.keys(KNOWN[k]).join(' + ');
 // so a file shared by two bundles, or tagged eagerly AND bundled, loads once.
 // These shares are documented in the bundle comments; a new one must be added
 // here on purpose.
-const ALLOWED_CROSS_BUNDLE = ['/pro/js/deal-packet.js', '/pro/js/price-book.js', '/pro/js/nbd-logo-asset.js', '/pro/js/claim-wording-filter.js'];
+const ALLOWED_CROSS_BUNDLE = ['/pro/js/deal-packet.js', '/pro/js/price-book.js', '/pro/js/nbd-logo-asset.js', '/pro/js/claim-wording-filter.js', '/pro/js/price-logic.js', '/pro/js/price-ledger.js'];
 const ALLOWED_EAGER_LAZY = [
   // photos bundle: static-tagged on dashboard.html, bundled for customer.html (bundle comment).
   '/pro/dashboard.html /pro/js/photo-queue-store.js',

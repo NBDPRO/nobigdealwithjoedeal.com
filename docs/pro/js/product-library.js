@@ -44,7 +44,13 @@
   // best gaps (tests/catalog-price-floor-2026-11-09.test.js lists them).
   // flash_007's coverage text now states the spec, 25 LF per bundle. Same
   // migration rules as version 6.
-  const DATA_VERSION = 7;
+  // DATA_VERSION 8 (2026-11-17, Jo): the floor moves to 30%. Every tier of
+  // every product-data.js SKU clears a 30% margin after labor on the live cost
+  // book (RoofIVent SKUs still at MSRP and not covered); the tiers under 30% on
+  // 82 SKUs were lifted, each keeping its good/better/best gaps
+  // (tests/catalog-price-floor-30-2026-11-17.test.js lists them). Same
+  // migration rules as version 6.
+  const DATA_VERSION = 8;
 
   // Pull from product-data.js globals
   const CATEGORIES = window.NBD_CATEGORIES || {};
@@ -706,7 +712,8 @@
           <div class="plx-row8">${editable ? `
             <button data-pl-action="addProduct" class="plx-btn-add">+ Add Product</button>
 ` : ''}
-            <button type="button" class="btn btn-ghost" data-pb-action="open" title="What you actually paid, per store SKU">💲 Price book</button>
+            <button type="button" class="btn btn-ghost" data-pb-action="open" title="What you actually paid, per store SKU">💲 Price book</button>${(window.NBDPriceLedger && window.NBDPriceLedger.enabled()) ? `
+            <button type="button" class="btn btn-ghost" data-prl-action="openUnlinked" title="Receipt items not linked to a product yet">Unlinked items</button>` : ''}
             <button type="button" data-pl-action="exportCSV" class="btn btn-ghost">Export CSV</button>
             ${editable ? `<button type="button" data-pl-action="resetDefaults" class="btn btn-ghost plx-btn-reset">Reset</button>` : ''}
           </div>

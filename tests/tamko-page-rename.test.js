@@ -22,8 +22,9 @@
  *     in shipped HTML/JS/TXT/XML (docs/pro/ included — CRM templates are
  *     public in this repo too).
  *
- * The blog post /blog/gaf-timberline-vs-tamko-storm-series keeps its URL
- * (retitled only), so the scan targets /services/tamko-storm-series, not the
+ * The blog post /blog/gaf-timberline-vs-tamko-storm-series was renamed to
+ * /blog/gaf-timberline-vs-tamko-impact-resistant-shingles on 2026-11-17 (301 in
+ * firebase.json), so the scan targets /services/tamko-storm-series, not the
  * bare slug fragment.
  *
  * Zero deps. Run: node tests/tamko-page-rename.test.js

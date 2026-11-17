@@ -199,7 +199,7 @@ const applyFn = applyStart >= 0 ? boot.slice(applyStart, boot.indexOf('\n}', app
 ok('…local stage state is updated in place instead',
   /_applyStageOnPage\(lead, nextStage, label\)/.test(successPath) && /window\._currentStage = stage/.test(applyFn));
 ok('…the stage-progress button re-renders its own label from the NEW current stage (not stale until next load)',
-  /_nextStageFor\(lead\)/.test(applyFn) && /btnEl\.innerHTML = `→ Move to \$\{after\.label\}`/.test(applyFn));
+  /_nextStageFor\(lead\)/.test(applyFn) && /btnEl\.textContent = `→ Move to \$\{after\.label\}`/.test(applyFn));
 
 console.log(`\n  ${passed} passed, ${failed} failed`);
 if (failed) { console.log('\n  failures:'); for (const f of fails) console.log('    - ' + f); process.exit(1); }

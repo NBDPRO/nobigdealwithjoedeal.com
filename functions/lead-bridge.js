@@ -35,6 +35,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 
 const L = require('./lead-bridge-logic');
+const { INTAKE_OPTIONAL } = require('./public-lead-intake-spec');
 const { createLeadWithCustomerId } = require('./customer-id-mint');
 
 // Tenant-zero (NBD) owner uid — Joe / jonathandeal459@gmail.com. Matches the
@@ -170,12 +171,39 @@ function tooOldToRetry(event, collection) {
   return false;
 }
 
+// The thank-you answers (public-lead-photos.js _applyIntake) are merged onto
+// the public doc AFTER it is created. When the bridge is slow or retrying,
+// _applyIntake finds no CRM card yet (crm:false, crmIntakePending) and the
+// event payload here is the doc as it was at create time, so the answers and
+// the referral code never reached the card and the $100 referral credit was
+// lost (repo sweep 2026-11-17, #18 review). Re-read the doc when the bridge
+// actually runs and take ONLY those answer fields the create-time data lacks;
+// everything else stays exactly the create-time data. A failed re-read keeps
+// the old behaviour.
+const INTAKE_ANSWER_KEYS = INTAKE_OPTIONAL.concat(['story', 'email', 'referralCode']);
+async function withLateIntake(snap) {
+  const data = Object.assign({}, snap.data() || {});
+  try {
+    if (!snap.ref || typeof snap.ref.get !== 'function') return data;
+    const fresh = await snap.ref.get();
+    const f = fresh && fresh.exists ? (fresh.data() || {}) : {};
+    let added = 0;
+    for (const k of INTAKE_ANSWER_KEYS) {
+      if ((data[k] == null || data[k] === '') && f[k] != null && f[k] !== '') { data[k] = f[k]; added++; }
+    }
+    if (added) logger.info('leadBridge: carried late thank-you answers onto the card', { added });
+  } catch (e) {
+    logger.warn('leadBridge: re-read for late answers failed — using create-time data', { err: e && e.message });
+  }
+  return data;
+}
+
 function onLeadCreated(collection) {
   return async (event) => {
     const snap = event.data;
     if (!snap) return;
     if (tooOldToRetry(event, collection)) return;
-    await bridgeToCrm(collection, snap.data() || {}, event.params && event.params.leadId);
+    await bridgeToCrm(collection, await withLateIntake(snap), event.params && event.params.leadId);
   };
 }
 

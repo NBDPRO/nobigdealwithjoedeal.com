@@ -946,6 +946,43 @@
    *          sourceTemplates, warnings, tierApplies, warrantyKind,
    *          warrantyParts}.
    */
+  // estimate-builder-v2.js lineItemSettings: { materialMarkupPct, overheadPct,
+  // profitPct, roundTo }, real numbers only. {} when that file is not loaded
+  // (the engine's own defaults then apply, as before).
+  function shopLineItemSettings() {
+    try {
+      const B = window.EstimateBuilderV2;
+      if (B && typeof B.lineItemSettings === 'function') return B.lineItemSettings() || {};
+    } catch (_) { /* settings are optional */ }
+    return {};
+  }
+
+  // The line that tells the rep why a template now quotes differently: its
+  // estimate prices on rates other than the 25 / 10 / 10 Job Templates always
+  // used before 2026-11-17. Pure: resolveSelection reports it on the result
+  // (res.ratesNote) and never touches storage, so the gallery's background
+  // price bands cannot use it up. takeRatesNote(res) is the once-per-device
+  // read for the screen that SHOWS it (the template preview).
+  const RATES_NOTE_KEY = 'nbd_jt_settings_rates_note_v1';
+  function settingsRatesNote(s) {
+    const pct = (v) => Math.round(Number(v) * 1000) / 10;
+    const markup = s.materialMarkupPct != null ? s.materialMarkupPct : 0.25;
+    const overhead = s.overheadPct != null ? s.overheadPct : 0.10;
+    const profit = s.profitPct != null ? s.profitPct : 0.10;
+    if (pct(markup) === 25 && pct(overhead) === 10 && pct(profit) === 10) return null;
+    return 'Now using your Settings rates: material markup ' + pct(markup) + '%, overhead ' + pct(overhead)
+      + '%, profit ' + pct(profit) + '% (templates used 25 / 10 / 10 before).';
+  }
+  function takeRatesNote(res) {
+    const note = res && typeof res.ratesNote === 'string' ? res.ratesNote : null;
+    if (!note) return null;
+    try {
+      if (typeof localStorage === 'undefined' || localStorage.getItem(RATES_NOTE_KEY)) return null;
+      localStorage.setItem(RATES_NOTE_KEY, '1');
+    } catch (_) { return null; }
+    return note;
+  }
+
   function resolveSelection(selection, opts) {
     opts = opts || {};
     const sel = normalizeSelection(selection);
@@ -1103,6 +1140,12 @@
       county: county
     };
     if (minJobCharge != null) settings.minJobCharge = minJobCharge;
+    // The shop's saved line-item rates and Round to (repo sweep 2026-11-17,
+    // M4 / M5; Jo, Q13 / Q14): a template estimate used the engine's own
+    // 25 / 10 / 10 and $25 whatever Settings said, so the same scope priced
+    // lower here than in the V2 builder. Same reader as the builder.
+    Object.assign(settings, shopLineItemSettings());
+    const ratesNote = settingsRatesNote(settings);
 
     const totals = window.EstimateLogic.resolveEstimate(lineItems, measurements, settings);
     return {
@@ -1115,7 +1158,11 @@
       warnings,
       tierApplies,
       warrantyKind: warranty.kind,
-      warrantyParts: warranty.parts
+      warrantyParts: warranty.parts,
+      // The Round to this resolve priced at: the upgrade path unwinds a
+      // floored total at the SAME step (applyUpgrades → totalsWithUpgrades).
+      roundTo: settings.roundTo,
+      ratesNote
     };
   }
 
@@ -1499,7 +1546,10 @@
         r.upgradeRequired = true;
       });
       try {
-        next = U.applyToEstimate(payload, priced, { minJobCharge: resolved && resolved.minJobCharge });
+        // roundTo: the step the engine rounded at (the shop's Round to since
+        // 2026-11-17), so a floored total is unwound the same way; undefined
+        // keeps upgrade-pricing.js's own $25 default.
+        next = U.applyToEstimate(payload, priced, { minJobCharge: resolved && resolved.minJobCharge, roundTo: resolved && resolved.roundTo });
       } catch (e) {
         out.errors.push({ id: null, code: 'apply', message: String((e && e.message) || e) });
         out.payload = payload;
@@ -1743,6 +1793,7 @@
     tiersApply,
     warrantyKindOf,
     resolveSelection,
+    takeRatesNote,
     buildEstimatePayload,
     upgradeOffers,
     applyUpgrades,

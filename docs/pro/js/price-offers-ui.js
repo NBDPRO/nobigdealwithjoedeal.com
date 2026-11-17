@@ -1,6 +1,10 @@
 /**
  * price-offers-ui.js: the "Stores & prices" sheet (2026-11-17, flag supplierPricing).
  *
+ * The Product Library's "Unlinked items" button (data-prl-action="openUnlinked",
+ * slice 2) opens the same sheet as a list of receipt items no product is linked
+ * to yet; the owner or an admin links each to a product.
+ *
  * Opened from a product card (data-prl-action="openProduct"). For one product it
  * shows the store and supplier items linked to it, each with its pack size, its
  * current price with the source and date, and (for the owner, an admin or a
@@ -94,7 +98,9 @@
   }
   function perCatalog(offer, r) {
     if (packState(offer) !== 'ok') return '';
-    const c = LG().toCatalogMicros(r.priceMicros, r.per, r.statedUnit, offer.pack);
+    // A summary point (latest.best, latest.lastPaid) carries no channel; its
+    // per-unit price was already derived by the server from the current pack.
+    const c = (r.source == null && r.statedUnit == null) ? { micros: typeof r.catalogMicros === 'number' ? r.catalogMicros : null, flag: null } : LG().catalogMicrosFor(r, offer);
     if (c.micros === null) return c.flag === 'unit_mismatch' ? '<span class="prl-dim">Unit does not match this item</span>' : '';
     return '<span class="ui-money">' + esc(money(c.micros)) + '</span> per ' + esc(catalogUnitLabel(offer.pack.catalogUnit));
   }
@@ -198,6 +204,16 @@
         foot + '</form>';
     }
     const offer = (S.offers || []).find((o) => o.id === f.offerId) || {};
+    if (f.type === 'link') {
+      const products = (((w._productLib && typeof w._productLib.getProducts === 'function') ? w._productLib.getProducts() : (w.NBD_PRODUCTS || [])) || [])
+        .filter((p) => p && p.id && p.isActive !== false)
+        .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+      return '<form class="prl-form" data-prl-form="link" novalidate>' +
+        '<h3 class="prl-h3">Link to a product</h3>' +
+        field('Product in your library', '<select class="prl-input" name="productId" required>' + opt('', 'Choose…', true) + products.map((p) => opt(p.id, (p.name || p.id) + (p.unit ? ' (per ' + catalogUnitLabel(p.unit) + ')' : ''))).join('') + '</select>',
+          'After linking, open the product\'s Stores & prices to set the pack size.') +
+        foot + '</form>';
+    }
     if (f.type === 'pack') {
       const pu = (offer.pack && offer.pack.purchaseUnit) || 'EA';
       return '<form class="prl-form" data-prl-form="pack" novalidate>' +
@@ -235,8 +251,28 @@
       foot + '</form>';
   }
 
+  // The "Unlinked items" list: receipt lines for SKUs no product is linked to yet.
+  function unlinkedHtml() {
+    const admin = PL().canSave();
+    const offers = (S.offers || []).filter((o) => o.active !== false);
+    if (!offers.length) return '<div class="prl-empty">Nothing is waiting to be linked. Items from your store receipts show up here until they are linked to a product.</div>';
+    return offers.map((o) => {
+      const lp = o.latest && o.latest.lastPaid;
+      return '<div class="prl-offer">' +
+        '<div class="prl-otitle"><span class="prl-store">' + esc(supplierLabel(o.supplierId)) + '</span>' + esc(o.title) + '</div>' +
+        '<div class="prl-src">' + (o.sku ? 'SKU ' + esc(o.sku) : 'No SKU') + '</div>' +
+        (lp ? '<div class="prl-best"><div class="prl-price"><span class="ui-money">' + statedText(lp) + '</span></div>' +
+          '<div class="prl-src">Last paid · ' + esc(dateText(lp.observedAtMs)) + ' (' + esc(ageText(lp.observedAtMs)) + ') · as printed on the receipt</div></div>'
+          : '<div class="prl-noprice">No price yet</div>') +
+        (admin ? '<div class="prl-actions"><button type="button" class="btn btn-ghost prl-btn" data-prl-action="showLink" data-prl-id="' + esc(o.id) + '">Link to a product</button></div>' : '') +
+        (S.form && S.form.offerId === o.id ? formHtml() : '') +
+        '</div>';
+    }).join('');
+  }
+
   function bodyHtml() {
     if (S.loading) return '<div class="prl-empty">Loading…</div>';
+    if (S.mode === 'unlinked') return unlinkedHtml();
     const admin = PL().canSave();
     const offers = (S.offers || []).filter((o) => o.active !== false);
     const top = [];
@@ -256,7 +292,7 @@
   }
 
   async function reload() {
-    const [suppliers, offers] = await Promise.all([PL().suppliers(), PL().offersFor([S.productId])]);
+    const [suppliers, offers] = await Promise.all([PL().suppliers(), S.mode === 'unlinked' ? PL().unlinked() : PL().offersFor([S.productId])]);
     if (!S) return;
     S.suppliers = suppliers; S.offers = offers; S.loading = false;
     paint();
@@ -280,6 +316,24 @@
     if (closeBtn) closeBtn.focus();
     await reload();
   }
+  /** The list of items no product is linked to yet (the Product Library's "Unlinked items" button). */
+  async function openUnlinked() {
+    if (!PL() || !PL().enabled() || !LG()) return;
+    close();
+    S = { mode: 'unlinked', productId: null, product: null, suppliers: [], offers: [], history: {}, form: null, busy: false, error: '', loading: true, lastFocus: document.activeElement };
+    const ov = document.createElement('div');
+    ov.className = 'modal-bg open prl-bg';
+    ov.id = 'prlOverlay';
+    ov.innerHTML = '<div class="modal prl-modal" role="dialog" aria-modal="true" aria-labelledby="prlTitle">' +
+      '<div class="prl-head"><h2 class="prl-title" id="prlTitle">Unlinked items</h2><button type="button" class="prl-close" data-prl-action="close" aria-label="Close">✕</button></div>' +
+      '<p class="prl-sub">Things on your store receipts that are not linked to a product in your library yet. Link one and its prices show on that product. Internal only.</p>' +
+      '<div id="prlBody"></div></div>';
+    document.body.appendChild(ov);
+    paint();
+    const closeBtn = ov.querySelector('.prl-close');
+    if (closeBtn) closeBtn.focus();
+    await reload();
+  }
   function close() {
     const o = document.getElementById('prlOverlay');
     if (o) o.remove();
@@ -292,8 +346,10 @@
 
   const actions = {
     openProduct,
+    openUnlinked,
     close,
     cancelForm() { setForm(null); },
+    showLink(id) { setForm({ type: 'link', offerId: id, submit: 'Link' }); },
     showAddSupplier() { setForm({ type: 'supplier', submit: 'Save' }); },
     showAddOffer() { setForm({ type: 'offer', submit: 'Save item' }); },
     showAddPrice(id) { setForm({ type: 'price', offerId: id, submit: 'Save price' }); },
@@ -367,6 +423,11 @@
       const title = String(fd.get('title') || '').trim();
       if (!title) return fail('Give the item a name.');
       r = await PL().saveOffer({ supplierId: fd.get('supplierId'), sku: String(fd.get('sku') || '').trim(), title, url: String(fd.get('url') || '').trim() || null, productId: S.productId, pack: p.pack });
+    } else if (kind === 'link') {
+      const productId = String(fd.get('productId') || '');
+      if (!productId) return fail('Choose the product this item is.');
+      r = await PL().linkOffer(S.form.offerId, productId, 'exact');
+      if (r && r.ok) r.message = 'Linked. Open that product\'s Stores & prices to set the pack size.';
     } else if (kind === 'pack') {
       const p = packFrom(fd);
       if (p.error) return fail(p.error);
@@ -409,7 +470,7 @@
       if (t) {
         const fn = actions[t.dataset.prlAction];
         if (typeof fn !== 'function') return;
-        if (t.dataset.prlAction !== 'openProduct' && !S) return;
+        if (t.dataset.prlAction !== 'openProduct' && t.dataset.prlAction !== 'openUnlinked' && !S) return;
         try { Promise.resolve(fn(t.dataset.prlId, t)).catch((e) => console.error('[price-offers-ui] ' + t.dataset.prlAction + ' failed:', e)); }
         catch (e) { console.error('[price-offers-ui] ' + t.dataset.prlAction + ' failed:', e); }
         return;
@@ -431,5 +492,5 @@
     document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && document.getElementById('prlOverlay')) close(); });
   }
 
-  w.NBDPriceOffersUI = { open: openProduct, close, _internal: { packState: (offer, product) => { const keep = S; S = { product }; try { return packState(offer); } finally { S = keep; } } } };
+  w.NBDPriceOffersUI = { open: openProduct, openUnlinked, close, _internal: { packState: (offer, product) => { const keep = S; S = { product }; try { return packState(offer); } finally { S = keep; } } } };
 })();

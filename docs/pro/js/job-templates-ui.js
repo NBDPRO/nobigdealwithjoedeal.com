@@ -1324,7 +1324,7 @@
       var res = resolveCurrent();
       state.lastResolved = res;
       var model = upgModel(res);
-      body.innerHTML = renderPreview(res, model);
+      body.innerHTML = ratesNoteHtml(res) + renderPreview(res, model);
       _jtWireLeadPicker();
       foot.innerHTML =
         '<button type="button" class="jt-btn" data-jt-action="back-to-preconfirm">← Back to edit</button>' +
@@ -2312,6 +2312,18 @@
     if (!adj) return '';
     return '<div class="r"><span>' + ((totals.minApplied && adj > 0) ? 'Minimum job charge adjustment' : 'Rounding') +
       '</span><span>' + (adj < 0 ? '−' : '') + esc(money(Math.abs(adj))) + '</span></div>';
+  }
+
+  // The one-time "Now using your Settings rates" line (2026-11-17): for the
+  // rep, above the proposal paper (never on it). Taken once per device by
+  // JobTemplates.takeRatesNote, then kept for this modal so a repaint of the
+  // same preview does not drop it.
+  function ratesNoteHtml(res) {
+    var JT = engine();
+    if (!state.ratesNote && JT && typeof JT.takeRatesNote === 'function') state.ratesNote = JT.takeRatesNote(res);
+    if (!state.ratesNote) return '';
+    return '<div class="jt-ratesnote" role="note">' +
+      esc(state.ratesNote) + '</div>';
   }
 
   function renderPreview(res, model) {
