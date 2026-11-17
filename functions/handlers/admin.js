@@ -85,6 +85,11 @@ exports.getAdminAnalytics = onCall(
     const companyId = isPlatformAdmin
       ? (request.data?.companyId || request.auth.token.companyId || null)
       : request.auth.token.companyId;
+    // Fail closed (sweep #13): no companyId means the GLOBAL queries below,
+    // which only a platform admin may run.
+    if (!isPlatformAdmin && !companyId) {
+      throw new HttpsError('failed-precondition', 'Your account has no company. Sign out and back in, or contact support.');
+    }
 
     const db = getFirestore();
     const since = Timestamp.fromMillis(Date.now() - 30 * 86_400_000);
