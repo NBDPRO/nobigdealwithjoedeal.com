@@ -282,9 +282,9 @@
       'js/price-ledger.js?v=1',
       'js/price-offers-ui.js?v=1',
       'js/estimate-labor-catalog.js?v=2',
-      'js/estimate-builder-v2.js?v=13',
+      'js/estimate-builder-v2.js?v=14',
       'js/estimate-catalog-xactimate.js?v=4',
-      'js/estimate-logic-engine.js?v=9',
+      'js/estimate-logic-engine.js?v=10',
       // Roof Care Plan member discount (2026-10-05): pure rules the V2/V3
       // builder and the Job Templates engine call at price time — before both.
       'js/care-plan-discount.js?v=1',
@@ -301,7 +301,7 @@
       'js/estimate-finalization.js?v=11',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=42',
+      'js/estimate-v2-ui.js?v=43',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=6',
@@ -317,9 +317,9 @@
       // entity-resolver.js (the lead search/quick-create picker) must load
       // before job-templates-ui.js, which calls it from paintModal.
       'js/job-templates-data.js?v=7',
-      'js/job-templates.js?v=9',
+      'js/job-templates.js?v=10',
       'js/entity-resolver.js?v=2',
-      'js/job-templates-ui.js?v=14',
+      'js/job-templates-ui.js?v=15',
       // Upgrades & Add-ons (2026-09-25): the retail upgrade library, then the
       // pure pricing core that reads it, then Settings → Upgrade prices,
       // which needs both. The Estimates settings tab loads this bundle
