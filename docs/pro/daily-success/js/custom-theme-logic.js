@@ -17,6 +17,8 @@
  *   - every accent-FILLED control (dozens of rules across the tracker and the coach) paints white text on --ac, as the accent
  *     picker's own list guarantees (accent-logic.js: "fill carries white text"). A picked accent too pale for white text is
  *     darkened, keeping its hue, until white reads on it. The accent as picked is still used wherever it is readable as TEXT.
+ *   - several captions are drawn at 80% opacity, and some panels are the bar or a dark card with a light tint over them, so the muted
+ *     and on-dark colours must still read faded, and the on-dark ones on the tinted surface too.
  * Because the five colours are free picks, anything that would not be readable is replaced: text under 4.5:1 by black or white,
  * muted by the text colour, an accent that cannot be text by the text colour. Colours that are readable are used exactly as picked.
  *
@@ -67,11 +69,16 @@
     }
     return out;
   }
-  /** The first of `wants` that reaches `min`:1 on every one of `ons`; else `fallback`. */
-  function pick(wants, ons, min, fallback) {
+  /** `a` over `b` at opacity `t` (0..1). */
+  function mix(a, b, t) { var x = rgb(a), y = rgb(b); return '#' + [0, 1, 2].map(function (i) { return Math.round(x[i] * t + y[i] * (1 - t)).toString(16).padStart(2, '0'); }).join(''); }
+  /** A dark panel with the light tint several layouts lay over it. */
+  function tinted(hex) { return mix('#ffffff', hex, 0.1); }
+  /** The first of `wants` that reaches `min`:1 on every one of `ons` (drawn at 80% opacity when `faded`); else `fallback`. */
+  function pick(wants, ons, min, fallback, faded) {
     for (var i = 0; i < wants.length; i++) {
       var ok = true;
-      for (var j = 0; j < ons.length; j++) if (contrast(wants[i], ons[j]) < min) { ok = false; break; }
+      // faded: at full strength AND at 80%. Both are checked: with clashing hues the faded colour can measure better than the full one.
+      for (var j = 0; j < ons.length; j++) if (contrast(wants[i], ons[j]) < min || (faded && contrast(mix(wants[i], ons[j], 0.8), ons[j]) < min)) { ok = false; break; }
       if (ok) return wants[i];
     }
     return fallback;
@@ -81,18 +88,19 @@
   function derive(c) {
     var paper = c.s;
     var ink = pick([c.tc], [paper], 4.5, bw(paper));
-    var muted = pick([c.m], [paper], 4.5, ink);
+    var muted = pick([c.m, ink], [paper], 4.5, bw(paper), true);
     var acText = pick([c.accent], [paper], 4.5, ink);
     var lightPaper = lum(paper) > 0.4;
     var fill = fillFor(c.accent);
     // The bar carries light text: the surface if it is dark enough for that, else the theme's dark text colour, else near-black.
     var bar = pick([c.s, c.tc], ['#ffffff'], 7, '#12161c');
-    var dark = [bar].concat(FIXED_DARK);
-    var onDark = pick([c.m, c.tc, '#c3cfdf', '#e8eaf0'], dark, 4.5, '#ffffff');
+    var dark = [bar, tinted(bar)].concat(FIXED_DARK);
+    // (dark cards need no entry of their own: a surface dark enough for light text IS the bar, so it and its tint are already here)
+    var onDark = pick([c.m, c.tc, '#c3cfdf', '#e8eaf0'], dark, 4.5, '#ffffff', true);
     var acOnDark = pick([c.accent], dark, 4.5, onDark);
     // text that sits straight on the page, which can be far from the cards (a light page with dark cards)
     var pageInk = pick([c.tc, ink], [c.bg], 4.5, bw(c.bg));
-    var pageMuted = pick([c.m, muted], [c.bg], 4.5, pageInk);
+    var pageMuted = pick([c.m, muted, pageInk], [c.bg], 4.5, bw(c.bg), true);
     var sem = function (onLight, onDarkCol) { return pick(lightPaper ? [onLight, onDarkCol] : [onDarkCol, onLight], [paper], 4.5, ink); };
     return {
       '--bg': c.bg, '--paper': paper, '--mbg': paper, '--sbg': paper, '--input-bg': paper,
@@ -108,7 +116,7 @@
     };
   }
 
-  var api = { CUSTOMS: CUSTOMS, FIXED_DARK: FIXED_DARK, normCustom: normCustom, parseList: parseList, isCustomId: isCustomId, contrast: contrast, lum: lum, bw: bw, fillFor: fillFor, derive: derive };
+  var api = { CUSTOMS: CUSTOMS, FIXED_DARK: FIXED_DARK, normCustom: normCustom, parseList: parseList, isCustomId: isCustomId, contrast: contrast, lum: lum, bw: bw, mix: mix, tinted: tinted, fillFor: fillFor, derive: derive };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDCustomTheme = api;
 })(typeof window !== 'undefined' ? window : null);
