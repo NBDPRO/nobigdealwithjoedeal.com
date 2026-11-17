@@ -167,6 +167,8 @@
     "followup-date-retell-2026-10-12.test.js",
     "estimate-funnel-unblock-2026-10-03.test.js",
     "inspect-short-form-2026-10-06.test.js",
+    "lead-flow-cro-2026-11-17.test.js",
+    "storm-check-intake-grant-2026-11-17.test.js",
     "inspect-cro-draft-2026-10-06.test.js",
     "estimate-funnel-lost-lead-banner-2026-10-05.test.js",
     "estimate-step1-save-2026-11-14.test.js",

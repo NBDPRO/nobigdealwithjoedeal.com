@@ -1313,19 +1313,19 @@ async function submitAndGetEstimate() {
   _focusStepHeading(document.getElementById('stepLoading'));
   updateProgress(5);
 
-  // Animate loading steps
+  // Loading lines follow the real stages (2026-11-17): each one is marked when
+  // the awaited work it names starts, not on a timer. 0 = saving the lead,
+  // 1 = the aerial-measurement read, 2 = pricing, 3 = the note.
   var lsSteps = ['ls1', 'ls2', 'ls3', 'ls4'];
-  for (var i = 0; i < lsSteps.length; i++) {
-    (function(idx) {
-      setTimeout(function() {
-        document.getElementById(lsSteps[idx]).classList.add('active');
-        if (idx > 0) {
-          document.getElementById(lsSteps[idx - 1]).classList.remove('active');
-          document.getElementById(lsSteps[idx - 1]).classList.add('done');
-        }
-      }, idx * 900);
-    })(i);
+  function lsMark(idx) {
+    for (var j = 0; j < lsSteps.length; j++) {
+      var el = document.getElementById(lsSteps[j]);
+      if (!el) continue;
+      if (j < idx) { el.classList.remove('active'); el.classList.add('done'); }
+      else if (j === idx) { el.classList.remove('done'); el.classList.add('active'); }
+    }
   }
+  lsMark(0);
 
   // Save lead to Firestore
   var leadData = {
@@ -1364,6 +1364,7 @@ async function submitAndGetEstimate() {
   } catch (saveErr) {
     console.error('Lead save threw:', saveErr);
   }
+  lsMark(1);
 
   // Joe's alert (email + text) is the leadAlertEstimate Firestore trigger on
   // this estimate_leads doc, so the lead SAVING is the only delivery signal.
@@ -1380,6 +1381,7 @@ async function submitAndGetEstimate() {
   // so a slow or failed lookup costs nothing and simply leaves the estimate
   // on its size-tile footing.
   funnelData.measurement = await fetchRoofMeasurement(_publicLeadId);
+  lsMark(2);
 
   // Service-aware results: only roof-replacement gets the AI tier-table
   // call. Every other service shows a deterministic single range built
@@ -1388,6 +1390,7 @@ async function submitAndGetEstimate() {
   if (funnelData.service !== 'roof-replacement') {
     var svcEst = buildServiceEstimate();
     funnelData.estimate = svcEst;
+    lsMark(3);
     try {
       var note = await fetchJoesTakeNote();
       if (note) svcEst.joesTake = note;
@@ -1400,6 +1403,7 @@ async function submitAndGetEstimate() {
   }
 
   // Get AI estimate
+  lsMark(3);
   try {
     // Pull NBD's actual per-square pricing into the request so the AI can't drift.
     var roofMat = funnelData.roofType === 'other' ? 'asphalt' : (funnelData.roofType || 'asphalt');
@@ -1618,6 +1622,15 @@ function showResults(est) {
   // The optional "help Joe prepare" questions, saved onto this lead.
   if (!window._leadDeliveryFailed) _mountFollowUp();
   trackStep(6);
+
+  // Booking link prefilled with what they already gave us (2026-11-17).
+  var inspCta = document.querySelector('a[data-cta="inspection"]');
+  if (inspCta && window.NBDIntake && typeof window.NBDIntake.calendarUrl === 'function') {
+    inspCta.setAttribute('href', window.NBDIntake.calendarUrl({
+      firstName: funnelData.firstName, lastName: funnelData.lastName, email: funnelData.email,
+      phone: funnelData.phone, address: funnelData.address, service: 'Roof inspection'
+    }));
+  }
 
   // Personalized header
   document.getElementById('resultName').textContent = funnelData.firstName + "'s";

@@ -26,7 +26,7 @@
 <link rel="preload" href="/assets/fonts/bebas-neue-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/assets/fonts/montserrat-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"WebApplication","name":"NBD Storm Damage Claim Check","applicationCategory":"BusinessApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"provider":{"@id":"https://nobigdealwithjoedeal.com/#org"}}
+{"@context":"https://schema.org","@type":"WebApplication","name":"NBD Storm Damage Check","applicationCategory":"BusinessApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"provider":{"@id":"https://nobigdealwithjoedeal.com/#org"}}
 </script>
 <style>
 /* CLS fix (T3e): metric-adjusted local fallbacks so the intro doesn't grow/
@@ -92,7 +92,18 @@ a{color:inherit}
 .sc-spin{width:42px;height:42px;border:4px solid var(--light-gray);border-top-color:var(--orange);border-radius:50%;animation:scSpin 1s linear infinite;margin:30px auto 18px}
 @keyframes scSpin{to{transform:rotate(360deg)}}
 /* result */
-.sc-result-icon{font-size:2.4rem;text-align:center}
+/* optional details on the result screen (2026-11-17), saved onto the lead already sent */
+.sc-details{margin:6px 0 18px;padding-top:16px;border-top:1px solid rgba(26,48,87,.15);min-width:0}
+.sc-details[hidden]{display:none}
+.sc-opt{font-weight:600;color:var(--gray);text-transform:none;letter-spacing:0}
+.sc-details h3{font-size:1rem;font-weight:800;color:var(--navy-dark);margin-bottom:4px}
+.sc-details .sc-sub{margin-bottom:12px}
+.sc-details input[type=file]{max-width:100%;min-width:0}
+button.sc-cta{width:100%;font:inherit;font-weight:800;cursor:pointer}
+button.sc-cta:disabled{opacity:.6;cursor:wait}
+.sc-details-status{font-size:.85rem;margin-top:8px;color:var(--gray-sub)}
+.sc-details-status.error{color:#7f1d1d}
+.sc-details-status a{color:inherit;font-weight:700}
 .sc-result-headline{font-family:'Bebas Neue','Bebas Neue Fallback',sans-serif;font-size:1.9rem;color:var(--navy-dark);text-align:center;line-height:1.1;margin:8px 0 14px}
 .sc-result-data{background:rgba(34,160,107,.1);border:1px solid rgba(34,160,107,.35);border-radius:10px;padding:12px 14px;font-size:.86rem;color:#14663f;font-weight:600;margin-bottom:14px}
 .sc-result-detail{font-size:.95rem;color:var(--gray-sub);margin-bottom:18px}
@@ -155,7 +166,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 .foot-slim .ph a{color:#fff}
 </style>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nobigdealwithjoedeal.com/"},{"@type":"ListItem","position":2,"name":"Storm Damage Claim Check","item":"https://nobigdealwithjoedeal.com/storm-check"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nobigdealwithjoedeal.com/"},{"@type":"ListItem","position":2,"name":"Storm Damage Check","item":"https://nobigdealwithjoedeal.com/storm-check"}]}</script>
 <!-- nbd:partial schema-entity -->
 <!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
@@ -459,8 +470,6 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
       <input type="text" class="sc-input" id="sc-firstName" aria-label="First name" placeholder="John" autocomplete="given-name">
       <span class="sc-label">Mobile phone</span>
       <input type="tel" class="sc-input" id="sc-phone" aria-label="Mobile phone" placeholder="(859) 555-1234" autocomplete="tel" inputmode="tel">
-      <span class="sc-label">Email <span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--gray)">(optional)</span></span>
-      <input type="email" class="sc-input" id="sc-email" aria-label="Email (optional)" placeholder="you@email.com" autocomplete="email" inputmode="email">
       <div id="sc-intake"></div>
       <label class="sc-consent"><input type="checkbox" id="sc-consent"><span>I agree to receive text messages and calls from No Big Deal Home Solutions (No Big Deal Solutions LLC) at the number above about my request, including my results, appointment confirmations and reminders, estimate and project updates, and replies to my questions. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></span></label>
       <div class="sc-err" id="sc-contact-err" role="alert"></div>
@@ -477,15 +486,25 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 
     <!-- RESULT -->
     <div class="sc-step" id="sc-result">
-      <div class="sc-result-icon">🏠</div>
       <div class="sc-result-headline" id="sc-result-headline"></div>
       <div class="sc-warn" id="sc-result-warn"></div>
       <div id="sc-intake-after"></div>
       <div class="sc-result-data" id="sc-result-data" style="display:none"></div>
       <div class="sc-result-detail" id="sc-result-detail"></div>
       <div class="sc-take"><b>Quick note</b><span class="sc-take-ai">AI-drafted from your answers. Joe hasn&#8217;t seen your roof yet.</span><span id="sc-result-take"></span></div>
-      <a class="sc-cta sc-cta-primary" href="https://cal.com/nobigdeal/roof-inspection" target="_blank" rel="noopener">📅 Book my free inspection →</a>
-      <a class="sc-cta sc-cta-phone" href="tel:+18594207382">📞 Or call Joe now — (859) 420-7382</a>
+      <a class="sc-cta sc-cta-primary" id="sc-book" href="https://cal.com/nobigdeal/roof-inspection" target="_blank" rel="noopener">Book my free inspection (opens in a new tab) →</a>
+      <a class="sc-cta sc-cta-phone" href="tel:+18594207382">Or call Joe now — (859) 420-7382</a>
+      <!-- Optional details (best time, insurance, how you heard, photos, email): shown once the lead is saved and
+           the gateway has handed back its one-time grant; storm-check.js saves them with updatePublicLeadIntake. -->
+      <div class="sc-details" id="sc-details" hidden>
+        <h3>Add details <span class="sc-opt">(optional)</span></h3>
+        <p class="sc-sub">Your request is already with Joe. Anything here helps him show up ready, or skip it.</p>
+        <div id="sc-x-intake"></div>
+        <span class="sc-label">Email <span class="sc-opt">(optional)</span></span>
+        <input type="email" class="sc-input" id="sc-email" aria-label="Email (optional)" placeholder="you@email.com" autocomplete="email" inputmode="email" maxlength="200">
+        <button type="button" class="sc-cta sc-cta-phone" id="sc-details-save" data-action="saveDetails">Send to Joe</button>
+        <div class="sc-details-status" id="sc-details-status" role="status" aria-live="polite"></div>
+      </div>
       <p class="sc-guide">New to insurance claims? Read the free <a href="/guides/kentucky-ohio-storm-claim-guide">Kentucky &amp; Ohio storm-claim guide</a> first.</p>
       <div class="sc-disc">This is a free guide, not an insurance determination. Whether a claim is approved is up to your insurer; I document the damage and meet your adjuster.</div>
     </div>
@@ -523,7 +542,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 
 <script defer src="/assets/js/public-lead-submit.js"></script>
 <script defer src="/assets/js/intake-extras.js?v=2"></script>
-<script defer src="/assets/js/storm-check.js?v=9"></script>
+<script defer src="/assets/js/storm-check.js?v=10"></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
 <!-- nbd:partial mobile-cta book_href="/inspect" -->
 <div class="mobile-cta-strip mobile-cta-bookfirst" role="region" aria-label="Quick contact options">
