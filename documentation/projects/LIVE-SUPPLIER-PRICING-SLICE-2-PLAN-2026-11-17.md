@@ -250,6 +250,54 @@ this lane: run the remainder separately and let CI on Linux be the answer.
     Unlinked items. The migration `--apply --yes` is Jo's run, or one he approves
     in chat for that run.
 
+## Jo's answers (2026-11-17, in chat)
+
+Jo answered every question below with the recommended answer. The checklist
+above already assumes them.
+
+- **Q1:** yes. A Home Depot row shows the price as stated; the per-unit figure
+  appears only after "Confirm pack size".
+- **Q2:** yes. Only the owner and company admins feed the ledger; the server
+  refuses `hd_csv` from a manager.
+- **Q3:** through `priceLedgerRecord` with a `channel` field. No new callable.
+- **Q4:** send every reviewed receipt that has items, including ones already
+  imported as expenses. This is the wider `hd-import.js` change.
+- **Q5:** the migration skips the daily meter.
+- **Q6:** no separate store-number field for now.
+- **Q7:** every legacy item arrives unlinked.
+- **Q8:** `--apply --yes`, with a `.local/` backup before any write. The agent
+  runs the dry run (counts only); the write happens only after Jo approves
+  that specific run in chat.
+- **Q9:** the export also carries the legacy `priceBook/{companyId}` doc and
+  `priceAudit`.
+
+Also decided in the same session:
+
+- **Rollout:** after the deploy, `supplierPricing` is switched on for Jo alone.
+- **Catalog floor:** now 30% (DATA_VERSION 8, PR #3134); the paragraph above
+  that says the catalog floor is still 20% is out of date. 35% stays a target
+  with no automatic raise and no warning; revisit on **2026-12-17**, which is
+  only useful if job costs are logged by then.
+- **RoofIVent:** parked. No estimate path reads a `riv_*` catalog row, so
+  pricing them changes no quote. Jo's decision for when a library product can
+  be added to an estimate: the part at MSRP, install as its own charge, set as
+  the smallest amount that clears 30% after labor, with odd labor figures
+  flagged for Jo to correct in the cost book.
+- **The three catalog tiers with no cost** stay as they are and are named in
+  the next private list.
+- **Left alone:** the SRS and QXO API request drafts wait until slice 2 is
+  live; QXO invoices (behind Billtrust) stay out of scope; the superseded v4
+  pricing workbook is not edited.
+- **Builder margin check (read-only, done 2026-11-17):** the catalog floor
+  reaches estimates only through the nine `PRODUCT_MAP` products of the classic
+  estimator. The line-item engine (`estimate-logic-engine.js`
+  `resolveEstimate`) prices cost-plus (material markup, labor at cost, then
+  overhead and profit), so a labor-heavy line cannot reach 30% at the default
+  settings, and the company's cost book carries no line-item (`xactCosts`)
+  entries, so that engine prices from the published starter baseline. The
+  figures are in a private report outside the repo. What to do about it is
+  Jo's decision and is not part of slice 2.
+
 ## Open questions for Jo
 
 - **Q1. Unit of a Home Depot row.** The design reads a no-unit retail row as the
