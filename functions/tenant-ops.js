@@ -199,6 +199,32 @@ async function collectCompany(db, companyId, ownerId, truncated) {
   return out;
 }
 
+// The supplier price ledger (priceBook/{companyId}/…, 2026-11-17). Company-keyed
+// subcollections, so they are read by path, not by a companyId field. Same
+// honesty rules as above: a failed read fails the export, a capped one is named.
+const PRICE_LEDGER_EXPORT = [
+  // [file name, subcollection]
+  ['price_supplier_accounts', 'supplierAccounts'],
+  ['price_offers', 'priceOffers'],
+  ['price_observations', 'priceObservations'],
+  ['price_audit', 'priceAudit'],
+];
+async function collectPriceLedger(db, companyId, truncated) {
+  const out = {};
+  for (const [name, sub] of PRICE_LEDGER_EXPORT) {
+    let snap;
+    try { snap = await db.collection('priceBook/' + companyId + '/' + sub).limit(EXPORT_LIMIT).get(); }
+    catch (e) { throw exportReadFailed(name, 'priceBook/' + sub, e); }
+    if (snap.docs.length >= EXPORT_LIMIT && Array.isArray(truncated)) truncated.push(name);
+    out[name] = snap.docs;
+  }
+  // The legacy price book is one document (items keyed by store SKU).
+  let legacy;
+  try { legacy = await db.doc('priceBook/' + companyId).get(); }
+  catch (e) { throw exportReadFailed('price_book', 'priceBook', e); }
+  return { collections: out, legacy: legacy.exists ? (legacy.data() || {}) : null };
+}
+
 async function buildCompanyExport(db, bucket, companyId, opts) {
   const o = opts || {};
   const coSnap = await db.doc(`companies/${companyId}`).get();
@@ -212,9 +238,16 @@ async function buildCompanyExport(db, bucket, companyId, opts) {
   // companyId == the owner's uid for every self-serve company (provisioning.js).
   const truncated = [];
   const docs = await collectCompany(db, companyId, co.ownerId || companyId, truncated);
+  const ledger = await collectPriceLedger(db, companyId, truncated);
+  Object.assign(docs, ledger.collections);
 
   const files = [];
   const counts = {};
+  if (ledger.legacy) {
+    const items = (ledger.legacy.items && typeof ledger.legacy.items === 'object') ? ledger.legacy.items : {};
+    counts.price_book = Object.keys(items).length;
+    files.push({ name: `${slug}-price_book.json`, data: JSON.stringify(T.plain(ledger.legacy), null, 2) });
+  }
   let signed = 0, unsigned = 0;
   const userMemo = new Map();
   for (const name of Object.keys(docs)) {

@@ -750,7 +750,7 @@ const certBarTargets = marketing.filter((f) => /^services\/[a-z0-9-]+-(oh|ky)\.h
 
   // 3. 320 px: the shared sheets out-rank the posts' own inline rules at phone width.
   const OVER = ['why-i-install-lumanail-on-every-elite-roof', 'why-roofivent-is-on-my-roofs', 'the-pipe-boot-fork', 'free-homeowner-guides-printable-pdfs',
-    'gaf-timberline-hdz-vs-tamko-stormfighter-flex', 'gaf-timberline-vs-tamko-storm-series', 'how-a-roof-works-layer-by-layer', 'how-roof-financing-actually-works',
+    'gaf-timberline-hdz-vs-tamko-stormfighter-flex', 'gaf-timberline-vs-tamko-impact-resistant-shingles', 'how-a-roof-works-layer-by-layer', 'how-roof-financing-actually-works',
     'is-the-class-4-upgrade-worth-it', 'owens-corning-duration-vs-tamko-hailguard', 'tamko-hailguard-first-shingle-with-hail-warranty',
     'vinyl-vs-lp-smartside-vs-fiber-cement-siding', 'why-wont-roofing-suppliers-sell-to-homeowners', 'why-class-4-impact-shingles'];
   ok('blog: all 14 posts measured at 320 px carry the shared card sheet', OVER.every((n) => withCard.includes(n)));

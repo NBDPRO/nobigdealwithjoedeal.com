@@ -143,7 +143,7 @@
      the first tap/key, a non-Home goTo(), a ?query link, or idle after load. -->
 <script defer src="js/late-css.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=229"></script>
+<script src="js/script-loader.js?v=231"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -162,7 +162,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=48"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=49"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -4560,6 +4560,20 @@
                 <input type="number" id="cp_budget_directCostPctWarn" min="1" max="99" step="1" placeholder="65"></div>
               <div class="sf"><label>Margin floor (% gross margin)</label>
                 <input type="number" id="cp_budget_marginFloorPct" min="1" max="99" step="1" placeholder="30"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Estimate margin floor (2026-11-17): companyProfile.pricing.marginFloor,
+             read by js/margin-floor.js. Blank = off; there is no default. -->
+        <div class="panel mb-md">
+          <div class="panel-hdr"><div><div class="panel-label">The margin you want on a cash job, before sales tax: (price − material − labor) ÷ price. Estimates show a band against it. Insurance scopes are left out. Blank = off.</div><div class="panel-title">Estimate Margin Floor</div></div></div>
+          <div class="panel-body">
+            <div class="sf-row">
+              <div class="sf"><label>Floor (% margin, lowest you accept)</label>
+                <input type="number" id="cp_pricing_marginFloor_floorPct" min="1" max="94" step="0.5" placeholder="Off" inputmode="decimal"></div>
+              <div class="sf"><label>Target (% margin, what you aim for)</label>
+                <input type="number" id="cp_pricing_marginFloor_targetPct" min="1" max="94" step="0.5" placeholder="Same as floor" inputmode="decimal"></div>
             </div>
           </div>
         </div>

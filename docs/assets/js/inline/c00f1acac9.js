@@ -128,7 +128,7 @@ const POSTS = [
     published: "2026-06-30",
   },
   {
-    url: "/blog/gaf-timberline-vs-tamko-storm-series",
+    url: "/blog/gaf-timberline-vs-tamko-impact-resistant-shingles",
     tag: "Roofing",
     title: "GAF Timberline vs. TAMKO Impact-Resistant Shingles: Which Roof for Hail Country?",
     meta: "By Joe Deal · June 2026 · 8 min read",

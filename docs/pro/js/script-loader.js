@@ -133,11 +133,16 @@
       'css/receipt-health.css?v=1', 'js/receipt-health.js?v=3',
       // Home Depot Pro Xtra CSV import (2026-09-29) — the header button only
       // renders when this has loaded.
-      'js/hd-import.js?v=4',
+      'js/hd-import.js?v=5',
       'css/lowes-import.css?v=1', 'js/lowes-import.js?v=1', // Lowe's (flag lowesImport)
       // The company price book (2026-10-02) — hd-import.js records each
       // receipt's SKU prices into it; loads after, read at call time.
       'js/price-book.js?v=2',
+      // Supplier price history (2026-11-17, flag supplierPricing): hd-import.js
+      // sends each receipt line to it as well. Same files and keys as the
+      // estimates bundle; they do nothing while the flag is off.
+      'js/price-logic.js?v=2',
+      'js/price-ledger.js?v=2',
       // Receipt import search / filter + type-ahead job picker (2026-10-19): inert until the receiptSorterQueue flag is on.
       'css/receipt-review.css?v=1', 'js/receipt-filter-logic.js?v=1', 'js/receipt-review-ui.js?v=1',
       // Receipt sorter queue (2026-10-18): inert until the receiptSorterQueue flag is on.
@@ -270,27 +275,30 @@
       'js/product-data.js?v=6',
       'js/roofivent-catalog.js?v=2',
       'js/catalog-costs.js?v=4',
-      'js/product-library.js?v=18',
+      'js/product-library.js?v=19',
       // Price book viewer (2026-10-02): the Product Library's "Price book"
       // button. Same file the expenses bundle loads for the HD import.
       'css/price-book.css?v=1',
       'js/price-book.js?v=2',
       // Supplier price ledger (2026-11-17, flag supplierPricing): the
       // "Stores & prices" sheet on each product card. Dark unless the flag is on.
-      'js/price-logic.js?v=1',
+      'js/price-logic.js?v=2',
       'css/price-ledger.css?v=1',
-      'js/price-ledger.js?v=1',
-      'js/price-offers-ui.js?v=1',
+      'js/price-ledger.js?v=2',
+      'js/price-offers-ui.js?v=2',
       'js/estimate-labor-catalog.js?v=2',
-      'js/estimate-builder-v2.js?v=13',
+      'js/estimate-builder-v2.js?v=14',
       'js/estimate-catalog-xactimate.js?v=4',
-      'js/estimate-logic-engine.js?v=9',
+      'js/estimate-logic-engine.js?v=10',
       // Roof Care Plan member discount (2026-10-05): pure rules the V2/V3
       // builder and the Job Templates engine call at price time — before both.
       'js/care-plan-discount.js?v=1',
+      // Estimate margin floor (2026-11-17): the tax-free job margin and the
+      // company's floor / target bands. Pure; off unless the company sets a floor.
+      'js/margin-floor.js?v=1',
       // Classic review step's layout (reskin 2026-10-03), before the script.
       'css/estimates-review.css?v=1',
-      'js/estimates.js?v=13',
+      'js/estimates.js?v=14',
       // Rock 2 PR 6: the New-Estimate front door (chooser) split out of
       // estimates.js. Loads after it — showNewEstimateChooser falls back to
       // estimates.js's showEstimateTypeSelector when V2 is missing.
@@ -298,10 +306,10 @@
       // Rock 2 PR 6: the estimates-list row actions (Firestore CRM ops, no
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
-      'js/estimate-finalization.js?v=11',
+      'js/estimate-finalization.js?v=12',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=42',
+      'js/estimate-v2-ui.js?v=44',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=6',
@@ -317,9 +325,9 @@
       // entity-resolver.js (the lead search/quick-create picker) must load
       // before job-templates-ui.js, which calls it from paintModal.
       'js/job-templates-data.js?v=7',
-      'js/job-templates.js?v=9',
+      'js/job-templates.js?v=10',
       'js/entity-resolver.js?v=2',
-      'js/job-templates-ui.js?v=14',
+      'js/job-templates-ui.js?v=15',
       // Upgrades & Add-ons (2026-09-25): the retail upgrade library, then the
       // pure pricing core that reads it, then Settings → Upgrade prices,
       // which needs both. The Estimates settings tab loads this bundle

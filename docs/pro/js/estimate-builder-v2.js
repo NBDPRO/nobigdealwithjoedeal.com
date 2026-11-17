@@ -692,6 +692,27 @@
     }
   }
 
+  // The shop's LINE-ITEM pricing settings (Settings → Estimates → "V2 Engine ·
+  // Line-Item Mode") in the shape EstimateLogic.resolveEstimate takes:
+  // { materialMarkupPct, overheadPct, profitPct, roundTo }. Only real numbers
+  // count (a blank or corrupt field is left out, so the engine's own default
+  // applies and a price can never be zeroed); roundTo must be > 0. The V2
+  // builder and Job Templates both read this, so the same scope prices the same
+  // on either path (repo sweep 2026-11-17, M4 / M5).
+  function lineItemSettings() {
+    const s = loadSettings() || {};
+    const out = {};
+    ['materialMarkupPct', 'overheadPct', 'profitPct'].forEach(function (k) {
+      const raw = s[k];
+      if (raw === null || raw === undefined || raw === '') return;
+      const v = Number(raw);
+      if (Number.isFinite(v) && v >= 0) out[k] = v;
+    });
+    const r = (s.roundTo === null || s.roundTo === undefined || s.roundTo === '') ? NaN : Number(s.roundTo);
+    if (Number.isFinite(r) && r > 0) out.roundTo = r;
+    return out;
+  }
+
   function saveSettings(next) {
     try {
       if (typeof localStorage === 'undefined') return false;
@@ -1616,6 +1637,7 @@
     // Settings
     getDefaultSettings,
     loadSettings,
+    lineItemSettings,
     saveSettings,
     updateSettings,
     getCountyTaxMap,

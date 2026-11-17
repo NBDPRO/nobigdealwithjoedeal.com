@@ -712,7 +712,8 @@
           <div class="plx-row8">${editable ? `
             <button data-pl-action="addProduct" class="plx-btn-add">+ Add Product</button>
 ` : ''}
-            <button type="button" class="btn btn-ghost" data-pb-action="open" title="What you actually paid, per store SKU">💲 Price book</button>
+            <button type="button" class="btn btn-ghost" data-pb-action="open" title="What you actually paid, per store SKU">💲 Price book</button>${(window.NBDPriceLedger && window.NBDPriceLedger.enabled()) ? `
+            <button type="button" class="btn btn-ghost" data-prl-action="openUnlinked" title="Receipt items not linked to a product yet">Unlinked items</button>` : ''}
             <button type="button" data-pl-action="exportCSV" class="btn btn-ghost">Export CSV</button>
             ${editable ? `<button type="button" data-pl-action="resetDefaults" class="btn btn-ghost plx-btn-reset">Reset</button>` : ''}
           </div>
