@@ -1036,7 +1036,7 @@ console.log('\nDeposit / partial-payment money correctness (money-out sweep)');
     /invoice\.stripePaymentLink && newBalanceDue > 0[\s\S]{0,120}generateStripePaymentLink\(invoiceId\)/.test(ip),
     'the link minted at invoice creation is stale after a deposit — regenerate to (total − amountPaid)');
   assert('invoiceWebhook deletes the idempotency marker on failure so a retry re-processes',
-    /invoiceWebhook error[\s\S]{0,1200}getFirestore\(\)\.doc\(`stripe_events\/\$\{event\.id\}`\)\.delete\(\)/.test(st),
+    /invoiceWebhook error[\s\S]{0,1200}getFirestore\(\)\.doc\(`stripe_events\/\$\{invoiceWebhookMarkerId\(event\.id\)\}`\)\.delete\(\)/.test(st),
     'a transient write failure after the marker was written would otherwise silently drop the captured payment');
   assert('invoiceWebhook credit is idempotent at the DATA level — txn keyed on paymentIntent.id (no double-credit)',
     /const creditResult = await db\.runTransaction/.test(st)
