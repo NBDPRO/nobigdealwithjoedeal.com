@@ -173,7 +173,8 @@ console.log('\n8. wiring (comments stripped)');
   ok('user text is escaped into the picker list', /esc\(C\.leadLabel\(l\)\)/.test(ui));
   const loader = stripJs(read('docs/pro/js/script-loader.js'));
   ok('the expenses bundle loads the three new files', /receipt-review\.css/.test(loader) && /receipt-filter-logic\.js/.test(loader) && /receipt-review-ui\.js/.test(loader));
-  ok('hd-import cache key was bumped', !/hd-import\.js\?v=3/.test(loader) && /hd-import\.js\?v=4/.test(loader));
+  // v=4 shipped with this lane; later bumps (v=5, 2026-11-17, the price history feed) keep it past 3.
+  ok('hd-import cache key was bumped', Number((loader.match(/hd-import\.js\?v=(\d+)/) || [])[1]) >= 4);
   const css = stripCss(read('docs/pro/css/receipt-review.css'));
   ok('CSS: phone card layout under 480px', /@media \(max-width: 480px\)[\s\S]*display: block/.test(css));
   ok('CSS: 44px touch targets on the inputs, buttons and picker rows', (css.match(/min-height: 44px/g) || []).length >= 6);
