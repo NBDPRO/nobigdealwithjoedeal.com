@@ -48,6 +48,8 @@ const SETTINGS = [
   { key: 'nbd_ds_snapshot', field: 'dsSnapshot' },     // what the personal bots read (review-ui publish)
   { key: 'nbd_ds_eod',      field: 'dsEod' },          // end-of-day review: one short note per date
   { key: 'nbd_ds_money',    field: 'dsMoney' },        // money tab: paycheck plan (nicknames + amounts only)
+  { key: 'nbd_ds_look',     field: 'dsLook' },         // theme + accent ids (js/look-sync.js), so an install with its own storage wears the same look
+  { key: 'nbd_wk_look',     field: 'dsWkLook' },       // the Workout app's own theme id, '' = same as Daily Success (js/look-sync.js)
   // Device-only until 2026-11-14 (audit #2): a lost phone, or another account signing in on it, took these with it.
   // firstMerge: how to combine this device's never-synced copy with the cloud's on the first sync (ds-sync-logic mergeFirstSync).
   { key: 'nbd_ds_measurements',   field: 'dsMeasurements',  firstMerge: 'dateSite' }, // body measurements (mm, one per site per day)

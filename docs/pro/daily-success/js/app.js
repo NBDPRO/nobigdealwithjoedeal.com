@@ -1189,6 +1189,8 @@ function nbdApplyTheme(id) {
   _nbd_activeTheme = id;
   localStorage.setItem('nbd-theme', id);
   try { localStorage.setItem('nbd_pro_theme', id === 'default' ? 'nbd-original' : id); } catch (e) {}
+  // 4b. (2026-11-17) the look follows the account: js/look-sync.js records it and ds-firebase-sync.js sends it (the route step 5's note asks for).
+  if (window.NBDLook) window.NBDLook.changed();
   // 5. (removed, audit 2026-06-10) A compat-SDK Firestore theme sync lived
   //    here guarded on global `db`/`currentUser` — neither exists on this
   //    page (modular SDK only, module-scoped in ds-firebase-sync.js), so the

@@ -25,6 +25,9 @@
  *  10. The Workout app wears the Daily Success theme: the same storage keys in the same order, the ten built-in skins' tokens mirrored
  *      value for value, the accent laid over the skin as accent-ui.js does it, and anything unknown shown as the default skin.
  *
+ *  11. The apps may wear different themes: the Workout app's Theme control picks its own skin or "Same as Daily Success"; its own
+ *      choice wins on that app only, and every change is handed to look-sync.js (tests/look-sync-2026-11-17.test.js covers the sync).
+ *
  * Structure and behaviour, not file text (tests/lib/src-kit.js): tags and attributes, CSS declarations, the scripts run in a vm.
  *
  * Run: node tests/ds-workout-installable-2026-11-16.test.js
@@ -390,6 +393,52 @@ console.log('\n10. The Workout app wears the Daily Success theme');
   const lastSheet = Math.max.apply(null, head.$$('link[rel=stylesheet]').map((l) => l.start));
   const acc = inHead('accent-logic.js'), th = inHead('workout-theme.js');
   ok('the theme is set in <head>, after the stylesheets and the accent list, so the first paint is already themed', !!acc && !!th && acc.start > lastSheet && th.start > acc.start && !th.has('defer') && !th.has('async') && dScripts.has(acc.attr('src')));
+}
+
+console.log('\n11. The Workout app can wear its own theme');
+{
+  function themeApp(store) {
+    const attrs = {}, sent = [];
+    const html = { getAttribute: (k) => (k in attrs ? attrs[k] : null), setAttribute: (k, v) => { attrs[k] = String(v); }, style: { setProperty: () => {}, removeProperty: () => {} } };
+    const win = { addEventListener: () => {}, NBDLook: { changed: () => { sent.push(store.nbd_wk_theme === undefined ? '' : store.nbd_wk_theme); } } };
+    kit.loadInVm(['docs/pro/workout/js/workout-theme.js'], { window: win, document: { documentElement: html, visibilityState: 'visible', addEventListener: () => {} },
+      localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } }, getComputedStyle: () => ({ getPropertyValue: () => '' }) });
+    return { T: win.NBDWorkoutTheme, attrs, sent, store };
+  }
+  const a = themeApp({ nbd_pro_theme: 'ocean' });
+  ok('with no theme of its own it wears the Daily Success one', a.attrs['data-theme'] === 'ocean' && a.T.own() === '');
+  ok('picking its own theme repaints at once and is handed to the sync', a.T.setOwn('midnight') === 'midnight' && a.attrs['data-theme'] === 'midnight' && a.sent.join() === 'midnight');
+  ok('the Daily Success keys are left exactly as they were', a.store.nbd_pro_theme === 'ocean' && Object.keys(a.store).sort().join() === 'nbd_pro_theme,nbd_wk_theme');
+  ok('"Same as Daily Success" goes back to following it, and that is handed to the sync too', a.T.setOwn('') === '' && a.attrs['data-theme'] === 'ocean' && !('nbd_wk_theme' in a.store) && a.sent.join() === 'midnight,');
+  ok('only one of the ten skins can be picked, and a rejected pick leaves nothing in storage', ['Midnight', 'custom-1', '<b>', null, 7].every((v) => { const x = themeApp({ nbd_pro_theme: 'ocean' }); return x.T.setOwn(v) === '' && !('nbd_wk_theme' in x.store) && x.attrs['data-theme'] === 'ocean'; }));
+  ok('a stored own theme that is not a skin is ignored', themeApp({ nbd_pro_theme: 'ocean', nbd_wk_theme: 'nope' }).attrs['data-theme'] === 'ocean');
+
+  const sel = wDoc.byId('waTheme');
+  const opts = sel ? sel.$$('option').map((o) => o.attr('value')) : [];
+  ok('the Theme control offers "Same as Daily Success" first, then each of the ten skins once', !!sel && sel.tag === 'select' && opts[0] === '' && opts.slice(1).slice().sort().join() === a.T.SKINS.slice().sort().join(), opts.join());
+  const label = wDoc.$('label[for=waTheme]');
+  ok('it has a visible label', !!label && label.text.replace(/\s+/g, ' ').indexOf('Theme') > -1);
+
+  // the page wiring: the control shows the current choice, and a change goes to setOwn
+  const calls = []; let own = 'forest';
+  const selEl = { id: 'waTheme', value: 'unset' };
+  const docL = {}, winL = {};
+  const doc = { readyState: 'complete', visibilityState: 'visible', addEventListener: (n, f) => { (docL[n] = docL[n] || []).push(f); }, getElementById: (id) => (id === 'waTheme' ? selEl : null) };
+  const win = { addEventListener: (n, f) => { (winL[n] = winL[n] || []).push(f); }, NBDWorkoutTheme: { own: () => own, setOwn: (v) => { calls.push(v); own = v === 'bad' ? '' : v; return own; } } };
+  kit.loadInVm(['docs/pro/workout/js/workout-app.js'], { window: win, document: doc, navigator: { onLine: true }, setTimeout: () => 0, clearTimeout: () => {} });
+  ok('on load the control shows the app\'s own theme', selEl.value === 'forest');
+  selEl.value = 'ember';
+  docL.change.forEach((f) => f({ target: selEl }));
+  ok('choosing an option sets it', calls.join() === 'ember' && selEl.value === 'ember');
+  selEl.value = 'bad';
+  docL.change.forEach((f) => f({ target: selEl }));
+  ok('the control then shows what was really set', selEl.value === '');
+  docL.change.forEach((f) => f({ target: { id: 'other', value: 'x' } }));
+  ok('a change on some other field is not a theme pick', calls.length === 2);
+  own = 'paper';
+  winL['nbd-ds-settings-restored'].forEach((f) => f());
+  ok('a theme that arrived with the account shows in the control', selEl.value === 'paper');
+  ok('look-sync.js is on both pages, and on the Workout page before the app screen (its restore runs first)', at('look-sync.js') > -1 && at('look-sync.js') < at('workout-app.js') && dScripts.has(wSrcs[at('look-sync.js')]));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

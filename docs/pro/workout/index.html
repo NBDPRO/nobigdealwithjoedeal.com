@@ -21,7 +21,7 @@
 <script src="/pro/js/dashboard-appcheck-config.js?v=1"></script>
 <script type="module" src="/pro/daily-success/js/auth-init.js"></script>
 <link rel="stylesheet" href="/pro/daily-success/css/workout-coach.css?v=24">
-<link rel="stylesheet" href="/pro/workout/workout-app.css?v=3">
+<link rel="stylesheet" href="/pro/workout/workout-app.css?v=4">
 <!-- The Daily Success theme and accent saved on this device, set before the first paint (after the stylesheets: the accent reads the skin's card colour). -->
 <script src="/pro/daily-success/js/accent-logic.js?v=1"></script>
 <script src="/pro/workout/js/workout-theme.js?v=1"></script>
@@ -41,6 +41,23 @@
   <div id="wcCard" class="wc-card wa-loading">Loading your workouts…</div>
   <a class="wa-link" id="waSignIn" href="/pro/login?redirect=workout" hidden>Sign in to back up your workouts and see them on every device</a>
   <a class="wa-link wa-link-quiet" href="/pro/daily-success">Open Daily Success</a>
+  <!-- This app's own theme, or the Daily Success one (workout-theme.js setOwn). The names are the Daily Success theme names. -->
+  <label class="wa-theme" for="waTheme">
+    <span>Theme</span>
+    <select id="waTheme">
+      <option value="">Same as Daily Success</option>
+      <option value="default">NBD Default</option>
+      <option value="light">NBD Light</option>
+      <option value="paper">Warm Paper</option>
+      <option value="contrast">High Contrast</option>
+      <option value="midnight">Midnight</option>
+      <option value="forest">Forest</option>
+      <option value="ocean">Ocean</option>
+      <option value="ember">Ember</option>
+      <option value="graphite">Graphite</option>
+      <option value="terminal">Terminal</option>
+    </select>
+  </label>
 </main>
 <noscript><p class="wa-noscript">Workout needs JavaScript turned on.</p></noscript>
 
@@ -54,8 +71,9 @@
 <script src="/pro/daily-success/js/volume-range-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/workout-coach.js?v=32"></script>
 <script src="/pro/daily-success/js/floor-tick-logic.js?v=1"></script>
-<script src="/pro/workout/js/workout-app.js?v=2"></script>
+<script src="/pro/daily-success/js/look-sync.js?v=1"></script>
+<script src="/pro/workout/js/workout-app.js?v=3"></script>
 <script src="/pro/js/pages/sw-register.js" defer></script>
-<script type="module" src="/pro/daily-success/ds-firebase-sync.js?v=12"></script>
+<script type="module" src="/pro/daily-success/ds-firebase-sync.js?v=13"></script>
 </body>
 </html>

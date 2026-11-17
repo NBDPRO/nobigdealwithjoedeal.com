@@ -101,9 +101,26 @@ version of this suite had 22). The suite was rewritten to ask structural questio
    bar and the floor prompt sit on `--bar`, which is dark in every skin, so their text is a fixed light colour.
    Checked in headless Chromium: for each skin (and light + a teal accent) both pages computed the same ten colours, and no text on the
    Workout home screen measured under 4.5:1. Ten deliberate breaks: nine caught; the tenth showed a redundant line, which was removed.
-   **Limits:** (a) a saved custom theme shows as the default skin; (b) the theme keys are per device and are NOT synced, so this works where
-   the two apps share storage (Android, or a desktop browser). An installed iPhone app has its own storage and stays on the default skin
-   until the theme is synced through the account, which is not built.
+   **The look follows the account, and the apps may differ (same day, Jo: "Yes, sync it" and "we can allow for different themes across
+   apps if desired too").** `docs/pro/daily-success/js/look-sync.js` keeps two small records that `ds-firebase-sync.js` (`?v=13`) syncs like
+   the other settings, newest stamp wins:
+   - `nbd_ds_look = { theme, accent }` (`userSettings.dsLook`): the Daily Success look. `app.js nbdApplyTheme` and `accent-ui.js set()`
+     (`?v=2`) call `NBDLook.changed()`. This is the route the 2026-06-10 note inside `nbdApplyTheme` asked for.
+   - `nbd_wk_look = { theme }` (`userSettings.dsWkLook`): the Workout app's OWN theme, `''` = same as Daily Success. Device key
+     `nbd_wk_theme`; set from the new Theme control on the Workout page (`workout-theme.js setOwn`). The accent stays shared.
+   Two records because the sync replaces a record whole: a Workout-only pick on a phone that has not yet received the Daily Success look
+   must not send "default" with it. For the same reason a device with nothing picked writes nothing, and a look that predates this is
+   seeded WITHOUT a stamp, so it only reaches the cloud when the cloud has none. A restored record is applied through the page's own
+   functions on Daily Success, and by writing the device keys and repainting on the Workout app; applying it is not re-stamped.
+   Tests: `tests/look-sync-2026-11-17.test.js` (35 checks: two phones, one fake cloud, the real `look-sync.js` and the real
+   `ds-firebase-sync.js` for every sync) and sections 10-11 of `tests/ds-workout-installable-2026-11-16.test.js` (116 in all). Nineteen
+   deliberate breaks, all caught (one only after a check was tightened). Headless Chromium, one profile: Workout picked Ember, Daily Success
+   stayed default then picked Ocean + Teal, Workout stayed Ember, "Same as Daily Success" took it to Ocean + Teal.
+   **Limits:** (a) a saved custom theme shows as the default skin in the Workout app, and its id only means something on the device that
+   made it; (b) NOT exercised against the real cloud or on a phone: the sync is tested against the harness's fake Firestore;
+   (c) a pick made in the first seconds on a brand-new install, before its first sync has finished, is stamped newer than the look chosen
+   elsewhere and wins; (d) the records are account data, cleared on an account switch (the Daily Success device theme stays, the Workout
+   app's own theme goes back to following until the account's copy arrives).
 5. **Not checked on a real phone.** Checked here: the page in headless Chromium at 390 x 844 (card, start a workout, Back closes
    the logger, no console errors). Not checked: the Android install prompt, iPhone Add to Home Screen, sign-in from inside an
    installed iPhone app, the offline open after an install.

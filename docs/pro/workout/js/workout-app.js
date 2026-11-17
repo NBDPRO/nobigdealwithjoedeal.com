@@ -6,6 +6,7 @@
  *   - signed out: shows the sign-in link. An installed iPhone app keeps its own storage, so signing in here is how it gets
  *     the workouts logged in Daily Success or on another device
  *   - asks the service worker to keep an offline copy of this page (same request Daily Success makes for itself)
+ *   - the Theme control: this app's own theme, or "Same as Daily Success" (workout-theme.js setOwn; the choice syncs with the account)
  *   - at Finish asks "Workout done. Tick the floor?" and stores the answer on the workout (NBDCoachUI.answerFloor). There are no floors
  *     or day pages here, so nothing is ticked on this screen: Daily Success applies a yes the next time it opens, and never asks again
  *
@@ -66,6 +67,20 @@
   window.addEventListener('offline', () => { st.online = false; drawStatus(); });
   // Settings pulled from the cloud (rotation, routines, custom lifts): the card shows them at once.
   window.addEventListener('nbd-ds-settings-restored', drawCard);
+  // ── Theme: this app's own, or the Daily Success one ────────────────────────
+  function drawTheme() {
+    const sel = $('waTheme'), T = window.NBDWorkoutTheme;
+    if (sel && T && typeof T.own === 'function') sel.value = T.own();
+  }
+  document.addEventListener('change', (ev) => {
+    const t = ev.target;
+    if (!t || t.id !== 'waTheme') return;
+    const T = window.NBDWorkoutTheme;
+    if (T && typeof T.setOwn === 'function') t.value = T.setOwn(t.value);
+  });
+  // A look that arrived with the account (look-sync.js has applied it by now: it registered first): the control shows it.
+  window.addEventListener('nbd-ds-settings-restored', drawTheme);
+
   // ── "Workout done. Tick the floor?" ────────────────────────────────────────
   const TICK_IDLE_MS = 30000, TICK_DONE_MS = 5000;
   let tickId = null, tickTimer = null;
@@ -140,7 +155,7 @@
     else if (a === 'tick-no') answerFloor('no');
   });
   // Left open overnight: the date line and "today's workout" follow the day.
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { drawDate(); drawCard(); } });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { drawDate(); drawCard(); drawTheme(); } });
 
   // Offline copy of this page (see daily-success/js/offline-shell.js for why the page asks for its own shell).
   function keepOffline() {
@@ -160,7 +175,7 @@
     try { navigator.serviceWorker.addEventListener('controllerchange', () => { if (!asked) later(); }); } catch (_) { /* ignore */ }
   }
 
-  function boot() { drawDate(); drawCard(); drawStatus(); keepOffline(); }
+  function boot() { drawDate(); drawCard(); drawStatus(); drawTheme(); keepOffline(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
   window.NBDWorkoutApp = { statusOf, drawCard, hasWorkoutFloor, askFloor };
