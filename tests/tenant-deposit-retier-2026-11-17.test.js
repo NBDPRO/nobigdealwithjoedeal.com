@@ -127,6 +127,21 @@ const tenantRule = { businessRules: { deposit: { depositPct: 30, noDepositUnderC
       depositConfig: { CASH_NO_DEPOSIT_UNDER_CENTS: 0, CASH_DEPOSIT_PCT: 30, CASH_DEPOSIT_ROUND_TO_CENTS: 100 } });
     ok('planAcceptedTier honours opts.depositConfig', p.estimate && c(p.estimate.deposit) === 300000, p.estimate && p.estimate.deposit);
   }
+  // "Use it" on a LINE-ITEM estimate rebuilds from its stored tier build and
+  // re-runs the deposit there (its own fromEstimate call, not retierFields).
+  {
+    const rows = [{ code: 'RFG', total: 10000 }];
+    const est = { userId: 'u1', leadId: 'L1', mode: 'cash', tier: 'better', selectedTier: 'better', grandTotal: 10000, rows,
+      acceptedTier: 'best', acceptedPrice: 20000,
+      tierRows: { v: 1, basis: { tier: 'better', totalCents: 1000000, rowsKey: T.rowsKey(rows) },
+        tiers: { best: { rows: [{ code: 'RFG', total: 20000 }], grandTotal: 20000, subtotal: 20000, tax: 0, taxRate: 0 } } } };
+    const cfg = { CASH_NO_DEPOSIT_UNDER_CENTS: 0, CASH_DEPOSIT_PCT: 30, CASH_DEPOSIT_ROUND_TO_CENTS: 100 };
+    const p = T.planUseAcceptedTier({ lead: { userId: 'u1' }, estimate: est, estimateId: 'E1', depositConfig: cfg });
+    ok('"Use it" on a line-item build honours opts.depositConfig (30% of $20,000 = $6,000)',
+      p.reason === 'applied' && c(p.estimate.deposit) === 600000, p.reason + ' ' + (p.estimate && p.estimate.deposit));
+    const n = T.planUseAcceptedTier({ lead: { userId: 'u1' }, estimate: est, estimateId: 'E1' });
+    ok('…and without one keeps deposit-rule.js\'s own rule (50% = $10,000)', n.reason === 'applied' && c(n.estimate.deposit) === 1000000, n.estimate && n.estimate.deposit);
+  }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
