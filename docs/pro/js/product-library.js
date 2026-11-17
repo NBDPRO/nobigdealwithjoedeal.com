@@ -189,6 +189,8 @@
     }
     product.updatedAt = now;
     const idx = products.findIndex(p => p.id === product.id);
+    // The stored copy this save replaces: the cost book gets only what changed (catalog-costs.js recordProduct).
+    const before = (idx >= 0 && products[idx] !== product) ? products[idx] : null;
     if (idx >= 0) products[idx] = product;
     else products.push(product);
     saveAll();
@@ -199,11 +201,30 @@
     // owner/company_admin, so a rep's edit stays local and that is fine.
     try {
       const cc = window.NBDCatalogCosts;
-      if (cc && typeof cc.recordProduct === 'function') cc.recordProduct(product);
+      if (cc && typeof cc.recordProduct === 'function') cc.recordProduct(product, before);
     } catch (e) { /* never block a local save on the sync */ }
     // …and the rest of the row to the company library.
     cloudRecord(product);
     return product;
+  }
+
+  /**
+   * A cost approved into the company's cost book on the server (supplier pricing
+   * slice 4), on this device: set the tier's cost, save the store, re-render. It
+   * does NOT stamp updatedAt, for the same reason applyCostSeed does not: cost
+   * hydration is not an edit. `dollars` null clears the tier (an undo of a tier the
+   * approval had created).
+   */
+  function applyApprovedCost(id, tier, dollars) {
+    const p = products.find(x => x && x.id === id);
+    if (!p || TIERS.indexOf(tier) === -1) return false;
+    if (!p.pricing || typeof p.pricing !== 'object') p.pricing = {};
+    if (!p.pricing[tier] || typeof p.pricing[tier] !== 'object') p.pricing[tier] = {};
+    if (typeof dollars === 'number' && isFinite(dollars)) p.pricing[tier].cost = dollars;
+    else delete p.pricing[tier].cost;
+    saveAll();
+    reRender();
+    return true;
   }
 
   function deleteProduct(id) {
@@ -1178,6 +1199,8 @@
     hardDelete: hardDeleteProduct,
     // Called by catalog-costs.js once the tenant's cost book loads.
     applyCostSeed,
+    // Called by price-ledger.js when a supplier price is approved into the cost book.
+    applyApprovedCost,
     // Company library (productLibrary/{companyId}).
     hydrateCompany: cloudHydrate,
     canEdit: canEditLibrary,

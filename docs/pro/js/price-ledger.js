@@ -105,7 +105,7 @@
 
   const saveAccount = (data) => save('upsertSupplierAccount', data);
   const saveOffer = (data) => save('upsertOffer', data);
-  const linkOffer = (offerId, productId, match) => save('linkOffer', { offerId, productId, match });
+  const linkOffer = (offerId, productId, match, tiers) => save('linkOffer', tiers ? { offerId, productId, match, tiers } : { offerId, productId, match });
   const verifyPack = (offerId, pack) => save('verifyPack', pack ? { offerId, pack } : { offerId });
   const archiveOffer = (offerId, active) => save('archiveOffer', { offerId, active: active === true });
   const voidObservation = (obsId, reason) => save('voidObservation', { obsId, reason });
@@ -201,6 +201,17 @@
   }
   const markSeen = (alertId, obsId) => save('markSeen', { alertId, obsId });
 
+  /** One price row with its full provenance (slice 4: what Update my cost checks). Owner, admin, manager (rules). */
+  async function observation(obsId) {
+    if (!ready() || !obsId || !w.doc || !w.getDoc) return null;
+    try {
+      const d = await w.getDoc(w.doc(w.db, BASE, companyKey(), 'priceObservations', obsId));
+      if (!d || !d.exists || !d.exists()) return null;
+      const r = withId(d); r.obsId = d.id; r.observedAtMs = ms(r.observedAt); r.createdAtMs = ms(r.createdAt);
+      return r;
+    } catch (e) { warn('observation', e); return null; }
+  }
+
   /** The company's comparison settings (companyProfile.pricing.supplierCompare) as basis points; nulls when not set. */
   function compareSettings() { return LG() ? LG().supplierCompareSettings(w._companyProfile || {}) : { taxBps: null, alertBps: null }; }
 
@@ -227,14 +238,111 @@
     } catch (e) { warn('importRows', e); return Object.assign(out, refusal(e)); }
   }
 
+  // ── Slice 4: approve a supplier price into the cost book ──────────────
+
+  /** Show an approved (or undone) cost on this device: its copy of the book, and the product. */
+  function applyHere(productId, applied) {
+    (applied || []).forEach((a) => {
+      if (!a || !a.tier) return;
+      const dollars = typeof a.dollars === 'number' ? a.dollars : null;
+      try { if (w.NBDCatalogCosts && typeof w.NBDCatalogCosts.noteApproved === 'function') w.NBDCatalogCosts.noteApproved(productId, a.tier, dollars); } catch (e) { warn('noteApproved', e); }
+      try { if (w._productLib && typeof w._productLib.applyApprovedCost === 'function') w._productLib.applyApprovedCost(productId, a.tier, dollars); } catch (e) { warn('applyApprovedCost', e); }
+    });
+  }
+
+  /**
+   * Approve one supplier price into the cost book, the ticked tiers at once.
+   * data: { productId, offerId, obsId, lines: [{ tier, fromCents, toCents }],
+   * confirmBelowFloor, confirmAboveSell, note }. The server rebuilds every line and
+   * writes all of them or none. On success this device shows the new cost at once.
+   */
+  async function approveCost(data) {
+    if (!enabled() || !canSave()) return { ok: false, message: 'Only the owner or an admin can update a cost.' };
+    const r = await save('approveCost', data);
+    if (r.ok) { applyHere(data.productId, r.applied); markApplied(data.productId, r.applied); }
+    return r;
+  }
+  /** Undo the last approved change on one tier, while the cost book still holds it. */
+  async function undoCost(productId, tier, auditId) {
+    if (!enabled() || !canSave()) return { ok: false, message: 'Only the owner or an admin can undo a cost change.' };
+    const r = await save('undoCost', { productId, tier, auditId });
+    if (r.ok) { applyHere(productId, r.applied); markApplied(productId, r.applied); }
+    return r;
+  }
+
+  /** The productLinks docs (per product: the last approved cost per tier). 500 at most. */
+  async function productLinks(productIds) {
+    if (!ready() || !w.limit) return [];
+    try {
+      const c = w.collection(w.db, BASE, companyKey(), 'productLinks');
+      const ids = (productIds || []).filter((x) => typeof x === 'string' && x);
+      if (ids.length && w.documentId) {
+        const out = [];
+        for (let i = 0; i < ids.length; i += 10) (await w.getDocs(w.query(c, w.where(w.documentId(), 'in', ids.slice(i, i + 10))))).docs.forEach((d) => out.push(withId(d)));
+        return out;
+      }
+      return (await w.getDocs(w.query(c, w.limit(500)))).docs.map(withId);
+    } catch (e) { warn('productLinks', e); return []; }
+  }
+
+  // Which approvals this device has already applied: { '<productId>|<tier>': atMs }, per company.
+  const markerKey = () => 'nbd_pl_applied_' + companyKey();
+  function readMarkers() { try { return JSON.parse(w.localStorage.getItem(markerKey()) || '{}') || {}; } catch (_) { return {}; } }
+  function writeMarkers(m) { try { w.localStorage.setItem(markerKey(), JSON.stringify(m)); } catch (_) { /* private mode: the next load checks again */ } }
+  function markApplied(productId, applied) {
+    const m = readMarkers();
+    (applied || []).forEach((a) => { if (a && a.tier) m[productId + '|' + a.tier] = Date.now(); });
+    writeMarkers(m);
+  }
+
+  /**
+   * The other devices' half (design section 6 step 8). After the cost book loads,
+   * an approval made elsewhere reaches a product this device has edited (which the
+   * book's own hydrate deliberately leaves alone). Applied once per approval; only
+   * while the book still holds that approved value, so a later edit, here or on
+   * another device, wins. Flag off: productLinks is never read.
+   */
+  let syncing = null;
+  function syncApplied() {
+    if (syncing) return syncing;
+    syncing = (async () => {
+      if (!enabled() || !ready()) { syncing = null; return 0; }
+      const CC = w.NBDCatalogCosts;
+      try { if (CC && typeof CC.hydrate === 'function') await CC.hydrate(); } catch (_) { /* hydrate never rejects */ }
+      const links = await productLinks();
+      const book = (CC && typeof CC.get === 'function' && CC.get()) || {};
+      const m = readMarkers();
+      let n = 0;
+      links.forEach((l) => {
+        const applied = (l && l.applied) || {};
+        Object.keys(applied).forEach((tier) => {
+          const a = applied[tier], k = l.id + '|' + tier;
+          if (!a || typeof a.atMs !== 'number' || (m[k] && m[k] >= a.atMs)) return;
+          m[k] = a.atMs;
+          const entry = book.costs && book.costs[l.id];
+          const inBook = entry && entry.cost ? entry.cost[tier] : undefined;
+          const same = (typeof a.dollars === 'number') ? (typeof inBook === 'number' && LG() && LG().bookMicros(LG().dollarsToMicros(inBook)) === LG().dollarsToMicros(a.dollars)) : (inBook === undefined);
+          if (!same) return;
+          try { if (w._productLib && typeof w._productLib.applyApprovedCost === 'function' && w._productLib.applyApprovedCost(l.id, tier, typeof a.dollars === 'number' ? a.dollars : null)) n++; } catch (e) { warn('sync', e); }
+        });
+      });
+      writeMarkers(m);
+      return n;
+    })().catch((e) => { warn('syncApplied', e); syncing = null; return 0; });
+    return syncing;
+  }
+
   // The Product Library may draw its cards before the flags arrive: ask for one re-render.
   w.addEventListener('nbd:flags-loaded', function () {
     try { if (enabled() && w._productLib && typeof w._productLib.render === 'function' && document.querySelector('.plx-card-foot')) w._productLib.render(); } catch (e) { warn('re-render', e); }
+    syncApplied();
   });
+  if (enabled()) syncApplied();
 
   w.NBDPriceLedger = {
     FLAG, enabled, role, canSave, canRecord, companyKey,
     suppliers, offersFor, history, unlinked, allOffers, seenMarks, compareSettings,
     saveAccount, saveOffer, linkOffer, verifyPack, archiveOffer, voidObservation, record, recordHdReceipts, importRows, markSeen,
+    approveCost, undoCost, productLinks, syncApplied, observation,
   };
 })();

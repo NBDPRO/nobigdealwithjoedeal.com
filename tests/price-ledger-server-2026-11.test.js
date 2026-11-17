@@ -484,6 +484,23 @@ const typed = (patch) => Object.assign({ offerId: OFFER, kind: 'paid', priceMicr
     ok('the list is capped at 2000: the oldest mark goes', Object.keys(marks).length === 2000 && marks.move_new && !marks.move_x0 && marks.move_x1, Object.keys(marks).length);
   }
 
+  console.log('\nSlice 4: approveCost and undoCost at the callable');
+  {
+    for (const who of ['mgr', 'rep', 'viewer']) {
+      reset(); await seed('ca');
+      const before = writes().length;
+      const a = await save(who, 'approveCost', { productId: 'shingle_001', offerId: OFFER, obsId: 'o_1', lines: [{ tier: 'good', fromCents: null, toCents: 1111 }] });
+      const u = await save(who, 'undoCost', { productId: 'shingle_001', tier: 'good', auditId: 'a_1' });
+      ok('a ' + who + ' can not approve or undo a cost change, and nothing is written', a.code === 'permission-denied' && u.code === 'permission-denied' && writes().length === before, [a.code, u.code]);
+    }
+    reset(); await seed('ca');
+    const r = await save('ca', 'approveCost', { productId: 'shingle_001', offerId: OFFER, obsId: 'o_missing', lines: [{ tier: 'good', fromCents: null, toCents: 1111 }] });
+    ok('a stale approval is refused as aborted with a plain message and no cost-book write', r.code === 'aborted' && r.details && r.details.reason === 'changed' && /changed/i.test(r.message) && writesUnder('catalogCosts/').length === 0, r);
+    const reasons = ['changed', 'no_lines', 'bad_tier', 'bad_product', 'no_price', 'not_paperwork', 'price_type', 'delivered', 'not_comparable', 'unit_suspect', 'stale', 'needs_pack', 'unit_changed', 'needs_tax_rate', 'no_cost_book', 'below_one_cent', 'no_change', 'confirm_floor', 'confirm_above_sell'];
+    const missing = reasons.filter((k) => typeof mod._internal.REASONS[k] !== 'string' || !mod._internal.REASONS[k]);
+    ok('every refusal an approval can give has a plain message', missing.length === 0, missing);
+  }
+
   console.log('\nThe store builds every path itself');
   {
     reset(); await seed('ca');
