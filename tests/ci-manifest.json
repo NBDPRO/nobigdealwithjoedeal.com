@@ -1076,6 +1076,7 @@
     "st-f28-2026-11-08.test.js",
     "visit-recorder-2026-10-13.test.js",
     "integrity-2-guards-2026-11-06.test.js",
+    "price-ledger-migrate-2026-11.test.js",
     "visit-capture-pipeline-2026-10-13.test.js",
     "visit-recorder-ui-2026-10-15.test.js",
     "a11y-audit-2026-10-23.test.js",

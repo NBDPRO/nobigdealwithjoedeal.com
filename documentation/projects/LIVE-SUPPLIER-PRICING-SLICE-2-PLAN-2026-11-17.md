@@ -1,7 +1,26 @@
 # Live supplier pricing, slice 2 plan: bring the receipts in (2026-11-17)
 
-Status: **a plan, not built.** Nine questions at the bottom need Jo's answer
-before code. This note carries no cost, price or account number.
+Status: **built on branch `claude/supplier-pricing-slice-2b-2026-11-17`
+(2026-11-17), ships dark behind `supplierPricing`.** Jo answered the nine
+questions at the bottom the same day. This note carries no cost, price or
+account number.
+
+Where the build departs from the checklist below:
+
+- `price-ledger-migrate-2026-11` drives the script's `run()` against a fake
+  store; the migration origin against the fake Firestore (kind, attested,
+  channel, the meter, the twin id) is in `price-ledger-server-2026-11`.
+- Q4: with nothing new to import, `doImport` still feeds the history and says
+  so in a toast of its own; the existing toasts are unchanged.
+- The legacy `priceBook/{companyId}` doc is in the export as one JSON file
+  (`price_book`), not as a CSV.
+- `exportMyData` got no new test (no behaviour test existed to extend) and no
+  code change.
+- No rule, index or callable was added. `firestore-rules.price-ledger` was not
+  re-run (rules untouched).
+- Not done: nobody has run the importer or opened "Unlinked items" in a real
+  browser, and the copy script has not been run against production, dry or
+  otherwise.
 
 - Lane note: [LIVE-SUPPLIER-PRICING-2026-11-17](LIVE-SUPPLIER-PRICING-2026-11-17.md)
 - Design: [LIVE-SUPPLIER-PRICING-DESIGN-2026-11-17](LIVE-SUPPLIER-PRICING-DESIGN-2026-11-17.md)
