@@ -1302,6 +1302,15 @@
         { "fieldPath": "pipelineStatus", "order": "ASCENDING" },
         { "fieldPath": "pipelineNextAtMs", "order": "ASCENDING" }
       ]
+    },
+    {
+      "_comment": "Price ledger (2026-11): one offer's history, newest first.",
+      "collectionGroup": "priceObservations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "offerId", "order": "ASCENDING" },
+        { "fieldPath": "observedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

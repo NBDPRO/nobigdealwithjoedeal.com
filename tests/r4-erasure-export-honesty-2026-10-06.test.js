@@ -147,6 +147,18 @@ async function post(L) {
     L.done();
   }
   {
+    // 2026-11-17: the supplier price ledger tree (priceBook/{companyId}) goes with a solo owner's erasure.
+    const events = [];
+    const docs = { 'account_erasures/u1': { tokenHash: HASH, confirmed: false, expiresAt: { toMillis: () => Date.now() + 3600e3 } } };
+    const L = loadCompliance({ events, docs, failOnce: { recursive: { 'priceBook/u1': true } } });
+    const r1 = await post(L);
+    ok('a failing priceBook delete -> partial erasure, the failure names the tree', r1.code === 500 && docs['account_erasures/u1'].confirmed === false
+      && docs['account_erasures/u1'].failures.some((f) => f.step === 'recursiveDelete' && f.target === 'priceBook'), r1.code + ' ' + JSON.stringify(docs['account_erasures/u1'].failures));
+    const r2 = await post(L);
+    ok('...the retry deletes the price ledger tree and confirms', r2.code === 200 && events.includes('delete:priceBook/u1') && docs['account_erasures/u1'].confirmed === true, events.filter((e) => /priceBook/.test(e)).join(' > '));
+    L.done();
+  }
+  {
     // Partial request whose 24h token window has passed: still finishable.
     const events = [];
     const docs = { 'account_erasures/u1': { tokenHash: HASH, confirmed: false, partial: true, expiresAt: { toMillis: () => Date.now() - 3600e3 } } };

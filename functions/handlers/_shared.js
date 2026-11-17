@@ -409,6 +409,7 @@ module.exports = {
   SUBORDINATE_ROLES,
   LEGACY_ACCESS_CODES,
   requireTeamAdmin,
+  assertCallerAccountEnabled,
   teamAdminDecision,
   callerMayManageTarget,
   protectedTargetRefusal,

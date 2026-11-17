@@ -480,7 +480,11 @@ const RUNNABLE = ['node', 'smoke'];
 //               type (social-consent-blog-2026-11-09, node). MEASURED via --check.
 //   2026-11-09  three content-plan lanes in one PR (consent draft, photo matcher, social/blog). MEASURED via --check.
 //   2026-11-09  1048/74/1192 -> 1048/74/1193, the Daily Success flow batch 3 suite (ds-flow-batch-3, wired-individually). MEASURED via --check.
-const FLOORS = { node: 1117, smoke: 74, disk: 1270 };
+//   2026-11-17  1117/74/1270 -> 1127/74/1281, the supplier price ledger slice 1: three node suites (price-logic-2026-11,
+//               price-ledger-server-2026-11, price-fixture-privacy) and one wired-individually (firestore-rules.price-ledger).
+//               The floor was already stale by 7 node / 7 disk on main before this PR. MEASURED via --check.
+//   2026-11-17  1127/74/1281 -> 1129/74/1283 after merging main (#3127 added two node suites). MEASURED via --check.
+const FLOORS = { node: 1129, smoke: 74, disk: 1283 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

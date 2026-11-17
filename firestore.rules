@@ -3028,6 +3028,58 @@ service cloud.firestore {
         || (isCompanyAdmin() && companyId == myCompanyId());
     }
 
+    // ── PRICE LEDGER (2026-11, flag supplierPricing) ───────────────────
+    // Dated, sourced price history under priceBook/{companyId}/…. Every write
+    // is a Cloud Function (admin SDK). A browser only reads.
+    // Offers (and their latest summary): the owner, company_admin, manager,
+    // sales_rep. Observations and meters: owner / company_admin / manager.
+    // Audit: owner / company_admin. A viewer, the access-code role `member`,
+    // a token with no role, another tenant: nothing.
+    // The claim branch is an ALLOWLIST of roles, read with .get('role','') so
+    // a role-less token is a clean deny, not an evaluation error.
+    // Siblings of the priceBook block above on purpose, never nested in it.
+    function plRole() {
+      return request.auth.token.get('role', '');
+    }
+    function plClaim(companyId) {
+      return request.auth.token.get('companyId', '') == companyId;
+    }
+    function plMember(companyId) {
+      return isAuth() && notViewer()
+        && (ownsTenantByUid(companyId)
+            || (plClaim(companyId) && plRole() in ['company_admin', 'manager', 'sales_rep']));
+    }
+    function plStaff(companyId) {
+      return isAuth() && notViewer()
+        && (ownsTenantByUid(companyId)
+            || (plClaim(companyId) && plRole() in ['company_admin', 'manager']));
+    }
+    function plAdmin(companyId) {
+      return isAuth() && notViewer()
+        && (ownsTenantByUid(companyId)
+            || (plClaim(companyId) && plRole() == 'company_admin'));
+    }
+    match /priceBook/{companyId}/supplierAccounts/{supplierId} {
+      allow read: if plMember(companyId);
+      allow write: if false;
+    }
+    match /priceBook/{companyId}/priceOffers/{offerId} {
+      allow read: if plMember(companyId);
+      allow write: if false;
+    }
+    match /priceBook/{companyId}/priceObservations/{obsId} {
+      allow read: if plStaff(companyId);
+      allow write: if false;
+    }
+    match /priceBook/{companyId}/priceMeter/{meterId} {
+      allow read: if plStaff(companyId);
+      allow write: if false;
+    }
+    match /priceBook/{companyId}/priceAudit/{auditId} {
+      allow read: if plAdmin(companyId);
+      allow write: if false;
+    }
+
     // Job-name memory (hd-import.js, receipt sorter 2026-10-18): which lead a
     // PO/Job name on a Home Depot / Lowe's receipt means, learned from the
     // company's own past assignments. One doc per company: any non-viewer

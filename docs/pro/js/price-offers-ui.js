@@ -1,0 +1,435 @@
+/**
+ * price-offers-ui.js: the "Stores & prices" sheet (2026-11-17, flag supplierPricing).
+ *
+ * Opened from a product card (data-prl-action="openProduct"). For one product it
+ * shows the store and supplier items linked to it, each with its pack size, its
+ * current price with the source and date, and (for the owner, an admin or a
+ * manager) the dated history. The owner or an admin can add a store or supplier,
+ * add an item, set and confirm the pack size, type a price and void a wrong row.
+ * A manager can type a price, which is saved as a note until an owner confirms it.
+ *
+ * Rules this file keeps:
+ *   - every price on screen shows where it came from and when; a missing price
+ *     says "No price yet", never 0. Nothing is invented or interpolated
+ *   - every store or supplier string goes through esc() before it reaches the page,
+ *     attributes included; a link is drawn only when it is https on that
+ *     supplier's own host (NBDPriceLogic.urlAllowedFor)
+ *   - nothing here changes a cost book, a sell price or an estimate
+ *   - one document-level click delegate on data-prl-action; no inline handlers,
+ *     no inline style
+ */
+(function () {
+  'use strict';
+  if (typeof window === 'undefined') return;
+  const w = window;
+  const LG = () => w.NBDPriceLogic;
+  const PL = () => w.NBDPriceLedger;
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const toast = (m, k) => { if (typeof w.showToast === 'function') w.showToast(m, k || 'info'); };
+  const DAY_MS = 86400000;
+
+  const KIND_LABELS = { paid: 'Paid (receipt or invoice)', quote: 'Quote', contract: 'Contract price', price_sheet: 'Price sheet', portal_read: 'Read on my account portal', manual: 'Note (no paperwork)', api_account: 'Account price (API)', live_shelf: 'Shelf price today' };
+  const KIND_SHORT = { paid: 'Paid', quote: 'Quote', contract: 'Contract', price_sheet: 'Price sheet', portal_read: 'Portal', manual: 'Note', api_account: 'Account', live_shelf: 'Shelf' };
+  const LEVELS = {
+    1: { text: 'Current', cls: 'is-success' },
+    2: { text: 'Account price, this week', cls: 'is-info' },
+    3: { text: 'Paid, over 60 days ago', cls: 'is-warn' },
+    4: { text: 'Quote expired', cls: 'is-warn' },
+    5: { text: 'Not confirmed', cls: 'is-danger' },
+  };
+  const UNIT_WORDS = { BDL: 'bundle', RL: 'roll', BX: 'box', PC: 'piece', EA: 'each', SHT: 'sheet', SQ: 'square', LF: 'linear foot', SF: 'square foot', GAL: 'gallon', PAIL: 'pail', TUBE: 'tube', BAG: 'bag', CTN: 'carton', PLT: 'pallet', LB: 'pound' };
+  const PRICE_TYPES = { account: 'My account price', net: 'Net price', list: 'List price', promo: 'Sale or promo price' };
+  const DOC_TYPES = { none: 'No document', receipt: 'Receipt', invoice: 'Invoice', quote: 'Quote', price_sheet: 'Price sheet', contract: 'Contract', portal: 'Account portal' };
+
+  let S = null;
+
+  const today = () => { const d = new Date(); const p = (n) => (n < 10 ? '0' : '') + n; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); };
+  function productOf(id) {
+    const list = (w._productLib && typeof w._productLib.getProducts === 'function') ? w._productLib.getProducts() : (w.NBD_PRODUCTS || []);
+    return (list || []).find((p) => p && p.id === id) || null;
+  }
+  function supplierLabel(id) {
+    const a = (S.suppliers || []).find((x) => x.supplierId === id || x.id === id);
+    if (a && a.label) return a.label;
+    const reg = LG().supplierOf(id);
+    return reg ? reg.label : String(id || '');
+  }
+  const accountOf = (id) => (S.suppliers || []).find((x) => x.supplierId === id || x.id === id) || null;
+  const quoteDays = (supplierId) => { const a = accountOf(supplierId); return (a && a.terms && a.terms.quoteValidDays) || undefined; };
+  const unitWord = (u) => UNIT_WORDS[u] || String(u || '');
+  const catalogUnitLabel = (u) => (w.NBD_UNITS && w.NBD_UNITS[u] && w.NBD_UNITS[u].label) || String(u || '');
+  const money = (m) => LG().microsToText(m);
+  function ageText(ms) {
+    if (!ms) return '';
+    const days = Math.floor((Date.now() - ms) / DAY_MS);
+    if (days <= 0) return 'today';
+    if (days === 1) return 'yesterday';
+    return days + ' days ago';
+  }
+  const dateText = (ms) => (ms ? new Date(ms).toISOString().slice(0, 10) : '');
+
+  // Is the offer's pack still about this product's unit? (The product's unit can be changed.)
+  function packState(offer) {
+    const p = offer.pack || {};
+    if (!LG().validPack(p)) return 'needs_unit';
+    if (S.product && S.product.unit && p.catalogUnit !== S.product.unit) return 'unit_changed';
+    return 'ok';
+  }
+  function packLine(offer) {
+    const p = offer.pack || {}, st = packState(offer);
+    if (st === 'needs_unit') return '<span class="ui-badge is-warn">Needs a unit</span> <span class="prl-dim">Set the pack size to compare this price with the product.</span>';
+    if (st === 'unit_changed') return '<span class="ui-badge is-danger">The product\'s unit changed</span> <span class="prl-dim">Set the pack size again.</span>';
+    const ratio = p.den === 1 ? String(p.num) : p.num + '/' + p.den;
+    return '1 ' + esc(unitWord(p.purchaseUnit)) + ' = ' + esc(ratio) + ' ' + esc(catalogUnitLabel(p.catalogUnit)) +
+      (p.verified ? ' <span class="ui-badge is-success">Confirmed</span>' : ' <span class="ui-badge is-warn">Not confirmed</span>');
+  }
+  function statedText(r) {
+    const per = r.per === 100 ? ' per 100 ' : r.per === 1000 ? ' per 1,000 ' : ' per ';
+    return esc(money(r.priceMicros)) + esc(per) + esc(r.statedUnit ? unitWord(r.statedUnit) + (r.per > 1 ? 's' : '') : 'unit not stated');
+  }
+  function levelBadge(r, supplierId) {
+    const lv = LG().evidenceLevel({ kind: r.kind, observedAtMs: r.observedAtMs, validThroughMs: r.validThroughMs }, Date.now(), quoteDays(supplierId));
+    const L = LEVELS[lv] || LEVELS[5];
+    return '<span class="ui-badge ' + L.cls + '">' + esc(L.text) + '</span>';
+  }
+  function perCatalog(offer, r) {
+    if (packState(offer) !== 'ok') return '';
+    const c = LG().toCatalogMicros(r.priceMicros, r.per, r.statedUnit, offer.pack);
+    if (c.micros === null) return c.flag === 'unit_mismatch' ? '<span class="prl-dim">Unit does not match this item</span>' : '';
+    return '<span class="ui-money">' + esc(money(c.micros)) + '</span> per ' + esc(catalogUnitLabel(offer.pack.catalogUnit));
+  }
+
+  function bestBlock(offer) {
+    const b = offer.latest && offer.latest.best;
+    if (!b) return '<div class="prl-noprice">No price yet</div>';
+    return '<div class="prl-best">' +
+      '<div class="prl-price"><span class="ui-money">' + statedText(b) + '</span>' + (perCatalog(offer, b) ? ' <span class="prl-dim">·</span> ' + perCatalog(offer, b) : '') + '</div>' +
+      '<div class="prl-src">' + esc(KIND_SHORT[b.kind] || b.kind) + ' · ' + esc(dateText(b.observedAtMs)) + ' (' + esc(ageText(b.observedAtMs)) + ')' +
+      (b.taxIncluded ? ' · tax included' : ' · before tax') + ' ' + levelBadge(b, offer.supplierId) + '</div></div>';
+  }
+
+  function historyBlock(offer) {
+    const rows = S.history[offer.id];
+    if (rows === undefined) return '';
+    if (rows === null) return '<div class="prl-hist"><div class="prl-dim">Loading the history…</div></div>';
+    if (!rows.length) return '<div class="prl-hist"><div class="prl-dim">No prices recorded for this item yet.</div></div>';
+    const canVoid = PL().canSave();
+    return '<div class="prl-hist">' + rows.map((r) => {
+      const kind = (KIND_SHORT[r.kind] || r.kind) + (r.claimedKind ? ' (typed as ' + (KIND_SHORT[r.claimedKind] || r.claimedKind) + ', waiting for an owner)' : '');
+      const doc = r.doc && r.doc.ref ? ' · ' + (DOC_TYPES[r.doc.type] || 'Document') + ' ' + r.doc.ref : '';
+      const loc = r.locationId ? ' · branch ' + r.locationId : '';
+      return '<div class="prl-hrow' + (r.voided ? ' is-void' : '') + '">' +
+        '<div class="prl-hmain"><span class="ui-money">' + statedText(r) + '</span>' + (perCatalog(offer, r) ? ' <span class="prl-dim">·</span> ' + perCatalog(offer, r) : '') + '</div>' +
+        '<div class="prl-src">' + esc(r.observedOn || dateText(r.observedAtMs)) + ' · ' + esc(kind) + esc(loc) + esc(doc) + ' · as of ' + esc(ageText(r.observedAtMs)) + ' ' +
+        (r.voided ? '<span class="ui-badge is-danger">Voided</span>' + (r.voidReason ? ' <span class="prl-dim">' + esc(r.voidReason) + '</span>' : '') : levelBadge(r, offer.supplierId)) + '</div>' +
+        (r.note ? '<div class="prl-dim">' + esc(r.note) + '</div>' : '') +
+        (canVoid && !r.voided ? '<button type="button" class="ui-btn-quiet prl-btn" data-prl-action="voidRow" data-prl-id="' + esc(r.obsId) + '" data-prl-offer="' + esc(offer.id) + '">Void this row</button>' : '') +
+        '</div>';
+    }).join('') + '</div>';
+  }
+
+  function offerCard(offer) {
+    const admin = PL().canSave(), staff = PL().canRecord();
+    const link = (offer.url && LG().urlAllowedFor(offer.supplierId, offer.url)) ? ' · <a href="' + esc(offer.url) + '" target="_blank" rel="noopener noreferrer">open at the supplier</a>' : '';
+    const st = packState(offer);
+    const btns = [];
+    if (staff) btns.push('<button type="button" class="btn btn-ghost prl-btn" data-prl-action="showAddPrice" data-prl-id="' + esc(offer.id) + '">Add a price</button>');
+    if (staff) btns.push('<button type="button" class="ui-btn-quiet prl-btn" data-prl-action="toggleHistory" data-prl-id="' + esc(offer.id) + '">' + (S.history[offer.id] !== undefined ? 'Hide history' : 'History') + '</button>');
+    if (admin) btns.push('<button type="button" class="ui-btn-quiet prl-btn" data-prl-action="showPack" data-prl-id="' + esc(offer.id) + '">' + (st === 'ok' ? 'Change pack size' : 'Set pack size') + '</button>');
+    if (admin && st === 'ok' && !offer.pack.verified) btns.push('<button type="button" class="ui-btn-quiet prl-btn" data-prl-action="confirmPack" data-prl-id="' + esc(offer.id) + '">Confirm pack size</button>');
+    if (admin) btns.push('<button type="button" class="ui-btn-quiet prl-btn" data-prl-action="archive" data-prl-id="' + esc(offer.id) + '">Remove</button>');
+    return '<div class="prl-offer">' +
+      '<div class="prl-otitle"><span class="prl-store">' + esc(supplierLabel(offer.supplierId)) + '</span>' + esc(offer.title) + '</div>' +
+      '<div class="prl-src">' + (offer.sku ? 'SKU ' + esc(offer.sku) : 'No SKU') + link + '</div>' +
+      '<div class="prl-pack">' + packLine(offer) + '</div>' +
+      bestBlock(offer) +
+      '<div class="prl-actions">' + btns.join('') + '</div>' +
+      (S.form && S.form.offerId === offer.id ? formHtml() : '') +
+      historyBlock(offer) +
+      '</div>';
+  }
+
+  const opt = (value, label, selected) => '<option value="' + esc(value) + '"' + (selected ? ' selected' : '') + '>' + esc(label) + '</option>';
+  const field = (label, control, hint) => '<label class="prl-field"><span class="prl-label">' + esc(label) + '</span>' + control + (hint ? '<span class="prl-hint">' + esc(hint) + '</span>' : '') + '</label>';
+  const unitOptions = (selected) => LG().UNITS.map((u) => opt(u, unitWord(u) + ' (' + u + ')', u === selected)).join('');
+
+  function packFields(purchaseUnit, pack) {
+    const cu = S.product ? S.product.unit : '';
+    const sug = LG().suggestPack(purchaseUnit, cu, S.product && S.product.coverage);
+    const num = pack && pack.num ? pack.num : (sug ? sug.num : '');
+    const den = pack && pack.den ? pack.den : (sug ? sug.den : '');
+    const hint = sug ? 'Suggested from the product: 1 ' + unitWord(purchaseUnit) + ' = ' + (sug.den === 1 ? sug.num : sug.num + '/' + sug.den) + ' ' + catalogUnitLabel(cu) + '. Change it if your supplier packs it differently.'
+      : 'How many ' + catalogUnitLabel(cu) + ' is one ' + unitWord(purchaseUnit) + '? Leave both blank if you do not know yet.';
+    return '<div class="prl-row2">' +
+      field('One ' + unitWord(purchaseUnit) + ' covers', '<input class="prl-input" name="num" inputmode="numeric" pattern="[0-9]*" value="' + esc(num) + '" autocomplete="off">') +
+      field('out of (divide by)', '<input class="prl-input" name="den" inputmode="numeric" pattern="[0-9]*" value="' + esc(den) + '" autocomplete="off">') +
+      '</div><div class="prl-hint" id="prlPackHint">' + esc(hint) + '</div>';
+  }
+
+  function formHtml() {
+    const f = S.form;
+    if (!f) return '';
+    const busy = S.busy ? ' disabled' : '';
+    const foot = '<div class="prl-actions"><button type="submit" class="btn btn-orange prl-btn"' + busy + '>' + esc(f.submit) + '</button>' +
+      '<button type="button" class="ui-btn-quiet prl-btn" data-prl-action="cancelForm">Cancel</button></div>' +
+      (S.error ? '<div class="prl-error" role="alert">' + esc(S.error) + '</div>' : '');
+    if (f.type === 'supplier') {
+      const reg = LG().SUPPLIERS;
+      const have = (S.suppliers || []).map((a) => a.supplierId || a.id);
+      const options = Object.keys(reg).filter((id) => id !== 'other' && have.indexOf(id) === -1).map((id) => opt(id, reg[id].label)).join('') + opt('custom', 'Another store or supplier (name it)');
+      return '<form class="prl-form" data-prl-form="supplier" novalidate>' +
+        '<h3 class="prl-h3">Add a store or supplier</h3>' +
+        field('Store or supplier', '<select class="prl-input" name="supplierId">' + options + '</select>') +
+        field('Name (only for another store or supplier)', '<input class="prl-input" name="label" maxlength="60" autocomplete="off">') +
+        field('Kind (only for another store or supplier)', '<select class="prl-input" name="type">' + opt('distributor', 'Distributor') + opt('retail', 'Retail store') + '</select>') +
+        field('Your usual branch or store (optional)', '<input class="prl-input" name="branch" maxlength="60" autocomplete="off">', 'For example the town, or the store number.') +
+        foot + '</form>';
+    }
+    if (f.type === 'offer') {
+      const accts = S.suppliers || [];
+      return '<form class="prl-form" data-prl-form="offer" novalidate>' +
+        '<h3 class="prl-h3">Add an item this product is bought as</h3>' +
+        field('Store or supplier', '<select class="prl-input" name="supplierId">' + accts.map((a) => opt(a.supplierId || a.id, a.label || a.supplierId)).join('') + '</select>') +
+        field('Their name for the item', '<input class="prl-input" name="title" maxlength="160" required autocomplete="off">') +
+        field('SKU or item number (optional)', '<input class="prl-input" name="sku" maxlength="40" autocomplete="off">') +
+        field('Link to the item (optional)', '<input class="prl-input" name="url" type="url" maxlength="500" autocomplete="off">', 'An https link on that supplier\'s own site.') +
+        field('Sold by the', '<select class="prl-input" name="purchaseUnit" data-prl-change="packUnit">' + unitOptions('EA') + '</select>') +
+        '<div id="prlPackFields">' + packFields('EA', null) + '</div>' +
+        foot + '</form>';
+    }
+    const offer = (S.offers || []).find((o) => o.id === f.offerId) || {};
+    if (f.type === 'pack') {
+      const pu = (offer.pack && offer.pack.purchaseUnit) || 'EA';
+      return '<form class="prl-form" data-prl-form="pack" novalidate>' +
+        '<h3 class="prl-h3">Pack size</h3>' +
+        field('Sold by the', '<select class="prl-input" name="purchaseUnit" data-prl-change="packUnit">' + unitOptions(pu) + '</select>') +
+        '<div id="prlPackFields">' + packFields(pu, packState(offer) === 'ok' ? offer.pack : null) + '</div>' +
+        foot + '</form>';
+    }
+    // price
+    const acct = accountOf(offer.supplierId);
+    const locs = (acct && acct.locations) || [];
+    const pu = (offer.pack && offer.pack.purchaseUnit) || 'EA';
+    const kinds = LG().CALLER_KINDS.map((k) => opt(k, KIND_LABELS[k], k === 'paid')).join('');
+    return '<form class="prl-form" data-prl-form="price" novalidate>' +
+      '<h3 class="prl-h3">Add a price</h3>' +
+      (PL().canSave() ? '' : '<div class="prl-note">Saved as a note until an owner confirms it.</div>') +
+      field('Where the price comes from', '<select class="prl-input" name="kind">' + kinds + '</select>') +
+      '<div class="prl-row2">' +
+      field('Price', '<input class="prl-input" name="priceText" inputmode="decimal" required autocomplete="off" placeholder="0.00">') +
+      field('For one', '<select class="prl-input" name="statedUnit">' + unitOptions(pu) + '</select>', 'The unit printed on the document.') +
+      '</div><div class="prl-row2">' +
+      field('Priced per', '<select class="prl-input" name="per">' + opt('1', 'one') + opt('100', '100 (per C)') + opt('1000', '1,000 (per M)') + '</select>') +
+      field('Kind of price', '<select class="prl-input" name="priceType">' + Object.keys(PRICE_TYPES).map((k) => opt(k, PRICE_TYPES[k])).join('') + '</select>') +
+      '</div>' +
+      field('Is sales tax in this price?', '<select class="prl-input" name="tax" required>' + opt('', 'Choose…', true) + opt('no', 'No, before tax') + opt('yes', 'Yes, tax included') + '</select>') +
+      '<div class="prl-row2">' +
+      field('Date on the document', '<input class="prl-input" name="observedOn" type="date" required value="' + esc(today()) + '" max="' + esc(today()) + '">') +
+      field('Good through (quotes)', '<input class="prl-input" name="validThroughOn" type="date">') +
+      '</div><div class="prl-row2">' +
+      field('Document', '<select class="prl-input" name="docType">' + Object.keys(DOC_TYPES).map((k) => opt(k, DOC_TYPES[k])).join('') + '</select>') +
+      field('Document number (optional)', '<input class="prl-input" name="docRef" maxlength="80" autocomplete="off">') +
+      '</div>' +
+      (locs.length ? field('Branch', '<select class="prl-input" name="locationId">' + opt('', 'Not stated') + locs.map((l) => opt(l.id, l.label || l.id, l.preferred === true)).join('') + '</select>') : '') +
+      field('Note (optional)', '<input class="prl-input" name="note" maxlength="200" autocomplete="off">') +
+      foot + '</form>';
+  }
+
+  function bodyHtml() {
+    if (S.loading) return '<div class="prl-empty">Loading…</div>';
+    const admin = PL().canSave();
+    const offers = (S.offers || []).filter((o) => o.active !== false);
+    const top = [];
+    if (admin && (S.suppliers || []).length) top.push('<button type="button" class="btn btn-orange prl-btn" data-prl-action="showAddOffer">Add an item</button>');
+    if (admin) top.push('<button type="button" class="' + ((S.suppliers || []).length ? 'ui-btn-quiet' : 'btn btn-orange') + ' prl-btn" data-prl-action="showAddSupplier">Add a store or supplier</button>');
+    const empty = offers.length ? '' : '<div class="prl-empty">' + ((S.suppliers || []).length
+      ? 'No store or supplier item is linked to this product yet.' + (admin ? ' Add the item the way your supplier lists it, then type what you paid or were quoted.' : '')
+      : (admin ? 'Start by adding a store or supplier you buy from.' : 'No stores or suppliers have been added yet. An owner or admin adds them.')) + '</div>';
+    return '<div class="prl-actions">' + top.join('') + '</div>' +
+      (S.form && !S.form.offerId ? formHtml() : '') +
+      empty + offers.map(offerCard).join('');
+  }
+
+  function paint() {
+    const el = document.getElementById('prlBody');
+    if (el && S) el.innerHTML = bodyHtml();
+  }
+
+  async function reload() {
+    const [suppliers, offers] = await Promise.all([PL().suppliers(), PL().offersFor([S.productId])]);
+    if (!S) return;
+    S.suppliers = suppliers; S.offers = offers; S.loading = false;
+    paint();
+  }
+
+  async function openProduct(productId) {
+    if (!PL() || !PL().enabled() || !LG()) return;
+    close();
+    const product = productOf(productId);
+    S = { productId, product, suppliers: [], offers: [], history: {}, form: null, busy: false, error: '', loading: true, lastFocus: document.activeElement };
+    const ov = document.createElement('div');
+    ov.className = 'modal-bg open prl-bg';
+    ov.id = 'prlOverlay';
+    ov.innerHTML = '<div class="modal prl-modal" role="dialog" aria-modal="true" aria-labelledby="prlTitle">' +
+      '<div class="prl-head"><h2 class="prl-title" id="prlTitle">Stores &amp; prices</h2><button type="button" class="prl-close" data-prl-action="close" aria-label="Close">✕</button></div>' +
+      '<p class="prl-sub">' + esc(product ? product.name : 'This product') + (product && product.unit ? ' · priced per ' + esc(catalogUnitLabel(product.unit)) : '') + '. What your stores and suppliers charge you for it. Internal only.</p>' +
+      '<div id="prlBody"></div></div>';
+    document.body.appendChild(ov);
+    paint();
+    const closeBtn = ov.querySelector('.prl-close');
+    if (closeBtn) closeBtn.focus();
+    await reload();
+  }
+  function close() {
+    const o = document.getElementById('prlOverlay');
+    if (o) o.remove();
+    const back = S && S.lastFocus;
+    S = null;
+    if (back && typeof back.focus === 'function') { try { back.focus(); } catch (e) { /* the card was re-rendered */ } }
+  }
+
+  function setForm(form) { S.form = form; S.error = ''; S.busy = false; paint(); const first = document.querySelector('#prlBody .prl-form .prl-input'); if (first) first.focus(); }
+
+  const actions = {
+    openProduct,
+    close,
+    cancelForm() { setForm(null); },
+    showAddSupplier() { setForm({ type: 'supplier', submit: 'Save' }); },
+    showAddOffer() { setForm({ type: 'offer', submit: 'Save item' }); },
+    showAddPrice(id) { setForm({ type: 'price', offerId: id, submit: 'Save price' }); },
+    showPack(id) { setForm({ type: 'pack', offerId: id, submit: 'Save pack size' }); },
+    async toggleHistory(id) {
+      if (S.history[id] !== undefined) { delete S.history[id]; paint(); return; }
+      S.history[id] = null; paint();
+      const rows = await PL().history(id);
+      if (!S) return;
+      S.history[id] = rows; paint();
+    },
+    async confirmPack(id) {
+      const r = await PL().verifyPack(id);
+      if (!S) return;
+      if (!r.ok) { toast(r.message, 'error'); return; }
+      toast('Pack size confirmed.', 'success');
+      await reload();
+    },
+    async archive(id) {
+      const r = await PL().archiveOffer(id, false);
+      if (!S) return;
+      if (!r.ok) { toast(r.message, 'error'); return; }
+      toast('Item removed from this product. Its price history is kept.', 'success');
+      await reload();
+    },
+    async voidRow(obsId, el) {
+      const offerId = el && el.dataset.prlOffer;
+      const r = await PL().voidObservation(obsId, 'Voided on the Stores & prices sheet');
+      if (!S) return;
+      if (!r.ok) { toast(r.message, 'error'); return; }
+      toast('Row voided. It stays in the history, crossed out.', 'success');
+      if (offerId) S.history[offerId] = await PL().history(offerId);
+      await reload();
+    },
+  };
+
+  const slug = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24);
+  const wholeOrNull = (v) => { const t = String(v == null ? '' : v).trim(); return /^[0-9]{1,6}$/.test(t) ? Number(t) : null; };
+  function packFrom(fd) {
+    const purchaseUnit = fd.get('purchaseUnit');
+    const cu = S.product ? S.product.unit : null;
+    const numText = String(fd.get('num') || '').trim(), denText = String(fd.get('den') || '').trim();
+    if (!numText && !denText) return { pack: { purchaseUnit, catalogUnit: cu, status: 'unknown' } };
+    const num = wholeOrNull(numText), den = wholeOrNull(denText);
+    if (!num || !den) return { error: 'Type the pack size as two whole numbers above zero, or leave both blank.' };
+    const sug = LG().suggestPack(purchaseUnit, cu, S.product && S.product.coverage);
+    const basis = (sug && sug.num === num && sug.den === den) ? sug.basis : 'owner_entered';
+    return { pack: { purchaseUnit, catalogUnit: cu, num, den, status: 'known', basis } };
+  }
+
+  async function submit(form) {
+    if (!S || S.busy) return;
+    const fd = new FormData(form), kind = form.dataset.prlForm;
+    const fail = (msg) => { S.error = msg; S.busy = false; paint(); };
+    S.busy = true; S.error = '';
+    let r;
+    if (kind === 'supplier') {
+      let supplierId = fd.get('supplierId'), label = String(fd.get('label') || '').trim();
+      const data = { active: true };
+      if (supplierId === 'custom') {
+        if (slug(label).length < 2) return fail('Give the store or supplier a name.');
+        supplierId = 'other_' + slug(label); data.label = label; data.type = fd.get('type');
+      }
+      data.supplierId = supplierId;
+      const branch = String(fd.get('branch') || '').trim();
+      if (branch) data.locations = [{ id: 'main', label: branch, preferred: true }];
+      r = await PL().saveAccount(data);
+    } else if (kind === 'offer') {
+      const p = packFrom(fd);
+      if (p.error) return fail(p.error);
+      const title = String(fd.get('title') || '').trim();
+      if (!title) return fail('Give the item a name.');
+      r = await PL().saveOffer({ supplierId: fd.get('supplierId'), sku: String(fd.get('sku') || '').trim(), title, url: String(fd.get('url') || '').trim() || null, productId: S.productId, pack: p.pack });
+    } else if (kind === 'pack') {
+      const p = packFrom(fd);
+      if (p.error) return fail(p.error);
+      const offer = (S.offers || []).find((o) => o.id === S.form.offerId);
+      if (!offer) return fail('That item was not found. Close this and open it again.');
+      r = await PL().saveOffer({ offerId: offer.id, supplierId: offer.supplierId, sku: offer.sku, skuKind: offer.skuKind, altIds: offer.altIds, title: offer.title, brand: offer.brand, url: offer.url, productId: offer.productId, variant: offer.variant, tiers: offer.tiers, match: offer.match, watch: offer.watch, active: offer.active, pack: p.pack });
+    } else if (kind === 'price') {
+      const tax = fd.get('tax');
+      if (tax !== 'yes' && tax !== 'no') return fail('Say whether sales tax is in this price.');
+      if (LG().moneyTextToMicros(fd.get('priceText')) === null) return fail('Type the price as a number, like 11.11.');
+      const res = await PL().record([{
+        offerId: S.form.offerId, kind: fd.get('kind'), priceText: fd.get('priceText'), per: Number(fd.get('per')) || 1,
+        statedUnit: fd.get('statedUnit'), uomRaw: fd.get('statedUnit'), priceType: fd.get('priceType'), taxIncluded: tax === 'yes',
+        observedOn: fd.get('observedOn'), validThroughOn: fd.get('validThroughOn') || null,
+        doc: { type: fd.get('docType'), ref: String(fd.get('docRef') || '').trim() },
+        locationId: fd.get('locationId') || null, note: String(fd.get('note') || '').trim(),
+      }]);
+      const one = (res.results || [])[0] || {};
+      if (res.ok && one.status === 'duplicate') r = { ok: true, message: 'That price was already recorded.' };
+      else if (res.ok && one.status === 'written') r = { ok: true, message: one.needsUnit ? 'Price saved. Set the pack size to compare it with the product.' : 'Price saved.' };
+      else r = { ok: false, message: res.message || REASON_TEXT[one.reason] || 'That price could not be saved. Check the unit and the date.' };
+    }
+    if (!S) return;
+    if (!r || !r.ok) return fail((r && r.message) || 'That did not go through. Try again.');
+    const offerId = S.form && S.form.offerId;
+    S.form = null; S.busy = false;
+    toast(r.message || 'Saved.', 'success');
+    if (offerId && S.history[offerId] !== undefined) S.history[offerId] = await PL().history(offerId);
+    await reload();
+  }
+  const REASON_TEXT = {
+    needs_unit: 'Pick the unit printed on the document.', bad_date: 'Check the date: it can not be in the future.', bad_valid_through: 'Check the good-through date.',
+    unknown_location: 'That branch is not on this supplier.', unknown_offer: 'That item was not found. Close this and open it again.', bad_price: 'Type the price as a number, like 11.11.',
+  };
+
+  if (!w._NBD_PRL_DELEGATE) {
+    w._NBD_PRL_DELEGATE = true;
+    document.addEventListener('click', function (ev) {
+      const t = ev.target.closest && ev.target.closest('[data-prl-action]');
+      if (t) {
+        const fn = actions[t.dataset.prlAction];
+        if (typeof fn !== 'function') return;
+        if (t.dataset.prlAction !== 'openProduct' && !S) return;
+        try { Promise.resolve(fn(t.dataset.prlId, t)).catch((e) => console.error('[price-offers-ui] ' + t.dataset.prlAction + ' failed:', e)); }
+        catch (e) { console.error('[price-offers-ui] ' + t.dataset.prlAction + ' failed:', e); }
+        return;
+      }
+      if (ev.target && ev.target.id === 'prlOverlay') close();
+    });
+    document.addEventListener('submit', function (ev) {
+      const f = ev.target;
+      if (!f || !f.dataset || !f.dataset.prlForm) return;
+      ev.preventDefault();
+      submit(f).catch((e) => console.error('[price-offers-ui] save failed:', e));
+    });
+    document.addEventListener('change', function (ev) {
+      const el = ev.target;
+      if (!S || !el || !el.dataset || el.dataset.prlChange !== 'packUnit') return;
+      const box = document.getElementById('prlPackFields');
+      if (box) box.innerHTML = packFields(el.value, null);
+    });
+    document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && document.getElementById('prlOverlay')) close(); });
+  }
+
+  w.NBDPriceOffersUI = { open: openProduct, close, _internal: { packState: (offer, product) => { const keep = S; S = { product }; try { return packState(offer); } finally { S = keep; } } } };
+})();
