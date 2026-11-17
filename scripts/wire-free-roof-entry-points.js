@@ -94,8 +94,9 @@ for (const file of walk(ROOT)) {
   let html = fs.readFileSync(file, 'utf8');
   let changed = false;
 
-  // 2026-11-17 (Jo): the announcement-bar slide was removed site-wide; do not re-add it.
-  const ann = { html, changed: false }; // was injectAnnSlide(html)
+  // 2026-11-17 (Jo): the announcement-bar slide was removed site-wide (the homepage carries none
+  // either, and area/service pages dropped it too); never re-add it, on any page.
+  const ann = { html, changed: false }; // was injectAnnSlide(html); main's index.html skip is subsumed
   if (ann.changed) { html = ann.html; changed = true; stats.annAdded++; }
 
   const foot = injectFooterLink(html);
