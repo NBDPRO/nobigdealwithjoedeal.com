@@ -5,8 +5,8 @@
  * The block between the SHARED markers is a byte-for-byte copy of the same block in
  * functions/price-logic.js. tests/price-logic-2026-11.test.js fails if the two drift
  * apart, so units, money, the evidence ladder, the ranking and the sanitizers behave
- * the same on the server and on the phone. Edit the server file first, then run
- * node scripts/sync-price-logic.js.
+ * the same on the server and on the phone. Edit the server file first, then copy
+ * the block here.
  *
  * Nothing here reads or writes anything, and no price is ever invented: a missing
  * conversion is null, never a guess.
