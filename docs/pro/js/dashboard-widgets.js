@@ -184,6 +184,12 @@ function renderEstimatesList(ests) {
     } else if (e.signatureStatus === 'expired') {
       sigTag = '<span class="est-src-chip dwx-opa6">⧗ EXPIRED</span>';
     }
+    // Sent under the company's margin floor with an owner's or admin's confirm
+    // (2026-11-17). The owner and company admins only; never on a customer view.
+    if (e.floorConfirm && typeof e.floorConfirm === 'object' && window.NBDMarginFloor
+      && typeof window.NBDMarginFloor.canSeeCosts === 'function' && window.NBDMarginFloor.canSeeCosts()) {
+      sigTag += '<span class="est-src-chip dwx-bgcolormix-cred-borred" title="Sent under your margin floor">Under floor</span>';
+    }
     return ''
       + '<div class="est-card nbd-est-card" data-id="' + esc(e.id) + '">'
         // Phase 1a (RoofLink rebuild): tapping the card body opens the
