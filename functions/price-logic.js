@@ -161,6 +161,21 @@ function centsToMicros(c) { return c * 10000; }
 function microsToCents(m) { return Math.round(m / 10000); }
 
 /**
+ * Micro-dollars as text for a screen: "$1,111.00". A price that is not a whole
+ * number of cents keeps four decimals ("$0.1111"). Not a number: an empty string,
+ * so a missing price is never shown as $0.00.
+ */
+function microsToText(m) {
+  if (typeof m !== 'number' || !Number.isSafeInteger(m) || m < 0) return '';
+  var places = (m % 10000 === 0) ? 2 : 4;
+  var unit = places === 2 ? 10000 : 100;
+  var scaled = Math.round(m / unit), per = places === 2 ? 100 : 10000;
+  var whole = Math.floor(scaled / per), frac = String(scaled % per);
+  while (frac.length < places) frac = '0' + frac;
+  return '$' + String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + frac;
+}
+
+/**
  * A stated price to the price of ONE catalog unit: { micros, flag }.
  *   pack unknown                      -> null
  *   stated per the purchase unit      -> price * den / (num * per)
@@ -586,7 +601,7 @@ function flagOn(flagsDefault, flagsMine) {
 module.exports = {
   FLAG_NAME, FLAG_DEFAULT, SUPPLIERS, supplierOf, UNITS, CATALOG_UNIT_OF, NO_PURCHASE_TWIN,
   normaliseUom, sameUnit, validPack, suggestPack,
-  moneyTextToMicros, centsToMicros, microsToCents, toCatalogMicros, suspectUnitSwap,
+  moneyTextToMicros, centsToMicros, microsToCents, microsToText, toCatalogMicros, suspectUnitSwap,
   KINDS, CALLER_KINDS, evidenceLevel, currentRows, bestForOffer,
   offerIdFor, obsIdFor, urlAllowedFor,
   sanitizeSupplierAccount, sanitizePack, sanitizeOffer, sanitizeObservation,

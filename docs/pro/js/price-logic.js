@@ -153,6 +153,21 @@ function centsToMicros(c) { return c * 10000; }
 function microsToCents(m) { return Math.round(m / 10000); }
 
 /**
+ * Micro-dollars as text for a screen: "$1,111.00". A price that is not a whole
+ * number of cents keeps four decimals ("$0.1111"). Not a number: an empty string,
+ * so a missing price is never shown as $0.00.
+ */
+function microsToText(m) {
+  if (typeof m !== 'number' || !Number.isSafeInteger(m) || m < 0) return '';
+  var places = (m % 10000 === 0) ? 2 : 4;
+  var unit = places === 2 ? 10000 : 100;
+  var scaled = Math.round(m / unit), per = places === 2 ? 100 : 10000;
+  var whole = Math.floor(scaled / per), frac = String(scaled % per);
+  while (frac.length < places) frac = '0' + frac;
+  return '$' + String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + frac;
+}
+
+/**
  * A stated price to the price of ONE catalog unit: { micros, flag }.
  *   pack unknown                      -> null
  *   stated per the purchase unit      -> price * den / (num * per)
@@ -579,7 +594,7 @@ function flagOn(flagsDefault, flagsMine) {
     FLAG_NAME: FLAG_NAME, FLAG_DEFAULT: FLAG_DEFAULT, SUPPLIERS: SUPPLIERS, supplierOf: supplierOf, UNITS: UNITS,
     CATALOG_UNIT_OF: CATALOG_UNIT_OF, NO_PURCHASE_TWIN: NO_PURCHASE_TWIN,
     normaliseUom: normaliseUom, sameUnit: sameUnit, validPack: validPack, suggestPack: suggestPack,
-    moneyTextToMicros: moneyTextToMicros, centsToMicros: centsToMicros, microsToCents: microsToCents,
+    moneyTextToMicros: moneyTextToMicros, centsToMicros: centsToMicros, microsToCents: microsToCents, microsToText: microsToText,
     toCatalogMicros: toCatalogMicros, suspectUnitSwap: suspectUnitSwap,
     KINDS: KINDS, CALLER_KINDS: CALLER_KINDS, evidenceLevel: evidenceLevel, currentRows: currentRows, bestForOffer: bestForOffer,
     offerIdFor: offerIdFor, obsIdFor: obsIdFor, urlAllowedFor: urlAllowedFor,

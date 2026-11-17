@@ -80,6 +80,10 @@ console.log('\nMoney');
   ok('moneyTextToMicros: junk is null, never 0', ['', 'abc', '11.11.11', '-11.11', '11.1111111', '1e3', '11,11'].every((t) => L.moneyTextToMicros(t) === null));
   ok('centsToMicros / microsToCents', L.centsToMicros(1111) === 11110000 && L.microsToCents(11110000) === 1111 && L.microsToCents(11114999) === 1111 && L.microsToCents(11115000) === 1112);
 
+  ok('microsToText: whole cents show two decimals with thousands commas', L.microsToText(11110000) === '$11.11' && L.microsToText(1111 * 1000000) === '$1,111.00' && L.microsToText(0) === '$0.00');
+  ok('microsToText: a sub-cent price keeps four decimals', L.microsToText(111100) === '$0.1111' && L.microsToText(11111100) === '$11.1111');
+  ok('microsToText: a missing price is an empty string, never $0.00', L.microsToText(null) === '' && L.microsToText(undefined) === '' && L.microsToText(-1111) === '' && L.microsToText(11.11) === '');
+
   // section 5.2 table: (purchaseUnit, catalogUnit, num, den)
   const table = [['BDL', 'SQ', 1, 3], ['BDL', 'SQ', 1, 5], ['BDL', 'BDNL', 1, 1], ['RL', 'SQ', 10, 1], ['RL', 'RL', 1, 1],
     ['PC', 'LF', 10, 1], ['BDL', 'LF', 25, 1], ['BDL', 'LF', 120, 1], ['BX', 'BX', 1, 1], ['BDL', 'EA', 100, 1]];
