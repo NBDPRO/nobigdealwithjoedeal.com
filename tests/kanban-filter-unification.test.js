@@ -149,10 +149,12 @@ console.log('\ndashboard-bootstrap.module.js — wiring (source-text)');
 console.log('\ncustomer-bootstrap.module.js — wiring (source-text)');
 {
   const src = read('docs/pro/js/customer-bootstrap.module.js');
-  ok('imports isJobStage/isTerminalStage from crm-stages.js',
-    /isJobStage as _isJobStage, isTerminalStage as _isTerminalStage/.test(src));
-  ok('exposes window.isJobStage / window.isTerminalStage',
-    /window\.isJobStage = _isJobStage;/.test(src) && /window\.isTerminalStage = _isTerminalStage;/.test(src));
+  // 2026-11-17 (repo sweep M2): tenant-aware like the dashboard's re-bind,
+  // through crm-stages.js liveRoleHelpers (same rules as applyPipelineConfig).
+  ok('imports the tenant-aware liveRoleHelpers from crm-stages.js',
+    /liveRoleHelpers as _liveRoleHelpers/.test(src));
+  ok('exposes window.isJobStage / window.isTerminalStage (tenant-aware)',
+    /window\.isJobStage = _liveRoles\.isJobStage;/.test(src) && /window\.isTerminalStage = _liveRoles\.isTerminalStage;/.test(src));
   // 2026-09-28: both now call window.stageLabel — this module's own
   // tenant-aware wrapper over _stageLabel (custom stages keep their label
   // instead of normalizing to "New Lead"). Still no hand-copied map.

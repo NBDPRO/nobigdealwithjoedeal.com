@@ -21,6 +21,9 @@
  * network. Run: node tests/tenant-path-locks-2026-10-05.test.js
  */
 'use strict';
+// The accepted-tier fixtures' company 'u1' is NBD, so the re-tier keeps NBD's
+// deposit rule (repo sweep 2026-11-17, M1: other companies use their own).
+process.env.NBD_OWNER_UID = 'u1';
 
 const fs = require('fs');
 const path = require('path');

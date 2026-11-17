@@ -17,7 +17,7 @@ import {
   stageOptionsForType as _stageOptionsForType, resolvePipelineConfig as _resolvePipelineConfig,
   stageLabel as _stageLabel, actionsForStage as _actionsForStage,
   preferredActionFor as _preferredActionFor,
-  isJobStage as _isJobStage, isTerminalStage as _isTerminalStage,
+  liveRoleHelpers as _liveRoleHelpers,
   requiredFieldLabel as _requiredFieldLabel,
   subTypeOptionsFor as _subTypeOptionsFor,
 } from "./crm-stages.js";
@@ -37,8 +37,14 @@ window.preferredActionFor = _preferredActionFor;
 // is mirrored on both pages, and a future customer.html script reaching for
 // "is this a job stage" shouldn't hit an asymmetry that only exists because
 // nobody needed it yet.
-window.isJobStage = _isJobStage;
-window.isTerminalStage = _isTerminalStage;
+// Tenant-aware (repo sweep 2026-11-17, M2): read companyProfile.pipelines at
+// call time, so a custom won / lost / job stage classifies by its own role here
+// as it does on the kanban (stage-write.js saves window.stageRole's answer).
+const _liveRoles = _liveRoleHelpers(() => window._companyProfile && window._companyProfile.pipelines);
+window.isWonStage = _liveRoles.isWonStage;
+window.isLostStage = _liveRoles.isLostStage;
+window.isJobStage = _liveRoles.isJobStage;
+window.isTerminalStage = _liveRoles.isTerminalStage;
 
 
 // Canonical "what stage comes next for this lead" (2026-09-15 foundation
@@ -214,7 +220,7 @@ window.serverTimestamp = serverTimestamp;
 // default built-in label.
 window.runTransaction = runTransaction;
 window.setDoc = setDoc;
-window.stageRole = _stageRole;
+window.stageRole = _liveRoles.stageRole;
 window.stageLabel = (k) => {
   const resolved = _resolvePipelineConfig(window._companyProfile && window._companyProfile.pipelines);
   return (resolved.stageMeta[k] && resolved.stageMeta[k].label) || _stageLabel(k) || k;
