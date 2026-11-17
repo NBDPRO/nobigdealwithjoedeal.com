@@ -33,7 +33,7 @@ Accepted as written in this note (still subject to attorney review, nothing ship
 | Q3 | Required on full re-roofs and re-decks; offered on partial repairs and vent-only work; not on siding, gutters, windows. |
 | Q4 | Form has a "may be mold or mildew, not tested" box; NBD never offers to test, identify or remove mold. |
 | Q5 | Ventilation and decking prices pulled from estimate config; a "no" prints a warranty exclusion line. |
-| Q6 | **OPEN: Jo said yes but did not give the registered name.** Pro Terms say sole proprietorship; site footers say d/b/a of "No Big Deal Solutions LLC". Needed before any template ships. |
+| Q6 | **CLOSED (Jo, 2026-11-17): the company is No Big Deal Solutions LLC; "No Big Deal Home Solutions" is its d/b/a.** Every contract names "No Big Deal Solutions LLC d/b/a No Big Deal Home Solutions". `docs/pro/terms.html:327` ("a sole proprietorship owned and operated by Joe Deal") is wrong and must be corrected by the attorney. |
 | Q7 | 3% credit-card fee only; debit and prepaid free; charged only when Stripe reports the card as credit. |
 | Q8 | No card fee on Kentucky insurance jobs; Ohio insurance and cash jobs normal. |
 | Q9 | Cash accepted, with a receipt. |
@@ -51,7 +51,7 @@ Accepted as written in this note (still subject to attorney review, nothing ship
 | Q21 | Add per-sheet decking, soffit baffle and bath-fan duct lines to the catalog (prices from Jo). |
 | Q22 | Add an estimate scope field (re-roof, repair, siding, gutters, other), defaulted from tear-off. |
 | Q23 | Build order after the attic form and payment terms: property condition, decking authorization, emergency tarp request, final walkthrough and punch list, Ohio insurance acknowledgment. |
-| Q24 | **OPEN** (same as Q6): the registered legal name of the contracting party. "Yes" did not supply it. |
+| Q24 | Closed with Q6. Still to confirm: state of formation, who signs and their title, and whether the d/b/a is registered where NBD works (Q35). |
 | Q25 | Ohio contracts of $25,000 or more print insurer, policy number and expiry as an attachment; TIN only where the attorney says it must be on the contract. |
 | Q26 | Card fee applies to new contracts only; the stray "A convenience fee may apply." text is removed. |
 | Q27 | Wire instructions printed only on request, with a call-to-verify line; never sent by text. |
@@ -427,6 +427,7 @@ section (c) states them correctly.
 | Q32 | Returned-payment fee limits in each state; is "actual bank fee" the right structure? |
 | Q33 | Restocking and special-order cost recovery after the cancellation period: does actual-cost recovery in 3.3(c) conflict with the Ohio and Kentucky cancellation statutes or CSPA? |
 | Q34 | Attic acknowledgment (Part 2): does the declination structure hold up, is "may affect the shingle manufacturer's warranty" accurate for GAF and TAMKO, and should the form say anything about mold beyond "we do not test for it"? |
+| Q35 | Entity facts: No Big Deal Solutions LLC (state of formation?), d/b/a No Big Deal Home Solutions. Is the trade name registered in Ohio and Kentucky as each requires? Who signs for the LLC and with what title (member or manager)? Every contract, invoice and warranty must name the LLC and its d/b/a; remove "sole proprietorship" from `docs/pro/terms.html:327`; reconsider "Backed personally by Joe Deal" (already being removed, Q13). |
 
 ---
 
