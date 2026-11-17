@@ -131,6 +131,9 @@ square in `product-data.js` (it said 4).
 
 Names and documents only; the details are in the private file.
 
+**Update 2026-11-17:** these asks went out between 11-12 and 11-17 on one
+shared request sheet. Status is in "Update 2026-11-17" below.
+
 - **ABC Supply, Erlanger branch:** send Jo's drafted request (Drive, dated
   2026-11-03, unsent) for a written quote with a valid-through date, delivery
   and fuel surcharge, adding the GAF shingle and underlayment lines, TAMKO
@@ -181,6 +184,63 @@ cost or a margin.
   DATA_VERSION and the ridge coverage from public data. Its margin check runs
   only when `NBD_PRIVATE_COST_BOOK` points at a private cost-book file, and
   names SKU and tier only.
+
+## Update 2026-11-17: supplier price requests sent
+
+Session of 2026-11-12 to 11-17. As above, **no cost figure**: counts, dates
+and names of suppliers only. Nothing in the repo, the cost book or the catalog
+changed in this session; this update is the only edit.
+
+**One request sheet for every supplier.** The same 78 lines in the same order
+(shingles, starter and ridge cap, ridge vent, underlayment, ice & water,
+flashing metals, vents and boots, fasteners and deck, siding and trim,
+gutters, low-slope, account terms), one yellow price cell per line, shingles
+asked per square. Each supplier got a copy addressed to its rep, so the
+answers line up row for row.
+
+| Supplier | What went out | Came back |
+|---|---|---|
+| QXO / Beacon | The sheet (dated 11-06), then a follow-up for the blanks, the account terms and the unit question | 35 of 78 lines priced; no account terms |
+| SRS Distribution | The sheet with 35 of 78 lines prefilled from the two 2026-10-23 quotes, asking the rep to confirm and fill the rest | A reply reached Jo on 11-17; not yet read into the comparison |
+| MBS Supply | The sheet with the rep's texted prices filled in (11-12) | Texted prices for 16 items on 11-12 (3 shingle lines, 13 accessories), no brands or terms; the rest is promised |
+| ABC Supply, Erlanger | The blank sheet (11-12). This replaces the 2026-11-03 draft, which was never sent | Nothing yet |
+| Gulfeagle, Sharonville | The blank sheet (by 11-17). The contact there changed in November | Nothing yet |
+
+**What the answers show so far (may be wrong until confirmed):**
+
+- QXO's shingle prices read as per bundle, not per square as asked; the
+  follow-up asks. Every comparison below assumes three bundles a square.
+- Of QXO's 35 priced lines, 25 match a line in master workbook v4: 11 below
+  the best price on file, 1 level, 13 above. The other 10 are brands the
+  master does not carry.
+- SRS and QXO split the lines they both priced about evenly (13 each way).
+  The one consistent gap is hip & ridge, where QXO is lower on all three
+  brands; that is either real or a different bundle size, and it decides
+  which of the two is cheaper on the workbook's 13-line sample job.
+- MBS is low on its entry shingle line, ice & water, box vent and roll ridge,
+  and the highest of all four on drip edge, gutter apron and valley metal.
+- ABC cannot be judged yet: its only current numbers are the 11-03 portal
+  reads, not a quote on the account.
+- Gulfeagle has no written price at all; the summer tickets are the reason to
+  ask, not a price to use.
+
+**Still open:**
+
+- The SRS quotes lapse **2026-11-22**. Read the rep's returned sheet first.
+- No supplier has given delivered cost on the sheet except SRS (delivery and
+  freight per order are on its quotes), so no comparison here is delivered.
+- Siding (James Hardie, LP): SRS routes both through the manufacturer's rep
+  as special orders; that request is in the SRS cover note.
+- Master workbook v4 was **not** updated. The returned sheets are the input
+  for a v5; the history rule in v4 (append, never overwrite) applies.
+- Crew and gutter-subcontractor rate sheets and RoofIVent freight: not asked
+  this session.
+
+**Where the files are.** The request sheets and the comparisons were built in
+the session scratchpad and handed to Jo as downloads; none is committed, in
+Drive or in the vault unless Jo saved it. The session could read Drive and
+Gmail but not iCloud mail or the local vault on Jo's PC, which is where the
+master workbook and supplier replies live.
 
 ## Related
 
