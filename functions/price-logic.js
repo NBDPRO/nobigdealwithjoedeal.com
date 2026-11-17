@@ -76,7 +76,7 @@ var PL_UOM_ALIASES = {
   SF: ['SF', 'SQFT', 'SQ FT', 'SQUARE FOOT', 'SQUARE FEET'],
   GAL: ['GAL', 'GALLON', 'GALLONS', 'GA'],
   PAIL: ['PAIL', 'PAILS', 'PL'],
-  TUBE: ['TUBE', 'TUBES', 'TB'],
+  TUBE: ['TUBE', 'TUBES', 'TB', 'TUB', 'TUBS'],
   BAG: ['BAG', 'BAGS', 'BG'],
   CTN: ['CTN', 'CARTON', 'CARTONS'],
   PLT: ['PLT', 'PALLET', 'PALLETS', 'PAL'],
@@ -737,7 +737,7 @@ function plHeaderWords(h) { return String(h == null ? '' : h).toLowerCase().repl
 var PL_COLUMN_WORDS = {
   sku: /^(item|item no|item number|item num|item code|item id|sku|sku no|part|part no|part number|product code|product no|product number|product id|catalog no|catalog number|mfr part|mfr part no|material|material no|material number)$/,
   title: /^(description|desc|item description|product description|product name|product|item name|name|material description)$/,
-  price: /^(unit price|price|net price|net|your price|unit cost|cost|each|price each|net each|sell price|contract price|quote price|account price)$/,
+  price: /^(unit price|price|net price|net|your price|unit cost|cost|each|price each|net each|sell price|contract price|quote price|account price|live price)$/,
   unit: /^(uom|u m|um|unit|units|unit of measure|sell uom|price uom|pricing uom)$/,
   per: /^(per|price per|priced per|pricing unit|price unit|c m)$/,
   qty: /^(qty|quantity|qty ordered|qty shipped|ship qty|order qty|shipped|ordered)$/
