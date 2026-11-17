@@ -179,7 +179,7 @@ h1, h2, h3 { text-wrap: balance; }
   .footer-links a,
   .ann-bar a,
   .foot-slim a,
-  .footer-bottom a:not(.s-fb):not(.s-ig):not(.s-gg):not(.s-yelp) {
+  .footer-bottom a:not(.s-fb):not(.s-ig):not(.s-gg):not(.s-yelp):not(.s-yt):not(.s-tt):not(.s-pin):not(.s-th):not(.s-hz):not(.s-nd):not(.s-x):not(.s-bsky) {
     display: inline-block;
     padding: 10px 6px;
     margin: -10px -6px;
