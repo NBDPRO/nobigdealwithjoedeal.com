@@ -253,6 +253,63 @@ const TIERS = { v: 1, service: 'roof-replacement', tiers: { good: { min: 9800, m
     ok('a non-email estimate save from the same IP is not touched by that limit', other.code === 200 && (docOf(db, other) || {}).estimateEmailIpLimited === undefined);
   }
 
+  // ════════════════════════════════════════════════════════════════════
+  console.log('\nD. the /estimate page: what it posts is what the server accepts');
+  {
+    const fs = require('fs');
+    const vm = require('vm');
+    const src = fs.readFileSync(path.join(ROOT, 'docs', 'assets', 'js', 'inline', '4053149b2f.js'), 'utf8');
+    const fnSrc = (head) => {
+      const at = src.indexOf(head);
+      if (at === -1) return '';
+      let depth = 0, i = src.indexOf('{', at);
+      for (; i < src.length; i++) { if (src[i] === '{') depth++; else if (src[i] === '}' && --depth === 0) break; }
+      return src.slice(at, i + 1);
+    };
+    const payloadSrc = fnSrc('function emailEstimatePayload(est) {');
+    const emailSrc = fnSrc('async function emailEstimate(btn) {');
+    ok('the page defines emailEstimatePayload and emailEstimate', !!payloadSrc && !!emailSrc);
+    if (payloadSrc && E) {
+      const run = (service, est) => {
+        const ctx = { funnelData: { service } };
+        vm.createContext(ctx);
+        vm.runInContext(payloadSrc + '\nthis.__r = emailEstimatePayload(' + JSON.stringify(est) + ');', ctx);
+        return ctx.__r;
+      };
+      const tiered = run('roof-replacement', { tiers: { good: { min: 9800, max: 11200 }, better: { min: 11500, max: 13100 }, best: { min: 14000, max: 16000 } }, roofSqft: 2000, joesTake: 'free text', serviceLabel: 'x' });
+      const tOk = E.sanitizeEmailEstimate(tiered);
+      ok('roof replacement: the page payload passes the server check with all three tiers', tOk && Object.keys(tOk.tiers).length === 3 && tOk.roofSqft === 2000, tiered);
+      ok('…and carries no free text (joesTake, labels)', !/free text/.test(JSON.stringify(tiered)));
+      const single = run('gutter-replacement', { _singleRange: true, range: { min: 1800, max: 2600 }, roofSqft: null });
+      ok('a single-range service passes the server check', !!E.sanitizeEmailEstimate(single) && E.sanitizeEmailEstimate(single).range.max === 2600, single);
+      const storm = run('storm-damage', { _singleRange: true, range: { min: 500, max: 1000 } });
+      const sOk = E.sanitizeEmailEstimate(storm);
+      ok('storm damage posts no numbers and passes', !!sOk && !sOk.range && !sOk.tiers, storm);
+      Object.keys(E.SERVICE_LABELS).forEach((svc) => {
+        const p = run(svc, svc === 'roof-replacement' ? { tiers: { better: { min: 100, max: 200 } } } : { _singleRange: true, range: { min: 100, max: 200 } });
+        ok('service "' + svc + '" from the page is accepted by the server', !!E.sanitizeEmailEstimate(p), p);
+      });
+    }
+    if (emailSrc) {
+      const saves = [];
+      const btn = { textContent: '', disabled: false, style: {} };
+      const ctx = {
+        funnelData: { email: 'pat@example.test', service: 'roof-repair', estimate: { _singleRange: true, range: { min: 400, max: 900 } } },
+        trackCTA() { saves.push({ type: 'cta_click (trackCTA)' }); },
+        trackEvent() {},
+        emailEstimatePayload: () => ({ v: 1, service: 'roof-repair', range: { min: 400, max: 900 } }),
+        window: { _saveLead: async (d) => { saves.push(d); return 'id1'; } },
+        document: { getElementById: () => null }, console,
+      };
+      vm.createContext(ctx);
+      vm.runInContext(emailSrc, ctx);
+      await ctx.emailEstimate(btn);
+      ok('one tap makes exactly ONE save, the email request (no competing cta_click save for the Turnstile token)',
+        saves.length === 1 && saves[0].type === 'email_estimate_request', saves.map((s) => s.type));
+      ok('…carrying emailEstimate and no estimateSummary / estimateData', !!saves[0] && !!saves[0].emailEstimate && saves[0].estimateSummary === undefined && saves[0].estimateData === undefined);
+    }
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

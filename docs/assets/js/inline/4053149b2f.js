@@ -1781,7 +1781,12 @@ async function emailEstimate(btn) {
     }
     funnelData.email = v;
   }
-  trackCTA('email-estimate');
+  // The analytics event only, not trackCTA's separate cta_click save
+  // (2026-11-17 review): that save was not awaited, so the email request
+  // below took its Turnstile token, the cta_click POST went out tokenless,
+  // got a 403 and showed the call/text alert beside "Requested ✓". The
+  // email-request doc already records this click.
+  trackEvent('cta_click', { cta_type: 'email-estimate', service: funnelData.service });
   var est = funnelData.estimate;
   var emailEst = emailEstimatePayload(est);
 
