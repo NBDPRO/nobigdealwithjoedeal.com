@@ -56,8 +56,8 @@ const SUCCESS = (/<div class="form-success" id="inspectSuccess">[\s\S]*?<div id=
     ok('the box is optional: no native required, no aria-required, no visible (required)', !/id="ins-consent"[^>]*\srequired\b/.test(FORM) && !/id="ins-consent"[^>]*aria-required="true"/.test(FORM) && !/sc-consent-req|\(required\)/.test(FORM.replace(/<!--[\s\S]*?-->/g, '')));
     ok('the home-preferred-not-required line is on the page (Jo, 2026-10-14)', HTML.includes('Being home is preferred so Joe can check the attic, but it&rsquo;s not required.'));
     ok('the moved fields live on the thank-you screen', /id="insDetails" hidden/.test(SUCCESS) && ['f-story', 'f-email', 'f-referral', 'insXIntake', 'insDetailsSave', 'insDetailsStatus'].every((id) => SUCCESS.includes('id="' + id + '"')));
-    ok('the default thank-you headline is the same-day one (no "within 24 hours" there)', /<h3 id="insThanksTitle">Joe will reach out, usually the same day<\/h3>/.test(SUCCESS) && !/24 hours|within the hour/.test(SUCCESS));
-    ok('Pick My Time is a plain link, hidden until a calendar choice', /<a class="ins-pick-time" id="insPickTime" href="https:\/\/cal\.com\/nobigdeal\/roof-inspection" target="_blank" rel="noopener" hidden>Pick My Time<\/a>/.test(SUCCESS) && /\.ins-pick-time\[hidden\]\{display:none\}/.test(HTML));
+    ok('the default thank-you headline matches the badge promise: within 24 hours, usually the same day (2026-11-17)', /<h3 id="insThanksTitle">Joe will reply within 24 hours, usually the same day<\/h3>/.test(SUCCESS) && !/within the hour/.test(SUCCESS));
+    ok('Pick My Time is a plain link, hidden until a calendar choice', /<a class="ins-pick-time" id="insPickTime" href="https:\/\/cal\.com\/nobigdeal\/roof-inspection" hidden>Pick My Time<\/a>/.test(SUCCESS) && /\.ins-pick-time\[hidden\]\{display:none\}/.test(HTML));
     ok('no inline handlers', !/\son[a-z]+=/i.test(FORM + SUCCESS));
     ok('cache-busters bumped', /intake-extras\.js\?v=4/.test(HTML) && /inspect-form\.js\?v=(?:[4-9]|[1-9]\d)\b/.test(HTML));
   }
@@ -108,7 +108,7 @@ const SUCCESS = (/<div class="form-success" id="inspectSuccess">[\s\S]*?<div id=
     const form = mk('inspectForm', { fields: () => ({ name: 'Pat Example', address: '12 Elm St, Goshen OH', phone: '8595550100', nbd_hp: '' }) });
     mk('f-name', { value: 'Pat Example' }); mk('f-address', { value: '12 Elm St, Goshen OH' }); mk('f-phone', { value: '8595550100' });
     mk('ins-consent', { checked: consent !== false }); mk('inspectSubmit'); mk('inspectSuccess');
-    mk('insThanksTitle', { textContent: 'Joe will reach out, usually the same day' }); mk('insThanksText', { textContent: 'default' });
+    mk('insThanksTitle', { textContent: 'Joe will reply within 24 hours, usually the same day' }); mk('insThanksText', { textContent: 'default' });
     mk('insPickTime', { hidden: true, attrs: { href: 'https://cal.com/nobigdeal/roof-inspection' } });
     mk('insDetails', { hidden: true }); mk('insDetailsSave'); mk('insDetailsStatus'); mk('insIntakeAfter');
     mk('f-story'); mk('f-email'); mk('f-referral');
@@ -163,7 +163,7 @@ const SUCCESS = (/<div class="form-success" id="inspectSuccess">[\s\S]*?<div id=
   {
     const r = runInspect({ scheduling: 'contact_me' });
     await tick(); await tick();
-    ok('contact me → the same-day headline stays, Pick My Time stays hidden', r.els.insThanksTitle.textContent === 'Joe will reach out, usually the same day' && r.els.insPickTime.hidden === true);
+    ok('contact me → the same-day headline stays, Pick My Time stays hidden', r.els.insThanksTitle.textContent === 'Joe will reply within 24 hours, usually the same day' && r.els.insPickTime.hidden === true);
     r.els['f-email'].value = 'not-an-email';
     await r.handlers['insDetailsSave:click']();
     ok('a bad email is refused in the page, nothing posted', r.fetches.length === 0 && /email/.test(r.els.insDetailsStatus.textContent));

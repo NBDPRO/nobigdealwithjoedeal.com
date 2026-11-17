@@ -385,14 +385,19 @@
   }
 
   /* ── shared intake block (2026-09-30, Jo: every service form asks the same):
-     REQUIRED scheduling choice, best time, insurance, how-heard, photos —
-     intake-extras.js. If the block never loaded, the lead is never blocked. ── */
+     REQUIRED scheduling choice on the contact step; best time, insurance,
+     how-heard, photos and email moved to the result screen (2026-11-17,
+     the same pattern /inspect uses) — intake-extras.js. If the block never
+     loaded, the lead is never blocked. ── */
   var IP = 'scI';
+  var XP = 'scX';
+  var _grant = null;
+  var _busy = false;
   function mountIntake() {
     var box = $('sc-intake');
     if (!box || box.childElementCount) return true;
     if (!window.NBDIntake) return false;
-    box.innerHTML = window.NBDIntake.html(IP);
+    box.innerHTML = window.NBDIntake.html(IP, { extras: false });
     return true;
   }
   function readIntake() {
@@ -400,23 +405,80 @@
     if (!window.NBDIntake || !box || !box.childElementCount) return { fields: {}, files: [] };
     return window.NBDIntake.read(box, IP);
   }
+  function calInfo() {
+    return { firstName: S.firstName || '', phone: S.phone || '', email: S.email || '', address: S.address || '', service: 'Roof inspection' };
+  }
+  // The result screen has its own booking link: prefill it with what they gave us.
+  function wireBookLink() {
+    var a = $('sc-book');
+    if (a && window.NBDIntake && typeof window.NBDIntake.calendarUrl === 'function') a.setAttribute('href', window.NBDIntake.calendarUrl(calInfo()));
+  }
+  // The "contact me" note (and nothing else: no popup, no second calendar button).
   function afterIntake(res, boxId) {
     if (!window.NBDIntake || !S.intake || !(res && res.ok)) return;
-    window.NBDIntake.afterSubmit($(boxId), { prefix: IP, fields: S.intake.fields, files: S.intake.files, photoToken: res.photoToken || null,
-      firstName: S.firstName || '', phone: S.phone || '', email: S.email || '', address: S.address || '', service: 'Roof inspection' });
+    window.NBDIntake.afterSubmit($(boxId), { prefix: IP, ownCalendar: true, fields: S.intake.fields, files: [], photoToken: null, firstName: S.firstName || '' });
+  }
+  function mountDetails(res) {
+    var wrap = $('sc-details'), box = $('sc-x-intake');
+    // No grant = nothing to save against, so the block stays hidden.
+    if (!wrap || !box || !window.NBDIntake || !(res && res.ok && res.photoToken)) return;
+    _grant = res.photoToken;
+    if (!box.childElementCount) box.innerHTML = window.NBDIntake.html(XP, { sched: false });
+    wrap.hidden = false;
+  }
+  function detailsStatus(msg, isError) {
+    var st = $('sc-details-status');
+    if (!st) return;
+    st.className = 'sc-details-status' + (isError ? ' error' : '');
+    st.textContent = msg;
+    telify(st);
+  }
+  function saveDetails() {
+    var btn = $('sc-details-save');
+    if (_busy || !_grant || !btn) return;
+    var box = $('sc-x-intake');
+    var intake = (window.NBDIntake && box && box.childElementCount) ? window.NBDIntake.read(box, XP, { optional: true }) : { fields: {}, files: [] };
+    if (intake.error) { detailsStatus(intake.error, true); return; }
+    var answers = {};
+    ['bestTime', 'insuranceClaim', 'howHeard'].forEach(function (k) { if (intake.fields[k]) answers[k] = intake.fields[k]; });
+    var emEl = $('sc-email'), em = emEl ? String(emEl.value || '').trim() : '';
+    if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { detailsStatus('That email doesn’t look right. Fix it, or leave it blank.', true); return; }
+    if (em) answers.email = em;
+    var hasAnswers = Object.keys(answers).length > 0;
+    var files = intake.files || [];
+    if (!hasAnswers && !files.length) { detailsStatus('Add something first, or skip this. Joe already has your request.', true); return; }
+    _busy = true; btn.disabled = true; btn.textContent = 'Saving...';
+    var base = typeof window.nbdPublicFunctionsBase === 'function' ? window.nbdPublicFunctionsBase() : '';
+    var post = !hasAnswers ? Promise.resolve(true) : fetch(base + '/updatePublicLeadIntake', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'omit', mode: 'cors',
+      body: JSON.stringify(Object.assign({ token: _grant }, answers))
+    }).then(function (r) { return r.ok; }, function () { return false; });
+    return post.then(function (saved) {
+      _busy = false;
+      if (!saved) { btn.disabled = false; btn.textContent = 'Send to Joe'; detailsStatus('Couldn’t save that. Call or text Joe at (859) 420-7382.', true); return; }
+      btn.textContent = 'Sent';
+      if (em) { S.email = em; wireBookLink(); }
+      detailsStatus(hasAnswers ? 'Thanks, that’s on your request now.' : '', false);
+      // Photos: the same grant, uploaded and reported by intake-extras.js.
+      if (files.length && window.NBDIntake) {
+        var after = $('sc-intake-after');
+        window.NBDIntake.afterSubmit(after, { prefix: XP, ownCalendar: true, quietContact: true, fields: intake.fields, files: files, photoToken: _grant,
+          firstName: S.firstName || '', phone: S.phone || '', address: S.address || '' });
+      }
+    });
   }
 
   /* ── submit + result ── */
   function submitLead() {
     var fn = $('sc-firstName').value.trim(), ph = $('sc-phone').value.trim(),
-        em = $('sc-email').value.trim(), consent = $('sc-consent').checked;
+        consent = $('sc-consent').checked;
     if (!fn || ph.replace(/\D/g, '').replace(/^1/, '').length !== 10) { $('sc-contact-err').textContent = 'Please add your name and a 10-digit phone.'; return; }
     // SMS consent is optional since 2026-10-15: the lead is saved either way; no automatic text without it.
     var intake = readIntake();
     if (intake.error) { $('sc-contact-err').textContent = intake.error; if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid'); return; }
     S.intake = intake;
     $('sc-contact-err').textContent = '';
-    S.firstName = fn; S.phone = ph; S.email = em;
+    S.firstName = fn; S.phone = ph;
     var btn = $('sc-submit'); btn.disabled = true; btn.textContent = 'Checking…';
 
     // capture the lead FIRST (so it saves even if the result errors out)
@@ -426,8 +488,9 @@
     // submitPublicLead persists it so lead-alert's SMS ack can gate on a stored
     // record instead of inferring consent (TCPA fix, 2026-09-04; see #1377).
     var payload = { name: fn, phone: ph, address: S.address || $('sc-address').value.trim(), source: '/storm-check', story: story, tcpaConsent: consent === true };
-    if (em) payload.email = em;
     Object.assign(payload, S.intake.fields);
+    // The one-time grant the result screen's optional "add details" step saves against.
+    payload.wantsFollowUp = true;
     var capture = (typeof window.submitPublicLead === 'function')
       ? window.submitPublicLead('inspect', payload)
       : Promise.resolve({ ok: false });
@@ -438,7 +501,7 @@
       var lead = res[0], reports = res[1];
       S.submitted = !!(lead && lead.ok);
       var verdict = buildVerdict(reports);
-      joesTake().then(function (take) { renderResult(verdict, take, lead); afterIntake(lead, 'sc-intake-after'); });
+      joesTake().then(function (take) { renderResult(verdict, take, lead); afterIntake(lead, 'sc-intake-after'); mountDetails(lead); });
     });
   }
   function renderResult(v, take, lead) {
@@ -451,6 +514,7 @@
       var w = $('sc-result-warn');
       if (w) { w.style.display = 'block'; w.textContent = 'Heads up: we couldn’t auto-save your info — please call or text Joe at (859) 420-7382 so it isn’t lost.'; telify(w); }
     }
+    wireBookLink();
     document.querySelectorAll('.sc-step').forEach(function (s) { s.classList.remove('active'); });
     $('sc-result').classList.add('active');
     var fill = $('sc-progress-fill'); if (fill) fill.style.width = '100%';
@@ -483,6 +547,7 @@
       if (tile) { var g = tile.closest('[data-group]'); if (g) { selectTile(tile, g.dataset.group); } return; }
       var step = e.target.closest('[data-step]'); if (step) { goToStep(+step.dataset.step); return; }
       var act = e.target.closest('[data-action]'); if (act && act.dataset.action === 'submit') { submitLead(); }
+      else if (act && act.dataset.action === 'saveDetails') { saveDetails(); }
       else if (act && act.dataset.action === 'useTypedAddress') { useTypedAddress(); }
     });
   }
