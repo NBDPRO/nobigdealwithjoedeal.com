@@ -3066,9 +3066,6 @@ window.NBDDocGen = {
             <!-- NEXT STEPS -->
             <div class="section" style="background-color: ${this._resolveCompany().colors.lightGray}; border-left: 3px solid ${this._resolveCompany().colors.primary}; padding: 0.15in;">
               <div class="section-title">Next Steps</div>
-              <div class="summary-text">
-                Based on this assessment, we recommend immediate attention to the roof and gutters to prevent further water damage. Contact us to schedule a free estimate and discuss financing options for recommended repairs.
-              </div>
               <div style="margin-top: 0.1in; font-weight: bold; color: ${this._resolveCompany().colors.primary};">
                 ${this._resolveCompany().phone} | ${this._resolveCompany().email}
               </div>
@@ -3080,7 +3077,7 @@ window.NBDDocGen = {
               ${this.renderSignatureBlock(
                 (Array.isArray(data.signers) && data.signers.length)
                   ? data.signers
-                  : ['Certified NBD Inspector']
+                  : ['Inspector']
               )}
             </div>
           </div>
@@ -3221,7 +3218,7 @@ window.NBDDocGen = {
               <div style="font-size: 9px; margin: 0.1in 0;">
                 I certify that I have personally inspected the subject property and that the damages, measurements, and repair estimates contained in this report are accurate to the best of my knowledge and belief.
               </div>
-              ${this.renderSignatureBlock(['Certified NBD Damage Assessor'])}
+              ${this.renderSignatureBlock(['Damage Assessor'])}
             </div>
           </div>
 

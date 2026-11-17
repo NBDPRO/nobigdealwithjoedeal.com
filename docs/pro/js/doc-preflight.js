@@ -945,7 +945,7 @@
           id: 'condition', title: 'Roof Condition Notes', collapsed: false,
           fields: [
             { key: 'overallDescription', label: 'Overall Assessment', type: 'textarea', rows: 3, required: true,
-              source: 'literal:The roof shows signs of wear consistent with age. Several areas require attention to prevent further damage.',
+              source: 'literal:',
               persist: PERSIST.DOCUMENT },
             { key: 'roofCondition', label: 'Roof Notes', type: 'textarea', rows: 2,
               source: 'literal:', persist: PERSIST.DOCUMENT },
@@ -1013,7 +1013,7 @@
           id: 'damage', title: 'Damage & Scope', collapsed: false,
           fields: [
             { key: 'damageNotes', label: 'Damage Description', type: 'textarea', rows: 3, required: true,
-              source: 'literal:Evidence of wind/impact damage to shingles including lifted edges, puncture marks, and missing shingles.',
+              source: 'literal:',
               persist: PERSIST.DOCUMENT },
             { key: 'scopeItems', label: 'Scope of Restoration', type: 'scope-list',
               source: 'computed.scopeItems', persist: PERSIST.DOCUMENT },

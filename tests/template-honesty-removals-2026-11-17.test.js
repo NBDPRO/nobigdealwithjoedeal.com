@@ -101,5 +101,38 @@ section('1. "Backed personally by Joe Deal" is gone');
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+section('2. Inspection Report (Homeowner): no hard-coded urgency, no "Certified" signer');
+{
+  const h = html('inspectionHomeowner', { overallDescription: 'Granule loss on the south slope.' });
+  ok('the report renders (positive control)', h.length > 800 && h.indexOf('RENDER_ERROR') !== 0 && /Granule loss on the south slope/.test(h), h.slice(0, 80));
+  ok('no "immediate attention ... prevent further water damage" sentence on a report that never said it', !/immediate attention|prevent further water damage/i.test(text(h)));
+  ok('the Next Steps contact line still prints (positive control)', /Next Steps/.test(h));
+  ok('the signer is "Inspector", not "Certified NBD Inspector"', /Inspector/.test(text(h)) && !/Certified/i.test(text(h)));
+  const hi = html('inspectionInsurance', { claimNumber: 'C-1', damageNotes: 'Creased shingles on the west slope.' });
+  ok('the insurance report renders (positive control)', hi.length > 800 && hi.indexOf('RENDER_ERROR') !== 0 && /Creased shingles/.test(hi), hi.slice(0, 80));
+  ok('its signer is "Damage Assessor", not "Certified NBD Damage Assessor"', /Damage Assessor/.test(text(hi)) && !/Certified/i.test(text(hi)));
+  const oaks = loadEnv({ brand: { legalName: 'Oaks Roofing', seal: 'OAKS', colors: {}, contact: {} } });
+  const ho = oaks.dg.getHTML('inspectionHomeowner', { homeownerName: 'T', address: '1 Test St' }) || '';
+  ok('another company\'s homeowner report carries no "Certified" signer either', ho.length > 800 && !/Certified/i.test(text(ho)));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+section('3. Pre-flight: the assessment and damage notes start empty, and stay required');
+{
+  const field = (type, key) => {
+    const sch = env.pf.DOC_SCHEMAS[type]; let f = null;
+    sch.sections.forEach((s) => s.fields.forEach((x) => { if (x.key === key) f = x; }));
+    return f;
+  };
+  const oa = field('inspectionHomeowner', 'overallDescription');
+  const dn = field('inspectionInsurance', 'damageNotes');
+  ok('both fields exist (positive control)', !!oa && !!dn);
+  ok('Overall Assessment still required', oa && oa.required === true);
+  ok('Damage Description still required', dn && dn.required === true);
+  ok('Overall Assessment starts empty (no "signs of wear consistent with age" pre-fill)', oa && String(env.pf._resolveFieldValue(oa, {}) || '') === '');
+  ok('Damage Description starts empty (no "wind/impact damage ... puncture marks" pre-fill)', dn && String(env.pf._resolveFieldValue(dn, {}) || '') === '');
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED:\n  - ' + fails.join('\n  - ')); process.exit(1); }
