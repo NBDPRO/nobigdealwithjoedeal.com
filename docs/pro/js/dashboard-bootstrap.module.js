@@ -6375,6 +6375,17 @@
     if (mfFloor !== null || (mfNow && mfNow.floorPct != null)) {
       out.pricing = Object.assign({}, out.pricing, { marginFloor: { floorPct: mfFloor, targetPct: mfTarget } });
     }
+    // Supplier price compare (2026-11-17): same rule, off unless set, no default.
+    const scNow = (window._companyProfile && window._companyProfile.pricing && window._companyProfile.pricing.supplierCompare) || null;
+    const scPct = (id, lo, hi) => {
+      const n = parseFloat(document.getElementById(id)?.value);
+      return (Number.isFinite(n) && n >= lo && n <= hi) ? Math.round(n * 100) / 100 : null;
+    };
+    const scTax = scPct('cp_pricing_supplierCompare_taxPct', 0, 25);
+    const scAlert = scPct('cp_pricing_supplierCompare_alertPct', 0.1, 100);
+    if (scTax !== null || scAlert !== null || scNow) {
+      out.pricing = Object.assign({}, out.pricing, { supplierCompare: { purchaseTaxPct: scTax, alertPct: scAlert } });
+    }
 
     // FIX 1 — drop every field still equal to its NBD default (see helper).
     _cpStripDefaults(out, defaults);
@@ -6509,6 +6520,11 @@
     if (mfFloorEl) mfFloorEl.value = mf.floorPct != null ? mf.floorPct : '';
     const mfTargetEl = document.getElementById('cp_pricing_marginFloor_targetPct');
     if (mfTargetEl) mfTargetEl.value = mf.targetPct != null ? mf.targetPct : '';
+    const sc = (p.pricing && p.pricing.supplierCompare) || {};
+    const scTaxEl = document.getElementById('cp_pricing_supplierCompare_taxPct');
+    if (scTaxEl) scTaxEl.value = sc.purchaseTaxPct != null ? sc.purchaseTaxPct : '';
+    const scAlertEl = document.getElementById('cp_pricing_supplierCompare_alertPct');
+    if (scAlertEl) scAlertEl.value = sc.alertPct != null ? sc.alertPct : '';
 
     // ── Brand Identity sub-panel (gauntlet Batch 3) ─────────────────
     // Fill from the RAW (un-merged) tenant override so a field the tenant never

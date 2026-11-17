@@ -3,7 +3,10 @@
  *
  * The Product Library's "Unlinked items" button (data-prl-action="openUnlinked",
  * slice 2) opens the same sheet as a list of receipt items no product is linked
- * to yet; the owner or an admin links each to a product.
+ * to yet; the owner or an admin links each to a product. Slice 3: each one shows a
+ * suggested product (SKU match first, else name match) that links with one tap; the
+ * picker is still there to choose another. A product's sheet also shows its suppliers
+ * side by side and each quote's "good for N more days" (js/price-compare-ui.js).
  *
  * Opened from a product card (data-prl-action="openProduct"). For one product it
  * shows the store and supplier items linked to it, each with its pack size, its
@@ -111,7 +114,8 @@
     return '<div class="prl-best">' +
       '<div class="prl-price"><span class="ui-money">' + statedText(b) + '</span>' + (perCatalog(offer, b) ? ' <span class="prl-dim">·</span> ' + perCatalog(offer, b) : '') + '</div>' +
       '<div class="prl-src">' + esc(KIND_SHORT[b.kind] || b.kind) + ' · ' + esc(dateText(b.observedAtMs)) + ' (' + esc(ageText(b.observedAtMs)) + ')' +
-      (b.taxIncluded ? ' · tax included' : ' · before tax') + ' ' + levelBadge(b, offer.supplierId) + '</div></div>';
+      (b.taxIncluded ? ' · tax included' : ' · before tax') + ' ' + levelBadge(b, offer.supplierId) +
+      (w.NBDPriceCompareUI ? w.NBDPriceCompareUI.expiryHtml(b.validThroughMs) : '') + '</div></div>';
   }
 
   function historyBlock(offer) {
@@ -256,18 +260,28 @@
     const admin = PL().canSave();
     const offers = (S.offers || []).filter((o) => o.active !== false);
     if (!offers.length) return '<div class="prl-empty">Nothing is waiting to be linked. Items from your store receipts show up here until they are linked to a product.</div>';
+    const products = admin ? allProducts() : [];
     return offers.map((o) => {
       const lp = o.latest && o.latest.lastPaid;
+      // A suggestion only: nothing links until the owner or an admin taps it.
+      const sug = admin ? LG().suggestLink(o, products) : null;
+      const sp = sug ? products.find((p) => p.id === sug.productId) : null;
       return '<div class="prl-offer">' +
         '<div class="prl-otitle"><span class="prl-store">' + esc(supplierLabel(o.supplierId)) + '</span>' + esc(o.title) + '</div>' +
         '<div class="prl-src">' + (o.sku ? 'SKU ' + esc(o.sku) : 'No SKU') + '</div>' +
         (lp ? '<div class="prl-best"><div class="prl-price"><span class="ui-money">' + statedText(lp) + '</span></div>' +
           '<div class="prl-src">Last paid · ' + esc(dateText(lp.observedAtMs)) + ' (' + esc(ageText(lp.observedAtMs)) + ') · as printed on the receipt</div></div>'
           : '<div class="prl-noprice">No price yet</div>') +
-        (admin ? '<div class="prl-actions"><button type="button" class="btn btn-ghost prl-btn" data-prl-action="showLink" data-prl-id="' + esc(o.id) + '">Link to a product</button></div>' : '') +
+        (sp ? '<div class="prl-src">Suggested: <strong>' + esc(sp.name || sp.id) + '</strong> <span class="ui-badge ' + (sug.kind === 'sku' ? 'is-success">SKU match' : 'is-info">Name match') + '</span></div>' : '') +
+        (admin ? '<div class="prl-actions">' + (sp ? '<button type="button" class="btn btn-orange prl-btn" data-prl-action="acceptSuggest" data-prl-id="' + esc(o.id) + '" data-prl-product="' + esc(sp.id) + '">Link to ' + esc(sp.name || sp.id) + '</button>' : '') +
+          '<button type="button" class="' + (sp ? 'ui-btn-quiet' : 'btn btn-ghost') + ' prl-btn" data-prl-action="showLink" data-prl-id="' + esc(o.id) + '">' + (sp ? 'Choose another product' : 'Link to a product') + '</button></div>' : '') +
         (S.form && S.form.offerId === o.id ? formHtml() : '') +
         '</div>';
     }).join('');
+  }
+
+  function allProducts() {
+    return (((w._productLib && typeof w._productLib.getProducts === 'function') ? w._productLib.getProducts() : (w.NBD_PRODUCTS || [])) || []).filter((p) => p && p.id && p.isActive !== false);
   }
 
   function bodyHtml() {
@@ -283,6 +297,7 @@
       : (admin ? 'Start by adding a store or supplier you buy from.' : 'No stores or suppliers have been added yet. An owner or admin adds them.')) + '</div>';
     return '<div class="prl-actions">' + top.join('') + '</div>' +
       (S.form && !S.form.offerId ? formHtml() : '') +
+      (w.NBDPriceCompareUI ? w.NBDPriceCompareUI.productBlock(S.product, offers, S.suppliers) : '') +
       empty + offers.map(offerCard).join('');
   }
 
@@ -350,6 +365,16 @@
     close,
     cancelForm() { setForm(null); },
     showLink(id) { setForm({ type: 'link', offerId: id, submit: 'Link' }); },
+    async acceptSuggest(id, el) {
+      const productId = el && el.dataset.prlProduct;
+      if (!productId) return;
+      if (el) el.disabled = true;
+      const r = await PL().linkOffer(id, productId, 'exact');
+      if (!S) return;
+      if (!r.ok) { if (el) el.disabled = false; toast(r.message, 'error'); return; }
+      toast('Linked. Open that product\'s Stores & prices to set the pack size.', 'success');
+      await reload();
+    },
     showAddSupplier() { setForm({ type: 'supplier', submit: 'Save' }); },
     showAddOffer() { setForm({ type: 'offer', submit: 'Save item' }); },
     showAddPrice(id) { setForm({ type: 'price', offerId: id, submit: 'Save price' }); },

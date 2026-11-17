@@ -41,6 +41,8 @@ const offerRef = (db, companyId, offerId) => db.doc(base(companyId) + '/priceOff
 const obsCol = (db, companyId) => db.collection(base(companyId) + '/priceObservations');
 const auditCol = (db, companyId) => db.collection(base(companyId) + '/priceAudit');
 const meterRef = (db, companyId, dayKey) => db.doc(base(companyId) + '/priceMeter/rows_' + dayKey);
+const seenRef = (db, companyId) => db.doc(base(companyId) + '/priceConfig/seen');
+const SEEN_MAX = 2000;
 
 const utcDay = (ms) => new Date(ms).toISOString().slice(0, 10);
 const dateMs = (ymd) => Date.UTC(Number(ymd.slice(0, 4)), Number(ymd.slice(5, 7)) - 1, Number(ymd.slice(8, 10)));
@@ -419,6 +421,31 @@ const saveOps = {
     if (!snap) return bad('not_found');
     await snap.ref.update(Object.assign({ active: data.active === true }, stamp(caller)));
     return { ok: true, id: snap.id };
+  },
+
+  /**
+   * Slice 3: mark an on-screen alert seen. One shared list for the owner and company
+   * admins: { marks: { <alertId>: { o: <newest obsId>, at } } }. The alert comes back
+   * when a newer price arrives (its obsId no longer matches). Capped at 2000 marks;
+   * the oldest goes first.
+   */
+  async markSeen(db, companyId, data, caller, nowMs) {
+    assertCompany(companyId);
+    const s = L.sanitizeSeenMark(data);
+    if (!s.ok) return bad(s.reason);
+    const ref = seenRef(db, companyId);
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const marks = Object.assign({}, (snap.exists && (snap.data() || {}).marks) || {});
+      marks[s.value.alertId] = { o: s.value.obsId, at: nowMs };
+      const keys = Object.keys(marks);
+      if (keys.length > SEEN_MAX) {
+        keys.sort((a, b) => (Number(marks[a] && marks[a].at) || 0) - (Number(marks[b] && marks[b].at) || 0));
+        keys.slice(0, keys.length - SEEN_MAX).forEach((k) => { delete marks[k]; });
+      }
+      tx.set(ref, Object.assign({ marks }, stamp(caller)));
+    });
+    return { ok: true, id: s.value.alertId };
   },
 
   async voidObservation(db, companyId, data, caller, nowMs) {

@@ -179,6 +179,54 @@
     } catch (e) { warn('recordHdReceipts', e); return Object.assign(out, refusal(e)); }
   }
 
+  /** Every offer of the company (the Compare suppliers list and the import's "new item" count). 2000 at most. */
+  async function allOffers() {
+    if (!ready() || !w.limit) return [];
+    try {
+      const snap = await w.getDocs(w.query(w.collection(w.db, BASE, companyKey(), 'priceOffers'), w.limit(2000)));
+      return snap.docs.map(withId);
+    } catch (e) { warn('allOffers', e); return []; }
+  }
+
+  /** The shared "seen" marks as { alertId: obsId }. Owner and company admins only (rules). */
+  async function seenMarks() {
+    if (!ready() || !w.doc || !w.getDoc) return {};
+    try {
+      const snap = await w.getDoc(w.doc(w.db, BASE, companyKey(), 'priceConfig', 'seen'));
+      const marks = (snap && snap.exists && snap.exists() && (snap.data() || {}).marks) || {};
+      const out = {};
+      Object.keys(marks).forEach((k) => { if (marks[k] && typeof marks[k].o === 'string') out[k] = marks[k].o; });
+      return out;
+    } catch (e) { warn('seenMarks', e); return {}; }
+  }
+  const markSeen = (alertId, obsId) => save('markSeen', { alertId, obsId });
+
+  /** The company's comparison settings (companyProfile.pricing.supplierCompare) as basis points; nulls when not set. */
+  function compareSettings() { return LG() ? LG().supplierCompareSettings(w._companyProfile || {}) : { taxBps: null, alertBps: null }; }
+
+  /**
+   * A supplier file's rows (NBDPriceLogic.buildImport) into the history on channel
+   * csv_import, 500 a call. Owner and company admins only. onProgress(done, total)
+   * after each call. Never throws.
+   */
+  async function importRows(rows, onProgress) {
+    const out = { ok: true, sent: 0, written: 0, duplicates: 0, rejected: 0, needsUnit: 0 };
+    try {
+      if (!enabled() || !canSave()) return Object.assign(out, { ok: false, message: 'Only the owner or an admin can import prices.' });
+      const list = Array.isArray(rows) ? rows : [];
+      if (!list.length) return out;
+      const fn = await callable('priceLedgerRecord');
+      for (let k = 0; k < list.length; k += HD_CHUNK) {
+        const chunk = list.slice(k, k + HD_CHUNK);
+        const res = await fn({ rows: chunk, channel: 'csv_import' });
+        const d = (res && res.data) || {};
+        out.sent += chunk.length; out.written += d.written || 0; out.duplicates += d.duplicates || 0; out.rejected += d.rejected || 0; out.needsUnit += d.needsUnit || 0;
+        if (typeof onProgress === 'function') { try { onProgress(out.sent, list.length); } catch (_) { /* a screen gone */ } }
+      }
+      return out;
+    } catch (e) { warn('importRows', e); return Object.assign(out, refusal(e)); }
+  }
+
   // The Product Library may draw its cards before the flags arrive: ask for one re-render.
   w.addEventListener('nbd:flags-loaded', function () {
     try { if (enabled() && w._productLib && typeof w._productLib.render === 'function' && document.querySelector('.plx-card-foot')) w._productLib.render(); } catch (e) { warn('re-render', e); }
@@ -186,7 +234,7 @@
 
   w.NBDPriceLedger = {
     FLAG, enabled, role, canSave, canRecord, companyKey,
-    suppliers, offersFor, history, unlinked,
-    saveAccount, saveOffer, linkOffer, verifyPack, archiveOffer, voidObservation, record, recordHdReceipts,
+    suppliers, offersFor, history, unlinked, allOffers, seenMarks, compareSettings,
+    saveAccount, saveOffer, linkOffer, verifyPack, archiveOffer, voidObservation, record, recordHdReceipts, importRows, markSeen,
   };
 })();

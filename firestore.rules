@@ -3079,6 +3079,11 @@ service cloud.firestore {
       allow read: if plAdmin(companyId);
       allow write: if false;
     }
+    // Slice 3: the shared 'seen' marks for on-screen alerts (priceLedgerSave markSeen).
+    match /priceBook/{companyId}/priceConfig/{docId} {
+      allow read: if plAdmin(companyId);
+      allow write: if false;
+    }
 
     // Job-name memory (hd-import.js, receipt sorter 2026-10-18): which lead a
     // PO/Job name on a Home Depot / Lowe's receipt means, learned from the

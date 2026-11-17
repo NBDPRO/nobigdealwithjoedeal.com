@@ -428,6 +428,62 @@ const typed = (patch) => Object.assign({ offerId: OFFER, kind: 'paid', priceMicr
     ok('a re-run of the migration adds nothing', (await Store.appendObservations(DB, 'co-a', [hdRow()], ctxM)).written === 0);
   }
 
+  console.log('\nSupplier files (slice 3: channel csv_import)');
+  {
+    const NEW = L.offerIdFor('other_testco', 'TEST-0101');
+    const sheetRef = { type: 'price_sheet', ref: 'testco-sheet.csv' };
+    const sheet = (patch) => Object.assign({ offerId: NEW, kind: 'price_sheet', priceMicros: 11110000, per: 1, statedUnit: null, uomRaw: 'ZZ', priceType: 'account', taxIncluded: false,
+      observedOn: TODAY, doc: sheetRef, note: 'Imported from testco-sheet.csv', offer: { supplierId: 'other_testco', sku: 'TEST-0101', title: 'Testco new item' } }, patch || {});
+    const known = (patch) => sheet(Object.assign({ offerId: OFFER, offer: undefined, statedUnit: 'BDL', uomRaw: 'BD', priceMicros: 22220000 }, patch || {}));
+    reset(); await seed('ca');
+    const r = await record('ca', [sheet(), known()], { channel: 'csv_import' });
+    const made = W.docs[CO_A + 'priceOffers/' + NEW];
+    ok('a supplier-file row for a new item number creates one unlinked offer with an unknown pack',
+      r.value && r.value.written === 2 && made && made.productId === null && made.pack.status === 'unknown' && made.skuKind === 'item_number' && made.title === 'Testco new item', [r, made]);
+    const d0 = W.docs[CO_A + 'priceObservations/' + r.value.results[0].obsId];
+    const d1 = W.docs[CO_A + 'priceObservations/' + r.value.results[1].obsId];
+    ok('a row with an unknown unit is kept as stated: no unit, its own text, no per-unit price, counted as needs a unit',
+      d0.statedUnit === null && d0.uomRaw === 'ZZ' && d0.catalogMicros === null && r.value.needsUnit === 1 && d0.kind === 'price_sheet' && d0.attested === true && d0.source.channel === 'csv_import', d0);
+    ok('the file name and date are all that is kept of the file', d0.doc.ref === 'testco-sheet.csv' && d0.observedOn === TODAY && d0.note === 'Imported from testco-sheet.csv' && d0.doc.storagePath === null, d0.doc);
+    ok('a row for a known item with a unit gets its per-unit price from the pack', d1.catalogMicros === 22220000 * 3 && d1.statedUnit === 'BDL', d1);
+    const again = await record('ca', [sheet(), known()], { channel: 'csv_import' });
+    ok('the same file again adds nothing', again.value.written === 0 && again.value.duplicates === 2, again.value);
+    const refused = await record('ca', [sheet({ kind: 'manual', doc: { type: 'price_sheet', ref: 'x2' } }), sheet({ kind: 'quote', doc: { type: 'quote', ref: 'x3' } }), sheet({ doc: { type: 'price_sheet', ref: '' } })], { channel: 'csv_import' });
+    ok('a typed-note kind, a quote with no good-through date and a row with no reference are rejected',
+      refused.value.results.map((x) => x.reason).join(',') === 'bad_kind,quote_needs_date,needs_doc_ref', refused.value.results);
+    const before = writes().length;
+    const mg = await record('mgr', [sheet({ doc: { type: 'price_sheet', ref: 'x4' } })], { channel: 'csv_import' });
+    ok('a manager is refused on csv_import with zero writes', mg.code === 'permission-denied' && writes().length === before, mg);
+  }
+
+  console.log('\nSeen marks (slice 3: priceLedgerSave markSeen)');
+  {
+    reset(); await seed('ca');
+    const SEEN = CO_A + 'priceConfig/seen';
+    const m1 = await save('ca', 'markSeen', { alertId: 'cheaper_shingle_001', obsId: 'o_b1' });
+    const m2 = await save('ca', 'markSeen', { alertId: 'move_other_testco_TEST-0001', obsId: 'o_q1' });
+    const doc = W.docs[SEEN];
+    ok('a company admin marks two alerts seen; both are kept in one company doc',
+      m1.value && m2.value && doc && doc.marks['cheaper_shingle_001'].o === 'o_b1' && doc.marks['move_other_testco_TEST-0001'].o === 'o_q1', doc);
+    await save('ca', 'markSeen', { alertId: 'cheaper_shingle_001', obsId: 'o_b9' });
+    ok('marking the same alert again moves it to the newer price', W.docs[SEEN].marks['cheaper_shingle_001'].o === 'o_b9');
+    const before = writes().length;
+    const bad = await save('ca', 'markSeen', { alertId: 'cheaper_a/b', obsId: 'o_1' });
+    const badObs = await save('ca', 'markSeen', { alertId: 'cheaper_x', obsId: '' });
+    ok('a bad alert id or obsId is refused with zero writes', bad.code === 'invalid-argument' && badObs.code === 'invalid-argument' && writes().length === before, [bad, badObs]);
+    const mg = await save('mgr', 'markSeen', { alertId: 'cheaper_shingle_001', obsId: 'o_b1' });
+    ok('a manager can not mark seen (owner and company admins share one list)', mg.code === 'permission-denied' && writes().length === before, mg);
+    await save('owner', 'markSeen', { alertId: 'cheaper_shingle_001', obsId: 'o_b1' });
+    ok('a solo owner writes under their own company', !!W.docs['priceBook/u_owner/priceConfig/seen']);
+    reset();
+    const many = { marks: {} };
+    for (let i = 0; i < 2000; i++) many.marks['move_x' + i] = { o: 'o', at: i };
+    W.docs[SEEN] = many;
+    await save('ca', 'markSeen', { alertId: 'move_new', obsId: 'o_n' });
+    const marks = W.docs[SEEN].marks;
+    ok('the list is capped at 2000: the oldest mark goes', Object.keys(marks).length === 2000 && marks.move_new && !marks.move_x0 && marks.move_x1, Object.keys(marks).length);
+  }
+
   console.log('\nThe store builds every path itself');
   {
     reset(); await seed('ca');
