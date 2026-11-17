@@ -85,10 +85,13 @@
   // ── browser ──────────────────────────────────────────────────────────
   var w = root, doc = root.document;
   var banner = null, shown = null;
+  // The answer, kept in memory when the storage write fails (private mode,
+  // quota): without it the 5-minute re-check showed the offer again (2026-11-16).
+  var memSeen = {}, memOff = false;
 
   function lsGet(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (_) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (_) { return false; } }
-  function cfg() { return cfgOf(lsGet(LS_CFG)); }
+  function cfg() { var c = cfgOf(lsGet(LS_CFG)); if (memOff) c.off = true; return c; }
   function sunNow(nowMs) {
     var AT = w.NBDAutoTheme;
     try {
@@ -110,7 +113,7 @@
     var now = Date.now();
     return offerFor({
       nowMs: now, cfg: cfg(), sun: sunNow(now), surface: E.surface(), current: cur.id, source: cur.source,
-      company: p.company || {}, seen: lsGet(LS_SEEN) || {}, busy: busy(),
+      company: p.company || {}, seen: Object.assign({}, lsGet(LS_SEEN), memSeen), busy: busy(),
       surfacesOf: function (id) { var d = R.get(id); return d ? d.surfaces : null; },
     });
   }
@@ -146,7 +149,7 @@
     // keep only the last few periods
     var keys = Object.keys(seen).sort();
     while (keys.length > 6) delete seen[keys.shift()];
-    lsSet(LS_SEEN, seen);
+    if (!lsSet(LS_SEEN, seen)) memSeen[key] = 1;
   }
 
   doc.addEventListener('click', function (ev) {
@@ -158,7 +161,7 @@
       var o = shown;
       if (!o) { hide(); return; }
       remember(o.key);
-      if (a === 'never') { var c = cfg(); c.off = true; lsSet(LS_CFG, c); paintSettings(); }
+      if (a === 'never') { var c = cfg(); c.off = true; memOff = !lsSet(LS_CFG, c); paintSettings(); }
       if (a === 'yes' && w.LayoutEngine && typeof w.LayoutEngine.apply === 'function') {
         // this session only; the rep's saved layout comes back on the next visit
         w.LayoutEngine.apply(o.id, { source: 'auto' });
@@ -198,6 +201,7 @@
     var said = doc.querySelector('#layoutOfferBody .lo-saved');
     var bad = st && en && Number(en.value) <= Number(st.value);
     var ok = lsSet(LS_CFG, next);
+    memOff = !ok && next.off;
     if (said) said.textContent = !ok ? 'Could not save on this device (storage is blocked).' : bad ? 'Saved. The end hour was before the start, so 7 am to 7 pm is used.' : 'Saved on this device.';
     check();
   }

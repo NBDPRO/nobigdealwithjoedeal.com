@@ -23,6 +23,10 @@ let _bootStartedAt; // module-local (globals Tranche 1 — was window.*)
   let _detailsOpen = false;
   let _dismissedByUser = false;
   let _shownAt = null;
+  // The html last written. _render runs every second; rewriting the buttons
+  // each time swapped the node under the pointer between mousedown and click,
+  // so a tap on × was lost and needed a second one (2026-11-16).
+  let _html = '';
 
   // Self-recovery globals (also callable from devtools if banner is gone).
   window.__nbdHardReset = async function _nbdHardReset() {
@@ -106,6 +110,16 @@ let _bootStartedAt; // module-local (globals Tranche 1 — was window.*)
       'border:1px solid rgba(255,255,255,.15);border-left:3px solid #f80;' +
       'display:none;transition:opacity .2s,transform .2s;';
     banner.setAttribute('role', 'status');
+    _html = '';
+    // One listener on the pill, not one per rebuilt button.
+    banner.addEventListener('click', (e) => {
+      const t = e.target.closest && e.target.closest('button');
+      const c = t ? t.classList : null;
+      if (!c) return;
+      if (c.contains('nbd-ls-retry')) { e.stopPropagation(); _retry(); }
+      else if (c.contains('nbd-ls-details-toggle')) { e.stopPropagation(); _detailsOpen = !_detailsOpen; _render(); }
+      else if (c.contains('nbd-ls-close')) { e.stopPropagation(); _dismiss(); }
+    });
     document.body.appendChild(banner);
     return banner;
   }
@@ -119,6 +133,8 @@ let _bootStartedAt; // module-local (globals Tranche 1 — was window.*)
       const btn = banner.querySelector('.nbd-ls-retry');
       if (btn) { btn.textContent = '↻ Retrying…'; btn.disabled = true; }
     }
+    _html = ''; // the next tick hands the Retry button back, as before
+
     window.loadLeads().catch(e => console.warn('user retry failed:', e.message));
   }
 
@@ -218,7 +234,7 @@ let _bootStartedAt; // module-local (globals Tranche 1 — was window.*)
         '</div>'
       : '';
 
-    b.innerHTML =
+    const html =
       '<div style="display:flex;align-items:center;gap:8px;">' +
         '<span class="nbd-ls-spin" style="display:inline-block;width:10px;height:10px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:nbd-ls-spin 0.8s linear infinite;flex-shrink:0;"></span>' +
         '<span style="flex:1;font-weight:600;font-size:12px;">Data not loaded</span>' +
@@ -227,13 +243,7 @@ let _bootStartedAt; // module-local (globals Tranche 1 — was window.*)
         '<button class="nbd-ls-close" type="button" aria-label="Dismiss" style="background:none;border:none;color:rgba(255,255,255,.7);font-size:18px;line-height:1;cursor:pointer;padding:0 2px;">×</button>' +
       '</div>' +
       detailsHtml;
-
-    const retryBtn = b.querySelector('.nbd-ls-retry');
-    if (retryBtn) retryBtn.addEventListener('click', (e) => { e.stopPropagation(); _retry(); });
-    const detailsBtn = b.querySelector('.nbd-ls-details-toggle');
-    if (detailsBtn) detailsBtn.addEventListener('click', (e) => { e.stopPropagation(); _detailsOpen = !_detailsOpen; _render(); });
-    const closeBtn = b.querySelector('.nbd-ls-close');
-    if (closeBtn) closeBtn.addEventListener('click', (e) => { e.stopPropagation(); _dismiss(); });
+    if (html !== _html) b.innerHTML = _html = html;
   }
 
   function _esc(s) {
