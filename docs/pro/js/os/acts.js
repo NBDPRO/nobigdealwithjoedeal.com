@@ -43,6 +43,7 @@
   var STORM_CACHE = 'nbd_storm_alerts_cache';
   var EVENTS = ['storage', 'nbd:data-refreshed', 'nbd:os-unlock', 'online'];
   var host = null, dlg = null, live = null, lastId = null;
+  var stormMark = '';   // the alert last offered, also in memory: a blocked storage write re-offered it on every refresh (2026-11-16)
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -136,7 +137,8 @@
     if (!phone()) return;
     var a = cur();
     var o = AL.stormOffer({ cache: parse(lsGet(STORM_CACHE)), now: Date.now(), on: a ? a.id : null, offered: lsGet(STORM_KEY) });
-    if (!o.offer || typeof W.showToast !== 'function') return;
+    if (!o.offer || o.mark === stormMark || typeof W.showToast !== 'function') return;
+    stormMark = o.mark;
     lsSet(STORM_KEY, o.mark);
     var name = stormName();
     safe(function () {

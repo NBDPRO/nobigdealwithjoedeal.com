@@ -141,7 +141,9 @@
     if (card.parentNode !== home) home.insertBefore(card, home.firstChild);
     else if (home.firstChild !== card) home.insertBefore(card, home.firstChild);
     var next = list.filter(function (s) { return !s.done; })[0];
-    card.innerHTML =
+    // Written only when it changed: the 3 s boot ticks rebuilt Hide / Skip under
+    // the pointer and a tap was lost (2026-11-16).
+    var html =
       '<div class="sc-head"><div><div class="sc-kicker">Get set up</div>' +
       '<div class="sc-title">' + doneCount + ' of ' + list.length + ' done</div></div>' +
       '<button type="button" class="sc-hide" data-sc-act="hide">Hide</button></div>' +
@@ -155,6 +157,7 @@
             (s.skip ? '<button type="button" class="btn btn-ghost sc-skip" data-sc-act="skip-' + s.id + '">' + esc(s.skip) + '</button>' : '') + '</span>') +
         '</li>';
       }).join('') + '</ol>';
+    if (card._html !== html) card.innerHTML = card._html = html;
     return list;
   }
 

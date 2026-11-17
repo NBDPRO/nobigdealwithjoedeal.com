@@ -241,8 +241,13 @@
       bar.setAttribute('role', 'status');
       document.body.appendChild(bar);
     }
+    // The 1-second countdown changes the seconds only: rebuilding Keep / Revert
+    // every tick lost a tap that landed mid-rebuild (2026-11-16).
+    var left = bar.querySelector('.lp-bar-left');
+    if (left && bar.getAttribute('data-id') === state.preview) { left.textContent = state.left + 's left'; return; }
+    bar.setAttribute('data-id', state.preview);
     var d = state.preview && R.get(state.preview);
-    bar.innerHTML = '<span class="lp-bar-msg">Previewing <strong>' + esc(d ? d.name : '') + '</strong> — ' + state.left + 's left</span>' +
+    bar.innerHTML = '<span class="lp-bar-msg">Previewing <strong>' + esc(d ? d.name : '') + '</strong> — <span class="lp-bar-left">' + state.left + 's left</span></span>' +
       '<button type="button" class="btn btn-orange lp-btn" data-lp="keep">Keep</button>' +
       '<button type="button" class="btn btn-ghost lp-btn" data-lp="revert">Revert</button>';
   }

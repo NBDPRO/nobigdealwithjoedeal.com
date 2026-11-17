@@ -459,6 +459,7 @@
     "nbd-os-wallpaper-glance-2026-11-09.test.js",
     "nbd-os-board-2026-11-09.test.js",
     "nbd-os-desk-board-2026-11-09.test.js",
+    "popup-one-click-dismiss-2026-11-16.test.js",
     "nbd-os-phone-drag-2026-11-09.test.js",
     "nbd-os-stack-2026-11-09.test.js",
     "nbd-os-p1-widgets-2026-11-09.test.js",
@@ -1126,7 +1127,8 @@
     "field-lead-stage-2026-11-14.test.js",
     "touch-targets-2026-11-14.test.js",
     "offline-banner-weak-signal-2026-11-14.test.js",
-    "sign-price-snapshot-2026-11-14.test.js"
+    "sign-price-snapshot-2026-11-14.test.js",
+    "atproto-did-2026-11-16.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

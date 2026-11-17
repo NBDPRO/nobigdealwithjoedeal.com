@@ -679,7 +679,7 @@
   // actions) and by any paint under a mode. Until it lands a widget under a mode paints
   // "Loading…", and if it can't load, "Couldn't load": never the unfiltered day.
   var ACTS_BUNDLE = 'osacts';
-  var ACTS_FILES = ['css/os/acts.css?v=1', 'js/os/acts-logic.js?v=1', 'js/os/acts.js?v=1'];
+  var ACTS_FILES = ['css/os/acts.css?v=1', 'js/os/acts-logic.js?v=1', 'js/os/acts.js?v=2'];
   var actsState = '', actsP = null;   // '' | 'asked' | 'failed'
   function loadActs() {
     if (W.NBDOSActs) return Promise.resolve(W.NBDOSActs);

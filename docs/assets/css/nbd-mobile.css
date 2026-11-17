@@ -179,7 +179,7 @@ h1, h2, h3 { text-wrap: balance; }
   .footer-links a,
   .ann-bar a,
   .foot-slim a,
-  .footer-bottom a:not(.s-fb):not(.s-ig):not(.s-gg):not(.s-yelp) {
+  .footer-bottom a:not(.s-fb):not(.s-ig):not(.s-gg):not(.s-yelp):not(.s-yt):not(.s-tt):not(.s-pin):not(.s-th):not(.s-hz):not(.s-nd):not(.s-x):not(.s-bsky) {
     display: inline-block;
     padding: 10px 6px;
     margin: -10px -6px;
@@ -587,3 +587,16 @@ body #blog-posts-grid{grid-template-columns:repeat(auto-fit,minmax(min(320px,100
   footer .nbd-social a { position: relative; }
   footer .nbd-social a::after { content: ''; position: absolute; inset: -7px; }
 }
+
+/* FOOTER SOCIAL: 12 PROFILES (2026-11-16): YouTube, TikTok, Pinterest, Threads, Houzz, Nextdoor, X and Bluesky
+   joined the strip. Twelve 30 px chips need ~450 px, wider than a phone footer, so the row wraps; brand hover colors match the
+   first four. Lives here, not in nbd-social.css, for the same byte-identical reason as above. Our Work pages
+   don't load this file; scripts/build-projects.mjs carries the same rules inline for them. */
+.nbd-social{flex-wrap:wrap}
+.nbd-social a.s-yt:hover{background:#ff0000}
+.nbd-social a.s-tt:hover,.nbd-social a.s-th:hover{background:#000}
+.nbd-social a.s-pin:hover{background:#e60023}
+.nbd-social a.s-hz:hover{background:#4dbc15}
+.nbd-social a.s-nd:hover{background:#00b246}
+.nbd-social a.s-x:hover{background:#000}
+.nbd-social a.s-bsky:hover{background:#1185fe}
