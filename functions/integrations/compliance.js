@@ -69,6 +69,7 @@ const {
   ERASURE_RETAINED_PREFIXES,
   ERASURE_STORAGE_PREFIXES,
   OWNER_KEYED_DOCS,
+  COMPANY_KEYED_TREES,
   NESTED_LEADS_PATH,
 } = require('./user-owned');
 
@@ -911,6 +912,17 @@ exports.confirmAccountErasure = onRequest(
     for (const coll of OWNER_KEYED_DOCS) {
       try { await db.recursiveDelete(db.doc(coll + '/' + uid)); }
       catch (e) { fail('ownerDoc', coll, e); }
+    }
+
+    // ── (5b) company-keyed trees: only a SOLO owner erasing their OWN company ──
+    // priceBook/{companyId} holds the supplier price ledger (accounts, offers,
+    // price rows, audit, meters) under subcollections. A team member's erasure
+    // never reaches here with their company's id, so the company keeps its trail.
+    if (scope.mode === 'solo' && scope.companyId === uid) {
+      for (const tree of COMPANY_KEYED_TREES) {
+        try { await db.recursiveDelete(db.doc(tree + '/' + scope.companyId)); }
+        catch (e) { fail('recursiveDelete', tree, e); }
+      }
     }
 
     // Disable the Auth account (don't delete — we keep the uid so

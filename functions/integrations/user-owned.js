@@ -306,6 +306,12 @@ const OWNER_KEYED_DOCS = [
   'roofRepScores',
 ];
 
+// COMPANY-KEYED TREES: `<coll>/{companyId}` with subcollections, owned by the
+// company rather than one person. Erased (recursiveDelete) only when a SOLO
+// owner erases their own account; a team member's erasure leaves them alone.
+// `priceBook` is the supplier price ledger (2026-11-17) and the legacy price book doc.
+const COMPANY_KEYED_TREES = ['priceBook'];
+
 // ─── NESTED-LEADS SUBTREE ───────────────────────────────────
 // Vestigial `leads/{uid}/leads/{leadId}` path from an old schema
 // (firestore.rules:140-145). No current writer, but the rule still
@@ -323,5 +329,6 @@ module.exports = {
   ERASURE_RETAINED_PREFIXES,
   ERASURE_STORAGE_PREFIXES,
   OWNER_KEYED_DOCS,
+  COMPANY_KEYED_TREES,
   NESTED_LEADS_PATH,
 };
