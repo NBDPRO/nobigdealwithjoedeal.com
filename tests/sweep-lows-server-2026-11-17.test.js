@@ -326,6 +326,35 @@ function fakeRes() {
     ok('control: crm:true keeps "Thanks, that’s on your request now."', /on your request now/.test(hit), hit);
   }
 
+  // ── #18 review: the bridge carries answers that arrived before it ran ─────
+  console.log('\n#18 review: a slow bridge still carries the thank-you answers onto the card');
+  {
+    const FVb = { serverTimestamp: () => 'ts', increment: (n) => ({ inc: n }), delete: () => 'del' };
+    let minted = null;
+    const db = { collection: () => ({ doc: () => ({ get: async () => ({ exists: false }) }) }) };
+    const B = loadWith('lead-bridge.js', {
+      'firebase-functions/v2/firestore': { onDocumentCreated: (op, h) => ({ __opts: op, __handler: h }) },
+      'firebase-functions/v2': { logger: quietLogger },
+      'firebase-admin/firestore': { getFirestore: () => db, FieldValue: FVb },
+      './customer-id-mint': { createLeadWithCustomerId: async (dbArg, ref, doc) => { minted = doc || (ref && ref.doc) || null; return { customerId: 'NBD-0001' }; } },
+    });
+    // Created without answers; by the time the (retried) bridge runs, the
+    // thank-you screen has merged a story and a referral code onto the doc.
+    const created = { name: 'Pat', phone: '5135550100', address: '1 Vine St', source: 'inspect' };
+    const now = Object.assign({}, created, { story: 'Shingles in the yard after Tuesday', referralCode: 'JANE-CD34', crmIntakePending: true });
+    const evt = { data: { data: () => Object.assign({}, created), ref: { get: async () => ({ exists: true, data: () => Object.assign({}, now) }) } }, params: { leadId: 'src1' }, time: new Date().toISOString() };
+    let threw = null;
+    try { await B.run(() => B.mod.leadBridgeInspect.__handler(evt)); } catch (e) { threw = e; }
+    const card = minted && (minted.data || minted);
+    const flat = JSON.stringify(card || {});
+    ok('the card carries the late referral code as redeemReferralCode (the $100 credit can fire)', !threw && /"redeemReferralCode":"JANE-CD34"/.test(flat), threw ? threw.message : flat.slice(0, 300));
+    ok('…and the late story', /Shingles in the yard/.test(flat));
+    const evtNoRef = { data: { data: () => Object.assign({}, created) }, params: { leadId: 'src2' }, time: new Date().toISOString() };
+    minted = null; threw = null;
+    try { await B.run(() => B.mod.leadBridgeInspect.__handler(evtNoRef)); } catch (e) { threw = e; }
+    ok('control: with no ref to re-read, the create-time data bridges as before', !threw && !!minted, threw ? threw.message : 'no mint');
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
   process.exit(0);
