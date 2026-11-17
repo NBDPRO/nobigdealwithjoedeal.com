@@ -382,7 +382,7 @@ default (D2). If Jo still wants one, it needs counsel's structure first (Q3).
 > shingles, skylights, windows, doors, custom flashing) are listed on your estimate. Once ordered, they cannot be
 > returned to the supplier.
 >
-> **c. If you cancel or change your mind after materials are ordered.** If you cancel **after** the cancellation
+> **c. [SUPERSEDED by Jo's 15% decision, Q36: for returnable standard stock use "a restocking fee of 15% of the price of the materials returned plus the actual delivery and pickup cost NBD pays"; special-order items stay at full actual cost.]** If you cancel **after** the cancellation
 > period and NBD has already ordered or received materials for your job, you owe NBD: (1) the actual cost of special-
 > order items that cannot be returned; (2) for standard stock that is returned, the supplier's restocking fee
 > and the actual delivery and pickup costs NBD paid; and (3) the cost of work already done, at the contract rate.
@@ -428,6 +428,9 @@ section (c) states them correctly.
 | Q33 | Restocking and special-order cost recovery after the cancellation period: does actual-cost recovery in 3.3(c) conflict with the Ohio and Kentucky cancellation statutes or CSPA? |
 | Q34 | Attic acknowledgment (Part 2): does the declination structure hold up, is "may affect the shingle manufacturer's warranty" accurate for GAF and TAMKO, and should the form say anything about mold beyond "we do not test for it"? |
 | Q35 | Entity facts: No Big Deal Solutions LLC (Kentucky), d/b/a No Big Deal Home Solutions, **not registered**. Kentucky requires an assumed name certificate (KRS 365.015) before an LLC does business under another name; the possible penalty (KRS 365.990, $25 to $100 fine, from a secondary source) is unverified. Ohio trade-name and foreign-LLC registration (NBD works in Cincinnati) is not researched. Signature block: "No Big Deal Solutions LLC d/b/a No Big Deal Home Solutions, by Joe Deal, Manager". Every contract, invoice and warranty must name the LLC and its d/b/a; remove "sole proprietorship" from `docs/pro/terms.html:327`; reconsider "Backed personally by Joe Deal" (already being removed, Q13). |
+| Q36 | Jo (2026-11-17): restocking is **15% of the returned standard materials plus actual reverse delivery**, replacing the actual-cost-only draft in 3.3(c). Guards: only after the cancellation window; only returnable standard stock; special-order items still owed at full actual cost; shown in the signed contract; never more than 15%; attorney to confirm a flat percentage is not a penalty (Q36 for counsel). |
+| Q37 | Jo: hidden decking about **$100 per sheet** (his estimate). Proposed structure: one flat retail price per 4x8 sheet, like-for-like, up to 10 sheets; beyond 10 sheets, a written change order. Jo to confirm the number against his actual material and labor cost. |
+| Q38 | Jo: register the "No Big Deal Home Solutions" assumed name ASAP (Kentucky Secretary of State, then the county clerk step). Jo files it himself. |
 
 ---
 
