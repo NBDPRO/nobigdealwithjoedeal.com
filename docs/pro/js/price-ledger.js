@@ -20,6 +20,7 @@
   const FLAG = 'supplierPricing';
   const BASE = 'priceBook';
   const HISTORY_MAX = 50;
+  const HD_CHUNK = 500;                 // the callable's rows-per-call limit
   const callables = {};
 
   const LG = () => w.NBDPriceLogic;
@@ -134,6 +135,50 @@
     } catch (e) { warn('record', e); return Object.assign(refusal(e), { results: out, written: 0 }); }
   }
 
+  /** Offers no product is linked to yet (receipt lines for SKUs nobody has matched). 200 at most. */
+  async function unlinked() {
+    if (!ready() || !w.limit) return [];
+    try {
+      const snap = await w.getDocs(w.query(w.collection(w.db, BASE, companyKey(), 'priceOffers'), w.where('productId', '==', null), w.limit(200)));
+      return snap.docs.map(withId);
+    } catch (e) { warn('unlinked', e); return []; }
+  }
+
+  /**
+   * Home Depot receipts (hd-import.js rows, items carry the store SKU) into the dated
+   * history, beside the legacy price-book call. Does nothing unless the flag is on
+   * and this person is the owner or a company admin (the server refuses a manager
+   * on this channel too). Each line is built with the same expression the legacy
+   * price book uses, so a line copied from the old book and the same line imported
+   * again are one row. Rows carry no unit: the export has none. Never throws.
+   */
+  async function recordHdReceipts(receipts) {
+    const out = { ok: true, skipped: false, sent: 0, written: 0, duplicates: 0, rejected: 0, needsUnit: 0 };
+    try {
+      if (!enabled() || !canSave() || !LG()) return Object.assign(out, { ok: false, skipped: true });
+      const rows = [];
+      (receipts || []).forEach((r) => {
+        ((r && r.items) || []).forEach((i) => {
+          if (!i || !i.sku) return;
+          const row = LG().legacyPurchaseToRow({ store: 'homedepot', sku: i.sku, desc: i.desc, cents: i.unitCents || i.cents, qty: i.qty, date: r.date, ref: r.key });
+          if (!row) return;
+          if (r.store) row.storeNumber = String(r.store);
+          if (i.internetSku) row.offer.internetSku = String(i.internetSku);
+          rows.push(row);
+        });
+      });
+      if (!rows.length) return out;
+      const fn = await callable('priceLedgerRecord');
+      for (let k = 0; k < rows.length; k += HD_CHUNK) {
+        const chunk = rows.slice(k, k + HD_CHUNK);
+        const res = await fn({ rows: chunk, channel: 'hd_csv' });
+        const d = (res && res.data) || {};
+        out.sent += chunk.length; out.written += d.written || 0; out.duplicates += d.duplicates || 0; out.rejected += d.rejected || 0; out.needsUnit += d.needsUnit || 0;
+      }
+      return out;
+    } catch (e) { warn('recordHdReceipts', e); return Object.assign(out, refusal(e)); }
+  }
+
   // The Product Library may draw its cards before the flags arrive: ask for one re-render.
   w.addEventListener('nbd:flags-loaded', function () {
     try { if (enabled() && w._productLib && typeof w._productLib.render === 'function' && document.querySelector('.plx-card-foot')) w._productLib.render(); } catch (e) { warn('re-render', e); }
@@ -141,7 +186,7 @@
 
   w.NBDPriceLedger = {
     FLAG, enabled, role, canSave, canRecord, companyKey,
-    suppliers, offersFor, history,
-    saveAccount, saveOffer, linkOffer, verifyPack, archiveOffer, voidObservation, record,
+    suppliers, offersFor, history, unlinked,
+    saveAccount, saveOffer, linkOffer, verifyPack, archiveOffer, voidObservation, record, recordHdReceipts,
   };
 })();

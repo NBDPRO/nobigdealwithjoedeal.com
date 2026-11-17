@@ -166,6 +166,8 @@
         desc: g(r, 'SKU Description').replace(/�/g, ''),
         // The store SKU feeds the price book (price-book.js, 2026-10-02).
         sku: g(r, 'SKU Number').replace(/[^A-Za-z0-9-]/g, ''),
+        // The online item number, kept on the price history's item (price-ledger.js, 2026-11-17).
+        internetSku: g(r, 'Internet SKU').replace(/[^A-Za-z0-9-]/g, ''),
         qty: parseFloat(g(r, 'Quantity')) || 0,
         dept: g(r, 'Department Name').toUpperCase(),
         cents: Math.max(0, cents(g(r, 'Net Unit Price') || g(r, 'Extended Retail (before discount)'))),
@@ -192,7 +194,7 @@
     lines.forEach((l) => {
       const r = by[l.key];
       if (!r) return;
-      r.items.push({ desc: l.desc, sku: l.sku || '', qty: l.qty, dept: l.dept, cents: l.cents, unitCents: l.unitCents || 0 });
+      r.items.push({ desc: l.desc, sku: l.sku || '', internetSku: l.internetSku || '', qty: l.qty, dept: l.dept, cents: l.cents, unitCents: l.unitCents || 0 });
       r.departments[l.dept || 'OTHER'] = (r.departments[l.dept || 'OTHER'] || 0) + l.cents;
     });
     return receipts;
@@ -559,13 +561,36 @@
     renderReview();
   }
 
+  // The supplier price history (price-ledger.js). It does nothing unless the
+  // supplierPricing flag is on and this person is the owner or a company admin,
+  // and it must never block or fail an import.
+  async function feedPriceHistory(rows) {
+    try {
+      const PL = window.NBDPriceLedger;
+      if (!PL || typeof PL.recordHdReceipts !== 'function') return null;
+      return await PL.recordHdReceipts((rows || []).filter((r) => r && r.items && r.items.length));
+    } catch (e) { return null; }
+  }
+
   async function doImport(btn) {
     const uid = window._user && window._user.uid;
     const claims = window._userClaims || {};
     if (!uid || !window.addDoc) { if (window.showToast) window.showToast('Not signed in', 'error'); return; }
     const ctx = { uid, companyId: claims.companyId || uid };
     const todo = _state.rows.filter((r) => r.include && !r.already);
-    if (!todo.length) { if (window.showToast) window.showToast('Nothing selected to import', 'info'); return; }
+    if (!todo.length) {
+      // Nothing new to save as an expense. Receipts imported earlier (often from
+      // the Summary file alone, so without their items) still feed the price
+      // history once the Details file is here (Jo, 2026-11-17).
+      const fed = await feedPriceHistory(_state.rows.filter((r) => r.already));
+      if (fed && fed.written) {
+        if (window.showToast) window.showToast('Nothing new to import · ' + fed.written + ' price' + (fed.written === 1 ? '' : 's') + ' added to your price history', 'ok');
+        close();
+        return;
+      }
+      if (window.showToast) window.showToast('Nothing selected to import', 'info');
+      return;
+    }
     btn.disabled = true;
     let ok = 0, fail = 0;
     const aliases = Object.assign({}, _state.aliases);
@@ -597,6 +622,10 @@
       const pb = await window.NBDPriceBook.record(window.NBDPriceBook.purchasesFromHdReceipts(saved));
       if (pb && pb.added) pbLine = ' · ' + pb.added + ' price' + (pb.added === 1 ? '' : 's') + ' added to the price book';
     }
+    // Price history (2026-11-17, flag supplierPricing): every reviewed receipt
+    // that is now in the expenses, the ones imported earlier included. A line
+    // already in the history is a duplicate there, so repeating is safe.
+    await feedPriceHistory(_state.rows.filter((r) => r.already));
     if (window.showToast) window.showToast('Imported ' + ok + ' Home Depot purchase' + (ok === 1 ? '' : 's') + pbLine + (fail ? ' · ' + fail + ' failed' : ''), fail ? 'error' : 'ok');
     if (window.Expenses && typeof window.Expenses.refresh === 'function') window.Expenses.refresh();
     close();
