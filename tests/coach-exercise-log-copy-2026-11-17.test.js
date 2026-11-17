@@ -13,6 +13,8 @@
  *   4. Never twice; never a session from before this field existed; never another day's; never onto a named page or the Dashboard.
  *   5. A phone that refuses the page save leaves the page and the session as they were (tried again later, not lost, not doubled).
  *   6. A focused field is not redrawn away.
+ *   8. The floor prompt: a copied-in workout raises the same nbd-ds-did the coach raises at Finish, once per copy, so Daily Success asks
+ *      "Workout done. Tick the floor?" for a workout finished in the Workout app. Nothing copied, nothing asked.
  *   7. The triggers: a day page being drawn, and the sync's refresh(). (Coming back to the app is a third; not covered here.)
  *
  * Runs the real coach in a vm (tests/helpers/coach-ui-harness.js). Run: node tests/coach-exercise-log-copy-2026-11-17.test.js
@@ -38,12 +40,15 @@ function dsPage(sessions, pageOver, opts) {
   const h = makeHarness({ storage: { nbd_ds_workouts: sessions }, today: TODAY, fitness: true });
   const s = h.sandbox;
   const page = Object.assign({ id: 1, dk: TODAY, data: {}, exercises: [] }, pageOver || {});
-  const log = { saves: 0, renders: 0, collects: 0, pushed: [], timers: [] };
+  const log = { saves: 0, renders: 0, collects: 0, pushed: [], timers: [], did: [] };
   s.pages = [page]; s.cur = (opts && 'cur' in opts) ? opts.cur : 0;
   s.collectPage = () => { log.collects++; return true; };
   s.savePages = () => { log.saves++; return !(opts && opts.saveFails); };
   s.renderPage = () => { log.renders++; };
   s.setTimeout = (f) => { log.timers.push(f); return log.timers.length; };
+  // what floor-tick-ui.js listens for: nbd-ds-did { kind, dk }
+  s.CustomEvent = function (type, init) { this.type = type; this.detail = (init && init.detail) || null; };
+  s.dispatchEvent = (ev) => { if (ev && ev.type === 'nbd-ds-did') log.did.push(ev.detail.kind + ' ' + ev.detail.dk); return true; };
   s.NBDDsCloud = { pushWorkout: (x) => { log.pushed.push(x); return Promise.resolve(true); } };
   const runTimers = () => { const t = log.timers.splice(0); t.forEach((f) => f()); };
   return { h, s, page, log, runTimers, names: () => page.exercises.map((r) => r.name) };
@@ -138,6 +143,31 @@ console.log('\n7. The triggers');
   ok('the sync\'s refresh() copies a workout that just arrived', d.names().join() === 'Lift 1');
 }
 // Not covered here: the visibilitychange trigger (the harness cannot fire document events other than click / input / keydown).
+
+console.log('\n8. The floor prompt for a workout finished elsewhere');
+{
+  const d = dsPage([sess(1, { inLog: false }), sess(2, { inLog: false })]);
+  d.s.NBDCoachUI._logPending();
+  ok('copying workouts in raises the workout-done event for that day, once', d.log.did.join(',') === 'workout ' + TODAY, d.log.did.join(','));
+  ok('after the page was saved and redrawn (the prompt reads the saved page)', d.log.saves === 1 && d.log.renders === 1);
+  d.s.NBDCoachUI._logPending();
+  ok('nothing more to copy, nothing more asked', d.log.did.length === 1);
+}
+{
+  const full = dsPage([sess(1, { inLog: false })], null, { saveFails: true });
+  full.s.NBDCoachUI._logPending();
+  const typing = dsPage([sess(1, { inLog: false })]);
+  typing.h.focusOn({ tagName: 'TEXTAREA' });
+  typing.s.NBDCoachUI._logPending();
+  const none = dsPage([sess(1, { inLog: true })]);
+  none.s.NBDCoachUI._logPending();
+  ok('a refused save, a focused field or nothing pending asks nothing', full.log.did.length === 0 && typing.log.did.length === 0 && none.log.did.length === 0);
+}
+{
+  const d = dsPage([]);
+  d.h.click('start'); d.h.click('done', { i: 0, s: 0 }); d.h.click('finish');
+  ok('Finish on today\'s page still asks exactly once (the copy path adds no second question)', d.log.did.join(',') === 'workout ' + TODAY, d.log.did.join(','));
+}
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

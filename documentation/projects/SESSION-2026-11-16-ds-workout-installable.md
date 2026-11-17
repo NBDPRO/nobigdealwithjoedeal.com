@@ -72,8 +72,14 @@ version of this suite had 22). The suite was rewritten to ask structural questio
    so no other screen or device copies it again. It runs when a day page is drawn, when the sync calls `NBDCoachUI.refresh()`, and when
    the app comes back to the front. Sessions saved before the field existed are never copied (their rows may already be on the page).
    A refused page save puts the page and the session back; a focused field is never redrawn away. `workout-coach.js` is at `?v=30` on
-   both pages. Test: `tests/coach-exercise-log-copy-2026-11-17.test.js` (28 checks; nine deliberate breaks of the code were each caught).
-   Still only inside Daily Success: the "tick the workout floor?" prompt (`floor-tick-ui.js`, the `nbd-ds-did` event).
+   both pages. Test: `tests/coach-exercise-log-copy-2026-11-17.test.js` (33 checks; ten deliberate breaks of the code were each caught).
+   **The floor prompt (same day, Jo: "make the floor tick prompt work from the workout app too"):** when the copy lands, the coach raises the
+   same `nbd-ds-did { kind: 'workout', dk }` event Finish raises, so `floor-tick-ui.js` asks "Workout done. Tick the floor?" for a workout
+   finished in the Workout app. It is asked in Daily Success, on that day's page, not inside the Workout app: the floors, the day pages and
+   `setFloorByDk` live in the tracker, and the tracker stays the only writer of day pages. Still ask-first (Jo's decision 3): a floor already
+   met, or a Not now for that day, shows nothing. `workout-coach.js` is at `?v=31`. Checked in headless Chromium with a session seeded as the
+   Workout app leaves it: lifts copied, prompt shown, Tick it met the floor, nothing doubled after a reload.
+   Not built: asking the question inside the Workout app itself and carrying the answer over.
 4. **Workout is the default dark theme only.** The coach's full-screen logger is dark in every Daily Success theme already; only the
    small card would differ.
 5. **Not checked on a real phone.** Checked here: the page in headless Chromium at 390 x 844 (card, start a workout, Back closes

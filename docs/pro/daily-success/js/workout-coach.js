@@ -886,6 +886,9 @@
       }
       pushSessions(marked.changed);
       if (typeof window.renderPage === 'function') window.renderPage();
+      // The workout was finished where nothing could ask (the Workout app has no floors or day pages): ask now, the same question Finish
+      // raises here (floor-tick-ui.js). It still only asks: an already-met floor, or a Not now for this day, shows nothing.
+      try { window.dispatchEvent(new CustomEvent('nbd-ds-did', { detail: { kind: 'workout', dk: onScreen.dk } })); } catch (_) { /* the rows are in either way */ }
       return true;
     } catch (_) { return false; }
   }
