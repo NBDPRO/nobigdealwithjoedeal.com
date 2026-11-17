@@ -61,6 +61,24 @@ function readManifest(file) {
   return rows.filter((x) => x.length >= h.length).map((x) => { const o = {}; h.forEach((k, i) => { o[k] = x[i]; }); return o; });
 }
 
+// Create-only upload (2026-11-17). An object already at `dest` is never replaced,
+// with one exception: this same photo's own upload from an earlier run that died
+// before the /photos doc was created (it carries nbdPhotoId == photoId). That one
+// is replaced, pinned to its exact generation, so a re-run can finish the photo
+// instead of failing it forever. Anything else at the path (a rep's own photo)
+// fails this photo and is left alone.
+async function uploadCreateOnly(bucket, src, dest, photoId, token) {
+  const metadata = { contentType: 'image/jpeg', metadata: { firebaseStorageDownloadTokens: token, nbdPhotoId: photoId } };
+  try {
+    await bucket.upload(src, { destination: dest, preconditionOpts: { ifGenerationMatch: 0 }, metadata });
+  } catch (e) {
+    if (!(e && Number(e.code) === 412)) throw e;
+    const [md] = await bucket.file(dest).getMetadata();
+    if (!(md && md.metadata && md.metadata.nbdPhotoId === photoId)) throw new Error('a different file is already at ' + dest + ' (left alone)');
+    await bucket.upload(src, { destination: dest, preconditionOpts: { ifGenerationMatch: Number(md.generation) }, metadata });
+  }
+}
+
 // → the exit code: 0, or 1 when any photo failed.
 async function main(argv) {
   const args = argv || process.argv.slice(2);
@@ -124,11 +142,8 @@ async function main(argv) {
     try {
       const { photoPath, thumbPath } = U.buildPaths(p.uid, p.leadId, p.id);
       const tok1 = crypto.randomUUID(), tok2 = crypto.randomUUID();
-      // Create-only: an object already at this path (a rep's own upload, or an earlier
-      // half-finished run) fails this photo instead of being replaced.
-      const createOnly = { ifGenerationMatch: 0 };
-      await bucket.upload(p.row.jpeg, { destination: photoPath, preconditionOpts: createOnly, metadata: { contentType: 'image/jpeg', metadata: { firebaseStorageDownloadTokens: tok1 } } });
-      await bucket.upload(p.row.thumb, { destination: thumbPath, preconditionOpts: createOnly, metadata: { contentType: 'image/jpeg', metadata: { firebaseStorageDownloadTokens: tok2 } } });
+      await uploadCreateOnly(bucket, p.row.jpeg, photoPath, p.id, tok1);
+      await uploadCreateOnly(bucket, p.row.thumb, thumbPath, p.id, tok2);
       const dl = (path, tok) => `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${encodeURIComponent(path)}?alt=media&token=${tok}`;
       const doc = U.buildPhotoDoc({
         id: p.id, leadId: p.leadId, uid: p.uid, companyId: p.companyId,

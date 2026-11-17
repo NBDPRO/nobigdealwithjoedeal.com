@@ -155,6 +155,17 @@ const prov = (extra) => ['--company', 'oaks', '--owner-uid', OWNER, '--name', 'O
     ok('…the same owner re-running is fine (idempotent)', r2.code === 0, { code: r2.code, out: r2.out });
   }
   {
+    // A stale --owner-uid plus the email of an EXISTING admin account: it must be
+    // checked as that account, not planned as "create" and written unchecked.
+    const jo = { joUid: { uid: 'joUid', email: 'jd@example.test', customClaims: { companyId: 'joUid', role: 'admin' } } };
+    const w = fakeWorld({}, jo);
+    const args = ['--company', 'newco', '--owner-uid', 'staleUidCCCCCCCCCCCCCCCCCCCCC', '--owner-email', 'jd@example.test', '--name', 'X'];
+    const dry = await run('provision-tenant.js', args, w);
+    ok('stale --owner-uid + an existing --owner-email: the dry run names the existing account and the refusal', /joUid/.test(dry.out) && /REFUSE/.test(dry.out) && !/CREATE/.test(dry.out), dry.out);
+    const r = await run('provision-tenant.js', args.concat(['--apply']), w);
+    ok('…and --apply refuses: the admin account is not demoted or moved', r.code !== 0 && w.authWrites.length === 0 && w.users.joUid.customClaims.role === 'admin', { code: r.code, auth: w.authWrites, out: r.out });
+  }
+  {
     const r = await run('provision-tenant.js', ['--company', 'abcdefghijklmnopqrstuvwxyz'], fakeWorld({}, {}));
     ok('the uid-looking-company refusal no longer points at the deleted set-jd-claims.js', r.code !== 0 && !/set-jd-claims/.test(r.out), r.out);
   }
@@ -232,8 +243,22 @@ const prov = (extra) => ['--company', 'oaks', '--owner-uid', OWNER, '--name', 'O
         });
         return q([]);
       };
-      w.storage = { bucket: () => ({ upload: async (src, o) => { uploads.push(o); if (opt && opt.failOn && o.destination.includes(opt.failOn)) throw new Error('boom'); } }) };
+      // objects: dest → { gen, nbdPhotoId } (what is already in Storage)
+      const objects = Object.assign({}, (opt && opt.objects) || {});
+      w.storage = { bucket: () => ({
+        upload: async (src, o) => {
+          uploads.push(o);
+          if (opt && opt.failOn && o.destination.includes(opt.failOn)) throw new Error('boom');
+          const cur = objects[o.destination];
+          const want = o.preconditionOpts && o.preconditionOpts.ifGenerationMatch;
+          if (want === 0 && cur) { const e = new Error('precondition'); e.code = 412; throw e; }
+          if (want && (!cur || cur.gen !== want)) { const e = new Error('precondition'); e.code = 412; throw e; }
+          objects[o.destination] = { gen: (cur ? cur.gen : 0) + 1, nbdPhotoId: o.metadata && o.metadata.metadata && o.metadata.metadata.nbdPhotoId, replaced: !!cur };
+        },
+        file: (dest) => ({ getMetadata: async () => [objects[dest] ? { generation: String(objects[dest].gen), metadata: { nbdPhotoId: objects[dest].nbdPhotoId } } : {}] }),
+      }) };
       w.uploads = uploads;
+      w.objects = objects;
       return w;
     }
     let U = null;
@@ -261,6 +286,18 @@ const prov = (extra) => ['--company', 'oaks', '--owner-uid', OWNER, '--name', 'O
       const wf = uploadWorld({ failOn: 'L1' });
       const rf = await go(wf);
       ok('an upload failure → a non-zero exit code (never "done" when a photo failed)', rf.code !== 0 && rf.code != null, rf);
+
+      const PU = require(S('lib/photo-upload.js'));
+      const id1 = PU.photoIdFor('L1', 'a.heic');
+      const p1 = PU.buildPaths(C, 'L1', id1).photoPath;
+      const wr = uploadWorld({ objects: { [p1]: { gen: 7, nbdPhotoId: id1 } } });
+      const rr = await go(wr);
+      ok('a re-run finishes a photo whose earlier upload died before filing (same nbdPhotoId → replaced)',
+        rr.code === 0 && !!wr.store['photos/' + id1] && wr.objects[p1].replaced === true, { code: rr.code, out: rr.out });
+      const wo = uploadWorld({ objects: { [p1]: { gen: 3, nbdPhotoId: 'someone-else' } } });
+      const ro = await go(wo);
+      ok('a DIFFERENT file already at the path is left alone, that photo fails, exit non-zero',
+        ro.code !== 0 && !wo.store['photos/' + id1] && wo.objects[p1].gen === 3, { code: ro.code, obj: wo.objects[p1] });
     }
   }
 

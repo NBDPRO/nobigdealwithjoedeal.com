@@ -108,15 +108,40 @@ function genPassword() {
 // fallbackUid: companies/{id}.ownerId, so --check without an owner flag still
 // inspects the owner. Only "no such user" means not found; a credentials or
 // network error throws, so a report never looks clean because a read failed.
+// A --owner-uid that is not found falls through to --owner-email (2026-11-17
+// review): the run would otherwise plan "create <email>", hit
+// email-already-exists and write that EXISTING account with no refusal check.
 async function resolveOwner(auth, fallbackUid) {
-  try {
-    if (ownerUid) return await auth.getUser(ownerUid);
-    if (ownerEmail) return await auth.getUserByEmail(ownerEmail);
-    if (fallbackUid) return await auth.getUser(fallbackUid);
-  } catch (e) {
-    if (!(e && e.code === 'auth/user-not-found')) throw e;
+  const tryGet = async (fn) => {
+    try { return await fn(); } catch (e) { if (!(e && e.code === 'auth/user-not-found')) throw e; return null; }
+  };
+  if (ownerUid) {
+    const u = await tryGet(() => auth.getUser(ownerUid));
+    if (u || !ownerEmail) return u;
   }
+  if (ownerEmail) return tryGet(() => auth.getUserByEmail(ownerEmail));
+  if (fallbackUid) return tryGet(() => auth.getUser(fallbackUid));
   return null;
+}
+
+// What --apply refuses without --force (Jo, 2026-11-17), for the account that
+// will actually be written.
+function refusalsFor(account, currentOwnerId) {
+  const claims = (account && account.customClaims) || {};
+  const out = [];
+  if (ownerUid && account && account.uid !== ownerUid) {
+    out.push(`--owner-uid ${ownerUid} was not found, and --owner-email ${ownerEmail} belongs to an EXISTING account (${account.uid}); provisioning would write that account`);
+  }
+  if (claims.companyId && claims.companyId !== companyId) {
+    out.push(`the account's claims already name company '${claims.companyId}'; provisioning would move it to '${companyId}'`);
+  }
+  if (claims.role === 'admin') {
+    out.push("the account is a platform admin (role 'admin'); provisioning would demote it to company_admin");
+  }
+  if (currentOwnerId && currentOwnerId !== (account ? account.uid : '')) {
+    out.push(`companies/${companyId} already has owner ${currentOwnerId}; provisioning would hand it to ${account ? account.uid : 'a new account'}`);
+  }
+  return out;
 }
 
 async function main() {
@@ -166,16 +191,7 @@ async function main() {
   // ── The plan, and what --apply refuses without --force (Jo, 2026-11-17) ──
   const existingClaims = owner ? (owner.customClaims || {}) : {};
   const currentOwnerId = companySnap.exists ? String(companySnap.data().ownerId || '') : '';
-  const refusals = [];
-  if (existingClaims.companyId && existingClaims.companyId !== companyId) {
-    refusals.push(`the account's claims already name company '${existingClaims.companyId}'; provisioning would move it to '${companyId}'`);
-  }
-  if (existingClaims.role === 'admin') {
-    refusals.push("the account is a platform admin (role 'admin'); provisioning would demote it to company_admin");
-  }
-  if (currentOwnerId && currentOwnerId !== (owner ? owner.uid : '')) {
-    refusals.push(`companies/${companyId} already has owner ${currentOwnerId}; provisioning would hand it to ${owner ? owner.uid : 'a new account'}`);
-  }
+  const refusals = refusalsFor(owner, currentOwnerId);
   const plannedClaims = { ...existingClaims, companyId: companyId, role: 'company_admin' };
   console.log(`\n=== plan ===`);
   console.log(`owner account:           ${owner ? 'use ' + owner.uid : 'CREATE ' + (ownerEmail || '(no --owner-email)')}${(owner && password) ? ' + reset password' : ''}`);
@@ -206,7 +222,18 @@ async function main() {
       console.log(`\n✅ created owner account ${user.email} (${user.uid})`);
       console.log(`   PASSWORD: ${password}   ← save this now; it is shown only once`);
     } catch (e) {
-      if (e && e.code === 'auth/email-already-exists') { user = await auth.getUserByEmail(ownerEmail); console.log(`\nℹ owner ${ownerEmail} already existed — using it (${user.uid})`); }
+      if (e && e.code === 'auth/email-already-exists') {
+        user = await auth.getUserByEmail(ownerEmail);
+        // It appeared since the plan was made: check THIS account before any write.
+        const late = refusalsFor(user, currentOwnerId);
+        if (late.length && !force) {
+          late.forEach((r) => console.error(`⚠ REFUSE (needs --force): ${r}`));
+          console.error(`\n✗ ${ownerEmail} already exists (${user.uid}) and is refused. Nothing written.`);
+          await db.terminate();
+          process.exit(1);
+        }
+        console.log(`\nℹ owner ${ownerEmail} already existed — using it (${user.uid})`);
+      }
       else throw e;
     }
   } else {
