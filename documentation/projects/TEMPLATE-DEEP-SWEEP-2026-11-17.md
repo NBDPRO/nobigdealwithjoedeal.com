@@ -676,3 +676,39 @@ Three focused audits ran in parallel (5A, 5B, 5C). The earlier broad extraction 
 **Top fixes in this group:** (1) Insurance Inspection prefilled cause text and certification; (2) Supplement Request default text and pre-ticked boxes; (3) the Permit and Generic fallback; (4) the mailer's neighbor address and Lexington footer; (5) Company Intro fallback "Full insurance claim management".
 
 
+## Part 7. Build plan: the most defensible design (Jo, 2026-11-17: "most secure, most defensible, least liability-inducing, then build it")
+
+### 7.1 Design principles (each one is a rule the code enforces, not a style note)
+
+1. **One source of text, versioned.** Every clause and acknowledgment is a single versioned string (for example `ATTIC_ACK_V1`) rendered from one module into every signing path: contract HTML, e-sign PDF, deal page, in-person signing. No path carries its own copy. The version is stamped on the signed record.
+2. **Evidence on every path.** Each signed document stores: the clause-set version, a digest of the exact rendered document, the signer's consent text, time, IP and device, and each checkbox or initials state. The in-person and remote-link paths record none of this today; that gap closes first.
+3. **Fail closed.** The system refuses to send a contract with a blank price, address, start or completion, legal name or mailing address, an unresolved "[Bracket]" placeholder, or an unsigned attic page on a re-roof. Silence never prints as a default promise.
+4. **State-aware text.** Property state (OH or KY) and payment source (cash, insurance, financed) choose the clause set. An unknown state uses the stricter Kentucky-insurance set.
+5. **Disclosure over disclaimers.** Where a condition is unknown, the paper says "unknown to both of us" and records who chose what. It never claims a condition exists or does not.
+6. **Savings sentence everywhere a limit appears.** "This does not limit responsibility for NBD's own work or any right the law does not allow to be given up."
+7. **Nothing prints that NBD cannot back.** No "licensed", no "we handle your claim", no outcome or timeline promises, no unsourced stats or testimonials, no personal guarantee. The banned-phrase tests stay green.
+8. **The legal party is named once, correctly:** "No Big Deal Solutions LLC d/b/a No Big Deal Home Solutions", signed "by Joe Deal, Manager". "NBD" is defined as the Contractor.
+9. **Ships behind a flag, new contracts only.** Nothing changes for contracts already signed. The flag turns on only after the attorney has reviewed the clause set (Q1 to Q35, Q44).
+10. **Reversible and testable.** Every change has a test that fails on the old behavior; money math stays in cents; the estimate and deposit suites stay green.
+
+### 7.2 Where the most defensible version differs from your earlier choices (for Jo to decide)
+
+| Item | Your choice | More defensible version | Recommendation |
+| --- | --- | --- | --- |
+| Restocking (Q36) | Flat 15% plus actual reverse delivery | The lesser of 15% or the supplier's actual restocking charge, plus actual reverse delivery, with supplier invoices shown on request | Use the "lesser of" form. You keep up to 15%, and it can never read as a penalty. |
+| Card fee (Q7, Q8) | 3% on credit cards only, none on Kentucky insurance jobs | Same, plus the fee line is shown before the pay button, the processor is told before the first surcharge, and the rate is a config value capped at the processor's actual cost | Keep as you chose; add the cap and the notice. Counsel confirms (Q31). |
+| Late interest (Q10) | 8% simple after 15 days, mutual attorney fees, right to pause | Same, plus a written-dispute carve-out and "the roof is made weather-tight before any pause" | Keep as you chose. |
+| Not-inspected attic page (Q18) | Homeowner who won't sign needs Jo's approval | Same, but the approval is a recorded event with Jo's name and reason | Keep; record it. |
+
+### 7.3 Build phases (each its own branch and PR; each starts only after the previous one is reviewed)
+
+| Phase | What | Verify |
+| --- | --- | --- |
+| 0 | Removal-only fixes (running now, branch `fix/template-honesty-removals`) | New tests fail on old code and pass on new; node bucket and smoke test green |
+| 1 | **Evidence and clause foundation:** one versioned clause module; version stamp, document digest, consent text, IP and device on every signing path; fail-closed send checks (blank price, address, legal name, placeholders) | A signed record on each path contains version, digest and consent; a contract with a blank field cannot be sent |
+| 2 | **Contract clauses** (CO-1/2, SCH-1/2/3, SUB-1, WAR-2/3/6/7, LIEN-1/2/4/5, DISP-1/3/4/8, ESIGN-1/2, MEDIA-1, LEGAL PARTY) into the contract, the e-sign PDF and the deal page, state-aware, behind a flag | Golden-text tests per state and payment source; the PDF and HTML copies match the module |
+| 3 | **Attic form and property gate:** scope field on the estimate, the acknowledgment and not-inspected page, required reason codes and photos, the hard gate on full re-roofs, warranty-exclusion link, decking / baffle / duct catalog lines (prices from Jo), rep-side attic panel | Re-roof contract cannot send without the form; not-inspected path records who and why; declined vent items print the warranty exclusion |
+| 4 | **Payment:** Terms of Payment section, credit-card fee on Stripe credit cards only (funding type check, line before the pay button, receipt line, proportional refund), invoice and Payment Agreement point to the contract, wire line, cash receipt, Kentucky insurance no-fee rule | Fee never applies to debit, prepaid or Kentucky insurance jobs; invoice and checkout totals match; deposit and estimate suites green |
+| 5 | **Remaining templates in your order:** property condition, decking authorization, emergency tarp request, final walkthrough and punch list, Ohio insurance acknowledgment | Each renders from the module, signs on every path, has its own golden-text test |
+| 6 | Attorney review pass, then the flag is turned on for new contracts | Attorney sign-off recorded in this note |
+
