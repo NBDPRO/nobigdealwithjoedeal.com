@@ -36,25 +36,30 @@ param that can grant admin. Also revokes existing refresh tokens so the
 new claim takes effect on next sign-in.
 
 ```bash
-node scripts/grant-admin-claim.js
+node scripts/grant-admin-claim.js           # dry run: claims before → after, writes nothing
+node scripts/grant-admin-claim.js --apply   # sets it
 ```
+
+It merges `role: 'admin'` into the existing claims (companyId, owner and plan
+are kept) and fails its check if companyId changed (2026-11-17).
 
 Run AFTER `firebase deploy --only firestore:rules` has shipped the new
 rules. Joe must sign out + sign in again to pick up the new token.
 
 ## `scripts/seed-access-codes.js`
 
-Writes the `access_codes` Firestore collection that the hardened
-`validateAccessCode` Cloud Function reads. Without this, the demo and
-invite codes return "not recognized".
+Mints random beta / demo invite codes into the `access_codes` collection
+that the hardened `validateAccessCode` Cloud Function reads, deactivates the
+legacy hardcoded codes, and prints the new codes once.
 
 ```bash
-node scripts/seed-access-codes.js
+BETA_COUNT=10 DEMO_COUNT=3 node scripts/seed-access-codes.js           # dry run: the plan, writes nothing
+BETA_COUNT=10 DEMO_COUNT=3 node scripts/seed-access-codes.js --apply   # writes + prints the codes once
 ```
 
-To add or rotate a code: edit the `codes` object at the top of the file
-and re-run. It overwrites by doc id. No code grants the admin role —
-admin is claims-only.
+It leaves the public `DEMO` code (the /pro login "Launch Demo Dashboard"
+button) alone; that one is managed by `scripts/seed-demo-access.js`
+(`--apply` to write). No code grants the admin role — admin is claims-only.
 
 ## `scripts/delete-compromised-users.js`
 

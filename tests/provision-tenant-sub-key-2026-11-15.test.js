@@ -99,7 +99,8 @@ function run(argv, world) {
   console.log('provision: the slug tenant plan lands on subscriptions/{companyId}');
   {
     const w = fakeWorld({});
-    const r = await run(['--company', 'oaks', '--owner-uid', OWNER, '--name', 'Oaks', '--plan', 'professional'], w);
+    // --apply: provisioning is a dry run without it since 2026-11-17 (rule f).
+    const r = await run(['--company', 'oaks', '--owner-uid', OWNER, '--name', 'Oaks', '--plan', 'professional', '--apply'], w);
     ok('script exits 0', r.code === 0);
     ok('writes subscriptions/oaks', w.writes.includes('subscriptions/oaks'));
     ok('subscriptions/oaks is professional/active', !!w.store['subscriptions/oaks'] && w.store['subscriptions/oaks'].plan === 'professional' && w.store['subscriptions/oaks'].status === 'active');
@@ -153,13 +154,13 @@ function run(argv, world) {
   {
     const live = { plan: 'growth', status: 'past_due', stripeSubscriptionId: 'sub_x' };
     const w = fakeWorld({ 'companies/oaks': { ownerId: OWNER }, 'subscriptions/oaks': live });
-    const r = await run(['--company', 'oaks', '--owner-uid', OWNER, '--name', 'Oaks'], w);
+    const r = await run(['--company', 'oaks', '--owner-uid', OWNER, '--name', 'Oaks', '--apply'], w);
     ok('exits 0', r.code === 0);
     ok('subscriptions/oaks not written', !w.writes.includes('subscriptions/oaks'));
     ok('plan unchanged', w.store['subscriptions/oaks'].plan === 'growth' && w.store['subscriptions/oaks'].status === 'past_due');
     ok('says it skipped', /Stripe-managed/.test(r.out));
     const w2 = fakeWorld({ 'companies/oaks': { ownerId: OWNER }, 'subscriptions/oaks': Object.assign({}, live) });
-    await run(['--company', 'oaks', '--owner-uid', OWNER, '--name', 'Oaks', '--force'], w2);
+    await run(['--company', 'oaks', '--owner-uid', OWNER, '--name', 'Oaks', '--apply', '--force'], w2);
     ok('--force overwrites', w2.writes.includes('subscriptions/oaks') && w2.store['subscriptions/oaks'].plan === 'professional');
   }
 
