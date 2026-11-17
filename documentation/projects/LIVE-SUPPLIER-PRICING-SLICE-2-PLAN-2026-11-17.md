@@ -18,7 +18,7 @@ before relying on it; where a step says something was not read, it was not.
 |---|---|---|
 | Purchase sales tax applied to a supplier price going into the cost book | 7.8% | slice 3 (comparison), slice 4 (approval) |
 | Price move that raises an alert | 5% | slice 3 |
-| Margin floor a cost change is checked against | not answered yet (Jo asked for an explanation first) | slice 4 |
+| Margin floor a cost change is checked against | 20% (the same floor Jo set for thin tiers on 2026-11-09). A change that takes a product under it needs an explicit confirm; it is not a refusal | slice 4 |
 
 These are settings, not costs. They become `priceConfig/main` in slice 3.
 
