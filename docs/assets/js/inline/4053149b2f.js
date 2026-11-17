@@ -1742,35 +1742,25 @@ function trackCTA(type) {
   trackEvent('cta_click', { cta_type: type, service: funnelData.service });
 }
 
-// Plain-text summary for the estimate email — tier lines for
-// roof-replacement, a single range line for every other service.
-function buildEstimateSummary(est) {
-  var msg = 'Your estimate for ' + funnelData.address + ':\n\n';
-  if (funnelData.service === 'storm-damage') {
-    msg += (est && est.serviceLabel || 'Storm Damage') + ': no price range — ' + STORM_NOTE + '\n';
-    msg += 'Book a free inspection: https://nobigdealwithjoedeal.com/inspect\n';
-  } else if (est && est._singleRange && est.range) {
-    msg += (est.serviceLabel || 'Estimated range') + ': $' + est.range.min.toLocaleString() + ' - $' + est.range.max.toLocaleString() + '\n';
+// The estimate the email is built from, as numbers only (repo sweep
+// 2026-11-17, M3). The server (functions/estimate-email-logic.js) checks each
+// value and writes the email text itself with the same labels, links and
+// financing rule this page shows; nothing typed on this page is emailed.
+// Storm damage sends no numbers. Tier lines for roof replacement, a single
+// range for every other service.
+function emailEstimatePayload(est) {
+  var out = { v: 1, service: funnelData.service };
+  if (funnelData.service === 'storm-damage') return out;
+  if (est && est._singleRange && est.range) {
+    out.range = { min: est.range.min, max: est.range.max };
   } else if (est && est.tiers) {
-    ['good','better','best'].forEach(function(t) {
-      if (est.tiers[t]) {
-        msg += TIER_LABELS[t] + ': $' + est.tiers[t].min.toLocaleString() + ' - $' + est.tiers[t].max.toLocaleString() + '\n';
-      }
+    out.tiers = {};
+    ['good', 'better', 'best'].forEach(function (t) {
+      if (est.tiers[t]) out.tiers[t] = { min: est.tiers[t].min, max: est.tiers[t].max };
     });
   }
-  if (est && est.roofSqft) {
-    msg += '\nRoof size: ~' + est.roofSqft.toLocaleString() + ' sq ft';
-  }
-  // Mirror the on-screen financing line (same hide rules) so the emailed
-  // number keeps the monthly-payment framing the homeowner just saw.
-  var finMin = est && est._singleRange && est.range ? est.range.min
-    : est && est.tiers && est.tiers.better ? est.tiers.better.min : 0;
-  if (funnelData.service !== 'storm-damage' && finMin >= FIN_MIN_PROJECT) {
-    msg += '\n\nA project this size can usually be spread into a monthly payment instead of paid all at once — check real offers with a soft credit pull (no impact to your score): https://nobigdealwithjoedeal.com/services/financing';
-  }
-  msg += '\n\nFor your exact price, schedule a free inspection with Joe: https://cal.com/nobigdeal/roof-inspection';
-  msg += '\nOr call: (859) 420-7382';
-  return msg;
+  if (est && est.roofSqft) out.roofSqft = est.roofSqft;
+  return out;
 }
 
 // `btn` is passed through from the delegated [data-action] handler so we
@@ -1793,7 +1783,7 @@ async function emailEstimate(btn) {
   }
   trackCTA('email-estimate');
   var est = funnelData.estimate;
-  var msg = buildEstimateSummary(est);
+  var emailEst = emailEstimatePayload(est);
 
   if (btn) {
     btn.disabled = true;
@@ -1810,8 +1800,7 @@ async function emailEstimate(btn) {
         phone: funnelData.phone,
         firstName: funnelData.firstName,
         lastName: funnelData.lastName,
-        estimateData: est,
-        estimateSummary: msg,
+        emailEstimate: emailEst,
         type: 'email_estimate_request'
       });
     } catch (e) {

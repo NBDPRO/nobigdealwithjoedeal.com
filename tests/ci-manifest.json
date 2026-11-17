@@ -768,6 +768,7 @@
     "messaging-controls-2026-10-19.test.js",
     "messaging-zero-cap-2026-10-19.test.js",
     "estimate-email-throttle-marker-2026-11-14.test.js",
+    "estimate-email-structured-2026-11-17.test.js",
     "email-queue-recipients-2026-10-19.test.js",
     "r6-texting-2026-10-07.test.js",
     "pipeline-list-overlap-2026-11-07.test.js",

@@ -33,6 +33,7 @@ const { formatPhone } = require('../phone-utils');
 const LeadGuard = require('../public-lead-guard');
 // Updating a started /estimate lead instead of creating a second one (2026-11-14).
 const EstimateFunnel = require('../estimate-funnel');
+const EstimateEmailLogic = require('../estimate-email-logic');
 
 // ═══════════════════════════════════════════════════════════════
 // integrationStatus — client-facing readout of which adapters are
@@ -304,17 +305,23 @@ const PUBLIC_LEAD_KINDS = {
     required: ['address', 'source'],
     // The /estimate instant-estimator funnel posts its own contact +
     // selection fields (firstName/lastName/phone/email, service/roofType/
-    // timeline), event tags (type/requestType — e.g. 'email_estimate_request',
-    // which estimate-email.js sends on), and the preformatted plain-text
-    // estimateSummary that gets emailed back to the homeowner. Previously
-    // these were silently stripped by the strict allowlist.
-    // (M-04: deliberate, bounded expansion.)
+    // timeline) and event tags (type/requestType — e.g. 'email_estimate_request',
+    // which estimate-email.js sends on). Previously these were silently
+    // stripped by the strict allowlist. (M-04: deliberate, bounded expansion.)
+    // 2026-11-17 (repo sweep M3): the preformatted plain-text estimateSummary
+    // is NO LONGER accepted. It was emailed back as written, signed by Joe, to
+    // any address. The email request now posts a bounded structured
+    // `emailEstimate` (see emailEstimate below) and the server writes the text.
     maxLen:   {
       address: 500, source: 200, firstName: 200, lastName: 200, phone: 30,
       email: 200, service: 200, roofType: 50, timeline: 50, type: 50,
-      requestType: 50, estimateSummary: 2000, estimateStage: 20
+      requestType: 50, estimateStage: 20
     },
-    optional: [...PUBLIC_LEAD_OPTIONAL_DEFAULTS, 'firstName', 'lastName', 'phone', 'email', 'service', 'roofType', 'timeline', 'type', 'requestType', 'estimateSummary', 'estimateStage'],
+    optional: [...PUBLIC_LEAD_OPTIONAL_DEFAULTS, 'firstName', 'lastName', 'phone', 'email', 'service', 'roofType', 'timeline', 'type', 'requestType', 'estimateStage'],
+    // The "Email My Estimate" request's structured estimate (service, whole-
+    // dollar tier/range bounds, roof size), sanitized by
+    // estimate-email-logic.js sanitizeEmailEstimate; anything else is dropped.
+    emailEstimate: true,
     // TCPA consent (2026-09-04). The funnel has always POSTED this — see the
     // comment at docs/assets/js/inline/4053149b2f.js:772 promising the record
     // is "audit-ready and the SMS-ack trigger can rely on it" — but it is a
@@ -632,6 +639,26 @@ exports.submitPublicLead = onRequest(
     }
     if (data.lat === 0 && data.lon === 0) { delete data.lat; delete data.lon; }
     if (spec.ballpark) Object.assign(data, sanitizeBallpark(body));
+    // "Email My Estimate" (repo sweep 2026-11-17, M3; estimate-email.js sends
+    // only what these allow):
+    //   - the structured estimate, bounded (a bad one is dropped: the email
+    //     then goes out without numbers, it is never built from free text);
+    //   - turnstileVerified, set HERE and only when a configured Turnstile
+    //     check really passed (the passthrough when no secret is set does not
+    //     count, and the client can't send the key: it is on no allowlist);
+    //   - 3 requests per IP (/64) per day. Over it the doc is still stored, so
+    //     the lead is never lost, but marked so the email is not sent. A
+    //     limiter error fails open, like the per-IP gate above.
+    if (spec.emailEstimate && data.type === 'email_estimate_request') {
+      const ee = EstimateEmailLogic.sanitizeEmailEstimate(body.emailEstimate);
+      if (ee) data.emailEstimate = ee;
+      if (turnstile.configured === true && turnstile.ok === true) data.turnstileVerified = true;
+      try {
+        await enforceRateLimit('estimateEmail:ip', rateLimitIpKey(clientIp(req)), 3, 24 * 60 * 60 * 1000);
+      } catch (e) {
+        if (e && e.rateLimited) data.estimateEmailIpLimited = true;
+      }
+    }
     // Enum-valued intake answers: anything off-list is dropped, never stored.
     for (const [k, allowed] of Object.entries(INTAKE_ENUMS)) {
       if (data[k] != null && !allowed.includes(data[k])) delete data[k];
