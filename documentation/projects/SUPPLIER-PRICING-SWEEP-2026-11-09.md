@@ -242,6 +242,13 @@ Drive or in the vault unless Jo saved it. The session could read Drive and
 Gmail but not iCloud mail or the local vault on Jo's PC, which is where the
 master workbook and supplier replies live.
 
+## Update 2026-11-17 (later): the PR #2941 hold
+
+PR #2941 was closed unmerged on 2026-11-09, so "held for PR #2941" above no
+longer points at an open PR. The seven quantity-rule findings are still
+unapplied. The live supplier pricing lane starts at
+[LIVE-SUPPLIER-PRICING-2026-11-17](LIVE-SUPPLIER-PRICING-2026-11-17.md).
+
 ## Related
 
 - [CATALOG-UNDER-COST-2026-08-19](../audit/CATALOG-UNDER-COST-2026-08-19.md),
