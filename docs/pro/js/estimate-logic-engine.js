@@ -1000,12 +1000,21 @@
     });
 
     const hardCost       = materialCost + laborCost;
-    const retailBeforeOHP = retailSum;
+    // The rollup is in whole cents (repo sweep 2026-11-17, L6), as
+    // estimate-builder-v2.js calculateLineItem already is: the float version
+    // printed an insurance scope whose Line Item Total + Overhead + Profit
+    // missed its own Subtotal by a cent. retailBeforeOHP is rounded once, and
+    // overhead, profit and tax are each rounded to the cent on that basis.
+    const retailCents    = Math.round(retailSum * 100);
+    const retailBeforeOHP = retailCents / 100;
     const materialRetail = retailBeforeOHP - laborCost;
 
-    const overhead = retailBeforeOHP * overheadPct;
-    const profit   = retailBeforeOHP * profitPct;
-    const subtotal = retailBeforeOHP + overhead + profit;
+    const overheadCents = Math.round(retailCents * overheadPct);
+    const profitCents   = Math.round(retailCents * profitPct);
+    const subtotalCents = retailCents + overheadCents + profitCents;
+    const overhead = overheadCents / 100;
+    const profit   = profitCents / 100;
+    const subtotal = subtotalCents / 100;
 
     // Tax (insurance hides tax).
     // Tax rates come from (in priority order):
@@ -1048,9 +1057,10 @@
       : (countyTaxMap[settings.county || ''] != null
           ? Number(countyTaxMap[settings.county])
           : fallbackRate);
-    const tax = subtotal * taxRate;
+    const taxCents = Math.round(subtotalCents * taxRate);
+    const tax = taxCents / 100;
 
-    let total = subtotal + tax;
+    let total = (subtotalCents + taxCents) / 100;
     total = Math.round(total / roundTo) * roundTo;
 
     let minJobApplied = false;

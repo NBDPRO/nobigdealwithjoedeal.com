@@ -946,6 +946,35 @@
    *          sourceTemplates, warnings, tierApplies, warrantyKind,
    *          warrantyParts}.
    */
+  // estimate-builder-v2.js lineItemSettings: { materialMarkupPct, overheadPct,
+  // profitPct, roundTo }, real numbers only. {} when that file is not loaded
+  // (the engine's own defaults then apply, as before).
+  function shopLineItemSettings() {
+    try {
+      const B = window.EstimateBuilderV2;
+      if (B && typeof B.lineItemSettings === 'function') return B.lineItemSettings() || {};
+    } catch (_) { /* settings are optional */ }
+    return {};
+  }
+
+  // A one-time line, the first time a template estimate prices on rates other
+  // than the 25 / 10 / 10 Job Templates always used before 2026-11-17, so the
+  // rep knows why a template now quotes differently. Once per device.
+  const RATES_NOTE_KEY = 'nbd_jt_settings_rates_note_v1';
+  function settingsRatesNote(s) {
+    const pct = (v) => Math.round(Number(v) * 1000) / 10;
+    const markup = s.materialMarkupPct != null ? s.materialMarkupPct : 0.25;
+    const overhead = s.overheadPct != null ? s.overheadPct : 0.10;
+    const profit = s.profitPct != null ? s.profitPct : 0.10;
+    if (pct(markup) === 25 && pct(overhead) === 10 && pct(profit) === 10) return null;
+    try {
+      if (typeof localStorage === 'undefined' || localStorage.getItem(RATES_NOTE_KEY)) return null;
+      localStorage.setItem(RATES_NOTE_KEY, '1');
+    } catch (_) { return null; }
+    return 'Now using your Settings rates: material markup ' + pct(markup) + '%, overhead ' + pct(overhead)
+      + '%, profit ' + pct(profit) + '% (templates used 25 / 10 / 10 before).';
+  }
+
   function resolveSelection(selection, opts) {
     opts = opts || {};
     const sel = normalizeSelection(selection);
@@ -1103,6 +1132,13 @@
       county: county
     };
     if (minJobCharge != null) settings.minJobCharge = minJobCharge;
+    // The shop's saved line-item rates and Round to (repo sweep 2026-11-17,
+    // M4 / M5; Jo, Q13 / Q14): a template estimate used the engine's own
+    // 25 / 10 / 10 and $25 whatever Settings said, so the same scope priced
+    // lower here than in the V2 builder. Same reader as the builder.
+    Object.assign(settings, shopLineItemSettings());
+    const note = settingsRatesNote(settings);
+    if (note) warnings.push(note);
 
     const totals = window.EstimateLogic.resolveEstimate(lineItems, measurements, settings);
     return {
