@@ -50,7 +50,9 @@ ok('storm subline: adjuster after you have filed, no outcome promise',
 ok('"no deposit to look at your roof" is in the FAQ and the steps',
   /no deposit/i.test(ins.$$('.ins-faq details')[0].text) && /no deposit/i.test(ins.$$('.ins-steps li')[1].text));
 ok('no "door to door" claim', !/door[- ]to[- ]door/i.test(insMain.text));
-ok('Pick My Time opens in the same tab', ins.byId('insPickTime').attrs.target === undefined);
+const pick = ins.byId('insPickTime');
+ok('Pick My Time opens in a new tab (so Add details stays reachable) and says so',
+  pick.attrs.target === '_blank' && pick.attrs.rel === 'noopener' && /new tab/.test(ins.byId('insPickNote').text) && ins.byId('insPickNote').attrs.hidden !== undefined);
 ok('the glow dot on .hero-badge is gone', !/\.hero-badge::before/.test(insCss));
 ok('subhead uses the homepage wording', /7\+ years on Cincinnati roofs, now under my own name/.test(ins.$('.subhead').text));
 

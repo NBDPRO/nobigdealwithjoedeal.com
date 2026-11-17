@@ -1,4 +1,4 @@
-/* storm-check.js — "Is It Worth a Claim?" storm/hail lead qualifier (v1).
+/* storm-check.js — "Storm Damage Check" storm/hail lead qualifier (v1).
  * Marketing-surface only. Captures leads via the hardened submitPublicLead
  * pipeline (kind 'inspect', source '/storm-check'). Storm data is a
  * best-effort enhancement from IEM (public, no key); every external call

@@ -164,6 +164,8 @@
         pick.setAttribute('href', window.NBDIntake.calendarUrl({ name: data.name, phone: data.phone, address: data.address }));
       }
       pick.hidden = false;
+      var pickNote = document.getElementById('insPickNote');
+      if (pickNote) pickNote.hidden = false;
     }
     mountDetails(res && res.photoToken, data);
     if (ok) {

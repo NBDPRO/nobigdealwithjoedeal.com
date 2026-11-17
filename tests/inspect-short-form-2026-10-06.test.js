@@ -57,7 +57,7 @@ const SUCCESS = (/<div class="form-success" id="inspectSuccess">[\s\S]*?<div id=
     ok('the home-preferred-not-required line is on the page (Jo, 2026-10-14)', HTML.includes('Being home is preferred so Joe can check the attic, but it&rsquo;s not required.'));
     ok('the moved fields live on the thank-you screen', /id="insDetails" hidden/.test(SUCCESS) && ['f-story', 'f-email', 'f-referral', 'insXIntake', 'insDetailsSave', 'insDetailsStatus'].every((id) => SUCCESS.includes('id="' + id + '"')));
     ok('the default thank-you headline matches the badge promise: within 24 hours, usually the same day (2026-11-17)', /<h3 id="insThanksTitle">Joe will reply within 24 hours, usually the same day<\/h3>/.test(SUCCESS) && !/within the hour/.test(SUCCESS));
-    ok('Pick My Time is a plain link, hidden until a calendar choice', /<a class="ins-pick-time" id="insPickTime" href="https:\/\/cal\.com\/nobigdeal\/roof-inspection" hidden>Pick My Time<\/a>/.test(SUCCESS) && /\.ins-pick-time\[hidden\]\{display:none\}/.test(HTML));
+    ok('Pick My Time is a plain link, hidden until a calendar choice', /<a class="ins-pick-time" id="insPickTime" href="https:\/\/cal\.com\/nobigdeal\/roof-inspection" target="_blank" rel="noopener" hidden>Pick My Time<\/a>/.test(SUCCESS) && /\.ins-pick-time\[hidden\]\{display:none\}/.test(HTML));
     ok('no inline handlers', !/\son[a-z]+=/i.test(FORM + SUCCESS));
     ok('cache-busters bumped', /intake-extras\.js\?v=4/.test(HTML) && /inspect-form\.js\?v=(?:[4-9]|[1-9]\d)\b/.test(HTML));
   }
