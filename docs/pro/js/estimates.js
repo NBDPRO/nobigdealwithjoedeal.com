@@ -566,16 +566,23 @@ function buildReview() {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
   // reviewEl resolved at top of buildReview (early-exit guard).
-  const marginSafeClass = marginPct >= 35 ? 'margin-strong'
-                        : marginPct >= 20 ? 'margin-ok'
-                        : 'margin-weak';
+  // 2026-11-17: the Internal View margin is measured before sales tax, on the
+  // price the customer pays, and banded against the COMPANY's floor and target
+  // (js/margin-floor.js; no band when the company has set none). It replaces a
+  // tax-inclusive figure and three classes (35 / 20) that no stylesheet defined.
+  const MFv = window.NBDMarginFloor
+    ? window.NBDMarginFloor.view({ mode: d.mode, grandTotal, taxAmount: estData.taxAmount || 0, costBasis })
+    : null;
+  const marginCellHtml = !MFv ? (esc(fmt(margin)) + ' · ' + marginPct.toFixed(1) + '%')
+    : !MFv.known ? ('Unknown (no cost basis) ' + window.NBDMarginFloor.badgeHtml(MFv))
+      : (esc(fmt(MFv.marginCents / 100)) + ' · ' + MFv.marginPct.toFixed(1) + '% before tax ' + window.NBDMarginFloor.badgeHtml(MFv));
   const internalViewHtml = `
     <div id="internalViewPanel" style="display:none;margin-top:16px;padding:12px;background:var(--s2);border:1px dashed var(--orange);border-radius:7px;font-size:11px;">
       <div class="erx-w700-corange-mb8px">Internal View — NOT FOR CUSTOMER</div>
       <div class="erx-dgrid-gtcrepeat31-gap8px">
         <div><div class="erx-cm">Customer Price</div><div class="erx-w700">${fmt(grandTotal)}</div></div>
         <div><div class="erx-cm">Cost Basis</div><div class="erx-w700">${fmt(costBasis)}</div></div>
-        <div><div class="erx-cm">Margin</div><div class="${marginSafeClass} erx-w700">${fmt(margin)} · ${marginPct.toFixed(1)}%</div></div>
+        <div><div class="erx-cm">Margin</div><div class="erx-w700">${marginCellHtml}</div></div>
       </div>
     </div>`;
   reviewEl.innerHTML = `

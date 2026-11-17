@@ -293,9 +293,12 @@
       // Roof Care Plan member discount (2026-10-05): pure rules the V2/V3
       // builder and the Job Templates engine call at price time — before both.
       'js/care-plan-discount.js?v=1',
+      // Estimate margin floor (2026-11-17): the tax-free job margin and the
+      // company's floor / target bands. Pure; off unless the company sets a floor.
+      'js/margin-floor.js?v=1',
       // Classic review step's layout (reskin 2026-10-03), before the script.
       'css/estimates-review.css?v=1',
-      'js/estimates.js?v=13',
+      'js/estimates.js?v=14',
       // Rock 2 PR 6: the New-Estimate front door (chooser) split out of
       // estimates.js. Loads after it — showNewEstimateChooser falls back to
       // estimates.js's showEstimateTypeSelector when V2 is missing.
@@ -303,10 +306,10 @@
       // Rock 2 PR 6: the estimates-list row actions (Firestore CRM ops, no
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
-      'js/estimate-finalization.js?v=11',
+      'js/estimate-finalization.js?v=12',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=43',
+      'js/estimate-v2-ui.js?v=44',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=6',

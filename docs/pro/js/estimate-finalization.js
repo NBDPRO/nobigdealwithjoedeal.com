@@ -1123,6 +1123,19 @@ ${footer}
   // 3. INTERNAL VIEW FORMATTER (Joe's eyes only)
   // ═════════════════════════════════════════════════════════
 
+  // The Internal View's margin (2026-11-17): measured before sales tax on the
+  // price the customer pays, and labelled against the company's floor when one
+  // is set (js/margin-floor.js). Without that file it is the builder's own
+  // figure, as before. { money, pct, note }: nulls mean "no margin to show".
+  function _ivMargin(estimate) {
+    const MF = (typeof window !== 'undefined') ? window.NBDMarginFloor : null;
+    const i = (estimate && estimate.internal) || {};
+    if (!MF) return { money: i.margin == null ? null : i.margin, pct: i.marginPct == null ? null : i.marginPct, note: '' };
+    const v = MF.view(estimate);
+    if (!v.known) return { money: null, pct: null, note: '' };
+    return { money: v.marginCents / 100, pct: v.marginPct, note: 'Before sales tax' + (v.text ? ' · ' + v.text : '') };
+  }
+
   function formatInternalView(estimate, meta) {
     meta = meta || {};
     const customer = meta.customer || {};
@@ -1225,7 +1238,7 @@ ${footer}
   </div>
   <div class="cost-card">
     <div class="lbl">Net Margin</div>
-    <div class="val" style="color:#065f46;">${estimate.internal.margin == null ? '—' : fmtMoneyBig(estimate.internal.margin)}</div>
+    <div class="val" style="color:#065f46;">${_ivMargin(estimate).money == null ? '—' : fmtMoneyBig(_ivMargin(estimate).money)}</div>
   </div>
 </div>
 
@@ -1235,7 +1248,8 @@ ${footer}
   </div>
   <!-- null marginPct = no tenant cost basis configured (EBv2 ships zeros;
        real costs are tenant data, set in Estimate Settings) -->
-  <div class="margin-big">${estimate.internal.marginPct == null ? '— set cost basis in Settings' : estimate.internal.marginPct.toFixed(1) + '%'}</div>
+  <div class="margin-big">${_ivMargin(estimate).pct == null ? (estimate.internal.marginPct == null ? '— set cost basis in Settings' : '— a line has no cost') : _ivMargin(estimate).pct.toFixed(1) + '%'}</div>
+  ${_ivMargin(estimate).note ? '<div class="lbl">' + escapeHtml(_ivMargin(estimate).note) + '</div>' : ''}
 </div>
 
 <h2>Cost Breakdown</h2>

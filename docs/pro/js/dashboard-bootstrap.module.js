@@ -6362,6 +6362,19 @@
     const slDef = (defaults.salesLinks && defaults.salesLinks.dealLinkDays) || 14;
     const slDays = Math.floor(parseFloat(document.getElementById('cp_salesLinks_dealLinkDays')?.value));
     out.salesLinks = { dealLinkDays: (Number.isFinite(slDays) && slDays >= 1 && slDays <= 90) ? slDays : slDef };
+    // Estimate margin floor (2026-11-17): off unless set, no default. Written
+    // only when a box is filled in, or to clear a floor that is set now, so a
+    // company that never touches it stores nothing.
+    const mfNow = (window._companyProfile && window._companyProfile.pricing && window._companyProfile.pricing.marginFloor) || null;
+    const mfPct = (id) => {
+      const n = parseFloat(document.getElementById(id)?.value);
+      return (Number.isFinite(n) && n > 0 && n < 95) ? Math.round(n * 10) / 10 : null;
+    };
+    const mfFloor = mfPct('cp_pricing_marginFloor_floorPct');
+    const mfTarget = mfFloor === null ? null : mfPct('cp_pricing_marginFloor_targetPct');
+    if (mfFloor !== null || (mfNow && mfNow.floorPct != null)) {
+      out.pricing = Object.assign({}, out.pricing, { marginFloor: { floorPct: mfFloor, targetPct: mfTarget } });
+    }
 
     // FIX 1 — drop every field still equal to its NBD default (see helper).
     _cpStripDefaults(out, defaults);
@@ -6491,6 +6504,11 @@
     const sl = p.salesLinks || defaults.salesLinks || {};
     const slEl = document.getElementById('cp_salesLinks_dealLinkDays');
     if (slEl) slEl.value = sl.dealLinkDays != null ? sl.dealLinkDays : '';
+    const mf = (p.pricing && p.pricing.marginFloor) || {};
+    const mfFloorEl = document.getElementById('cp_pricing_marginFloor_floorPct');
+    if (mfFloorEl) mfFloorEl.value = mf.floorPct != null ? mf.floorPct : '';
+    const mfTargetEl = document.getElementById('cp_pricing_marginFloor_targetPct');
+    if (mfTargetEl) mfTargetEl.value = mf.targetPct != null ? mf.targetPct : '';
 
     // ── Brand Identity sub-panel (gauntlet Batch 3) ─────────────────
     // Fill from the RAW (un-merged) tenant override so a field the tenant never
