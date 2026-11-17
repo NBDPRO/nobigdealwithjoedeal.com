@@ -1445,6 +1445,27 @@ async function run() {
     await assertSucceeds(updateDoc(doc(joeOwn, 'invoices/rp-joe-proof'), { payments: [Object.assign({}, lp[0], { proofStoragePath: 'payment-proofs/joeown/rp-joe-proof/1_a.jpg' })] }));   // a proof photo on a payment
     await assertFails(updateDoc(doc(admin, 'invoices/rp-joe-money'), { amountPaid: 40, balanceDue: 0 }));   // the platform admin still cannot rewrite money without a payment entry
     await assertFails(updateDoc(doc(joeOwn, 'invoices/rp-joe-money'), { amountPaid: 40, balanceDue: 0 }));  // nor can the admin who made it
+    // Owner-side Void (2026-11-16, invoice-pipeline.js voidInvoiceUI): status 'void' + voidNote / voidedAt / voidedBy on an
+    // ordinary invoice that is unpaid or whose every payment was reversed. Solo, platform-admin and company_admin owners.
+    {
+      const vAt = new Date(Date.now() - 7200000);
+      const revPair = (uid) => [rpEntry(uid, 40, vAt, 1), Object.assign(rpEntry(uid, -40, vAt, 2), { reversal: true, reverses: 'mp_' + uid + '1' })];
+      await env.withSecurityRulesDisabled(async (ctx) => { const d = ctx.firestore();
+        for (const [id, uid] of [['v-joe', 'joeown'], ['v-co', 'coown'], ['v-solo', 'solo1']]) {
+          await setDoc(doc(d, 'invoices/' + id), rpInv(uid, { status: 'sent' }));
+          await setDoc(doc(d, 'invoices/' + id + '-rev'), rpInv(uid, { status: 'sent', amountPaid: 0, balanceDue: 40, payments: revPair(uid) }));
+        }
+        await setDoc(doc(d, 'invoices/v-co-paid'), rpInv('coown', { status: 'paid', amountPaid: 40, balanceDue: 0, paidAt: vAt, payments: [rpEntry('coown', 40, vAt, 1)] }));
+      });
+      const vPatch = (uid) => ({ status: 'void', voidNote: 'test invoice', voidedAt: new Date(), voidedBy: uid, updatedAt: new Date() });
+      for (const [db, id, uid] of [[joeOwn, 'v-joe', 'joeown'], [coOwn, 'v-co', 'coown'], [solo, 'v-solo', 'solo1']]) {
+        await assertSucceeds(updateDoc(doc(db, 'invoices/' + id), vPatch(uid)));            // void an unpaid invoice
+        await assertSucceeds(updateDoc(doc(db, 'invoices/' + id + '-rev'), vPatch(uid)));   // void a fully reversed invoice
+      }
+      const coRep = env.authenticatedContext('corep', { role: 'sales_rep', companyId: 'coown' }).firestore();
+      await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/v-co-rev2'), rpInv('coown', { status: 'sent', amountPaid: 0, balanceDue: 40, payments: revPair('coown') })); });
+      await assertFails(updateDoc(doc(coRep, 'invoices/v-co-rev2'), vPatch('corep')));   // a rep may not void one that carried money
+    }
 
     // BUDGET GUARD (2026-11-15 hotfix). The invoice update rule is evaluated against Firestore's 1000-expression limit;
     // going over refuses the write with no rule at fault, which is how Record payment broke on the live site. This loads
@@ -1482,6 +1503,14 @@ async function run() {
       await benv.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/b-edit'), rpInv('solo1', Object.assign({ total: 100, balanceDue: 87, amountPaid: 13, status: 'partial', payments: b15full }, bf))); });
       const bE = (await getDoc(doc(bSolo, 'invoices/b-edit'))).data().payments;
       await assertSucceeds(updateDoc(doc(bSolo, 'invoices/b-edit'), { payments: bE.map((e, k) => (k === 13 ? Object.assign({}, e, { proofStoragePath: 'payment-proofs/solo1/b-edit/1_a.jpg' }) : e)) }));
+      // Owner-side Void (2026-11-16) of a fully reversed invoice with the longest list (7 payments, 7 reversals), solo and admin owner.
+      const vList = (uid) => { const out = []; for (let i = 0; i < 7; i++) { const t = new Date(Date.now() - (50 - i) * 3600000); out.push(rpEntry(uid, 5, t, 60 + i)); out.push(Object.assign(rpEntry(uid, -5, t, 80 + i), { reversal: true, reverses: 'mp_' + uid + (60 + i) })); } return out; };
+      await benv.withSecurityRulesDisabled(async (ctx) => { const d = ctx.firestore();
+        await setDoc(doc(d, 'invoices/b-void-joe'), rpInv('joeown', { status: 'sent', amountPaid: 0, balanceDue: 40, payments: vList('joeown') }));
+        await setDoc(doc(d, 'invoices/b-void-solo'), rpInv('solo1', { status: 'sent', amountPaid: 0, balanceDue: 40, payments: vList('solo1') }));
+      });
+      await assertSucceeds(updateDoc(doc(bJoe, 'invoices/b-void-joe'), { status: 'void', voidNote: 'test invoice', voidedAt: bAt, voidedBy: 'joeown', updatedAt: bAt }));
+      await assertSucceeds(updateDoc(doc(bSolo, 'invoices/b-void-solo'), { status: 'void', voidNote: 'test invoice', voidedAt: bAt, voidedBy: 'solo1', updatedAt: bAt }));
       await benv.cleanup();
     }
   }   // the admin's money check fits the budget too

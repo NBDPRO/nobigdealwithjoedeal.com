@@ -312,6 +312,67 @@ async function _recordJobEventCore(db, args, deps) {
   }
 }
 
+/**
+ * Walk back one recorded event — a payment reversed (2026-11-16,
+ * money-paper.js). ONE transaction: read the (leadId, event, sourceId)
+ * marker; none → nothing to undo. Read the lead; if the marker recorded a
+ * move and the lead still sits on the stage the spine moved it to
+ * (job-spine-logic planJobEventUndo), move it back to where it came from and
+ * leave a timeline note. The marker is ALWAYS deleted when it exists, so a
+ * later real payment records the event (and moves the card) again. A lead of
+ * another company is never moved (same check as recordJobEvent). Never
+ * throws; never sends anything.
+ * → { undone, moved, reason?, from?, to?, markerId, error? }
+ */
+async function undoJobEvent(db, args, deps) {
+  const { FieldValue, logger, now } = _deps(deps);
+  args = args || {};
+  const leadId = typeof args.leadId === 'string' ? args.leadId.trim() : '';
+  const event = String(args.event || '');
+  const sourceId = args.sourceId != null ? String(args.sourceId) : '';
+  const actor = String(args.actor || 'system').slice(0, 120);
+  const nowMs = now();
+  const atIso = _iso(args.at, nowMs);
+  if (!db || !leadId || !/^[A-Za-z0-9_-]{1,128}$/.test(leadId)) return { undone: false, moved: false, reason: 'bad_lead_id', markerId: '' };
+  if (L.EVENTS.indexOf(event) === -1) return { undone: false, moved: false, reason: 'unknown_event', markerId: '' };
+  const mid = L.markerId(leadId, event, sourceId);
+  try {
+    const markerRef = db.collection('job_events').doc(mid);
+    const leadRef = db.collection('leads').doc(leadId);
+    const noteRef = db.collection('notes').doc('spine-undo-' + mid + '-' + nowMs);
+    const out = await db.runTransaction(async (tx) => {
+      const ms = await tx.get(markerRef);
+      if (!ms.exists) return { undone: false, moved: false, reason: 'no_marker', markerId: mid };
+      const result = (ms.data() || {}).result || {};
+      const ls = await tx.get(leadRef);
+      const lead = ls.exists ? (ls.data() || {}) : null;
+      const plan = (lead && args.companyId && lead.companyId && String(lead.companyId) !== String(args.companyId))
+        ? { action: 'skip', reason: 'tenant_mismatch' }
+        : L.planJobEventUndo(lead, result);
+      if (plan.action === 'move') {
+        const { payload } = L.undoPayload(lead, plan, { actor, atIso, event }, FieldValue);
+        tx.update(leadRef, payload);
+        tx.set(noteRef, {
+          leadId, userId: (lead && lead.userId) || null,
+          createdAt: FieldValue.serverTimestamp(), createdBy: 'system: ' + actor,
+          source: 'job_spine', event: event + '_reversed',
+          text: L.undoNoteText(plan.to, event, sourceId), type: 'stage_change',
+        });
+      }
+      tx.delete(markerRef);
+      return plan.action === 'move'
+        ? { undone: true, moved: true, from: plan.from, to: plan.to, markerId: mid }
+        : { undone: true, moved: false, reason: plan.reason, markerId: mid };
+    });
+    if (out.moved) logger.info('[jobSpine] moved back', { leadId, event, sourceId, from: out.from, to: out.to });
+    else if (out.undone) logger.info('[jobSpine] marker cleared, lead left alone', { leadId, event, sourceId, reason: out.reason });
+    return out;
+  } catch (e) {
+    logger.warn('[jobSpine] undoJobEvent failed', { leadId, event, sourceId, err: e && e.message });
+    return { undone: false, moved: false, reason: 'error', error: String((e && e.message) || e), markerId: mid };
+  }
+}
+
 // ── Caller adapters ──────────────────────────────────────────────────────
 // One per wired caller, here (not in the caller's file) so each is testable
 // with a fake db: index.js deploys every export of remote-signing.js /
@@ -417,4 +478,4 @@ async function spineAfterBooking(db, { leadId, companyId, bookingId, startTime, 
   }, deps);
 }
 
-module.exports = { recordJobEvent, requestReviewTaskIfPaid, spineAfterRemoteSign, spineAfterEsign, spineAfterDealAccept, spineAfterBooking };
+module.exports = { recordJobEvent, undoJobEvent, requestReviewTaskIfPaid, spineAfterRemoteSign, spineAfterEsign, spineAfterDealAccept, spineAfterBooking };

@@ -608,6 +608,18 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     return day;
   }
 
+  // What a refused or failed payment save tells the rep (2026-11-16). Nothing was written either way.
+  function paymentSaveErrorText(e) {
+    const code = String((e && e.code) || '');
+    const raw = String((e && e.message) || '');
+    if (/permission/i.test(code) || /insufficient permissions/i.test(raw)) {
+      return 'Not saved: the payment was refused (no permission). Nothing was recorded. What you typed is still here: try again, or ask the company owner to check your access.';
+    }
+    if (/unavailable|network|offline/i.test(code + ' ' + raw)) {
+      return 'Not saved: no connection. Nothing was recorded. What you typed is still here: try again when you have signal.';
+    }
+    return 'Not saved: ' + (raw || 'the payment could not be recorded') + '. Nothing was recorded. What you typed is still here: try again.';
+  }
   function _cleanText(v, max) {
     return String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, max);
   }
@@ -3961,6 +3973,16 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * page has no runTransaction), matched by index + recordedAt / at+amount,
    * so a payment another device logged meanwhile is never clobbered.
    */
+  // The customer page's Invoices & Payments card (customer-tasks-ui.js) repaints after a change made from here
+  // (2026-11-16: Reverse left its Total paid stale until a reload). No-op on any other page.
+  function _refreshCustomerInvoices() {
+    try {
+      if (typeof window.loadInvoices === 'function' && window._customerId) {
+        Promise.resolve(window.loadInvoices(window._customerId)).catch(() => {});
+      }
+    } catch (e) { /* the change is saved; a stale card is fixed by a reload */ }
+  }
+
   /**
    * UI: reverse one manual payment (owner side only). Asks why, confirms,
    * then calls the reversePayment callable (functions/payment-reversal.js),
@@ -4026,6 +4048,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         }
       }
       if (document.getElementById('nbd-inv-detail-host')) renderInvoiceDetail('nbd-inv-detail-host', invoiceId);
+      _refreshCustomerInvoices();
       return true;
     } catch (e) {
       _toast('Could not reverse the payment: ' + ((e && (e.message || e.code)) || 'error'), 'error');
@@ -4635,6 +4658,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         ${depositedToOn() ? `<label for="nbd-rp-dep" class="ipx-label">Deposited to</label>
         <select id="nbd-rp-dep" class="fi ipx-field ipx-rp-input">${depositedToOptionsHtml('')}</select>` : ''}
         <div class="ipx-m11 ipx-rp-note" data-rp-receipt-note>A receipt is drafted — nothing is sent until you tap Send receipt.</div>
+        <div id="nbd-rp-err" class="ipx-rp-err" role="alert" hidden></div>
         <button id="nbd-rp-save" type="button" class="btn btn-green ipx-btn-save">Save payment</button>
         <button id="nbd-rp-cancel" type="button" class="btn btn-ghost ipx-btn-full44">Cancel</button>
       </div>
@@ -4712,6 +4736,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         }
         saveBtn.disabled = true;
         saveBtn.textContent = 'Saving…';
+        const errBox = $('#nbd-rp-err');
+        if (errBox) { errBox.hidden = true; errBox.textContent = ''; }
         try {
           await recordPaymentCommit({
             leadId, lead, target, totalCents, amount, method, payer, at,
@@ -4724,7 +4750,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           closeModal();
           settle(true);
         } catch (error) {
-          _toast('Error: ' + ((error && error.message) || 'could not record the payment'), 'error');
+          // Shown IN the sheet as well as a toast (2026-11-16: a refused save left the sheet open with no visible error).
+          // The sheet stays open with everything typed, so the rep can retry or cancel.
+          const msg = paymentSaveErrorText(error);
+          if (errBox) { errBox.textContent = msg; errBox.hidden = false; }
+          _toast(msg, 'error');
           saveBtn.disabled = false;
           saveBtn.textContent = 'Save payment';
         }
@@ -4806,6 +4836,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     PAYMENT_BASIS_CATCHUP,
     applyPaymentToInvoice,
     overpaymentNotice,
+    paymentSaveErrorText,
     reversalPairs,
     reversalBlockedReason,
     reversePaymentUI,

@@ -451,6 +451,72 @@ function invoiceEvents(before, after) {
   return [];
 }
 
+/**
+ * The spine events a payment REVERSAL write undoes (2026-11-16). Only a write
+ * that appended payment entries, at least one of them negative (the
+ * reversePayment callable's entry — payment-reversal.js), counts; a status
+ * edit or a new positive payment undoes nothing. Pay-off first, so the lead
+ * walks back through the deposit move in the order it went forward.
+ *   paid_in_full — the invoice was 'paid' and is not any more.
+ *   deposit_paid — depositPaid went true → not true; also when the invoice
+ *                  left 'paid' with no deposit still covered, because a payoff
+ *                  that did not settle the job was recorded as deposit_paid
+ *                  (money-paper.js spineOnInvoice). No marker = a no-op.
+ */
+function reversedInvoiceEvents(before, after) {
+  if (!before || !after || !after.leadId || after.deleted === true || after.status === 'void' || after.e2eTestData) return [];
+  const bp = Array.isArray(before.payments) ? before.payments : [];
+  const ap = Array.isArray(after.payments) ? after.payments : [];
+  if (!(ap.length > bp.length)) return [];
+  if (!ap.slice(bp.length).some((p) => p && _cents(p.amount) < 0)) return [];
+  const out = [];
+  const leftPaid = before.status === 'paid' && after.status !== 'paid';
+  if (leftPaid) out.push('paid_in_full');
+  if (after.depositPaid !== true && (before.depositPaid === true || leftPaid)) out.push('deposit_paid');
+  return out;
+}
+
+/**
+ * Walk back a recorded spine move? Pure. result = the marker's `result`.
+ * Only a recorded move with a known `from`, on a live lead that is STILL on
+ * the stage the spine moved it to — a lead the rep has moved since is never
+ * yanked. → { action: 'move', from, fromKey, to } | { action: 'skip', reason }
+ */
+function planJobEventUndo(lead, result) {
+  if (!result || result.action !== 'move' || result.from == null || !result.to) return { action: 'skip', reason: 'no_move_recorded' };
+  if (!lead) return { action: 'skip', reason: 'no_lead' };
+  if (isDeleted(lead)) return { action: 'skip', reason: 'deleted' };
+  const cur = normalizeStageKey(lead.stage);
+  if (cur === null || cur !== normalizeStageKey(result.to)) return { action: 'skip', reason: 'moved_since', fromKey: cur };
+  const backKey = normalizeStageKey(result.from);
+  return { action: 'move', from: lead.stage == null ? null : lead.stage, fromKey: cur, to: backKey || String(result.from) };
+}
+
+/**
+ * The lead update for an undo — movePayload's fields, minus closedAt and
+ * installCompletedAt (a walk back never stamps or clears those dates).
+ */
+function undoPayload(lead, plan, ctx, fv) {
+  const historyEvent = {
+    from: plan.from, to: plan.to,
+    timestamp: ctx.atIso, user: ctx.actor, event: ctx.event + '_reversed',
+  };
+  const p = {
+    stage: plan.to,
+    stageRole: stageRoles.roleFromKey(plan.to),
+    updatedAt: fv.serverTimestamp(),
+    stageStartedAt: fv.serverTimestamp(),
+    stageHistory: fv.arrayUnion(historyEvent),
+  };
+  if (lead && Object.prototype.hasOwnProperty.call(lead, '_stageKey')) p._stageKey = plan.to;
+  return { payload: p, historyEvent };
+}
+
+function undoNoteText(toKey, event, sourceId) {
+  return 'Stage moved back to "' + stageLabel(toKey) + '" — automatic: payment reversed'
+    + (sourceId ? ' (invoice ' + String(sourceId).slice(0, 120) + ')' : '') + '.';
+}
+
 // ── The sold package (2026-10-04, "knowing your numbers") ────────────────
 // Which of the five packages a job was sold on was nowhere on the lead: the
 // deal room kept acceptedTier, the estimate its selectedTier, and Reports
@@ -506,5 +572,5 @@ module.exports = {
   FILED_FIELD_BY_DOC_TYPE, SOLD_TIERS,
   normalizeStageKey, jobTypeOf, isDeleted, planJobEvent, needsClosedAt, movePayload, stageLabel,
   actionsForStage, preferredActionFor, stageGetsTask, stageEntryTask, todayYmdEt, markerId, moveNoteText,
-  cleanMeta, envelopeIsContract, invoiceEvents, soldTierPatch, soldTierNeedsEstimate, reviewTaskId, reviewRequestTask,
+  cleanMeta, envelopeIsContract, invoiceEvents, reversedInvoiceEvents, planJobEventUndo, undoPayload, undoNoteText, soldTierPatch, soldTierNeedsEstimate, reviewTaskId, reviewRequestTask,
 };
