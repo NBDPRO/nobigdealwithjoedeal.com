@@ -1,0 +1,37 @@
+/* Workout (the standalone Workout Coach app, /pro/workout). The coach's own styles are daily-success/css/workout-coach.css;
+   this file is only what the Daily Success page used to supply around it: the default-theme tokens, the base, the buttons,
+   the sync pill, plus this page's small header. Token values mirror docs/pro/daily-success/index.html ([data-theme="default"]);
+   tests/ds-workout-installable-2026-11-16.test.js keeps them in step. */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);}
+[data-theme="default"]{--ac:#BD5728;--bg:#0A0C0F;--bar:#13171d;--paper:#12161c;--ink:#e8eaf0;--rule:rgba(255,255,255,.12);--muted:#9aa6b6;--ac-text:#E4783F;--ac-on-dark:#E4783F;--on-dark:#a9b8cc;--ghost:#c3cfdf;--input-bg:#0d1015;--ph:#8793a4;--gold:#f59e0b;--grn:#22c55e;--blu:#4A9EFF;}
+html{-webkit-text-size-adjust:100%;}
+body{background:var(--bg);font-family:'Barlow',sans-serif;color:var(--ink);min-height:100vh;min-height:100dvh;}
+:root input,:root select,:root textarea{color-scheme:dark;}
+:root input::placeholder,:root textarea::placeholder{color:var(--ph,#8793a4);opacity:1;}
+
+.btn{font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;border:none;border-radius:6px;padding:7px 12px;cursor:pointer;transition:all .15s;white-space:nowrap;line-height:1.2;height:32px;display:flex;align-items:center;gap:4px;}
+.btn-red{background:var(--ac);color:#fff;}.btn-red:hover{background:#a14a22;}
+.btn-ghost{background:rgba(255,255,255,.06);color:var(--ghost,#c3cfdf);border:1px solid rgba(255,255,255,.1);}.btn-ghost:hover{background:rgba(189,87,40,.08);color:#fff;border-color:var(--ac);}
+:root .wc-ov .btn-ghost{color:var(--on-dark,#c3cfdf);}
+:root .wc-card .wc-lbl{color:var(--muted);}
+:root .wc-card .wt-up{color:var(--ac-text,#b45309);}
+:root .wc-card .wt-down{color:var(--grn,#16a34a);}
+
+.wa-top{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(var(--sat) + 12px) max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));background:var(--bar);border-bottom:1px solid var(--rule);}
+.wa-brand{display:flex;align-items:center;gap:10px;min-width:0;}
+.wa-logo{border-radius:8px;flex-shrink:0;}
+.wa-title{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;line-height:1;}
+.wa-date{font-size:13px;color:var(--muted);margin-top:3px;}
+.wa-status{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:right;}
+.wa-status.ok{color:#4caf82;}.wa-status.err{color:#ff8a80;}
+.wa-status button{font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;background:none;border:0;text-decoration:underline;cursor:pointer;min-height:44px;padding:0 0 0 8px;}
+.wa-main{max-width:640px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right,0px)) calc(var(--sab) + 96px) max(16px,env(safe-area-inset-left,0px));}
+.wa-loading{color:var(--muted);font-size:14px;}
+.wa-link{display:flex;align-items:center;justify-content:center;min-height:48px;margin-top:12px;padding:10px 14px;border:1px solid var(--rule);border-radius:10px;color:var(--ac-text);font-size:14px;font-weight:600;text-align:center;text-decoration:none;}
+.wa-link[hidden]{display:none;}
+.wa-link-quiet{border-color:transparent;color:var(--muted);font-weight:500;}
+.wa-link:focus-visible,.wa-status button:focus-visible{outline:2px solid var(--ac-text);outline-offset:2px;}
+.wa-noscript{padding:24px 16px;color:var(--muted);text-align:center;}
+
+.ds-sync-badge{position:fixed;top:calc(var(--sat) + 68px);right:max(16px,env(safe-area-inset-right,0px));z-index:9999;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:20px;background:rgba(189,87,40,.12);border:1px solid rgba(189,87,40,.3);color:var(--ac-text,#E4783F);transition:opacity .4s;opacity:0;pointer-events:none;}

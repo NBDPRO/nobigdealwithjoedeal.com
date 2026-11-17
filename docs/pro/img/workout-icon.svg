@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Workout">
+  <!-- Workout app icon (purpose "any"): rounded tile, transparent corners. PNGs are built by scripts/render-app-icons.js. -->
+  <rect width="512" height="512" rx="112" fill="#BD5728"/>
+  <g>
+    <rect x="88" y="240" width="336" height="32" rx="10" fill="#ffffff"/>
+    <rect x="104" y="196" width="40" height="120" rx="12" fill="#ffffff"/>
+    <rect x="156" y="164" width="44" height="184" rx="14" fill="#ffffff"/>
+    <rect x="312" y="164" width="44" height="184" rx="14" fill="#ffffff"/>
+    <rect x="368" y="196" width="40" height="120" rx="12" fill="#ffffff"/>
+  </g>
+</svg>

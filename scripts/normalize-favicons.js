@@ -103,6 +103,12 @@ const CANON = {
   pro: [PRO_ICON, PRO_TOUCH],
 };
 const HOMEOWNER_IN_PRO = [HOMEOWNER_ICON, HOMEOWNER_TOUCH_IN_PRO];
+// Personal web apps (2026-11-16, Jo): Daily Success and Workout each install as their OWN home-screen app, so each
+// carries its own iPhone icon and links its own manifest instead of NBD Pro's. One line per page; nothing else may.
+const APP_PAGES = {
+  'pro/daily-success/index.html': { icons: [PRO_ICON, '<link rel="apple-touch-icon" href="/pro/img/ds-apple-touch-icon.png">'], manifest: '/pro/daily-success.webmanifest' },
+  'pro/workout/index.html': { icons: ['<link rel="icon" href="/pro/img/workout-icon.svg" type="image/svg+xml">', '<link rel="apple-touch-icon" href="/pro/img/workout-apple-touch-icon.png">'], manifest: '/pro/workout.webmanifest' },
+};
 const HOMEOWNER_EXTRAS = [HOMEOWNER_MANIFEST, HOMEOWNER_APP_TITLE];
 
 // The hrefs that identify an NBD icon. An excluded page carrying any of
@@ -117,7 +123,7 @@ const NBD_ICON_HREFS = ['/favicon.svg', '/assets/images/apple-touch-icon.png', '
  */
 function canonFor(audience, rel = '') {
   if (!CANON[audience]) throw new Error('canonFor: audience must be homeowner or pro, got ' + audience);
-  if (audience === 'pro') return { icons: CANON.pro, extras: [] };
+  if (audience === 'pro') { const app = APP_PAGES[String(rel).replace(/\\/g, '/')]; return { icons: app ? app.icons : CANON.pro, extras: [] }; }
   if (String(rel).replace(/\\/g, '/').startsWith('pro/')) return { icons: HOMEOWNER_IN_PRO, extras: [] };
   return { icons: CANON.homeowner, extras: HOMEOWNER_EXTRAS };
 }
@@ -384,7 +390,7 @@ function main(argv) {
 if (require.main === module) process.exit(main(process.argv.slice(2)));
 
 module.exports = {
-  classify, normalizeIcons, isCanonical, iconLinks, manifestLinks, appTitleMetas, hrefOf, run, walk, canonFor,
+  APP_PAGES, classify, normalizeIcons, isCanonical, iconLinks, manifestLinks, appTitleMetas, hrefOf, run, walk, canonFor,
   CANON, OVERRIDES, EXCLUDED, SKIP, NBD_ICON_HREFS, HOMEOWNER_IN_PRO, HOMEOWNER_EXTRAS,
   HOMEOWNER_ICON, HOMEOWNER_TOUCH, HOMEOWNER_ICON_192, HOMEOWNER_ICON_512, HOMEOWNER_TOUCH_IN_PRO,
   HOMEOWNER_MANIFEST, HOMEOWNER_APP_TITLE, PRO_ICON, PRO_TOUCH,

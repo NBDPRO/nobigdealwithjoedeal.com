@@ -37,6 +37,8 @@ const APP_SHELLS = [
   // page could point at assets this phone never fetched and the offline open would be dead). marker: the stored page must really
   // be the tracker, not a captive portal's 200.
   { key: '/pro/__app-shell__/daily-success', src: '/pro/daily-success', paths: ['/pro/daily-success', '/pro/daily-success.html', '/pro/daily-success/'], onRequestOnly: true, marker: '<title>Daily Success' },
+  // The standalone Workout app (2026-11-16): the Workout Coach on its own page. Same rules as the tracker's shell above, for the same reasons.
+  { key: '/pro/__app-shell__/workout', src: '/pro/workout', paths: ['/pro/workout', '/pro/workout.html', '/pro/workout/'], onRequestOnly: true, marker: '<title>Workout' },
 ];
 const APP_SHELL_KEYS = new Set(APP_SHELLS.map((s) => s.key));
 
@@ -78,6 +80,7 @@ const NO_CACHE_HTML = new Set([
   '/pro/estimate-view.html',
   // The tracker is stored only as an offline app shell (APP_SHELLS); the online page is never kept in the asset caches.
   '/pro/daily-success.html',
+  '/pro/workout.html',
 ]);
 
 function isAuthGatedHTML(url) {
