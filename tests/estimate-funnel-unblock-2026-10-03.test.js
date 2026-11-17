@@ -34,6 +34,8 @@
 'use strict';
 
 const fs = require('fs');
+const K = require('./lib/src-kit');
+const { renderQuickForm } = require('./lib/quick-form-render');
 const path = require('path');
 const vm = require('vm');
 const Module = require('module');
@@ -650,13 +652,16 @@ function fillContact(d) {
       ok(p.replace('docs/', '/') + ': the trust line sits directly above Submit', !!m && iSub > m.index && iSub - m.index < 400, m ? (iSub - m.index) : 'no line');
       ok(p.replace('docs/', '/') + ': loads google-reviews-widget.js so the rating is live', /<script[^>]*src="\/assets\/js\/google-reviews-widget\.js"[^>]*><\/script>/.test(h));
     }
-    ok('/index.html: #contact hosts the quick form and loads its script + the rating widget', /data-nbd-quick-form/.test(read('docs/index.html')) && /quick-lead-form\.js/.test(read('docs/index.html')) && /google-reviews-widget\.js/.test(read('docs/index.html')));
+    // Structure, not text (2026-11-17): parse the homepage and run the quick form in a vm.
+    const homeDoc = K.parseTags(read('docs/index.html'));
+    const srcNames = homeDoc.$$('script[src]').map((s) => s.attrs.src.split('?')[0]);
+    ok('/index.html: #contact hosts the quick form and loads its script + the rating widget', !!homeDoc.$('#contact [data-nbd-quick-form]') && srcNames.includes('/assets/js/quick-lead-form.js') && srcNames.includes('/assets/js/google-reviews-widget.js'));
+    const qf = renderQuickForm();
+    const trust = qf.$('.qlf-trust'), qSubmit = qf.$('.qlf-btn');
+    ok('the service/area quick form (JS-built on 185 generated pages) renders the line above its Submit', !!trust && !!qSubmit && trust.start < qSubmit.start && qSubmit.start - trust.start < 400);
+    const gWrap = trust && trust.$('[data-nbd-gr-rating-wrap]');
+    ok('...its Google rating ships hidden and empty, with no "Real Google reviews" fallback to claim without proof', !!gWrap && gWrap.has('hidden') && gWrap.$('[data-nbd-gr-rating]').text === '' && !trust.$('[data-nbd-gr-rating-fallback]') && !trust.text.includes('Real Google reviews'));
     const q = read('docs/assets/js/quick-lead-form.js');
-    // 2026-11-17: the quick form's rating (star included) ships inside the hidden wrap with no "Real Google reviews" fallback.
-    const TLQ = /<p class="qlf-trust"><span data-nbd-gr-rating-wrap hidden><span aria-hidden="true">&#9733;<\/span> <span data-nbd-gr-rating><\/span> on Google &middot; <\/span>Fully insured &middot; Joe on every roof<\/p>/;
-    ok('the quick form trust line makes no Google claim until the rating loads', TLQ.test(q) && !/Real Google reviews/.test(q.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')));
-    const iT = q.search(TLQ), iB = q.indexOf("'<button class=\"qlf-btn\" type=\"submit\"");
-    ok('the service/area quick form (JS-built on 185 generated pages) renders the line above its Submit', iT > 0 && iB > iT && iB - iT < 400);
     ok('...and hydrates the rating (widget hook or a one-time load)', /hydrateRating\(\);/.test(q) && /nbdHydrateReviewHooks/.test(q));
     const hosts = fs.readdirSync(path.join(ROOT, 'docs', 'areas')).filter((f) => f.endsWith('.html')).map((f) => read('docs/areas/' + f)).filter((h) => /data-nbd-quick-form/.test(h) && /quick-lead-form\.js/.test(h)).length;
     ok('generated area pages still host the quick form (> 20)', hosts > 20, hosts);
