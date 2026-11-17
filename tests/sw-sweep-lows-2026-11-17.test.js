@@ -118,11 +118,24 @@ function cachedAnywhere(sw, url) {
   console.log('\n#26 API cache: allowlist only, never 206/video, never throws, renamed');
   {
     const sw = boot();
-    const res = dispatchFetch(sw, '/api/storm-report?lat=39.1&lon=-84.5');
-    if (res) await within(res, 2000, 'storm-report');
+    // The reel media endpoint (posters, MP4s by key): not on the allowlist.
+    const res = dispatchFetch(sw, '/api/social-media?k=abc');
+    if (res) await within(res, 2000, 'social-media');
     await tick();
     ok('a non-allowlisted same-origin /api/ GET is left to the browser (no respondWith)', res === null);
-    ok('...and is stored in no cache', cachedAnywhere(sw, '/api/storm-report?lat=39.1&lon=-84.5').length === 0, cachedAnywhere(sw, '/api/storm-report?lat=39.1&lon=-84.5').join(','));
+    ok('...and is stored in no cache', cachedAnywhere(sw, '/api/social-media?k=abc').length === 0, cachedAnywhere(sw, '/api/social-media?k=abc').join(','));
+  }
+  {
+    // The D2D storm layer stays available offline (2026-11-17 review), capped.
+    let online = true;
+    const sw = boot({ fetch: async () => { if (!online) throw new TypeError('Failed to fetch'); return new Response('{"storms":[1]}', { status: 200, headers: { 'Content-Type': 'application/json' } }); } });
+    for (let i = 0; i < 65; i++) { await within(dispatchFetch(sw, '/api/storm-report?lat=39.' + i + '&lon=-84.5'), 2000, 'storm' + i); await tick(); }
+    online = false;
+    const last = await within(dispatchFetch(sw, '/api/storm-report?lat=39.64&lon=-84.5'), 2000, 'storm-offline');
+    ok('offline, the last-seen storm reports for that area are served from the SW cache', last.status === 200 && (await last.text()) === '{"storms":[1]}');
+    const apiCache = sw.caches.store.get('nbd-api-v2');
+    const n = apiCache && apiCache.size != null ? apiCache.size : (apiCache && apiCache.entries ? apiCache.entries.size : -1);
+    ok('...and the API cache is capped (65 areas loaded, at most 60 kept)', n > 0 && n <= 60, n);
   }
   {
     const sw = boot();

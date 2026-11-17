@@ -107,9 +107,15 @@ function isAuthGatedHTML(url) {
 // The only same-origin /api/ GETs this worker keeps for offline use: small,
 // public, the same for every visitor. Anything else under /api/ (per-user,
 // token-bound, large or streamed) is left to the browser and stored nowhere.
+// /api/storm-report (the D2D map's storm layer: public NOAA reports by
+// lat/lon, a new key per area) is kept too, so a rep who loses signal still
+// sees the storms last loaded there (2026-11-17 review). Every lat/lon is its
+// own entry, so the cache is capped at MAX_API_ENTRIES, oldest dropped first.
 const CACHEABLE_API_PATHS = new Set([
   '/api/google-reviews',
+  '/api/storm-report',
 ]);
+const MAX_API_ENTRIES = 60;
 
 // ─────────────────────────────────────────────────────────
 // INSTALL: Precache app shell
@@ -591,7 +597,10 @@ async function handleAPIRequest(request) {
     const response = await fetch(request);
     if (isStorableAPIResponse(response)) {
       const copy = response.clone();
-      Promise.resolve().then(() => cache.put(request, copy)).catch(() => { /* quota: keep serving */ });
+      Promise.resolve().then(() => cache.put(request, copy))
+        .then(() => cache.keys())
+        .then((keys) => Promise.all(keys.slice(0, Math.max(0, keys.length - MAX_API_ENTRIES)).map((k) => cache.delete(k))))
+        .catch(() => { /* quota: keep serving */ });
     }
     return response;
   } catch (err) {
