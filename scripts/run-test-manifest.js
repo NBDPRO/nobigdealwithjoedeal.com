@@ -484,7 +484,8 @@ const RUNNABLE = ['node', 'smoke'];
 //               price-ledger-server-2026-11, price-fixture-privacy) and one wired-individually (firestore-rules.price-ledger).
 //               The floor was already stale by 7 node / 7 disk on main before this PR. MEASURED via --check.
 //   2026-11-17  1127/74/1281 -> 1129/74/1283 after merging main (#3127 added two node suites). MEASURED via --check.
-const FLOORS = { node: 1132, smoke: 74, disk: 1286 };
+//   2026-11-17  1132/74/1286 -> 1134/74/1288, the sweep follow-ups that merged since (#3128-#3138 suites). MEASURED via --check.
+const FLOORS = { node: 1134, smoke: 74, disk: 1288 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
@@ -769,7 +770,13 @@ const queue = buckets[RUN_BUCKET];
 if (!queue.length) die('RUNNER ERROR: bucket "' + RUN_BUCKET + '" is empty — refusing to report success over zero suites.');
 
 const PER_SUITE_TIMEOUT_MS = 60000;    // slowest measured suite is 18.7s
-const BUCKET_BUDGET_MS = 8 * 60000;    // job cap is 10 min; fail with a report, not a kill
+// CI: the job cap is 10 min, so fail with a report at 8, not a kill. A local
+// run has no job cap, and a Windows machine spawns ~1,100 node processes much
+// slower than CI (2026-11-17: 762 of 1,050 suites in 8 min, none hanging), so
+// it gets 40 min. NBD_TEST_BUDGET_MIN overrides either.
+const BUCKET_BUDGET_MS = (Number(process.env.NBD_TEST_BUDGET_MIN) > 0
+  ? Number(process.env.NBD_TEST_BUDGET_MIN)
+  : (process.env.GITHUB_ACTIONS ? 8 : 40)) * 60000;
 const MAX_BUFFER = 32 * 1024 * 1024;   // default 1 MiB turns a chatty PASS into ENOBUFS
 
 const gh = !!process.env.GITHUB_ACTIONS;
@@ -842,5 +849,5 @@ if (gh) {
 
 console.log('\n' + (results.length - failures.length) + '/' + results.length + ' ' + RUN_BUCKET
   + ' suites passed (' + ((Date.now() - started) / 1000).toFixed(1) + 's)');
-if (budgetExhausted) die('RUNNER ERROR: wall-clock budget (' + (BUCKET_BUDGET_MS / 1000) + 's) exhausted after ' + results.length + '/' + queue.length + ' suites — a suite is hanging.');
+if (budgetExhausted) die('RUNNER ERROR: wall-clock budget (' + (BUCKET_BUDGET_MS / 1000) + 's) exhausted after ' + results.length + '/' + queue.length + ' suites — a suite may be hanging, or this machine is slow (raise NBD_TEST_BUDGET_MIN).');
 if (failures.length) die('FAILED: ' + failures.map((r) => r.f).join(', '));

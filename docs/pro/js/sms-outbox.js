@@ -72,6 +72,8 @@
  * written there is one revived code path away from being sent by a service
  * worker with no opt-out check, no idempotency and no hold logic. So: DB
  * `nbd-sms-outbox-db`, store `outbox`, keyed by the client message id.
+ * (2026-11-17: that never-running replay was removed from sw.js, #3138. The
+ * separate store stays, so a revived replay could never reach a text.)
  *
  * ── PII on the device ────────────────────────────────────────────────────
  * A record holds the recipient's phone number and the message until it is

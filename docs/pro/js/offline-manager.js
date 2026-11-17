@@ -543,14 +543,9 @@
       } else {
         showUpdateNotification();
       }
-    } else if (msg.type === 'OFFLINE_SYNC_COMPLETE') {
-      if (msg.synced > 0) {
-        showOfflineToast(
-          `Synced ${msg.synced} offline ${msg.synced === 1 ? 'item' : 'items'}`,
-          'success'
-        );
-      }
     }
+    // OFFLINE_SYNC_COMPLETE is gone (2026-11-17): only sw.js's background-sync
+    // replay posted it, that replay never ran and was removed (#3138).
   }
 
   // Bug fix 2026-05-05: per-page-load reload guard, replaces the
