@@ -3738,8 +3738,25 @@
       Labor: <strong>$${Math.round(estimate.laborCost).toLocaleString()}</strong><br>
       OH+Profit: <strong>$${Math.round(estimate.overhead + estimate.profit).toLocaleString()}</strong>
       ${taxDisplay}
-      <br><span style="color:var(--green,#065f46);">Margin: <strong>${estimate.internal.marginPct.toFixed(1)}%</strong> ($${Math.round(estimate.internal.margin).toLocaleString()})</span>
+      <br>${_marginLineHtml(estimate)}
     `;
+  }
+
+  // The rollup's margin line (2026-11-17). Margin is measured BEFORE sales tax
+  // on the price the customer pays (js/margin-floor.js): tax is money passed
+  // through, and counting it read a few points high. A job with an uncosted
+  // line says so instead of showing a margin. The band shows only when the
+  // company has set a floor; with none set there is just the figure.
+  function _marginLineHtml(estimate) {
+    const MF = window.NBDMarginFloor;
+    if (!MF) {
+      const i = (estimate && estimate.internal) || {};
+      return (typeof i.marginPct === 'number' && Number.isFinite(i.marginPct))
+        ? 'Margin: <strong>' + i.marginPct.toFixed(1) + '%</strong>' : 'Margin: <strong>—</strong>';
+    }
+    const v = MF.view(estimate);
+    if (!v.known) return 'Margin: <strong>unknown</strong> (a line has no cost) ' + MF.badgeHtml(v);
+    return 'Margin before tax: <strong>' + v.marginPct.toFixed(1) + '%</strong> ($' + Math.round(v.marginCents / 100).toLocaleString() + ') ' + MF.badgeHtml(v);
   }
 
   function render() {
@@ -6647,6 +6664,7 @@
       rehydrateFromSaved: rehydrateFromSaved,
       effectiveEstimate: effectiveEstimate,
       applyNote: applyNote,   // tests/estimate-reopen-min-job-2026-11-14.test.js
+      marginLineHtml: _marginLineHtml,   // tests/margin-floor-display-2026-11-17.test.js
       collectDraft: collectDraft,
       getState: () => state,
       // Display helpers. Pure, and the two that decide whether the scope

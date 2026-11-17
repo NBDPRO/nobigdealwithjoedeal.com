@@ -130,5 +130,81 @@
     };
   }
 
-  window.NBDMarginFloor = { sanitizeSettings, marginOf, priceForFloorCents, check, band, BAND_TEXT, BAND_CLASS, canFinalizeUnder, confirmNote };
+  const toCents = (v) => { const n = Number(v); return Number.isFinite(n) ? Math.round(n * 100) : null; };
+
+  /**
+   * One estimate, as any of the builders hands it over or saves it, to the four
+   * things the check needs. Dollars in, integer cents out.
+   *   price  total (or grandTotal) MINUS tax (or taxAmount). On every path the
+   *          minimum charge and a discount are already inside the total, and tax
+   *          is never recomputed after them, so total - tax is the pre-tax price
+   *          the customer pays.
+   *   cost   hardCost, else internal.hardCost, else materialCost + laborCost,
+   *          else the classic estimator's single costBasis.
+   *   known  only when there is a cost above 0, no line is uncosted
+   *          (costUnsetCount) and the builder did not itself say "no cost basis"
+   *          (internal.marginPct === null).
+   */
+  function jobFromEstimate(est) {
+    const e = (est && typeof est === 'object') ? est : {};
+    const total = toCents(e.total != null ? e.total : e.grandTotal);
+    const tax = toCents(e.tax != null ? e.tax : (e.taxAmount != null ? e.taxAmount : 0));
+    const internal = (e.internal && typeof e.internal === 'object') ? e.internal : null;
+    let cost = null;
+    if (e.hardCost != null) cost = toCents(e.hardCost);
+    else if (internal && internal.hardCost != null) cost = toCents(internal.hardCost);
+    else if (e.materialCost != null || e.laborCost != null) cost = toCents((Number(e.materialCost) || 0) + (Number(e.laborCost) || 0));
+    else if (e.costBasis != null) cost = toCents(e.costBasis);
+    const uncosted = Number(e.costUnsetCount) > 0 || (internal !== null && internal.marginPct === null);
+    return {
+      mode: e.mode === 'insurance' ? 'insurance' : 'cash',
+      preTaxCents: (total === null || tax === null) ? null : total - tax,
+      costCents: cost,
+      costKnown: cost !== null && cost > 0 && !uncosted,
+    };
+  }
+
+  /** The signed-in company's floor and target, or off. Read at call time: the profile can land late. */
+  function settingsNow() {
+    const p = window._companyProfile;
+    return sanitizeSettings(p && p.pricing && p.pricing.marginFloor);
+  }
+
+  /**
+   * Everything a screen needs to show one estimate's margin: the tax-free margin
+   * (shown whether or not a floor is set), the check and the band.
+   */
+  function view(est, settings) {
+    const s = settings === undefined ? settingsNow() : ((settings && settings.on === true) ? settings : sanitizeSettings(settings));
+    const job = jobFromEstimate(est);
+    const m = marginOf(job);
+    const c = check(Object.assign({}, job, { settings: s }));
+    const b = c.state === 'exempt' ? 'plain' : band(m.pct, s);
+    return { known: m.known, marginPct: m.pct, marginCents: m.marginCents, preTaxCents: job.preTaxCents, mode: job.mode, state: c.state, check: c, band: b, cls: BAND_CLASS[b], text: BAND_TEXT[b] };
+  }
+
+  /** The band as a shared badge. The text is fixed (BAND_TEXT), so nothing here needs escaping. */
+  function badgeHtml(v) {
+    return (v && v.cls) ? '<span class="ui-badge ' + v.cls + '">' + v.text + '</span>' : '';
+  }
+
+  /**
+   * owner, company_admin, admin, manager, sales_rep, … for the signed-in person.
+   * A solo owner carries no role claim (the company is their uid), so a role
+   * string alone would read them as nobody.
+   */
+  function callerRole() {
+    const c = window._userClaims || {};
+    const uid = (window._user && window._user.uid) || null;
+    const r = String(c.role || '').toLowerCase();
+    if (c.admin === true || r === 'admin') return 'admin';
+    if (r) return r;
+    if (c.owner === true || !c.companyId || c.companyId === uid) return 'owner';
+    return '';
+  }
+
+  window.NBDMarginFloor = {
+    sanitizeSettings, marginOf, priceForFloorCents, check, band, BAND_TEXT, BAND_CLASS, canFinalizeUnder, confirmNote,
+    jobFromEstimate, settingsNow, view, badgeHtml, callerRole,
+  };
 })();

@@ -96,5 +96,41 @@ console.log('\nWho may go under, and the note');
   ok('a note with no person is refused', F.confirmNote({ role: 'owner', marginPct: 27, floorPct: 30, atMs: 1 }) === null);
 }
 
+console.log('\nAn estimate, as a builder hands it over');
+{
+  // Line-item / template shape: total includes tax; the engine's own marginPct counted tax as margin.
+  const li = { mode: 'cash', total: 10780, tax: 780, subtotal: 10000, materialCost: 4000, laborCost: 3000, hardCost: 7000, internal: { hardCost: 7000, margin: 3780, marginPct: 35.06 }, costUnsetCount: 0 };
+  const j = F.jobFromEstimate(li);
+  ok('the price is total minus tax, the cost is the hard cost', j.preTaxCents === 1000000 && j.costCents === 700000 && j.costKnown === true && j.mode === 'cash', j);
+  const v = F.view(li, NBD);
+  ok('the margin shown leaves sales tax out', v.known === true && v.marginPct === 30 && v.marginCents === 300000 && v.state === 'ok' && v.band === 'between' && v.cls === 'is-warn', v);
+  ok('a minimum charge or a discount already inside the total is what is measured', F.view({ mode: 'cash', total: 2500, tax: 0, subtotal: 600, hardCost: 400 }, NBD).marginPct === 84 && F.view({ mode: 'cash', total: 9702, tax: 702, subtotal: 9000, hardCost: 7000 }, NBD).state === 'under');
+  ok('an uncosted line makes the margin unknown, with no warning', F.view(Object.assign({}, li, { costUnsetCount: 2 }), NBD).state === 'unknown' && F.view(Object.assign({}, li, { costUnsetCount: 2 }), NBD).band === 'unknown' && F.view(Object.assign({}, li, { costUnsetCount: 2 }), NBD).marginPct === null);
+  ok('a builder that says it has no cost basis (marginPct null) is unknown, not a perfect margin', F.view({ mode: 'cash', total: 10000, tax: 0, internal: { hardCost: 0, margin: null, marginPct: null } }, NBD).state === 'unknown'
+    && F.view({ mode: 'cash', total: 10000, tax: 0, hardCost: 0 }, NBD).state === 'unknown');
+  ok('saved shape: grandTotal, taxAmount, materialCost + laborCost', F.jobFromEstimate({ mode: 'cash', grandTotal: 10780, taxAmount: 780, materialCost: 4000, laborCost: 3000 }).preTaxCents === 1000000 && F.jobFromEstimate({ grandTotal: 10780, taxAmount: 780, materialCost: 4000, laborCost: 3000 }).costCents === 700000);
+  ok('classic shape: one cost basis', F.view({ mode: 'cash', grandTotal: 10000, taxAmount: 0, costBasis: 6000 }, NBD).marginPct === 40 && F.view({ mode: 'cash', grandTotal: 10000, taxAmount: 0, costBasis: 6000 }, NBD).band === 'target');
+  const ins = F.view(Object.assign({}, li, { mode: 'insurance', total: 10000, tax: 0, hardCost: 9000 }), NBD);
+  ok('an insurance job shows its margin with no band and no warning', ins.state === 'exempt' && ins.band === 'plain' && ins.marginPct === 10 && F.badgeHtml(ins) === '', ins);
+  const off = F.view(li, null);
+  ok('with no floor set the margin still shows, tax-free, with no band', off.state === 'off' && off.band === 'plain' && off.marginPct === 30 && F.badgeHtml(off) === '', off);
+  ok('nothing usable gives unknown, never a throw', F.view(null, NBD).known === false && F.view({}, NBD).state === 'unknown' && F.view({ total: 'abc' }, NBD).known === false);
+  ok('the badge is a shared ui-badge with fixed words', F.badgeHtml(F.view(Object.assign({}, li, { hardCost: 8000 }), NBD)) === '<span class="ui-badge is-danger">Under your floor</span>' && F.badgeHtml(null) === '');
+}
+
+console.log('\nThe company setting and the signed-in person');
+{
+  ok('no company profile is off', F.settingsNow().on === false);
+  win._companyProfile = { pricing: { marginFloor: { floorPct: 30, targetPct: 35 } } };
+  ok('the floor is read from the company profile at call time', F.settingsNow().on === true && F.settingsNow().floorPct === 30 && F.view({ mode: 'cash', total: 10000, tax: 0, hardCost: 8000 }).state === 'under');
+  win._companyProfile = { pricing: {}, budgetDefaults: { marginFloorPct: 30 } };
+  ok('the expense budget\'s own floor is a different setting and does not switch this on', F.settingsNow().on === false);
+  const as = (claims, uid) => { win._userClaims = claims; win._user = uid ? { uid } : null; return F.callerRole(); };
+  ok('a solo owner has no role claim and is the owner', as({}, 'u1') === 'owner' && as({ companyId: 'u1' }, 'u1') === 'owner' && F.canFinalizeUnder(as({}, 'u1')) === true);
+  ok('a company admin, a platform admin and an owner claim are read', as({ companyId: 'co', role: 'company_admin' }, 'u2') === 'company_admin' && as({ admin: true }, 'u3') === 'admin' && as({ role: 'admin' }, 'u3') === 'admin' && as({ companyId: 'co', owner: true }, 'u4') === 'owner');
+  ok('a manager, a rep and a company member with no role may not go under', ['manager', 'sales_rep'].every((r) => F.canFinalizeUnder(as({ companyId: 'co', role: r }, 'u5')) === false) && as({ companyId: 'co' }, 'u6') === '' && F.canFinalizeUnder(as({ companyId: 'co' }, 'u6')) === false);
+  delete win._companyProfile; delete win._userClaims; delete win._user;
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }
