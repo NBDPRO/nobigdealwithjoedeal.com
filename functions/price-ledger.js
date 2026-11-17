@@ -67,6 +67,33 @@ const REASONS = {
   not_found: 'That was not found.',
 };
 
+async function priceLedgerSave(request) {
+  const caller = await priceCaller(request, 'admin', 'priceLedgerSave', 60);
+  const op = request.data && request.data.op;
+  if (typeof op !== 'string' || !Object.prototype.hasOwnProperty.call(Store.saveOps, op)) throw new HttpsError('invalid-argument', 'Unknown operation');
+  const data = (request.data && typeof request.data.data === 'object' && request.data.data) || {};
+  const out = await Store.saveOps[op](getFirestore(), caller.companyId, data, { uid: caller.uid, role: caller.role }, Date.now());
+  if (!out.ok) {
+    logger.info('[priceLedgerSave] refused', { op, reason: out.reason });
+    throw new HttpsError(out.reason === 'not_found' ? 'not-found' : 'invalid-argument', REASONS[out.reason] || 'That could not be saved.', { reason: out.reason });
+  }
+  logger.info('[priceLedgerSave] done', { op });
+  return { ok: true, id: out.id };
+}
+
+async function priceLedgerRecord(request) {
+  const caller = await priceCaller(request, 'staff', 'priceLedgerRecord', 20);
+  const rows = request.data && request.data.rows;
+  if (!Array.isArray(rows) || rows.length < 1 || rows.length > Store.MAX_ROWS_PER_CALL) throw new HttpsError('invalid-argument', 'Send 1 to ' + Store.MAX_ROWS_PER_CALL + ' rows');
+  const out = await Store.appendObservations(getFirestore(), caller.companyId, rows, {
+    origin: 'callable', channel: 'manual',
+    actor: { uid: caller.uid, role: caller.role, fn: 'priceLedgerRecord' },
+    nowMs: Date.now(),
+  });
+  logger.info('[priceLedgerRecord] done', { rows: rows.length, written: out.written, duplicates: out.duplicates, rejected: out.rejected, needsUnit: out.needsUnit });
+  return out;
+}
+
 /**
  * Who is calling, and for which tenant. `need` is 'admin' (owner, company_admin) or
  * 'staff' (those plus a manager). Returns { uid, companyId, role } where role is
@@ -107,33 +134,6 @@ async function priceCaller(request, need, name, perMinute) {
   }
   if (!L.flagOn(flagsDefault, flagsMine)) throw new HttpsError('failed-precondition', MESSAGES.feature_off);
   return caller;
-}
-
-async function priceLedgerSave(request) {
-  const caller = await priceCaller(request, 'admin', 'priceLedgerSave', 60);
-  const op = request.data && request.data.op;
-  if (typeof op !== 'string' || !Object.prototype.hasOwnProperty.call(Store.saveOps, op)) throw new HttpsError('invalid-argument', 'Unknown operation');
-  const data = (request.data && typeof request.data.data === 'object' && request.data.data) || {};
-  const out = await Store.saveOps[op](getFirestore(), caller.companyId, data, { uid: caller.uid, role: caller.role }, Date.now());
-  if (!out.ok) {
-    logger.info('[priceLedgerSave] refused', { op, reason: out.reason });
-    throw new HttpsError(out.reason === 'not_found' ? 'not-found' : 'invalid-argument', REASONS[out.reason] || 'That could not be saved.', { reason: out.reason });
-  }
-  logger.info('[priceLedgerSave] done', { op });
-  return { ok: true, id: out.id };
-}
-
-async function priceLedgerRecord(request) {
-  const caller = await priceCaller(request, 'staff', 'priceLedgerRecord', 20);
-  const rows = request.data && request.data.rows;
-  if (!Array.isArray(rows) || rows.length < 1 || rows.length > Store.MAX_ROWS_PER_CALL) throw new HttpsError('invalid-argument', 'Send 1 to ' + Store.MAX_ROWS_PER_CALL + ' rows');
-  const out = await Store.appendObservations(getFirestore(), caller.companyId, rows, {
-    origin: 'callable', channel: 'manual',
-    actor: { uid: caller.uid, role: caller.role, fn: 'priceLedgerRecord' },
-    nowMs: Date.now(),
-  });
-  logger.info('[priceLedgerRecord] done', { rows: rows.length, written: out.written, duplicates: out.duplicates, rejected: out.rejected, needsUnit: out.needsUnit });
-  return out;
 }
 
 const OPTS = { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true, timeoutSeconds: 60, memory: '256MiB' };
