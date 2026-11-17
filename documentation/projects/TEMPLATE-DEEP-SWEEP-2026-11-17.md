@@ -487,7 +487,7 @@ These are all fixed in the Oct 13 plan's drafts; none has shipped.
 
 ## Part 5. Per-template liability audit
 
-Three focused audits run in parallel; the first has landed. 5B (warranty, completion, billing) and 5C (inspection, insurance, marketing) will be appended as they finish.
+Three focused audits ran in parallel (5A, 5B, 5C). The earlier broad extraction agent was superseded by them. Findings are from reading the source; no renderer was run, so each should be reconfirmed in the app before a fix ships.
 
 ### 5A. Contract and proposal group (source read only; no renderer was run; findings the two earlier plans already record are not repeated)
 
@@ -539,4 +539,121 @@ Three focused audits run in parallel; the first has landed. 5B (warranty, comple
 
 **Priority within this group:** (1) e-sign PDF has no operative terms; (2) the contract lacks hidden-conditions, weather, access and attic clauses and has two conflicting cancel texts; (3) Scope of Work's "verify structural / per code" promises; (4) legal party name and signer on everything; (5) blank address or price printing on signed documents; (6) Work Authorization "or by calling"; (7) selection-sheet color variance.
 
-PLACEHOLDER-AUDIT
+### 5B. Warranty, completion and billing group (source read only; no renderer was run)
+
+**Credential line, all templates:** none prints "licensed". Badges come only from `affiliateRow()`: GAF Certified #1162011, TAMKO Pro Gold #181382, Locally Owned & Operated. The referral card, material delivery and lien waiver print no badge row. **Party name, all templates:** the printed name is "No Big Deal Home Solutions"; the LLC is never printed (Q35).
+
+**Warranty Certificate** (`document-generator-templates.js:543-717`; CRM wizard `warranty-cert.js:483-487`; server PDF `functions/print/templates/warranty.hbs`; Pledge text `estimate-config.js:246`)
+- Gaps: "Backed personally by Joe Deal" still ships in the server `.hbs`, `warranty-cert.js` and the signature caption (Q13 decided, not shipped). The Pledge, "for as long as you own the home, we'll come back and make it right", has no definition or limit and contradicts the 1/5/10/20-year labor terms. The client template has no exclusions at all; the server copy's list is short. No claim procedure, no paid-in-full condition, no "no other warranty" line, no manufacturer-registration language. "Workmanship" is defined two ways ("leak or failure" vs "labor-related defect"). Expiration counts from the issue date in one copy and the install date in another. The attic / ventilation exclusion is planned but not shipped. `[Homeowner Name]` / `[Property Address]` can print literally; tier silently defaults to "better"; install date silently falls back to the issue date; transfer wording has no process or conditions.
+- Fix: delete the personal-backing line from all three places; print WAR-2 exclusions, WAR-3 claim steps, the one-definition WAR-6 Pledge and the WAR-7 savings sentence on every copy; print the LLC d/b/a. Signable: the client cert has two bare signature lines and no `defaultSigners`, so it cannot be e-signed.
+
+**Certificate of Completion** (`:958-1032`)
+- Gaps: seven hard-coded `checked:true` items print on every certificate and the rep cannot edit them: "Ventilation system installed and verified", "Homeowner walkthrough and approval obtained", "Magnetic nail sweep of entire property completed". "Ventilation ... verified" is false when the homeowner declined vent work (Part 2). "Homeowner walkthrough ... obtained" is asserted before the homeowner signs. One signature "completed to my satisfaction" acts as a full release with no punch list and no 3-day window (PAY-4). "Your warranty coverage is now active" carries no paid-in-full condition. The completion date defaults to today. `inspectorName` is collected and never printed.
+- Fix: make each checklist item a rep-set box; add a punch-list block with a "no open items" check; add "items must be listed within 3 days or none are held back"; soften to "work listed above is complete except the items listed." Signable: yes.
+
+**Invoice** (`:1151-1310`)
+- Gaps: "Accounts past 30 days may be subject to a 1.5% monthly finance charge" is 18% a year, uses "finance charge" (Reg Z vocabulary), and appears only on the invoice, which Ohio cases say is unenforceable (Minster Farmers, Sal's Heating). It contradicts the decided 15-day / 8% terms. Payment tiles list Check, Zelle, "Credit Card - ask for secure link" and Financing; no cash, no wire, and no disclosure of the 3% credit-card fee, so the invoice and checkout page could disagree. No "contract controls" sentence, no dispute-notice language, no signed-price reference. Insurance invoices carry a claim number but not "the deductible is yours", and nothing handles the Kentucky no-card-fee rule. "Check payable to No Big Deal Home Solutions" is a d/b/a, not the LLC; a bank may refuse a check to a name the account does not carry.
+- Fix: replace the late line with "Late-payment terms are in your signed contract"; print the card-fee note; list methods from config; remove "finance charge".
+
+**Receipt** (`:1313-1432`)
+- Gaps: `paidInFull === true` prints the PAID IN FULL stamp with no contract total, so a partly paid job can be stamped paid. No surcharge line for the card fee. A cash receipt has no "received by" name or signature. `paymentMethod` is free text with no tie to the contract's allowed methods. "Date Paid" defaults to today. No statement of what the payment applies to.
+- Fix: require `contractTotal` before the stamp; add a surcharge line and a "received by" line for cash.
+
+**Payment Agreement** (`:2680-2790`)
+- Gaps: this is the only signed document carrying the 1.5% term, which contradicts the decided 8% simple. "A convenience fee may apply" is unquantified and applies to all cards; it is slated for removal (Q26). Method tiles omit cash, ACH and wire and list "Financing" as a payment method. "Work will not commence until the deposit payment has been received" is wrong on Kentucky insurance jobs, where nothing is due at signing (KRS 367.626(2)(a)). No right to pause, no attorney-fee term, no returned-payment term. "Supplemental to the primary project contract" has no precedence rule. Default dollar fields are '0.00', so a blank schedule can be signed. The dispute window runs from the due date (here) versus the invoice date (Part 3.2(f)).
+- Fix: replace its terms with the Part 3.2 Terms of Payment; hard-block send while totals do not reconcile.
+
+**Financing Options** (`:1748-1885`)
+- Gaps: four unconditional benefit claims - "No money down options available", "Fixed monthly payments - no surprises", "No prepayment penalties", "Quick and easy application process" - depend on the lender and applicant (CSPA / FTC deception risk). If a tenant sets `apr > 0` the template prints "X% APR | N payments", which can trigger Reg Z advertising rules (12 CFR 1026.24) without the full disclosure; NBD's default APR 0 ("set by your lender") is safe. `totalPrice` defaults to $10,000 and prints "Project Total $10,000", an invented figure. No statement that financing does not change the price, cancellation rights or lien terms, and no statement of any dealer fee. "We've partnered with" is an endorsement claim. Footer typo: "Xcel".
+- Fix: remove the four tiles or prefix "Depending on the lender and your approval:"; hide the Project Total box when no real total is passed; keep `apr` at 0 unless counsel supplies the full disclosure block.
+
+**Material Delivery Notice / Receipt** (`:1970-2040`; titled "Receipt" in the registry, "Notice" on the page)
+- Gaps: an invented default materials list prints when the rep passes none ("GAF Timberline HDZ ... 30 bundles - Color: Charcoal", ridge vent, ice and water shield), wrong for a TAMKO job. "[Delivery Date]" and "[Project Start Date]" print as literals. No allocation of risk for theft, weather or truck damage to the lawn or driveway. Titled a receipt but has no signature, "received by", or condition line. No special-order / non-returnable line, which is where Part 3.3(b) would be recorded. Reads as a firm schedule when start dates are estimates (SCH-1).
+- Fix: delete the default materials rows and show "materials list required"; add the storage-at-your-direction line (counsel to word); add a receipt signature box if the title stays "Receipt".
+
+**Lien Waiver** (`document-generator-library.js:186-262`; signer: NBD rep only)
+- Gaps: direction is correct (the contractor releases the owner). "...its independent subcontractors and material suppliers have been paid ... or will be paid from this payment" is an affirmative representation; if untrue it invites fraud-style claims and weakens "unconditional". "or will be paid" should not appear on an unconditional final waiver, which rests on payment already received. Amount and "work through" date print as blank lines when missing, so a signed blank waiver is a release with no limit. `[Owner Name]` and `[Property Address]` can print. No DRAFT marking on the printed document though the library tile is marked attorney-review. Signs as the d/b/a.
+- Fix: delete "or will be paid from this payment" on the unconditional versions; hard-block when the amount or through-date is empty; add a visible attorney-review watermark until cleared; use the LLC signature block.
+
+**Thank You Letter** (`:2621-2677`)
+- Gaps: "we stand behind every project we touch" and a free post-storm look "at no charge" are open-ended promises outside the contract and read as an extension of the Pledge. "Your workmanship warranty is now active" has no exclusions or claim step. Signs "Owner"; Jo signs as Manager. The review request is not gated and offers no reward (good); keep the referral line separate from the review line.
+- Fix: "your written warranty applies as shown on your certificate"; drop "no charge" or tie it to Roof Care Plan terms; change the title to Manager.
+
+**Referral Card** (`:1890-1965`; preflight default `literal:100`)
+- Gaps: three triggers for when $100 is owed: "completed" (card), "paid in full" (preflight), "closed" (CRM program). No Kentucky carve-out: the plan caps the reward at $100 for an insured homeowner on an insurance job, but `bonusAmount` is an editable field. "Earn rewards for every referral" can print beside "One bonus per referred job". No eligibility, limits, payment method, tax note or void-where-prohibited text. The referred homeowner is not told the referrer is paid. The `$250` literal flagged in the Oct 13 inventory was not found in current code.
+- Fix: one trigger ("paid in full"); cap at 100 on Kentucky insurance jobs; print program terms (Part 4 #13) and "cannot be combined with or used to reduce an insurance claim".
+
+**Testimonial Sheet** (`:2538-2618`)
+- Gaps: the invented fallback quotes are gone on this branch (the Oct 13 inventory lists them open on `main`; re-verify). The "Average Rating" and "Would Recommend N%" stats come from rep-typed entries, and `clampRating` defaults a missing rating to 5, so a 5.0 and 100% can be built from 1-3 hand-picked quotes (selective sample; FTC 16 CFR 255 and 465). "Real Reviews From Real Homeowners" is asserted with no source, date or consent check. Name, location and project are optional, so quotes cannot be verified. No filter against a quote saying "they handled my insurance claim". No material-connection disclosure.
+- Fix: remove the computed average and "Would Recommend"; require name, date, source URL and a consent checkbox per entry; print "Quotes shared with permission. Results vary."
+
+**Top five in this group:** (1) remove "Backed personally by Joe Deal" (`.hbs` + `warranty-cert.js`); (2) replace the 1.5% finance-charge text on the invoice and Payment Agreement with the 15-day / 8% terms; (3) remove the unconditional checklist on the Certificate of Completion; (4) remove the Material Delivery default materials list; (5) remove the Financing benefit tiles and the default $10,000 total.
+
+### 5C. Inspection, insurance and marketing group (source read only; no renderer was run)
+
+**Correction to section 4.3 above:** the Insurance Claim Guide no longer says "We handle the hard parts" or promises no rate increase; `document-generator-templates.js:2293-2365` now says "Your insurance company decides your claim" and "we cannot predict" rates. That item is stale. Attic, ventilation and moisture language is not entirely absent: the Storm Damage Checklist lists "Musty odor indicating moisture or mold" and "Damp insulation in the attic" as homeowner self-check items (:2092-2094), and the Before & After default work description prints "ventilation" (:1670, 1676). No attic or ventilation acknowledgment exists. Nothing in this group prints "licensed" or promises a free roof or deductible waiver; the only stretch credential is "Certified NBD Inspector / Damage Assessor".
+
+**Inspection Report (Homeowner)** (`document-generator.js:2952`)
+- Gaps: hard-coded "we recommend immediate attention to the roof and gutters to prevent further water damage" (:3070) prints on every report, even a clean roof. "Certified NBD Inspector" is an uncertified credential (only GAF Certified and TAMKO Pro Gold are allowed). `doc-preflight.js:924` pre-fills the required overall assessment with "shows signs of wear consistent with age. Several areas require attention", so it prints even if never reviewed. No scope-and-limits statement. Roof age, type and square footage print as fact; "Est. Cost" has no estimate caveat; inspector name defaults to "NBD Inspector"; no attic or moisture caveat, so the report implies the whole roof system was assessed.
+- Fix: delete the hard-coded sentence or tie it to a rep-checked "urgent" flag; relabel "Inspector"; add a fixed footer ("visual inspection only, not a warranty, structural opinion or coverage opinion"); remove the prefill; require a real inspector name.
+
+**Inspection Report (Insurance)** (`:3108`)
+- Gaps: heading "Damage Assessment & Cause"; prefilled required damage notes assert wind or impact damage the rep may never have seen (`doc-preflight.js:975`); the rep certifies "damages, measurements, and repair estimates ... are accurate" to an adjuster; "All repairs performed in accordance with ${codeCycle} ... Work complies with manufacturer specifications and NRCA guidelines" states future compliance as fact; the code default "2021 International Building Code / Kentucky Building Code" (`company-profile.js:170-171`) is wrong for Ohio jobs and arguably for Kentucky residential (KRC). No statement that NBD is not a public adjuster and does not determine coverage; no homeowner authorization to release the report; photos go to a third party with no privacy check; signer "Certified NBD Damage Assessor".
+- Fix: remove the prefill and the word "Cause" ("Observed Damage"); replace the certification with "These are my observations on this date; coverage and causation are decided by the insurer"; take the code reference from the property state and say "estimate is based on"; add a not-an-adjuster line and a homeowner "release to my insurer" signature; drop "Certified".
+
+**Roof Assessment Report** (`:1437`)
+- Gaps: "Why it matters" and "Address Now" invite cause and urgency opinions with no limits language; no scope line or disclaimer; inspector name optional so it can print unattributed; the report number `ASM-` plus a time remainder is not unique; `[Homeowner Name]` / `[Property Address]` can print; photos not screened.
+- Fix: fixed scope-and-limits footer; relabel the badge "Recommend soon"; require inspector name and date; block render on a bracket placeholder; use the CRM sequence for the number.
+
+**Storm History Report** (`:2167`)
+- Gaps: "5-Year Verified Storm History" overstates NWS spotter reports within a 30-mile radius; "Max Hail Size" is a 30-mile maximum and reads as property-specific; it can mislead if offered to an adjuster without tying it to the claimed date of loss. The "not an inspection ... does not determine whether damage occurred" caveat is present and good.
+- Fix: "Reported" for "Verified"; relabel "Largest reported hail within 30 miles"; add "Reports are not measurements at your address and do not establish a date of loss."
+
+**Before & After Report** (`:1662`)
+- Gaps: the default description (a specific GAF product, "ventilation, and gutters") prints when the rep leaves it blank and implies work or a ventilation scope that was not documented; "Add captions describing damage..." instruction text prints on customer paper; the homeowner signs an "Acknowledgment" of nothing; photos may show people, plates or interiors; `[Start Date]` can print; no "visible conditions on this date, not a warranty" line.
+- Fix: remove the default description; delete the instruction text; replace the signature with "I received these photos on [date]" or remove it; add the visible-conditions line.
+
+**Customer Report** (`:3358`)
+- Gaps: prints internal rep notes (with `createdBy`) and the activity timeline, including "Contact" entries, to the customer; "Damage type" and "Claim status" read as NBD conclusions; the stage name "Deductible Collected" and "Job value" printed beside a deductible expose pricing structure; the footer carries the proposal cancellation text, which may not match the contract path; the customer's email and phone print on a forwardable PDF.
+- Fix: drop Notes and Contact entries unless flagged "share with customer"; hide deductible and stage names on this view; remove the cancellation footer or tie it to the signed contract.
+
+**Supplement Request** (`document-generator-templates.js:721`)
+- Gaps: default justification asserts "additional damage was discovered ... restore the roof system to its pre-loss condition" even if none was found; documentation checkboxes ("Photographs of additional damage", "Revised scope of work", "Code compliance documentation") are pre-ticked whether or not the documents exist, a false representation to an insurer; submitting on the homeowner's behalf looks like claim representation under KRS 367.62x with no homeowner authorization and no "insurer decides" sentence; "NEW PROJECT TOTAL" prints the supplement alone when `originalApproved` is left at '0.00'; `[Claim #]`, `[Policy #]`, `[Date of Loss]` can print on a document sent to an adjuster.
+- Fix: rep-written justification only, no default; unticked rep-controlled checkboxes; "Provided at the homeowner's request; the homeowner decides what to submit" with a homeowner signature; block render on a blank original amount or placeholder.
+
+**Insurance Next Steps** (`document-generator-library.js:498-563`) - the best template in the group
+- Strengths: "NBD is a roofing contractor, not a public adjuster", "Pay your deductible. It is yours to pay, and we will never offer to pay, waive or rebate it", and the Kentucky block with the $100 limit.
+- Gaps: the Kentucky block shows only when jurisdiction resolves to Kentucky, so a mis-resolved job prints the wrong block; Ohio jobs get no equivalent (the missing Ohio acknowledgment); "What we found and recommend" is free text with no cause-neutral guard; no "we cannot promise your insurer will cover any part of this", date, author or signature.
+- Fix: add the no-coverage-promise line, the Ohio acknowledgment text, a sent-date and the rep's name; make the $100 wording match the contract.
+
+**Storm Damage Checklist** (`:2055`)
+- Gaps: mold and structural items appear as homeowner symptoms with no statement that NBD does not test for, identify or remove mold (Q4); `stormType` and `stormDate` print ("Hail Storm - date") with no source, reading as NBD asserting a storm event; "Found Damage? We Can Help." plus a post-event mailer or hanger is solicitation after an event; "always free, always no obligation" is a promise; the disclaimer is small grey 10px text at the bottom.
+- Fix: add to the mold row "Call a qualified specialist; NBD does not test for or remove mold"; drop storm type and date unless sourced; move and enlarge the disclaimer.
+
+**Insurance Claim Guide** (`:2280`)
+- Gaps: default notes "We will meet the adjuster on-site" are unconditional and contradict Step 4 ("after you have filed") and the Next Steps letter ("if you ask us to"); "Adjuster will contact you within 48-72 hours" and "30-60 days" are carrier promises with no source; Step 3 "document all damage ... comprehensive report" overstates; Step 6 "we handle scheduling, permits and coordination" reads close to claim handling; no not-a-public-adjuster statement here; no Kentucky five-day notice; "Prepared for your claim with {carrier}" implies a carrier relationship; the preflight (`doc-preflight.js:1631`) pre-fills the same default.
+- Fix: default to "If you ask us to, we can meet your adjuster after you file"; delete the hour and day counts or label them "typical, not guaranteed"; reuse the Next Steps not-a-public-adjuster paragraph.
+
+**Permit Application** (`document-generator.js:439`)
+- Gaps: registered but no renderer exists; it falls back to `renderGenericDoc`, a raw key-and-value dump with "Homeowner Signature" and "Contractor Signature" lines. It has no jurisdiction, permit number, contractor registration, valuation or owner-authorization wording, so the homeowner signs a blank page that looks official.
+- Fix: unregister it from the picker until a real form exists, or render only an "Owner authorization to pull permit" with the jurisdiction and registration number from the CRM. Do not state a license.
+
+**Company Introduction** (`:1545`)
+- Gaps: the hard-coded fallback service (:1561) "Storm Damage - Full insurance claim management from inspection to completion" contradicts the Kentucky rule and the softened profile wording, and prints when the profile services list is empty; "We handle everything from the first inspection to the final nail" reads as claim representation; "quick approval" promises a lender outcome; "5-Star" and "Exceptional" are unsourced; "Interior - Water damage repair" may not be offered and implies remediation; "We've Got You Covered" is an insurance double meaning on insured jobs; the empty Project Photos grid could show another customer's home without consent; neither the legal name nor the d/b/a note appears.
+- Fix: replace the fallback with the profile wording; delete "quick approval"; "We take care of the roofing work"; drop Interior unless offered; require photo consent before photos print.
+
+**`renderGenericDoc`** (`:3253`)
+- Gaps: it prints any string field in the document data (claim number, carrier, notes, rep names, lead sources), only skipping keys that are `_`-prefixed, `Id`-suffixed or named internal; every fallback type prints "Homeowner Signature" and "Contractor Signature" lines with no terms, so the document looks agreed to; the total prints without tax, deposit or disclaimer; raw camelCase keys become labels.
+- Fix: replace the dump with an explicit per-type allowlist and a "Template not available" page when no renderer exists; remove the signature block from the fallback.
+
+**Door Hanger** (`:2383`)
+- Gaps: "Our crew is working on a project nearby" prints every time, false when no job is active; "Insurance Claims - handled start to finish" is claim-handling language; "Storm damage repair - Insurance claims" in a canvass piece is storm-chaser solicitation, and Kentucky limits post-loss solicitation and inducements (KRS 367.62x; attorney to confirm the windows); "Warranty-Backed" has no scope; "at no cost to you" can be read as free repairs; no legal entity and no solicitor-permit compliance line (Ohio and Northern Kentucky municipalities often require one).
+- Fix: make the "working nearby" line conditional on a real nearby job address; remove the claims bullet and "Warranty-Backed" or define it; add "Inspection is free. Repairs are quoted separately."; print the legal name with the d/b/a and a canvasser permit checklist.
+
+**Neighborhood Mailer** (`:2459`)
+- Gaps: prints a past customer's street address on mass mail with no consent ("Your neighbor at ${projectAddress} trusted ... and so can you"), a privacy and endorsement risk; "5★ Customer Rating", "100% Satisfaction" and "0 Cost for Inspection" are fixed unsourced stats; the footer says "Lexington, KY & Surrounding Areas" though the service area is Greater Cincinnati and Northern Kentucky; "Earn rewards for every referral" is vague and ignores the $100 Kentucky insurance cap; the storm date is collected but not shown, so a "free storm damage inspection" CTA prints with no stated event; if the PDF is emailed, CAN-SPAM needs a postal address and an unsubscribe link, and `address` defaults to empty.
+- Fix: remove the neighbor address (or get written consent) and the unsourced stats; fix the footer to the profile service area; replace the referral line with the actual $100 program text and a Kentucky insurance carve-out; print the legal name, d/b/a and a mailing address.
+
+**Top fixes in this group:** (1) Insurance Inspection prefilled cause text and certification; (2) Supplement Request default text and pre-ticked boxes; (3) the Permit and Generic fallback; (4) the mailer's neighbor address and Lexington footer; (5) Company Intro fallback "Full insurance claim management".
+
+
