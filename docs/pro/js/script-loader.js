@@ -221,10 +221,10 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=24',
-      'js/document-generator-templates.js?v=19',
+      'js/document-generator.js?v=25',
+      'js/document-generator-templates.js?v=20',
       'js/document-generator-library.js?v=5', // 2026-10-04 template library; needs -templates' _tpl
-      'js/doc-preflight.js?v=16',
+      'js/doc-preflight.js?v=17',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
@@ -403,7 +403,7 @@
     ],
     // Warranty cert wizard — opened from the Docs view only.
     warranty: [
-      'js/warranty-cert.js?v=10'
+      'js/warranty-cert.js?v=11'
     ],
     // Theme engine cluster (2026-08-07). The 189-theme engine (162 KB) + its
     // four cosmetic companions were eager on every boot; they are a Settings/
