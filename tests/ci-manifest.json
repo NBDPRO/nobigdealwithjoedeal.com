@@ -260,6 +260,7 @@
     "views-p3d-2026-11-06.test.js",
     "photo-queue-loss-witness.test.js",
     "customer-stage-advance.test.js",
+    "sweep-lows-crm-2026-11-17.test.js",
     "customer-custom-stage-role-2026-11-17.test.js",
     "customer-invoice-markpaid.test.js",
     "esign-autodetect.test.js",
