@@ -1066,6 +1066,21 @@
               source: 'literal:', persist: PERSIST.DOCUMENT,
               placeholder: 'Why are these items needed? Reference code, manufacturer spec, photos, etc.' }
           ]
+        },
+        {
+          id: 'docs', title: 'Supporting Documentation Included', collapsed: false,
+          fields: [
+            { key: 'docPhotos', label: 'Photographs of additional damage', type: 'checkbox', checkboxLabel: 'Attached',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'docRevisedScope', label: 'Revised scope of work', type: 'checkbox', checkboxLabel: 'Attached',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'docManufacturerSpecs', label: 'Manufacturer specifications', type: 'checkbox', checkboxLabel: 'Attached',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'docCodeCompliance', label: 'Code compliance documentation', type: 'checkbox', checkboxLabel: 'Attached',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'docThirdParty', label: 'Third-party assessment', type: 'checkbox', checkboxLabel: 'Attached',
+              source: 'literal:', persist: PERSIST.DOCUMENT }
+          ]
         }
       ]
     },
@@ -1112,6 +1127,25 @@
             { key: 'qualitySignoff', label: 'Quality Sign-off Note', type: 'textarea', rows: 2,
               source: 'literal:Work completed to specification. Final walkthrough passed.',
               persist: PERSIST.DOCUMENT }
+          ]
+        },
+        {
+          id: 'checklist', title: 'Completion Checklist', collapsed: false,
+          fields: [
+            { key: 'chkMaterials', label: 'All materials installed per manufacturer specifications', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkFlashing', label: 'Flashing and waterproofing completed at all penetrations', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkVentilation', label: 'Ventilation system installed and verified', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkCleanup', label: 'Property cleaned and all debris removed', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkNailSweep', label: 'Magnetic nail sweep of entire property completed', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkQualityInspection', label: 'Final quality inspection completed by crew lead', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkWalkthrough', label: 'Homeowner walkthrough and approval obtained', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT }
           ]
         },
         {
