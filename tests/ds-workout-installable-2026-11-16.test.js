@@ -19,6 +19,9 @@
  *   8. Signing in from either app comes back to it: the links carry a NAME (?redirect=workout), and the login page looks it up in a
  *      fixed list (docs/pro/js/login-return.js). Anything else, a URL included, is ignored.
  *
+ *   9. The Workout app asks "Workout done. Tick the floor?" at Finish and stores the answer on the workout (it has no floors or day
+ *      pages of its own); Daily Success applies it (tests/coach-exercise-log-copy-2026-11-17.test.js).
+ *
  * Structure and behaviour, not file text (tests/lib/src-kit.js): tags and attributes, CSS declarations, the scripts run in a vm.
  *
  * Run: node tests/ds-workout-installable-2026-11-16.test.js
@@ -257,6 +260,72 @@ console.log('\n8. Signing in comes back to the app');
   const mod = kit.read('docs/pro/js/pages/login.js');
   const pricingAt = mod.indexOf("params.get('redirect') === 'pricing'"), useAt = mod.indexOf('window.NBDLoginReturn.dest(window.location.search)');
   ok('the sign-in module asks it, after the pricing return and before the dashboard fallback', pricingAt > -1 && useAt > pricingAt && useAt < mod.indexOf("return '/pro/dashboard.html'"));
+}
+
+console.log('\n9. The Workout app asks about the floor at Finish');
+{
+  ok('the floor rules load before the app screen, at the Daily Success version', at('floor-tick-logic.js') > -1 && at('floor-tick-logic.js') < at('workout-app.js') && dScripts.has(wSrcs[at('floor-tick-logic.js')]));
+  const mkEl = (tag) => ({ tag, id: '', className: '', hidden: false, textContent: '', children: [], dataset: {}, attrs: {},
+    setAttribute(k, v) { this.attrs[k] = String(v); },
+    appendChild(c) { this.children.push(c); return c; } });
+  // textContent = '' empties an element, as in a browser
+  const el = (tag) => { const e = mkEl(tag); let text = ''; Object.defineProperty(e, 'textContent', { get: () => text, set: (v) => { text = String(v); if (v === '') e.children.length = 0; } }); return e; };
+  function app(o) {
+    o = o || {};
+    const byId = {}, winL = {}, docL = {}, timers = [], answers = [], errs = [];
+    const body = el('body');
+    body.appendChild = (c) => { body.children.push(c); if (c.id) byId[c.id] = c; return c; };
+    const doc = { readyState: 'loading', visibilityState: 'visible', body, createElement: el, getElementById: (id) => byId[id] || null,
+      addEventListener: (n, f) => { (docL[n] = docL[n] || []).push(f); } };
+    const win = { addEventListener: (n, f) => { (winL[n] = winL[n] || []).push(f); }, toastErr: (m) => errs.push(m),
+      NBDCoachUI: { refresh: () => {}, answerFloor: (id, ans) => { answers.push(id + ':' + ans); return !o.saveFails; } } };
+    const store = o.config ? { nbd_user_config: JSON.stringify(o.config) } : {};
+    kit.loadInVm(['docs/pro/daily-success/js/floor-tick-logic.js', 'docs/pro/workout/js/workout-app.js'], { window: win, document: doc, navigator: { onLine: true },
+      localStorage: { getItem: (k) => (k in store ? store[k] : null) }, setTimeout: (f, ms) => { timers.push({ f, ms }); return timers.length; }, clearTimeout: () => {} });
+    const chip = () => byId.waTick || null;
+    return { win, answers, errs, timers, chip,
+      did: (detail) => winL['nbd-ds-did'].forEach((f) => f({ detail })),
+      tap: (action) => docL.click.forEach((f) => f({ target: { closest: (sel) => (sel === '[data-wa-action]' ? { dataset: { waAction: action } } : null) } })),
+      shown: () => !!chip() && chip().hidden === false,
+      buttons: () => (chip() ? chip().children.filter((c) => c.tag === 'button').map((c) => c.dataset.waAction) : []) };
+  }
+  const a = app();
+  a.did({ kind: 'workout', dk: '2026-11-17', id: 'w1' });
+  ok('Finish raises the question, with Tick it and Not now', a.shown() && a.buttons().join() === 'tick-yes,tick-no' && a.chip().attrs.role === 'status', a.buttons().join());
+  ok('nothing is stored until a button is tapped', a.answers.length === 0);
+  a.tap('tick-yes');
+  ok('Tick it stores yes on that workout', a.answers.join() === 'w1:yes');
+  ok('and says Daily Success will tick it, with an Undo', a.shown() && a.buttons().join() === 'tick-no');
+  a.tap('tick-no');
+  ok('Undo stores no and closes the prompt', a.answers.join() === 'w1:yes,w1:no' && !a.shown());
+  a.tap('tick-yes');
+  ok('a tap with no question open stores nothing', a.answers.length === 2);
+
+  const b = app();
+  b.did({ kind: 'workout', dk: '2026-11-17', id: 'w2' });
+  b.tap('tick-no');
+  ok('Not now stores no and closes the prompt', b.answers.join() === 'w2:no' && !b.shown());
+
+  const c = app();
+  c.did({ kind: 'workout', dk: '2026-11-17', id: 'w3' });
+  const idle = c.timers[c.timers.length - 1];
+  idle.f();
+  ok('left unanswered it closes by itself and stores nothing (Daily Success asks later)', idle.ms >= 10000 && !c.shown() && c.answers.length === 0);
+
+  const quiet = (detail, o) => { const x = app(o); x.did(detail); return !x.shown() && x.answers.length === 0; };
+  ok('an event that names no workout, or is about something else, asks nothing', quiet({ kind: 'workout', dk: '2026-11-17' }) && quiet({ kind: 'protein', dk: '2026-11-17', id: 'w1' }) && quiet(null));
+  ok('Jo\'s own floors with none a workout ticks: not asked', quiet({ kind: 'workout', id: 'w1' }, { config: { floors: [{ id: 'a', label: 'Read 10 pages' }, { id: 'b', label: 'Sleep 7+ hrs' }] } }));
+  const custom = app({ config: { floors: [{ id: 'a', label: 'Lift weights' }] } });
+  custom.did({ kind: 'workout', id: 'w1' });
+  ok('a custom workout floor is found by its words, as in Daily Success', custom.shown());
+  const noFloors = app({ config: { floors: [] } });
+  noFloors.did({ kind: 'workout', id: 'w1' });
+  ok('no floors of his own: the default set has a workout floor, so it asks', noFloors.shown());
+
+  const full = app({ saveFails: true });
+  full.did({ kind: 'workout', id: 'w4' });
+  full.tap('tick-yes');
+  ok('an answer the phone could not store says so and does not claim it will be ticked', full.errs.length === 1 && !full.shown());
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

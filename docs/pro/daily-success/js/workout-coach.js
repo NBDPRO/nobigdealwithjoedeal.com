@@ -239,7 +239,7 @@
     const orig = window.buildFitnessSection;
     if (typeof orig !== 'function' || orig.__coach) return false;
     // A day page with a workout waiting for its Exercise Log (finished in the Workout app or on another device): copied in right after this draw.
-    const wrapped = function (p) { if (p && !p.name && pendingFor(p.dk).length) setTimeout(logPending, 0); return cardHtml() + orig.apply(this, arguments); };
+    const wrapped = function (p) { if (p && !p.name && waiting(p.dk)) setTimeout(catchUp, 0); return cardHtml() + orig.apply(this, arguments); };
     wrapped.__coach = true;
     window.buildFitnessSection = wrapped;
     return true;
@@ -828,7 +828,7 @@
     };
     live = null; persistLive(); stopRest(); swapOpen = -1; armed = '';
     // Flow batch 3 (D3): tell the page a workout is done, so it can ASK whether to tick the floor (floor-tick-ui.js; it never ticks by itself).
-    try { window.dispatchEvent(new CustomEvent('nbd-ds-did', { detail: { kind: 'workout', dk: session.date } })); } catch (_) { /* the summary still shows */ }
+    try { window.dispatchEvent(new CustomEvent('nbd-ds-did', { detail: { kind: 'workout', dk: session.date, id: session.id } })); } catch (_) { /* the summary still shows */ }
     render();
   }
 
@@ -851,9 +851,9 @@
   // when that day's own page is on screen, then marks the session so no screen and no other device copies it twice.
   const pendingFor = (dk) => sessions().filter((s) => s && s.inLog === false && !s.deleted && s.date === dk).sort((a, b) => (Number(a.finishedAt) || 0) - (Number(b.finishedAt) || 0));
   // Marks sessions as in the log (a newer mt, so the mark wins every merge). Returns { was, changed }, or null when the phone refused the write.
-  function setInLog(ids) {
+  function setInLog(ids, patch) {
     const want = new Set(ids.map(String)), now = Date.now(), was = sessions(), changed = [];
-    const all = was.map((s) => { if (!s || !want.has(String(s.id))) return s; const n = Object.assign({}, s, { inLog: true, mt: Math.max(now, (Number(s.mt) || 0) + 1) }); changed.push(n); return n; });
+    const all = was.map((s) => { if (!s || !want.has(String(s.id))) return s; const n = Object.assign({}, s, patch || { inLog: true }, { mt: Math.max(now, (Number(s.mt) || 0) + 1) }); changed.push(n); return n; });
     if (!changed.length || !writeJson(SESS, all)) return null;
     return { was, changed };
   }
@@ -888,10 +888,44 @@
       if (typeof window.renderPage === 'function') window.renderPage();
       // The workout was finished where nothing could ask (the Workout app has no floors or day pages): ask now, the same question Finish
       // raises here (floor-tick-ui.js). It still only asks: an already-met floor, or a Not now for this day, shows nothing.
-      try { window.dispatchEvent(new CustomEvent('nbd-ds-did', { detail: { kind: 'workout', dk: onScreen.dk } })); } catch (_) { /* the rows are in either way */ }
+      // Already answered where it was finished (the Workout app asks at Finish, s.tick): not asked twice. A yes is applied by applyFloorAnswers().
+      if (pend.some((s) => !s.tick)) { try { window.dispatchEvent(new CustomEvent('nbd-ds-did', { detail: { kind: 'workout', dk: onScreen.dk } })); } catch (_) { /* the rows are in either way */ } }
       return true;
     } catch (_) { return false; }
   }
+  // ── "Tick the floor?" answered where the workout was finished (2026-11-17) ──
+  // The Workout app has no floors and no day pages, so it cannot tick anything. It asks the question at Finish and stores the answer on
+  // the session: tick 'yes' | 'no'. Daily Success applies a yes (floor-tick-ui.js tickFor: no second question, the usual Undo chip) and
+  // then sets tick 'done'; a no is simply never asked again. No answer at all: Daily Success asks when the workout is copied in.
+  function answerFloor(id, ans) {
+    if (ans !== 'yes' && ans !== 'no') return false;
+    const marked = setInLog([id], { tick: ans });
+    if (!marked) return false;
+    pushSessions(marked.changed);
+    return true;
+  }
+  function applyFloorAnswers() {
+    try {
+      const T = window.NBDFloorTickUI;
+      if (!T || typeof T.tickFor !== 'function') return false;   // not the Daily Success page
+      const want = sessions().filter((s) => s && s.tick === 'yes' && !s.deleted);
+      if (!want.length) return false;
+      const byDay = {}, done = [];
+      want.forEach((s) => {
+        if (!(s.date in byDay)) byDay[s.date] = T.tickFor('workout', s.date);
+        // 'ticked' now, or 'met' (already ticked, or no floor a workout ticks): settled. No page for that day yet, or a refused save: tried again later.
+        if (byDay[s.date] === 'ticked' || byDay[s.date] === 'met') done.push(s.id);
+      });
+      if (!done.length) return false;
+      const marked = setInLog(done, { tick: 'done' });
+      if (marked) pushSessions(marked.changed);
+      return true;
+    } catch (_) { return false; }
+  }
+  // Everything Daily Success owes a workout finished elsewhere: its rows, then its answered floor.
+  function catchUp() { logPending(); applyFloorAnswers(); }
+  const waiting = (dk) => sessions().some((s) => s && !s.deleted && s.date === dk && (s.inLog === false || s.tick === 'yes'));
+
   // The day page's Exercise Log (app.js addExercise/collectPage) — only when
   // the page on screen is today's, so a workout never lands on another day.
   function writeToPage(session) {
@@ -1148,8 +1182,10 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') logPending(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') catchUp(); });
+  // Daily Success opens on the Dashboard, where no day page is drawn: an answered floor is applied from there too (it is set by date).
+  if (typeof window.addEventListener === 'function') window.addEventListener('load', () => setTimeout(catchUp, 0));
 
   // refresh() is what ds-firebase-sync.js calls after it merges the cloud's workouts: the card, then any workout that came in for the day on screen.
-  window.NBDCoachUI = { refresh: () => { refreshCard(); logPending(); }, open: openOrStart, close, start, _render: render, _logPending: logPending };
+  window.NBDCoachUI = { refresh: () => { refreshCard(); catchUp(); }, open: openOrStart, close, start, answerFloor, _render: render, _logPending: logPending, _applyFloorAnswers: applyFloorAnswers };
 })();

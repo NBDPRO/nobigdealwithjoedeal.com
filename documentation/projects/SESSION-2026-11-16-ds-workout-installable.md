@@ -79,7 +79,20 @@ version of this suite had 22). The suite was rewritten to ask structural questio
    `setFloorByDk` live in the tracker, and the tracker stays the only writer of day pages. Still ask-first (Jo's decision 3): a floor already
    met, or a Not now for that day, shows nothing. `workout-coach.js` is at `?v=31`. Checked in headless Chromium with a session seeded as the
    Workout app leaves it: lifts copied, prompt shown, Tick it met the floor, nothing doubled after a reload.
-   Not built: asking the question inside the Workout app itself and carrying the answer over.
+   **Asked inside the Workout app (same day, Jo: "Yes, ask in Workout"):** Finish now names the workout in its event (`id`), and
+   `workout-app.js` shows "Workout done. Tick the floor?" over the summary. The answer is stored on the session by
+   `NBDCoachUI.answerFloor(id, 'yes' | 'no')` (`tick`, newer `mt`, pushed); nothing is ticked on that screen. Daily Success applies a yes
+   with `NBDFloorTickUI.tickFor('workout', dk)` (new in `floor-tick-ui.js`: no second question, the usual Ticked / Undo chip), once per
+   day, then sets `tick: 'done'`. It does this from the Dashboard too (on load, after a sync, on return to the app), since a floor is set
+   by date. A no is never asked again; no answer at all means Daily Success asks when it copies the workout in. An answer waits while
+   that day has no page yet or the save is refused. The Workout app only asks when there is a floor a workout ticks (Jo's own floors
+   from `nbd_user_config`, else the default set). Versions: `workout-coach.js?v=32`, `floor-tick-ui.js?v=3`, `workout-app.js?v=2`,
+   `workout-app.css?v=2`; the Workout page now also loads `floor-tick-logic.js` at the Daily Success version.
+   Tests: section 9 and 10 of `tests/coach-exercise-log-copy-2026-11-17.test.js` (58 checks in all) and section 9 of
+   `tests/ds-workout-installable-2026-11-16.test.js` (88 in all); fifteen deliberate breaks of the new code were each caught.
+   Checked in headless Chromium with both apps in one profile (shared storage, the Android case): Finish, prompt on top of the summary,
+   Tick it, then Daily Success opened on the Dashboard with the floor ticked and no second question, and today's page got the lifts.
+   Not checked: the iPhone path, where the answer has to travel through the account sync.
 4. **Workout is the default dark theme only.** The coach's full-screen logger is dark in every Daily Success theme already; only the
    small card would differ.
 5. **Not checked on a real phone.** Checked here: the page in headless Chromium at 390 x 844 (card, start a workout, Back closes

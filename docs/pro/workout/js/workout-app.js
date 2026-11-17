@@ -6,6 +6,8 @@
  *   - signed out: shows the sign-in link. An installed iPhone app keeps its own storage, so signing in here is how it gets
  *     the workouts logged in Daily Success or on another device
  *   - asks the service worker to keep an offline copy of this page (same request Daily Success makes for itself)
+ *   - at Finish asks "Workout done. Tick the floor?" and stores the answer on the workout (NBDCoachUI.answerFloor). There are no floors
+ *     or day pages here, so nothing is ticked on this screen: Daily Success applies a yes the next time it opens, and never asks again
  *
  * No account data is read here. CSP: external classic script, delegated listener, textContent only.
  */
@@ -64,9 +66,78 @@
   window.addEventListener('offline', () => { st.online = false; drawStatus(); });
   // Settings pulled from the cloud (rotation, routines, custom lifts): the card shows them at once.
   window.addEventListener('nbd-ds-settings-restored', drawCard);
+  // ── "Workout done. Tick the floor?" ────────────────────────────────────────
+  const TICK_IDLE_MS = 30000, TICK_DONE_MS = 5000;
+  let tickId = null, tickTimer = null;
+  // Is there a floor a workout ticks? Jo's own floors when he has set some (nbd_user_config, the same list Daily Success reads);
+  // with none set the default floors apply, and they include one.
+  function hasWorkoutFloor(config) {
+    const floors = config && Array.isArray(config.floors) && config.floors.length ? config.floors : null;
+    if (!floors) return true;
+    const F = window.NBDFloorTick;
+    return !!F && floors.some((f) => f && F.RULES.workout.re.test(String(f.label || '')));
+  }
+  function tickEl() {
+    let e = $('waTick');
+    if (e) return e;
+    e = document.createElement('div');
+    e.id = 'waTick'; e.className = 'wa-tick'; e.hidden = true;
+    e.setAttribute('role', 'status'); e.setAttribute('aria-live', 'polite');
+    document.body.appendChild(e);
+    return e;
+  }
+  function piece(tag, text, action) {
+    const n = document.createElement(tag);
+    n.textContent = text;
+    if (action) { n.type = 'button'; n.dataset.waAction = action; }
+    return n;
+  }
+  function tickDraw(title, sub, buttons) {
+    const e = tickEl();
+    e.textContent = '';
+    const msg = document.createElement('div');
+    msg.className = 'wa-tick-msg';
+    msg.appendChild(piece('b', title)); msg.appendChild(piece('small', sub));
+    e.appendChild(msg);
+    buttons.forEach((b) => e.appendChild(piece('button', b[0], b[1])));
+    e.hidden = false;
+  }
+  function tickHide() { clearTimeout(tickTimer); tickTimer = null; tickId = null; const e = $('waTick'); if (e) { e.hidden = true; e.textContent = ''; } }
+  function askFloor(id) {
+    const ui = window.NBDCoachUI;
+    if (id == null || !ui || typeof ui.answerFloor !== 'function') return false;
+    let config = null;
+    try { config = JSON.parse(localStorage.getItem('nbd_user_config')); } catch (_) { config = null; }
+    if (!hasWorkoutFloor(config)) return false;
+    tickDraw('Workout done. Tick the floor?', 'Daily Success ticks it the next time it opens.', [['Tick it', 'tick-yes'], ['Not now', 'tick-no']]);
+    tickId = id;
+    clearTimeout(tickTimer); tickTimer = setTimeout(tickHide, TICK_IDLE_MS);   // no answer: Daily Success asks when it copies the workout in
+    return true;
+  }
+  function answerFloor(ans) {
+    const id = tickId, ui = window.NBDCoachUI;
+    if (id == null || !ui || typeof ui.answerFloor !== 'function') { tickHide(); return; }
+    if (!ui.answerFloor(id, ans)) {
+      tickHide();
+      if (typeof window.toastErr === 'function') window.toastErr('Could not save that on this phone. Daily Success will ask instead.');
+      return;
+    }
+    if (ans !== 'yes') { tickHide(); return; }
+    tickDraw('Got it', 'Daily Success will tick the floor.', [['Undo', 'tick-no']]);
+    clearTimeout(tickTimer); tickTimer = setTimeout(tickHide, TICK_DONE_MS);
+  }
+  window.addEventListener('nbd-ds-did', (ev) => {
+    const d = (ev && ev.detail) || {};
+    if (d.kind === 'workout') askFloor(d.id);
+  });
+
   document.addEventListener('click', (ev) => {
-    const t = ev.target && ev.target.closest ? ev.target.closest('[data-wa-action="retry"]') : null;
-    if (t && window.NBDDsCloud && typeof window.NBDDsCloud.retry === 'function') window.NBDDsCloud.retry();
+    const t = ev.target && ev.target.closest ? ev.target.closest('[data-wa-action]') : null;
+    if (!t) return;
+    const a = t.dataset.waAction;
+    if (a === 'retry') { if (window.NBDDsCloud && typeof window.NBDDsCloud.retry === 'function') window.NBDDsCloud.retry(); }
+    else if (a === 'tick-yes') answerFloor('yes');
+    else if (a === 'tick-no') answerFloor('no');
   });
   // Left open overnight: the date line and "today's workout" follow the day.
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { drawDate(); drawCard(); } });
@@ -92,5 +163,5 @@
   function boot() { drawDate(); drawCard(); drawStatus(); keepOffline(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.NBDWorkoutApp = { statusOf, drawCard };
+  window.NBDWorkoutApp = { statusOf, drawCard, hasWorkoutFloor, askFloor };
 })();

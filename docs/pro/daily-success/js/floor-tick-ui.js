@@ -82,6 +82,21 @@
     e.appendChild(mk('button', { type: 'button', 'data-tick': 'undo' }, 'Undo'));
     arm(UNDO_MS);
   }
+  // The question was already answered where the workout was finished (the Workout app, workout-coach.js applyFloorAnswers): tick without
+  // asking again, and show the same Ticked / Undo chip. 'nopage': that day has no page yet. 'met': already ticked, or no floor this kind ticks.
+  function tickFor(kind, dk) {
+    const F = FT(); if (!F || FLOOR_TICK_MODE === 'off') return 'met';
+    const p = pageFor(dk); if (!p) return 'nopage';
+    const floors = floorsNow();
+    const ids = F.offer(floors, p.data || {}, kind);
+    if (!ids.length) return 'met';
+    const fl = floors.find((f) => String(f.id) === ids[0]);
+    el();
+    shown = { dk, id: ids[0], kind, ticked: false, label: fl ? fl.label : '' };
+    tick();
+    if (shown && shown.ticked) { el().hidden = false; return 'ticked'; }
+    return 'failed';
+  }
   function undo() {
     if (shown && shown.ticked && typeof window.setFloorByDk === 'function') window.setFloorByDk(shown.dk, shown.id, false);
     hide();
@@ -133,5 +148,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hook); else hook();
 
-  window.NBDFloorTickUI = { ask, hide, _declined: declined };
+  window.NBDFloorTickUI = { ask, tickFor, hide, _declined: declined };
 })();

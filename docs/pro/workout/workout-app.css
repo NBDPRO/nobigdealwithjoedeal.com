@@ -34,4 +34,14 @@ body{background:var(--bg);font-family:'Barlow',sans-serif;color:var(--ink);min-h
 .wa-link:focus-visible,.wa-status button:focus-visible{outline:2px solid var(--ac-text);outline-offset:2px;}
 .wa-noscript{padding:24px 16px;color:var(--muted);text-align:center;}
 
+/* "Workout done. Tick the floor?" (workout-app.js): above the coach's full-screen logger (z-index 10000), which is showing the summary. */
+.wa-tick{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + var(--sab));z-index:10001;width:min(520px,calc(100vw - 24px));display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:8px 8px 8px 16px;background:var(--bar);color:var(--ink);border:1px solid var(--ac);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.55);font-size:14px;}
+.wa-tick[hidden]{display:none;}
+.wa-tick .wa-tick-msg{flex:1 1 180px;min-width:0;}
+.wa-tick .wa-tick-msg b{display:block;font-weight:700;}
+.wa-tick .wa-tick-msg small{display:block;color:var(--muted);}
+.wa-tick button{min-height:44px;min-width:44px;padding:0 14px;border-radius:8px;font:inherit;font-weight:700;font-size:14px;cursor:pointer;border:1px solid var(--rule);background:transparent;color:inherit;}
+.wa-tick button[data-wa-action="tick-yes"]{background:var(--ac);border-color:var(--ac);color:#fff;}
+.wa-tick button:focus-visible{outline:2px solid var(--ac-text);outline-offset:2px;}
+
 .ds-sync-badge{position:fixed;top:calc(var(--sat) + 68px);right:max(16px,env(safe-area-inset-right,0px));z-index:9999;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:20px;background:rgba(189,87,40,.12);border:1px solid rgba(189,87,40,.3);color:var(--ac-text,#E4783F);transition:opacity .4s;opacity:0;pointer-events:none;}
