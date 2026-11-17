@@ -226,7 +226,8 @@ async function submit(kind, body) {
     const S = withStubs(gatewayStubs([]), () => { delete require.cache[GW_FILE]; return require(GW_FILE); })._publicLeadSpec;
     delete require.cache[GW_FILE];
     const cap = S.PUBLIC_LEAD_KINDS.contact.maxLen.message;
-    ok('R5-9-5 #fieldMessage has maxlength equal to the server cap (' + cap + ')', new RegExp('maxlength="' + cap + '"').test(tag), tag);
+    // 2026-11-17: the long homepage form (and its #fieldMessage textarea) is gone; #contact now hosts the short quick form, which has no free-text box.
+    ok('R5-9-5 homepage #contact is the short quick form with no #fieldMessage textarea left to outgrow the server cap (' + cap + ')', /data-nbd-quick-form/.test(html) && !tag, tag);
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

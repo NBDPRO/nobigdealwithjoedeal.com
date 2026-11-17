@@ -5,13 +5,17 @@
  *
  *   priceLedgerSave    { op, data }   owner / company_admin
  *     ops: upsertSupplierAccount, upsertOffer, linkOffer, verifyPack, archiveOffer,
- *     voidObservation. Answers { ok, id }.
+ *     voidObservation; markSeen (slice 3: the shared "seen" list for on-screen alerts,
+ *     priceBook/{companyId}/priceConfig/seen). Answers { ok, id }.
  *   priceLedgerRecord  { rows: [1..500], channel? }   owner / company_admin / manager
  *     Typed prices into the dated, append-only history. A manager's row is stored
  *     as a note (`manual`, unattested) until an owner or company_admin confirms it.
  *     channel 'hd_csv' (slice 2; owner / company_admin only): receipt lines from a
  *     store's purchase export. They may have no unit and may carry a stub that
  *     creates an unlinked offer for a SKU the ledger has not seen.
+ *     channel 'csv_import' (slice 3; owner / company_admin only): a supplier's quote,
+ *     price sheet or invoice read from a CSV on the import screen. Same stub path;
+ *     paperwork kinds only, a quote needs its good-through date. The file is not kept.
  *     Answers { results, written, duplicates, rejected, needsUnit, alertsOpened }.
  *
  * Nothing here changes a cost book, a sell price or an estimate, and nothing calls a
@@ -68,6 +72,7 @@ const REASONS = {
   immutable: 'The supplier and SKU of an item can not be changed. Add a new item instead.',
   needs_unit: 'Set the pack size first.',
   not_found: 'That was not found.',
+  bad_alert: 'That alert was not recognised.',
 };
 
 async function priceLedgerSave(request) {
@@ -88,12 +93,14 @@ async function priceLedgerRecord(request) {
   const caller = await priceCaller(request, 'staff', 'priceLedgerRecord', 20);
   const rows = request.data && request.data.rows;
   if (!Array.isArray(rows) || rows.length < 1 || rows.length > Store.MAX_ROWS_PER_CALL) throw new HttpsError('invalid-argument', 'Send 1 to ' + Store.MAX_ROWS_PER_CALL + ' rows');
-  // A caller may name one other channel: `hd_csv`, a store's purchase export read by
-  // the importer. Anything else (the migration channel included) is a typed price.
-  const channel = (request.data && request.data.channel) === 'hd_csv' ? 'hd_csv' : 'manual';
-  // Receipts feed the history as attested `paid` rows, so only the owner or a
-  // company admin sends them (Jo, 2026-11-17). A manager still types notes.
-  if (channel === 'hd_csv' && caller.role === 'manager') throw new HttpsError('permission-denied', MESSAGES.denied);
+  // A caller may name two other channels: `hd_csv`, a store's purchase export read by
+  // the importer, and `csv_import`, a supplier file from the import screen. Anything
+  // else (the migration channel included) is a typed price.
+  const asked = request.data && request.data.channel;
+  const channel = (asked === 'hd_csv' || asked === 'csv_import') ? asked : 'manual';
+  // Receipts and supplier files feed the history as attested paperwork, so only the
+  // owner or a company admin sends them (Jo, 2026-11-17). A manager still types notes.
+  if (channel !== 'manual' && caller.role === 'manager') throw new HttpsError('permission-denied', MESSAGES.denied);
   const out = await Store.appendObservations(getFirestore(), caller.companyId, rows, {
     origin: 'callable', channel,
     actor: { uid: caller.uid, role: caller.role, fn: 'priceLedgerRecord' },

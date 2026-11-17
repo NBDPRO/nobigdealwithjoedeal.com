@@ -85,7 +85,8 @@ async function run() {
     await setDoc(doc(db, 'priceBook/co-h/priceOffers/other_testco_TEST-0001'), DATA.offer);
     await setDoc(doc(db, 'priceBook/co-h/priceObservations/o_1'), DATA.obs);
     await setDoc(doc(db, 'priceBook/co-h/priceAudit/a_1'), DATA.audit);
-    for (const p of ['priceAlerts/x', 'priceImports/x', 'priceConfig/main', 'productLinks/shingle_001', 'priceNotices/x', 'priceRollups/2026-11', 'leadSkus/lead1']) await setDoc(doc(db, BASE + p), { v: 1 });
+    await setDoc(doc(db, 'priceBook/co-h/priceConfig/seen'), { marks: {} });
+    for (const p of ['priceAlerts/x', 'priceImports/x', 'priceConfig/main', 'priceConfig/seen', 'productLinks/shingle_001', 'priceNotices/x', 'priceRollups/2026-11', 'leadSkus/lead1']) await setDoc(doc(db, BASE + p), { v: 1 });
     await setDoc(doc(db, 'retail_shelf_cache/x'), { v: 1 });
     await setDoc(doc(db, 'price_check_global/day_2026-11-17'), { v: 1 });
     await setDoc(doc(db, 'integrations/pricing/companies/co-a'), { enabled: false });
@@ -172,10 +173,23 @@ async function run() {
   }
 
   // 10. paths later slices add are denied to everyone today (each line goes when its slice lands)
-  for (const p of ['priceAlerts/x', 'priceImports/x', 'priceConfig/main', 'productLinks/shingle_001', 'priceNotices/x', 'priceRollups/2026-11', 'leadSkus/lead1']) {
+  for (const p of ['priceAlerts/x', 'priceImports/x', 'productLinks/shingle_001', 'priceNotices/x', 'priceRollups/2026-11', 'leadSkus/lead1']) {
     await check('10. the owner can not read ' + p + ' yet', 'deny', getDoc(doc(WHO['solo owner (uid is the company)'], BASE + p)));
     await check('10. a company_admin can not read ' + p + ' yet', 'deny', getDoc(doc(WHO.company_admin, BASE + p)));
   }
+
+  // 11. priceConfig (slice 3): the shared "seen" marks. Owner and company_admin read; nobody writes
+  for (const p of ['priceConfig/seen', 'priceConfig/main']) {
+    for (const w of ['solo owner (uid is the company)', 'company_admin']) await check('11. ' + w + ' reads ' + p, 'allow', getDoc(doc(WHO[w], BASE + p)));
+    for (const w of ['manager', 'sales_rep', 'viewer', 'member (access code)', 'role-less token with the claim', 'another company']) await check('11. ' + w + ' can not read ' + p, 'deny', getDoc(doc(WHO[w], BASE + p)));
+    for (const w of Object.keys(WHO)) {
+      await check('11. ' + w + ' can not write ' + p, 'deny', setDoc(doc(WHO[w], BASE + p), { marks: {} }));
+      await check('11. ' + w + ' can not delete ' + p, 'deny', deleteDoc(doc(WHO[w], BASE + p)));
+    }
+    await check('11. a signed-out browser can not read ' + p, 'deny', getDoc(doc(signedOut, BASE + p)));
+  }
+  await check('11. a removed former owner can not read the seen marks', 'deny', getDoc(doc(removed, H + 'priceConfig/seen')));
+  await check('11. a former owner kept as company_admin reads the seen marks', 'allow', getDoc(doc(kept, H + 'priceConfig/seen')));
 
   await env.cleanup();
   const bad = results.filter((r) => !r.ok);

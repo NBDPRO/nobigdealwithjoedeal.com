@@ -157,8 +157,10 @@ const cpCtas = cp.$$('a[data-careplan-cta]');
 ok('Care Plan CTAs found', cpCtas.length >= 2);
 ok('each goes to /?service=care-plan#contact', cpCtas.every((a) => a.attr('href') === '/?service=care-plan#contact'), cpCtas.map((a) => a.attr('href')).join(', '));
 const home = page('docs/index.html');
-const opts = home.byId('fieldService') ? home.byId('fieldService').$$('option').map((o) => o.text.trim()) : [];
-ok('homepage service list has "Roof Care Plan"', opts.includes('Roof Care Plan'), opts.join(' | '));
+const homeSrc = K.read('docs/index.html');
+// 2026-11-17: #contact is the short quick form; ?service=care-plan is read by quick-lead-form.js (data-service-query).
+ok('homepage quick form opts into ?service= tagging (data-service-query)', /<div data-nbd-quick-form data-service-query\b/.test(homeSrc));
+ok('quick-lead-form.js maps care-plan to "Roof Care Plan"', /'care-plan': 'Roof Care Plan'/.test(K.read('docs/assets/js/quick-lead-form.js')));
 {
   const sel = { value: '' };
   const g = {
