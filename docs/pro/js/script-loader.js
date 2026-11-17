@@ -295,7 +295,7 @@
       'js/care-plan-discount.js?v=1',
       // Estimate margin floor (2026-11-17): the tax-free job margin and the
       // company's floor / target bands. Pure; off unless the company sets a floor.
-      'js/margin-floor.js?v=2',
+      'js/margin-floor.js?v=3',
       // Classic review step's layout (reskin 2026-10-03), before the script.
       'css/estimates-review.css?v=1',
       'js/estimates.js?v=15',
@@ -309,7 +309,7 @@
       'js/estimate-finalization.js?v=12',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=46',
+      'js/estimate-v2-ui.js?v=47',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=6',

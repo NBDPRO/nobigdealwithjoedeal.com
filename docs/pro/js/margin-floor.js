@@ -155,6 +155,10 @@
     else if (internal && internal.hardCost != null) cost = toCents(internal.hardCost);
     else if (e.materialCost != null || e.laborCost != null) cost = toCents((Number(e.materialCost) || 0) + (Number(e.laborCost) || 0));
     else if (e.costBasis != null) cost = toCents(e.costBasis);
+    // Fees charged at face (measurement report, e-sign fee, permit upcharge):
+    // money passed through, like sales tax, so they are cost (Jo, 2026-11-17).
+    const fees = toCents(e.passThroughCost);
+    if (cost !== null && fees !== null && fees > 0) cost += fees;
     const uncosted = Number(e.costUnsetCount) > 0 || (internal !== null && internal.marginPct === null);
     return {
       mode: e.mode === 'insurance' ? 'insurance' : 'cash',
