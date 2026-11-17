@@ -1074,7 +1074,7 @@ async function loadCustomerData(id) {
     if (_next) {
       const btn = document.getElementById('stageProgressBtn');
       btn.style.display = 'inline-flex';
-      btn.innerHTML = `→ Move to ${_next.label}`;
+      btn.textContent = `→ Move to ${_next.label}`;
     }
 
     // Load related data with individual error handling
@@ -2706,7 +2706,7 @@ function _applyStageOnPage(lead, stage, label) {
   const after = _nextStageFor(lead);
   if (btnEl) {
     if (after) {
-      btnEl.innerHTML = `→ Move to ${after.label}`;
+      btnEl.textContent = `→ Move to ${after.label}`;
       btnEl.disabled = false;
       btnEl.style.display = '';
     } else {

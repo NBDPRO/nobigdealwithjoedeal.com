@@ -8,14 +8,14 @@ Jo answered the fix questions the same day (Q1-Q17). The answers are recorded in
 |---|---|---|
 | M1 tenant deposit on re-tier, M2 custom-stage roles on the customer page | [#3127](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3127) | merged |
 | M3 "Email My Estimate" abuse: server-built email, passed-Turnstile gate, 3 per IP per day | [#3128](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3128) | merged |
-| M6, L14, L15, L16 operator scripts: dry run unless `--apply`, provision refusals, DEMO kept, admin claim merge, photo upload/sweep | [#3129](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3129) | open |
+| M6, L14, L15, L16 operator scripts: dry run unless `--apply`, provision refusals, DEMO kept, admin claim merge, photo upload/sweep | [#3129](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3129) | merged |
 | M4, M5, L6, L7 pricing (Job Templates use Settings rates and Round to, cents rollup, pass-through cents) + supplement invoices use the tenant's deposit rule (found by the M1 review) | [#3131](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3131) | open |
-| The six CRLF-only call-to-close test failures (baseline below) | [#3132](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3132) | open |
-| L1 Stripe webhooks share one idempotency marker | — | open: check which event types each endpoint subscribes to in the Stripe dashboard first |
-| L2, L3, L4, L5 (Thursday kill switch, admin analytics fail-open, UTC due date, thank-you screen) | — | open |
-| L8 e-sign source overwrite, L9 preflight warranty ladder, L10 unescaped stage label | — | open |
-| L11, L12, L13 site (breadcrumb JSON-LD, /sites colour + canonical, visualizer label) | — | open |
-| L17 vacuous `|| true` test, L18-L21 service worker and caching | — | open |
+| The six CRLF-only call-to-close test failures (baseline below) | [#3132](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3132) | merged |
+| L1 Stripe webhooks share one idempotency marker (invoiceWebhook now has its own) | [#3135](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3135) | open |
+| L2, L3, L4, L5 (Thursday kill switch, admin analytics fail-closed, ET due date, /inspect answers incl. the bridge carrying late answers + referral code) | [#3135](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3135) | open |
+| L8 e-sign source create-only + hash check, L9 tenant warranty picker, L10 stage label as text | [#3136](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3136) | open |
+| L11, L12, L13 site (breadcrumb JSON-LD + redirect-URL guard, /sites canonical + dead orange, visualizer label) | [#3137](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3137) | open |
+| L17 vacuous test, L18-L21 service worker and caching (API allowlist incl. the storm layer, capped; dead write queue removed; tile hosts only; no-store never-cache pages) | [#3138](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3138) | open |
 
 **Decisions not to re-ask:**
 - Admin scripts write only with `--apply`.

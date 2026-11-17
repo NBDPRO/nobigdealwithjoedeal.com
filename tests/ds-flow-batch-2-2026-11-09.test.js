@@ -318,7 +318,9 @@ const back = async (page) => { await page.evaluate(() => history.back()); await 
     ok('a :root block mirrors every one of them with the same value', missing.length === 0, missing.join(', '));
     ok('.pc is defined once (the stale 4px-radius copy is gone)', (html.match(/(^|\n)\.pc\{/g) || []).length === 1, String((html.match(/(^|\n)\.pc\{/g) || []).length));
     ok('.ph is defined once, and .ph:hover once', (html.match(/(^|\n)\.ph\{/g) || []).length === 1 && (html.match(/(^|\n)\.ph:hover\{/g) || []).length === 1);
-    ok('control: the dead #nbd-pro-nav CSS is left alone (mentioned in the notes, not deleted)', /nbd-pro-nav/.test(html) || true);
+    // The rule itself, not any mention: a comment naming nbd-pro-nav also
+    // matched, so deleting the CSS still passed (2026-11-17 review).
+    ok('control: the dead #nbd-pro-nav CSS is left alone (mentioned in the notes, not deleted)', /(^|\n)#nbd-pro-nav\s*\{/.test(html));
     const { ctx, page, errs } = await open(browser, srv, { w: 900 });
     await page.evaluate(() => switchTo(0));
     await page.waitForTimeout(300);

@@ -219,7 +219,7 @@
       'js/document-generator.js?v=24',
       'js/document-generator-templates.js?v=19',
       'js/document-generator-library.js?v=5', // 2026-10-04 template library; needs -templates' _tpl
-      'js/doc-preflight.js?v=15',
+      'js/doc-preflight.js?v=16',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
@@ -267,10 +267,10 @@
       // only "DEAL / Home Solutions" — a different letterhead from every
       // Templates document. Same cache key as the docgen bundle.
       'js/nbd-logo-asset.js?v=3',
-      'js/product-data.js?v=5',
+      'js/product-data.js?v=6',
       'js/roofivent-catalog.js?v=2',
       'js/catalog-costs.js?v=4',
-      'js/product-library.js?v=17',
+      'js/product-library.js?v=18',
       // Price book viewer (2026-10-02): the Product Library's "Price book"
       // button. Same file the expenses bundle loads for the HD import.
       'css/price-book.css?v=1',

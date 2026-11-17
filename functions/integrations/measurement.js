@@ -368,8 +368,9 @@ async function attachMeasurementToLead(db, { leadId, ownerId, address, provider,
   // notif-bell.js both do `t.dueDate ? new Date(t.dueDate + 'T23:59:59') : null`
   // and return early on null, so the '' this used to write meant the alert
   // never appeared in Today's Tasks or the bell. dueAt has no reader at all.
-  const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
-    .toISOString().slice(0, 10);
+  // The Eastern-time day (sweep #12): the server runs in UTC, so its date is
+  // tomorrow every US evening and the task hid from Today's Tasks.
+  const today = require('../job-spine-logic').todayYmdEt(Date.now());
   await db.doc(`leads/${leadId}/tasks/${taskId}`).set({
     userId: ownerId,
     leadId,

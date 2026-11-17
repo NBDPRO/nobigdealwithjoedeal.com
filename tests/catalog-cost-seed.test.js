@@ -653,7 +653,7 @@ console.log('──────────────────────�
     });
     test('OFFLINE: the product library still seeded the full catalog (sell-only)', () => {
       ok(store.items.length >= 260, 'seeded ' + store.items.length);
-      eq(store.items.find((p) => p.id === 'shingle_001').pricing.good.sell, 240);
+      eq(store.items.find((p) => p.id === 'shingle_001').pricing.good.sell, 272);
     });
 
     const anon = boot({ claims: null, docs: {} });
@@ -701,7 +701,7 @@ console.log('──────────────────────�
     });
 
     test('NEW TENANT: retail sell still renders (the catalog is not broken)', () => {
-      ok(html.includes('$240'), 'shingle_001 sell price missing from the render');
+      ok(html.includes('$272'), 'shingle_001 sell price missing from the render');
     });
 
     test('NEW TENANT: CSV export leaves cost cells EMPTY rather than 0', () => {
@@ -710,7 +710,7 @@ console.log('──────────────────────�
       ok(csv, 'no CSV was generated');
       const line = csv.split('\n').find((l) => l.startsWith('"GAF Timberline HDZ"'));
       ok(line, 'HDZ row missing from the CSV');
-      ok(/"240","",/.test(line), 'cost cell should be empty, got: ' + line.slice(0, 90));
+      ok(/"272","",/.test(line), 'cost cell should be empty, got: ' + line.slice(0, 90));
     });
   }
 
@@ -806,11 +806,11 @@ console.log('──────────────────────�
     test('ENGINE: resolveMaterial returns cost 0 (never NaN) when costs are unset', () => {
       ok(!Number.isNaN(cold.cost), 'cost is NaN — it would poison every downstream total');
       eq(cold.cost, 0, 'cold cost');
-      eq(cold.sell, 275, 'sell must still resolve from the public catalog');
+      eq(cold.sell, 307,'sell must still resolve from the public catalog');
     });
 
     test('ENGINE: resolveMaterial returns the real cost once the book is merged', () => {
-      eq(warm.cost, synthCost(275), 'warm cost');
+      eq(warm.cost, synthCost(307), 'warm cost');
     });
   }
 

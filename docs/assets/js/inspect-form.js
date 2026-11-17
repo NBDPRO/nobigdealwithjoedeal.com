@@ -249,7 +249,12 @@
     var post = !hasAnswers ? Promise.resolve(true) : fetch(base + '/updatePublicLeadIntake', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'omit', mode: 'cors',
       body: JSON.stringify(Object.assign({ token: _grant }, answers))
-    }).then(function (r) { return r.ok; }, function () { return false; });
+    }).then(function (r) {
+      if (!r.ok) return false;
+      // crm:false = saved, but not on the CRM card yet (sweep #18).
+      if (typeof r.json !== 'function') return true;
+      return r.json().then(function (j) { return (j && j.crm === false) ? 'pending' : true; }, function () { return true; });
+    }, function () { return false; });
     return post.then(function (saved) {
       _busy = false;
       if (!saved) {
@@ -259,7 +264,9 @@
         return;
       }
       btn.textContent = 'Sent ✓';
-      detailsStatus(hasAnswers ? 'Thanks, that’s on your request now.' : '', false);
+      detailsStatus(!hasAnswers ? '' : saved === 'pending'
+        ? 'Saved. It may take a bit to show up on your request. If it’s urgent, call or text Joe at (859) 420-7382.'
+        : 'Thanks, that’s on your request now.', false);
       // Photos: the same grant, uploaded and reported by intake-extras.js.
       if (files.length && window.NBDIntake) {
         window.NBDIntake.afterSubmit(document.getElementById('insIntakeAfter'), {

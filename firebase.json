@@ -343,6 +343,13 @@
         ]
       },
       {
+        "_comment": "The rest of /pro/sw.js's NO_CACHE_HTML set (2026-11-17 sweep #28). The SW stopped intercepting navigations (INFRA-1), so the never-cache promise for these pages rests on this header; until now they rode the '**' default public, max-age=300, so a security fix to e.g. /pro/portal could be served stale for 5 minutes from the CDN or browser. After '**' so last-match-wins gives no-store; no later block sets Cache-Control on these paths. tests/sw-sweep-lows-2026-11-17.test.js checks every path in NO_CACHE_HTML.",
+        "source": "/pro/@(portal|estimate-view|analytics|leaderboard|ask-joe|ai-tree|ai-tool-finder|understand|project-codex|stripe-success|account-erasure)",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
+        ]
+      },
+      {
         "source": "/admin",
         "headers": [
           { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" },

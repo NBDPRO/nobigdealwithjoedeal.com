@@ -394,7 +394,7 @@ function finish() {
   ok('the task lands on leads/{leadId}/tasks (the collection task UIs read), not top-level tasks',
     /doc\(`leads\/\$\{leadId\}\/tasks\/\$\{taskId\}`\)\.set\(/.test(meas) && !/collection\('tasks'\)\.add/.test(meas));
   ok('the task carries a real dueDate — tasks.js and notif-bell.js both bail on a falsy one, so \'\' meant the alert never surfaced',
-    /dueDate: today/.test(meas) && /toISOString\(\)\.slice\(0, 10\)/.test(meas) && !/dueDate: ''/.test(meas));
+    /dueDate: today/.test(meas) && /todayYmdEt\(Date\.now\(\)\)/.test(meas) && !/dueDate: ''/.test(meas));
   ok('task + activity use one deterministic id, so repeat Auto-measure clicks update instead of stacking rows',
     /const taskId = 'measure-' \+ crypto\.createHash\('sha1'\)/.test(meas)
     && /dedupeKey: leadId \+ '\|' \+ ctx\.coordKey/.test(meas)
