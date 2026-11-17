@@ -126,7 +126,7 @@
       : labelOf(S.accounts, a.supplierId) + '\'s price for ' + (offer.title || 'this item') + ' is up ' + pct(a.upBps) + ' on what you last paid: ' + money(a.newMicros) + ' against ' + money(a.oldMicros) + per + '.';
     return '<div class="prl-offer' + (a.seen ? ' is-seen' : '') + '">' +
       '<div class="prl-otitle"><span class="ui-badge ' + (a.type === 'cheaper' ? 'is-success' : 'is-warn') + '">' + (a.type === 'cheaper' ? 'Cheaper elsewhere' : 'Price went up') + '</span> ' + esc(name) + '</div>' +
-      '<div class="prl-src">' + esc(text) + (S.settings.taxBps === null ? ' (as recorded)' : ' (tax included)') + '</div>' +
+      '<div class="prl-src">' + esc(text) + (a.type === 'cheaper' ? (S.settings.taxBps === null ? ' (as recorded)' : ' (tax included)') : '') + '</div>' +
       '<div class="prl-actions">' + (a.productId ? '<button type="button" class="btn btn-ghost prl-btn" data-prc-action="close" data-prl-action="openProduct" data-prl-id="' + esc(a.productId) + '">Open the product</button>' : '') +
       (a.seen ? '' : '<button type="button" class="ui-btn-quiet prl-btn" data-prc-action="seen" data-prc-id="' + esc(a.id) + '" data-prc-obs="' + esc(a.obsId) + '">Seen</button>') + '</div></div>';
   }

@@ -91,8 +91,12 @@ Choices made where the decisions were silent:
 
 ## Not done
 
-- Nobody has opened the import screen or Compare suppliers in a real browser
-  or on a phone; the screens were checked as HTML in a vm only.
+- Nobody has used the screens in the real dashboard. They were driven in a
+  local harness page at phone width (375 px) with the real files and stubbed
+  data: a CSV picked, the header row found, the preview counts, save, Unlinked
+  items with a suggestion, the side-by-side block and Compare suppliers. No
+  sideways scroll. Two fixes came out of it: the preview table wrapped mid-word,
+  and a price-move alert was labelled "tax included" when no tax was added.
 - The two reps' price sheets (SRS, QXO) are **not loaded**. After the deploy
   Jo loads each through Import prices, and only after his OK on its preview.
 - Jo still has to type his tax rate and alert threshold under Company
