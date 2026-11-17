@@ -360,6 +360,15 @@ async function _applyIntake(db, grant, fields, extras, wait) {
     await leadRef.update(patch);
     crm = true;
   }
+  if (!crm) {
+    // Sweep #18 (2026-11-17): the answers are on the public lead only. Say so
+    // in the log and on the doc, so someone can merge them onto the card.
+    logger.warn('updatePublicLeadIntake: CRM card not found, answers on the public lead only', {
+      collection: grant.collection, publicId: grant.publicId,
+    });
+    await db.collection(grant.collection).doc(grant.publicId)
+      .set({ crmIntakePending: true, crmIntakePendingAt: FieldValue.serverTimestamp() }, { merge: true });
+  }
   return { status: 200, json: { success: true, crm } };
 }
 
