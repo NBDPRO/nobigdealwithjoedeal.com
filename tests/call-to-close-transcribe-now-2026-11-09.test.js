@@ -42,7 +42,9 @@ const Module = require('module');
 
 const ROOT = path.join(__dirname, '..');
 const FN = path.join(ROOT, 'functions');
-const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+// CRLF-safe (2026-11-17): the slicing regexes below end in \n, and a Windows
+// checkout (core.autocrlf=true) has \r\n, so every slice came back empty there.
+const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {

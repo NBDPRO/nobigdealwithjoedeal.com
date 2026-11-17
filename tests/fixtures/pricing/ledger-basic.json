@@ -1,0 +1,48 @@
+{
+  "_comment": "Synthetic price-ledger fixture. Fictional suppliers only, SKUs start TEST-, every input price is a multiple of 1111. No real cost, price or account number.",
+  "account": {
+    "supplierId": "other_testco",
+    "label": "Testco Supply",
+    "type": "distributor",
+    "active": true,
+    "locations": [
+      { "id": "main", "label": "Testco Springfield", "storeNumber": null, "branchNumber": "000", "zip": "00000", "preferred": true }
+    ],
+    "accountRef": "0000",
+    "rep": { "name": "Pat Example", "phone": "555-0100", "email": "pat@example.com" },
+    "terms": { "deliveryFeeCents": 0, "minOrderCents": 0, "quoteValidDays": 30 },
+    "preferredFor": ["roofing_shingles"]
+  },
+  "offers": [
+    {
+      "supplierId": "other_testco",
+      "sku": "TEST-0001",
+      "skuKind": "item_number",
+      "title": "Testco Example Architectural Shingle, Slate",
+      "brand": "Testco",
+      "productId": "shingle_001",
+      "tiers": ["good"],
+      "match": "exact",
+      "pack": { "purchaseUnit": "BDL", "catalogUnit": "SQ", "num": 1, "den": 3, "status": "known", "basis": "manufacturer_spec", "note": "3 bundles per square" }
+    },
+    {
+      "supplierId": "other_testco",
+      "sku": "TEST-0002",
+      "skuKind": "item_number",
+      "title": "Testco Example Ridge Cap",
+      "brand": "Testco",
+      "productId": null,
+      "pack": { "purchaseUnit": "BDL", "catalogUnit": "LF", "status": "unknown" }
+    }
+  ],
+  "observations": [
+    { "offerId": "other_testco_TEST-0001", "kind": "paid", "priceMicros": 11110000, "per": 1, "statedUnit": "BDL", "uomRaw": "BD", "priceType": "account", "taxIncluded": false, "locationId": "main", "observedOn": "2026-10-01", "doc": { "type": "invoice", "ref": "TEST-INV-0001" } },
+    { "offerId": "other_testco_TEST-0001", "kind": "quote", "priceMicros": 22220000, "per": 1, "statedUnit": "BDL", "uomRaw": "bundle", "priceType": "account", "taxIncluded": false, "locationId": "main", "observedOn": "2026-10-10", "validThroughOn": "2026-11-09", "doc": { "type": "quote", "ref": "TEST-Q-0001" } },
+    { "offerId": "other_testco_TEST-0001", "kind": "contract", "priceMicros": 33330000, "per": 1, "statedUnit": "SQ", "uomRaw": "SQ", "priceType": "net", "taxIncluded": false, "observedOn": "2026-10-11", "doc": { "type": "contract", "ref": "TEST-C-0001" } },
+    { "offerId": "other_testco_TEST-0001", "kind": "price_sheet", "priceMicros": 11110000, "per": 1, "statedUnit": "BDL", "uomRaw": "BDL", "priceType": "list", "taxIncluded": false, "observedOn": "2026-10-12", "doc": { "type": "price_sheet", "ref": "TEST-PS-0001" } },
+    { "offerId": "other_testco_TEST-0001", "kind": "portal_read", "priceMicros": 11110000, "per": 1, "statedUnit": "BDL", "uomRaw": "BD", "priceType": "account", "taxIncluded": false, "observedOn": "2026-10-13" },
+    { "offerId": "other_testco_TEST-0001", "kind": "manual", "priceMicros": 22220000, "per": 1, "statedUnit": "BDL", "uomRaw": "BD", "priceType": "net", "taxIncluded": true, "observedOn": "2026-10-14", "note": "counter price, typed" },
+    { "offerId": "other_testco_TEST-0002", "kind": "paid", "priceMicros": 44440000, "per": 1, "statedUnit": "BDL", "uomRaw": "BD", "priceType": "account", "taxIncluded": false, "observedOn": "2026-10-15", "doc": { "type": "receipt", "ref": "TEST-R-0002" } },
+    { "offerId": "other_testco_TEST-0001", "kind": "paid", "priceMicros": 11110000, "per": 100, "statedUnit": "PC", "uomRaw": "PC per C", "priceType": "account", "taxIncluded": false, "observedOn": "2026-10-16", "doc": { "type": "invoice", "ref": "TEST-INV-0002" } }
+  ]
+}

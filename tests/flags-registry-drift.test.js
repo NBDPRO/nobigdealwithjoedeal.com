@@ -100,7 +100,9 @@ console.log('\nFIRESTORE_FLAGS — dark feature_flags names registered with an e
 {
   const FF = REG.FIRESTORE_FLAGS || [];
   const optRules = require(path.join(FN_DIR, 'opp-rules.js'));
-  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend']));
+  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair and supplierPricing', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend', 'supplierPricing']));
+  const priceLogic = require(path.join(FN_DIR, 'price-logic.js'));
+  ok('the code agrees with the registry: price-logic.js exports supplierPricing, default false', priceLogic.FLAG_NAME === 'supplierPricing' && priceLogic.FLAG_DEFAULT === false);
   ok('every Firestore flag defaults to false and ships dark', FF.every((f) => f.default === false && f.dark === true));
   ok('names are camelCase and unique, and do not collide with an env flag', FF.every((f) => /^[a-z][A-Za-z0-9]{2,40}$/.test(f.name)) && new Set(FF.map((f) => f.name)).size === FF.length && FF.every((f) => !regNames.has(f.name)));
   ok('each row has a plain meaning and a doc that exists in the repo', FF.every((f) => typeof f.meaning === 'string' && f.meaning.length >= 20 && f.meaning.length <= 260 && fs.existsSync(path.join(ROOT, f.doc))));
@@ -115,7 +117,9 @@ console.log('\nFIRESTORE_FLAGS — dark feature_flags names registered with an e
 {
   const FF = REG.FIRESTORE_FLAGS || [];
   const optRules = require(path.join(FN_DIR, 'opp-rules.js'));
-  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend']));
+  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair and supplierPricing', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend', 'supplierPricing']));
+  const priceLogic = require(path.join(FN_DIR, 'price-logic.js'));
+  ok('the code agrees with the registry: price-logic.js exports supplierPricing, default false', priceLogic.FLAG_NAME === 'supplierPricing' && priceLogic.FLAG_DEFAULT === false);
   ok('every Firestore flag defaults to false and ships dark', FF.every((f) => f.default === false && f.dark === true));
   ok('names are camelCase and unique, and do not collide with an env flag', FF.every((f) => /^[a-z][A-Za-z0-9]{2,40}$/.test(f.name)) && new Set(FF.map((f) => f.name)).size === FF.length && FF.every((f) => !regNames.has(f.name)));
   ok('each row has a plain meaning and a doc that exists in the repo', FF.every((f) => typeof f.meaning === 'string' && f.meaning.length >= 20 && f.meaning.length <= 260 && fs.existsSync(path.join(ROOT, f.doc))));
@@ -130,7 +134,9 @@ console.log('\nFIRESTORE_FLAGS — dark feature_flags names registered with an e
 {
   const FF = REG.FIRESTORE_FLAGS || [];
   const optRules = require(path.join(FN_DIR, 'opp-rules.js'));
-  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend']));
+  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair and supplierPricing', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend', 'supplierPricing']));
+  const priceLogic = require(path.join(FN_DIR, 'price-logic.js'));
+  ok('the code agrees with the registry: price-logic.js exports supplierPricing, default false', priceLogic.FLAG_NAME === 'supplierPricing' && priceLogic.FLAG_DEFAULT === false);
   ok('every Firestore flag defaults to false and ships dark', FF.every((f) => f.default === false && f.dark === true));
   ok('names are camelCase and unique, and do not collide with an env flag', FF.every((f) => /^[a-z][A-Za-z0-9]{2,40}$/.test(f.name)) && new Set(FF.map((f) => f.name)).size === FF.length && FF.every((f) => !regNames.has(f.name)));
   ok('each row has a plain meaning and a doc that exists in the repo', FF.every((f) => typeof f.meaning === 'string' && f.meaning.length >= 20 && f.meaning.length <= 260 && fs.existsSync(path.join(ROOT, f.doc))));
@@ -145,7 +151,9 @@ console.log('\nFIRESTORE_FLAGS — dark feature_flags names registered with an e
 {
   const FF = REG.FIRESTORE_FLAGS || [];
   const optRules = require(path.join(FN_DIR, 'opp-rules.js'));
-  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend']));
+  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair and supplierPricing', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend', 'supplierPricing']));
+  const priceLogic = require(path.join(FN_DIR, 'price-logic.js'));
+  ok('the code agrees with the registry: price-logic.js exports supplierPricing, default false', priceLogic.FLAG_NAME === 'supplierPricing' && priceLogic.FLAG_DEFAULT === false);
   ok('every Firestore flag defaults to false and ships dark', FF.every((f) => f.default === false && f.dark === true));
   ok('names are camelCase and unique, and do not collide with an env flag', FF.every((f) => /^[a-z][A-Za-z0-9]{2,40}$/.test(f.name)) && new Set(FF.map((f) => f.name)).size === FF.length && FF.every((f) => !regNames.has(f.name)));
   ok('each row has a plain meaning and a doc that exists in the repo', FF.every((f) => typeof f.meaning === 'string' && f.meaning.length >= 20 && f.meaning.length <= 260 && fs.existsSync(path.join(ROOT, f.doc))));

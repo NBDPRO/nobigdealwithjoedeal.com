@@ -1875,6 +1875,10 @@ async function applyConnectRefund(db, stripe, charge, meta, destination, nowMs) 
   return out;
 }
 
+// invoiceWebhook's idempotency marker id in stripe_events. Namespaced so it
+// never collides with stripeWebhook's stripe_events/{event.id}.
+function invoiceWebhookMarkerId(eventId) { return 'invoiceWebhook__' + eventId; }
+
 exports.invoiceWebhook = onRequest(
   {
     cors: false, // Webhook should not use CORS
@@ -1953,8 +1957,11 @@ exports.invoiceWebhook = onRequest(
       // future side effects (receipt emails, Slack notifications,
       // analytics events) MUST NOT fire twice — so gate the whole
       // handler behind an atomic create() that fails on duplicate.
+      // Its OWN marker id (sweep #10, 2026-11-17): stripeWebhook keys
+      // stripe_events/{event.id}, and both endpoints can receive the same
+      // evt_ (invoice.paid) — one shared marker let only the first run.
       const db = getFirestore();
-      const eventRef = db.doc(`stripe_events/${event.id}`);
+      const eventRef = db.doc(`stripe_events/${invoiceWebhookMarkerId(event.id)}`);
       try {
         await eventRef.create({
           type: event.type,
@@ -3096,7 +3103,7 @@ exports.invoiceWebhook = onRequest(
       // Mirrors the sibling stripeWebhook recovery.
       if (event && event.id) {
         try {
-          await getFirestore().doc(`stripe_events/${event.id}`).delete();
+          await getFirestore().doc(`stripe_events/${invoiceWebhookMarkerId(event.id)}`).delete();
         } catch (delErr) {
           logger.error('invoiceWebhook marker cleanup failed — event may not retry',
             { eventId: event.id, err: delErr.message });

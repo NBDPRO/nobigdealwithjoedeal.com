@@ -719,6 +719,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-rcptinbox-test 'node firestore-rules.receipt-inbox.test.js'
+      # Supplier price ledger (2026-11-17): priceBook/{companyId}/… is server-written; a browser only reads, by role. Own file.
+      - name: Run price-ledger rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-priceledger-test 'node firestore-rules.price-ledger.test.js'
       # Stage-triggered "Docs to review" drafts (2026-10-13): leads/{id}/doc_drafts.
       - name: Run doc-drafts rules tests under emulator
         run: |

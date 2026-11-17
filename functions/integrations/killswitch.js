@@ -41,6 +41,11 @@
  *   coachLineDisabled: true  → stop the NBD OS Coach's AI focus line
  *                              (coach-line.js coachLine; 2026-11-09). aiDisabled
  *                              stops it too; this one stops only it.
+ *   thursdayExtractDisabled: true → stop Thursday's call extraction (the
+ *                              Anthropic call in integrations/thursday.js
+ *                              extract(); 2026-11-17). aiDisabled stops it
+ *                              too. Calls still land in the Thursday inbox
+ *                              as a failed extraction with Bland's summary.
  *
  * To pull the switch in an emergency (see SPEND_KILLSWITCH.md runbook):
  *   firebase firestore:... or in console: set feature_flags/global.aiDisabled = true

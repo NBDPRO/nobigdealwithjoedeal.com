@@ -74,6 +74,7 @@ const HOMEOWNER_OUTPUTS = [
   'docs/pro/deal-room.js',
   'functions/deal-acceptance.js',
   'functions/estimate-email.js',
+  'functions/estimate-email-logic.js', // the estimate email's text since 2026-11-17 (sweep M3)
   'functions/funnel-recovery.js',
   'docs/pro/js/document-generator-templates.js',
   'docs/pro/js/document-generator.js',

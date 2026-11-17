@@ -44,7 +44,13 @@
   // best gaps (tests/catalog-price-floor-2026-11-09.test.js lists them).
   // flash_007's coverage text now states the spec, 25 LF per bundle. Same
   // migration rules as version 6.
-  const DATA_VERSION = 7;
+  // DATA_VERSION 8 (2026-11-17, Jo): the floor moves to 30%. Every tier of
+  // every product-data.js SKU clears a 30% margin after labor on the live cost
+  // book (RoofIVent SKUs still at MSRP and not covered); the tiers under 30% on
+  // 82 SKUs were lifted, each keeping its good/better/best gaps
+  // (tests/catalog-price-floor-30-2026-11-17.test.js lists them). Same
+  // migration rules as version 6.
+  const DATA_VERSION = 8;
 
   // Pull from product-data.js globals
   const CATEGORIES = window.NBD_CATEGORIES || {};
@@ -676,7 +682,8 @@
                 : NOT_SET}</div>
               <div class="plx-row6">${editable ? `
                 <button class="pl-card-btn plx-btn-edit" data-pl-action="editProduct" data-pl-id="${escapeHtml(p.id)}">Edit</button>
-                <button class="pl-card-btn plx-btn-ghost" data-pl-action="archiveProduct" data-pl-id="${escapeHtml(p.id)}">Archive</button>` : ''}
+                <button class="pl-card-btn plx-btn-ghost" data-pl-action="archiveProduct" data-pl-id="${escapeHtml(p.id)}">Archive</button>` : ''}${(window.NBDPriceLedger && window.NBDPriceLedger.enabled()) ? `
+                <button class="pl-card-btn plx-btn-ghost prl-card-btn" data-prl-action="openProduct" data-prl-id="${escapeHtml(p.id)}">Stores &amp; prices</button>` : ''}
               </div>
             </div>
           </div>

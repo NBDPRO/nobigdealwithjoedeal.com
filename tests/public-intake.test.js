@@ -190,7 +190,10 @@ async function run() {
     ok('estimate optional timeline persisted', str(fields, 'timeline') === 'asap');
     ok('estimate optional type persisted', str(fields, 'type') === 'email_estimate_request');
     ok('estimate optional requestType persisted', str(fields, 'requestType') === 'instant_estimate');
-    ok('estimate optional estimateSummary persisted', (str(fields, 'estimateSummary') || '').startsWith('Roof Replacement'));
+    // 2026-11-17 (repo sweep M3): estimateSummary is no longer accepted; the
+    // email is built server-side from emailEstimate
+    // (tests/estimate-email-structured-2026-11-17.test.js).
+    ok('estimateSummary (visitor-written email text) is no longer stored', !(fields && fields.estimateSummary));
     ok('estimate optional referralCode persisted (self-redemption)', str(fields, 'referralCode') === 'JANE-CD34');
     ok('unknown key leadScore still dropped', !(fields && fields.leadScore));
     ok('unknown key assignedTo still dropped', !(fields && fields.assignedTo));

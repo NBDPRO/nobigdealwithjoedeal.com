@@ -80,31 +80,28 @@ function stageDatesFromHistory(h) {
   return out;
 }
 
-async function loadLeads(o) {
+// Token mode reads this company's leads the way match-job-photos.js does
+// (repo sweep 2026-11-17, L15): top-level leads/ by companyId == company plus,
+// for leads written before companyId, userId == company; soft-deleted leads
+// dropped. It used to page a collection-group scan of EVERY tenant's leads
+// (subcollections included), keep only companyId == company (losing the older
+// NBD leads) and keep soft-deleted leads as match candidates.
+// deps.db: a test's fake Firestore.
+async function loadLeads(o, deps) {
   if (o.leads) return JSON.parse(fs.readFileSync(o.leads, 'utf8'));
-  const token = process.env.NBD_ACCESS_TOKEN;
-  if (!token) throw new Error('give --leads <file> or set NBD_ACCESS_TOKEN (token mode)');
   if (!o.company) throw new Error('token mode needs --company=<id>');
-  const { restFirestore } = require('./_firestore-rest.js');
-  const db = restFirestore({ projectId: o.project, token });
-  const docs = [];
-  let last = null;
-  for (;;) {                                   // page by document name, 300 at a time
-    let q = db.collectionGroup('leads').orderBy('__name__').limit(300);
-    if (last) q = q.startAfter(last);
-    const snap = await q.get();
-    docs.push(...snap.docs);
-    if (snap.docs.length < 300) break;
-    last = snap.docs[snap.docs.length - 1];
-  }
-  return docs.map(d => ({ id: d.id, data: d.data() }))
-    .filter(d => d.data && d.data.companyId === o.company)
-    .map(d => ({
-      id: d.id,
-      name: [d.data.firstName, d.data.lastName].filter(Boolean).join(' ') || d.data.name || '',
-      address: d.data.address || d.data.propertyAddress || '',
-      lat: Number(d.data.lat), lng: Number(d.data.lng),
-      stageDates: stageDatesFromHistory(d.data.stageHistory)
+  const d = deps || {};
+  if (!d.db && !process.env.NBD_ACCESS_TOKEN) throw new Error('give --leads <file> or set NBD_ACCESS_TOKEN (token mode)');
+  const MJ = require('./match-job-photos.js');
+  const all = await MJ.loadLeads({ company: o.company, project: o.project }, { db: d.db, env: process.env });
+  return all
+    .filter(l => !MJ.isDeleted(l) && MJ.leadInCompany(l, o.company, o.company))
+    .map(l => ({
+      id: l.id,
+      name: [l.firstName, l.lastName].filter(Boolean).join(' ') || l.name || '',
+      address: l.address || l.propertyAddress || '',
+      lat: Number(l.lat), lng: Number(l.lng),
+      stageDates: stageDatesFromHistory(l.stageHistory)
     }));
 }
 
@@ -192,4 +189,4 @@ async function main() {
 }
 
 if (require.main === module) main().catch(e => { console.error(String(e && e.message || e)); process.exit(1); });
-module.exports = { parseArgs, stageDatesFromHistory };
+module.exports = { parseArgs, stageDatesFromHistory, loadLeads };

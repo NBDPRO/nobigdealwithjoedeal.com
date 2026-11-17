@@ -758,6 +758,9 @@ module.exports = {
   addrKey, addrKeysInFilename, ms, leadWindows, phaseFor, inYear, scorePhotoLead, bestMatch,
   toCsv, parseCsv, isApproved, listPhotoFiles, contactSheetHtml, makeRestStorage, applyRows,
   parseArgs, run, PHASE_DURING, PHASE_AFTER, CSV_COLUMNS,
+  // Shared with upload-job-photos.js and the 11-10 sweep (repo sweep
+  // 2026-11-17, L15/L16): one tenant rule, one soft-delete rule, one lead read.
+  leadInCompany, isDeleted, loadLeads,
 };
 
 if (require.main === module) {

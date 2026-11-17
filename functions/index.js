@@ -1168,6 +1168,13 @@ const receiptInbox = require('./receipt-inbox');
 exports.submitInboxReceipt = receiptInbox.submitInboxReceipt;
 exports.onInboxReceiptDropped = receiptInbox.onInboxReceiptDropped;
 
+// Supplier price ledger, slice 1 (2026-11-17). A typed price lands in a dated, append-only
+// history under priceBook/{companyId}/…. Dark behind the per-person flag supplierPricing;
+// changes no cost book, sell price or estimate.
+const priceLedger = require('./price-ledger');
+exports.priceLedgerSave = priceLedger.priceLedgerSave;
+exports.priceLedgerRecord = priceLedger.priceLedgerRecord;
+
 // Server-side plan-usage tracking (Audit A follow-up, Batch 3 of the
 // audit-driven rollups). Closes the KNOWN GAP where client-side
 // trackUsage in billing-gate.js silently 403'd because rules block

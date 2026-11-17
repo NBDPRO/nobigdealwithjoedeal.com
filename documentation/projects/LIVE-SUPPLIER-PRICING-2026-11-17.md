@@ -18,6 +18,76 @@ the checklist in section 12 of the design.
 As in the sweep note, **this note carries no cost, labor or margin figure**.
 Dollar amounts below are vendors' published service prices, not material costs.
 
+## Update 2026-11-17 (later the same day): slice 1 built, and what the portals export
+
+**Slice 1 is built on branch `claude/supplier-pricing-slice-1-2026-11-17`**, dark
+behind the per-person flag `supplierPricing`. It adds the pure logic
+(`functions/price-logic.js` and its screen copy), the store and the two callables
+(`priceLedgerSave`, `priceLedgerRecord`), five read-only rule blocks and one index,
+the solo-owner erasure step, and the "Stores & prices" sheet on each product card.
+No estimate, cost-book or legacy price-book file changed. Four new suites:
+`price-logic-2026-11`, `price-ledger-server-2026-11`, `price-fixture-privacy`
+and `firestore-rules.price-ledger` (emulator).
+
+Where the build departs from the design text, on purpose:
+
+- The unit-swap check is skipped up to a 6 to 5 pack ratio. The design says
+  "within 15% of 1 (for example 6 / 5)", and 6 / 5 is 20% from 1; the checklist
+  requires 6 / 5 to be skipped, so the example wins.
+- A typed row that names its document gets the document-based id, so sending it
+  twice is a duplicate. A typed row with no document reference gets a random id.
+- Writes use `create()` in a small pool, not a BulkWriter, with the same
+  already-exists handling.
+- `price-logic.js` also exports `microsToText` (display only), so no other
+  ledger file formats money.
+- `functions/handlers/_shared.js` now exports `assertCallerAccountEnabled` (it
+  was already defined there) for the manager path.
+
+Not done in slice 1's PR: nobody has clicked through the sheet in a real
+browser. Jo sets `feature_flags/{his uid}.supplierPricing = true` after the
+deploy and tries it; see the design's section 12, step 34.
+
+**Jo's answers to the four open design calls (2026-11-17, in chat).** They
+match the design's defaults, so nothing built changes:
+
+| Question | Answer |
+|---|---|
+| May sales reps see a supplier's latest price? | Yes. Reps read offers and their latest price; not the history or the audit trail. Viewers see nothing. |
+| May managers record prices? | Yes, as notes: stored unconfirmed until an owner or company admin confirms. Managers never add suppliers, change pack sizes or approve. |
+| A cost above the sell price at approval (slice 4) | An explicit second confirm, not a refusal. |
+| Cost-book tax basis (slice 4) | Supplier price with sales tax included, as decided 2026-08-19. The tax rate itself is still to come from Jo before slice 4, with the floor value and the alert threshold. |
+
+**What each supplier portal exports** (read by a local browser session in Jo's
+own signed-in Chrome on 2026-11-17; formats and counts only):
+
+| Supplier | What | Format | Per-item price in the file? |
+|---|---|---|---|
+| Home Depot Pro Xtra | Purchase history, Summary and Details | CSV | Yes, in Details (store SKU, Internet SKU, quantity, net unit price, store number). No purchase-unit column |
+| Lowe's Pro | Order history report by date range | CSV | No: order-level only |
+| Lowe's Pro | Each order's detail page | On screen, with a print view | On screen only (item number, model number, each-price, quantity) |
+| ABC Supply | Invoices, served by Billtrust | PDF, CSV, a line-item "CSV Detail", QuickBooks and other accounting formats | In "CSV Detail" (not downloaded, columns unconfirmed) |
+| ABC Supply | Orders list | CSV or Excel | Not checked |
+| SRS Roof Hub | Invoice list | Excel, downloads with no format prompt | No: invoice-level only |
+| SRS Roof Hub | Single invoice | PDF | In the PDF only |
+| SRS Roof Hub | Quotes page | "Coming soon" | n/a |
+| SRS Roof Hub | Integration Key | Shown on the Integrations page | n/a (it exists; not read or copied) |
+| QXO | Received quotes | On screen, plus a Download button per quote (format not checked) | On screen (item number, product number, unit, price) |
+| QXO | Invoices | A separate Billtrust sign-in, not checked | Unknown |
+| Gulfeagle | Reports page, any date range | CSV | No: orders, products, quantities and units only |
+
+What that changes for the slices:
+
+- Slice 2 (receipts in): Home Depot is the only retailer with a line-item file.
+  Lowe's item prices exist only on each order's page.
+- Slice 3 (distributor import): ABC has a line-item CSV to target. SRS, QXO and
+  Gulfeagle have no priced file from their portals: their prices come from quote
+  and invoice documents (SRS, QXO) and scanned tickets (Gulfeagle).
+- The table below still says "Gulfeagle, MBS: no API found". That holds, but
+  Gulfeagle now has an order portal with a usage report.
+- History is short, so the 20-product pilot list (slice 6) rests on about six
+  months of Home Depot purchases, with only 13 products bought more than once.
+  The list and the exports are kept outside the repo.
+
 ## Jo's decisions (2026-11-17, in chat)
 
 | Question | Decision |

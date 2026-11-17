@@ -267,14 +267,20 @@
       // only "DEAL / Home Solutions" — a different letterhead from every
       // Templates document. Same cache key as the docgen bundle.
       'js/nbd-logo-asset.js?v=3',
-      'js/product-data.js?v=5',
+      'js/product-data.js?v=6',
       'js/roofivent-catalog.js?v=2',
       'js/catalog-costs.js?v=4',
-      'js/product-library.js?v=16',
+      'js/product-library.js?v=18',
       // Price book viewer (2026-10-02): the Product Library's "Price book"
       // button. Same file the expenses bundle loads for the HD import.
       'css/price-book.css?v=1',
       'js/price-book.js?v=2',
+      // Supplier price ledger (2026-11-17, flag supplierPricing): the
+      // "Stores & prices" sheet on each product card. Dark unless the flag is on.
+      'js/price-logic.js?v=1',
+      'css/price-ledger.css?v=1',
+      'js/price-ledger.js?v=1',
+      'js/price-offers-ui.js?v=1',
       'js/estimate-labor-catalog.js?v=2',
       'js/estimate-builder-v2.js?v=14',
       'js/estimate-catalog-xactimate.js?v=4',

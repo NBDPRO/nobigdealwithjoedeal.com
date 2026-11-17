@@ -205,15 +205,18 @@ test('raised SKUs keep their ladder order and each tier gap', () => {
   if (bad.length) throw new Error(bad.join('; '));
 });
 
-test('every raised SKU sells at exactly its pinned 20%-floor retail sells', () => {
+// 2026-11-17: the 30% floor (catalog-price-floor-30-2026-11-17) lifted many of
+// these sells again and pins the exact new values, so this pin is now a lower
+// bound: no sell may drop back under its 20%-floor value.
+test('every raised SKU sells at or above its pinned 20%-floor retail sells', () => {
   const bad = [];
   if (Object.keys(NOW).sort().join() !== Object.keys(PRIOR).sort().join()) bad.push('NOW and PRIOR list different SKUs');
   for (const [id, want] of Object.entries(NOW)) {
     const p = byId(id);
     if (!p) { bad.push(id + ' missing'); continue; }
-    sells(p).forEach((v, i) => { if (cents(v) !== cents(want[i])) bad.push(id + ':' + TIERS[i]); });
+    sells(p).forEach((v, i) => { if (cents(v) < cents(want[i])) bad.push(id + ':' + TIERS[i]); });
   }
-  if (bad.length) throw new Error('not at the pinned sell: ' + bad.join(', '));
+  if (bad.length) throw new Error('below the pinned sell: ' + bad.join(', '));
 });
 
 test('DATA_VERSION was bumped past 6 so stored catalogs re-read the raised sells', () => {
