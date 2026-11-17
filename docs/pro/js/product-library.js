@@ -578,6 +578,10 @@
     const results = getFilteredProducts();
     const activeCount = products.filter(p => p.isActive !== false).length;
     const usedCats = [...new Set(products.filter(p => p.isActive !== false).map(p => p.category))];
+    // Supplier pricing slice 3 (2026-11-17): Import prices and Compare suppliers are
+    // for the owner and company admins; the alert count fills in after this paints.
+    const prlAdmin = !!(window.NBDPriceLedger && window.NBDPriceLedger.enabled() && window.NBDPriceLedger.canSave());
+    if (prlAdmin && window.NBDPriceCompareUI) setTimeout(() => window.NBDPriceCompareUI.refreshCount(), 0);
     const categoryCount = usedCats.length;
     const marginTier = currentFilter.tier || 'better';
     // Average over the products whose cost is actually KNOWN. Averaging a
@@ -713,7 +717,9 @@
             <button data-pl-action="addProduct" class="plx-btn-add">+ Add Product</button>
 ` : ''}
             <button type="button" class="btn btn-ghost" data-pb-action="open" title="What you actually paid, per store SKU">💲 Price book</button>${(window.NBDPriceLedger && window.NBDPriceLedger.enabled()) ? `
-            <button type="button" class="btn btn-ghost" data-prl-action="openUnlinked" title="Receipt items not linked to a product yet">Unlinked items</button>` : ''}
+            <button type="button" class="btn btn-ghost" data-prl-action="openUnlinked" title="Receipt items not linked to a product yet">Unlinked items</button>` : ''}${prlAdmin ? `
+            <button type="button" class="btn btn-ghost" data-pri-action="open" title="A supplier's quote, price sheet or invoice as a CSV file">Import prices</button>
+            <button type="button" class="btn btn-ghost" data-prc-action="open" title="Price moves and cheaper suppliers">Compare suppliers <span class="prc-count" data-prc-count hidden></span></button>` : ''}
             <button type="button" data-pl-action="exportCSV" class="btn btn-ghost">Export CSV</button>
             ${editable ? `<button type="button" data-pl-action="resetDefaults" class="btn btn-ghost plx-btn-reset">Reset</button>` : ''}
           </div>
