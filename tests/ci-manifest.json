@@ -304,6 +304,7 @@
     "voice-memo-groq-2026-10-04.test.js",
     "docgen-paypanel.test.js",
     "docgen-brand.test.js",
+    "template-honesty-removals-2026-11-17.test.js",
     "docgen-address-guard.test.js",
     "estimate-min-job-optin.test.js",
     "estimate-engine-parity.test.js",
