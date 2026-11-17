@@ -531,7 +531,7 @@ canvas{max-width:100%;display:block;}
 <link rel="stylesheet" href="/pro/daily-success/css/health-shortcut.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/export.css?v=1">
 <link rel="stylesheet" href="/pro/daily-success/css/notebook.css?v=2">
-<link rel="stylesheet" href="/pro/daily-success/css/flow-batch-3.css?v=2">
+<link rel="stylesheet" href="/pro/daily-success/css/flow-batch-3.css?v=3">
 </head>
 <body>
 <!-- ═══════════════════════════════════════════════════════════════
@@ -1060,6 +1060,8 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <div class="ds-menu" id="dsMenu" role="menu" aria-label="More" hidden>
   <a class="ds-mi" role="menuitem" href="/pro/dashboard.html">Back to the CRM</a>
   <button type="button" class="ds-mi" role="menuitem" data-action="save-now">Save now</button>
+  <!-- Shown only while signed out (menu-ui.js, 2026-11-16; third, so the first two items keep their places): an installed iPhone app has its own storage, so this is its way in to the synced copy. -->
+  <a class="ds-mi" role="menuitem" id="dsSignIn" href="/pro/login" hidden>Sign in to back up and sync</a>
   <button type="button" class="ds-mi" role="menuitem" data-action="smart-new-page">New (jump to today)</button>
   <button type="button" class="ds-mi" role="menuitem" data-action="open-rename">Rename this page</button>
   <button type="button" class="ds-mi" role="menuitem" data-action="export-csv">Export CSV</button>
@@ -1239,7 +1241,7 @@ button:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:fo
 <script src="/pro/daily-success/js/a11y-ui.js?v=2" defer></script>
 <script src="/pro/daily-success/js/quickjump-logic.js?v=1" defer></script>
 <script src="/pro/daily-success/js/floor-tick-logic.js?v=1" defer></script>
-<script src="/pro/daily-success/js/menu-ui.js?v=2" defer></script>
+<script src="/pro/daily-success/js/menu-ui.js?v=3" defer></script>
 <script src="/pro/daily-success/js/floor-tick-ui.js?v=2" defer></script>
 <script src="/pro/daily-success/js/nextup-ui.js?v=1" defer></script>
 <script src="/pro/daily-success/js/quickjump-ui.js?v=1" defer></script>

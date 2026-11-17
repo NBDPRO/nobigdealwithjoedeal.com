@@ -39,9 +39,13 @@ So:
 | Icons: navy tile with an orange progress ring and a check (Daily Success); orange tile with a white dumbbell (Workout). SVG sources, and PNGs at 192 / 512 ("any" and "maskable") and 180 (iPhone). | `docs/pro/img/ds-icon*.{svg,png}`, `workout-icon*.{svg,png}`, `ds-apple-touch-icon.png`, `workout-apple-touch-icon.png`; built by `scripts/render-app-icons.js` |
 | Offline shell for `/pro/workout` (same rules as the tracker's: stored only when the page asks, marker-checked). | `docs/pro/sw.js` (`APP_SHELLS`, `NO_CACHE_HTML`) |
 | Hosting: `/pro/workout` and `/pro/workout/**` get the tracker's CSP, no-store and noindex; both manifests are served as `application/manifest+json`. | `firebase.json` |
-| Test (57 checks): manifests, every icon PNG walked chunk by chunk, script-version parity between the two pages, the helpers against app.js, the status line, the shell entry, the headers, the mirrored theme tokens. | `tests/ds-workout-installable-2026-11-16.test.js` |
+| Sign-in item in the Daily Success header menu ("Sign in to back up and sync", third, after Save now), shown only while signed out. Hidden items are skipped by the menu's keyboard focus. | `docs/pro/daily-success/index.html`, `js/menu-ui.js`, `css/flow-batch-3.css` |
+| Test (66 checks, structure and behaviour through `tests/lib/src-kit.js`): manifests, every icon PNG walked chunk by chunk, script-version parity between the two pages, the helpers against app.js, the status line, the shell entry (sw.js run in a vm), the headers, the mirrored theme tokens, the sign-in item. | `tests/ds-workout-installable-2026-11-16.test.js` |
 
 `workout-coach.js`, `workout-coach-logic.js` and `ds-firebase-sync.js` are unchanged.
+
+CI note: the first push failed `tests/source-pin-ratchet.test.js` (a new suite may hold at most 5 assertions on file text; the first
+version of this suite had 22). The suite was rewritten to ask structural questions and run the code instead.
 
 ## How the two apps stay in step
 
@@ -53,9 +57,9 @@ So:
 
 ## Known gaps (not built here)
 
-1. **No sign-in link inside Daily Success.** The tracker has never had one: on a browser the dashboard's sign-in carries over.
-   An iPhone home-screen install starts signed out, with no way in. Workout has the link (`#waSignIn`); Daily Success needs the same
-   before the iPhone install is useful with existing data. Small change, but it touches the tracker's header or menu, so it is Jo's call where it goes.
+1. ~~No sign-in link inside Daily Success.~~ **Added the same day** (Jo: "add the sign in link to daily success too"): a menu item,
+   shown only while signed out. It is third in the menu, not first, because the menu's keyboard test
+   (`tests/ds-flow-batch-3-2026-11-09.test.js`) counts on the first two items staying where they are.
 2. **`/pro/login` does not come back.** After signing in it lands on the CRM dashboard, not the app that sent it. On a phone that
    means: sign in, then reopen the app from the home screen. A return path is a login-flow change and was left alone.
 3. **A workout finished in Workout is not copied into today's Exercise Log table** on the day page (the coach only does that when

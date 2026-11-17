@@ -15,7 +15,7 @@
 
   const menu = () => document.getElementById('dsMenu');
   const btn = () => document.getElementById('dsMenuBtn');
-  const items = () => [...document.querySelectorAll('#dsMenu .ds-mi')];
+  const items = () => [...document.querySelectorAll('#dsMenu .ds-mi:not([hidden])')];
 
   function isOpen() { const m = menu(); return !!m && !m.hidden; }
   function close(refocus) {
@@ -104,6 +104,13 @@
       if (typeof window.restoreDeleted === 'function' && window.restoreDeleted(id)) { if (typeof window.toast === 'function') window.toast('Page restored'); }
       else if (typeof window.toastErr === 'function') window.toastErr('That page could not be restored. Check Recently deleted in the Notebook.');
     } else hideUndo();
+  });
+
+  // The sign-in item (2026-11-16) shows only once ds-firebase-sync.js has said nobody is signed in: never before that is known, never while signed in.
+  window.addEventListener('nbd-ds-sync', (ev) => {
+    const d = (ev && ev.detail) || {};
+    const a = document.getElementById('dsSignIn');
+    if (a && typeof d.signedIn === 'boolean') a.hidden = d.signedIn;
   });
 
   window.NBDMenuUI = { open, close, isOpen, undoToast, hideUndo, UNDO_MS };
