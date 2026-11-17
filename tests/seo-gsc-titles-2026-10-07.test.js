@@ -56,7 +56,7 @@ const PAGES = {
   'services/siding-replacement-loveland-oh.html': [/^Siding Replacement in Loveland, OH \| James Hardie/, /James Hardie/],
   'services/lumanail/index.html': [/^LumaNail Orange Roofing Nails/, /orange, ring-shank/],
   'services/roof-replacement-lexington-ky.html': [/^Roof Replacement in Lexington, KY \| Free Estimate/, /Lexington, KY/],
-  'blog/gaf-timberline-vs-tamko-storm-series.html': [null, /StormFighter Flex/],
+  'blog/gaf-timberline-vs-tamko-impact-resistant-shingles.html': [null, /StormFighter Flex/],
   'blog/gaf-vs-owens-corning-vs-atlas-shingles.html': [null, /Class 4/],
   'blog/gaf-timberline-hdz-vs-tamko-stormfighter-flex.html': [/StormFighter Flex: A Roofer's Review/, /warranty/],
 };
