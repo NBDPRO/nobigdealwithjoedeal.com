@@ -14,7 +14,15 @@ There were 8 finder agents and 44 skeptic verifiers, 52 agents in total. Each fi
 
 **How each finding was checked.** The sweep read `feat/match-job-photos`, which is 48 commits behind main. Every medium finding was then re-checked by grep on `origin/main` at `f3fb34385`. Lows in files that changed since were also re-checked. Line numbers below are from main where they differ. Nothing was edited and no prod script was run.
 
-**Baseline.** All 12 pre-push gates pass on the branch. The node test bucket passed 762 of 762 suites before it hit the runner's 8-minute wall-clock cap after 762 of 1,050 suites. The cap is `BUCKET_BUDGET_MS` in `scripts/run-test-manifest.js:768`. The runner's message says "a suite is hanging", but the last suites each finished in under 3 s. On this Windows machine the bucket is simply slower than the cap: the runner is serial and Windows has a slow process spawn. See the rerun result at the bottom.
+**Baseline.** All 12 pre-push gates pass on the branch. The node test bucket passed 762 of 762 suites before it hit the runner's 8-minute wall-clock cap after 762 of 1,050 suites. The cap is `BUCKET_BUDGET_MS` in `scripts/run-test-manifest.js:768`. The runner's message says "a suite is hanging", but the last suites each finished in under 3 s. On this Windows machine the bucket is simply slower than the cap: the runner is serial and Windows has a slow process spawn.
+
+**Rerun with a 40-minute cap (scratch copy of the runner): 1,118 of 1,124 suites passed.** The run started on the photo branch and finished on main. The 6 failures reproduce on main one at a time, and they fail **only on a Windows CRLF checkout**. CI on Linux is green.
+- **The six suites:** `call-brief-buttons`, `call-to-close-transcribe-now`, `-rescue-queue`, `-split-merge`, `-p1-leftovers` and `-viewers`, all dated 2026-11-09.
+- **Why they fail:** each one slices functions out of `customer-calls.js`, `call-center-view.js` or the inbox source with regexes ending in a literal `\n` (for example `/function briefGate\(c\) \{[\s\S]*?\n  \}\n/`). With `core.autocrlf=true` the working copy is CRLF (`i/lf w/crlf`), so nothing matches. The same class of bug was fixed for the photo EXIF test in 9bb6d78ca.
+- **Fix:** read the source with `.replace(/\r\n/g, '\n')` in each suite.
+- **Two follow-ups:**
+  - A cheap guard: a test that fails on `\n`-anchored source regexes without that normalisation.
+  - Raising `BUCKET_BUDGET_MS`, or saying "slow machine" instead of "hanging", for local runs.
 
 Severity is the verifiers' corrected severity, not the finder's claim. Several high claims were lowered after verification.
 
