@@ -22,6 +22,9 @@
  *   9. The Workout app asks "Workout done. Tick the floor?" at Finish and stores the answer on the workout (it has no floors or day
  *      pages of its own); Daily Success applies it (tests/coach-exercise-log-copy-2026-11-17.test.js).
  *
+ *  10. The Workout app wears the Daily Success theme: the same storage keys in the same order, the ten built-in skins' tokens mirrored
+ *      value for value, the accent laid over the skin as accent-ui.js does it, and anything unknown shown as the default skin.
+ *
  * Structure and behaviour, not file text (tests/lib/src-kit.js): tags and attributes, CSS declarations, the scripts run in a vm.
  *
  * Run: node tests/ds-workout-installable-2026-11-16.test.js
@@ -326,6 +329,67 @@ console.log('\n9. The Workout app asks about the floor at Finish');
   full.did({ kind: 'workout', id: 'w4' });
   full.tap('tick-yes');
   ok('an answer the phone could not store says so and does not claim it will be ticked', full.errs.length === 1 && !full.shown());
+}
+
+console.log('\n10. The Workout app wears the Daily Success theme');
+{
+  const dsCss = dsDoc.$$('style').map((s) => s.html).join('\n');
+  const wCss = kit.read('docs/pro/workout/workout-app.css');
+  const PROPS = ['--ac', '--ac-text', '--ac-on-dark', '--on-dark', '--gold', '--bg', '--bar', '--paper', '--ink', '--rule', '--muted', '--grn', '--blu', '--ghost', '--input-bg', '--ph'];
+  // the skins Daily Success has a colour rule for: the default, plus every :root[data-theme="x"] block that sets the page colours
+  const dsSkins = ['default'].concat(kit.cssRules(dsCss).filter((r) => r.decls['--bg'] && r.decls['--paper'] && r.decls['--ac-text'])
+    .flatMap((r) => r.selectors).map((s) => (/^:root\[data-theme="([a-z]+)"\]$/.exec(s) || [])[1]).filter(Boolean));
+
+  // the real script, with a small <html> element, storage and a card colour to judge the accent against
+  function themed(store, paper) {
+    const attrs = { 'data-theme': 'default' }, inline = {}, docL = {}, winL = {};
+    const html = { getAttribute: (k) => (k in attrs ? attrs[k] : null), setAttribute: (k, v) => { attrs[k] = String(v); },
+      style: { setProperty: (p, v) => { inline[p] = v; }, removeProperty: (p) => { delete inline[p]; } } };
+    const win = { addEventListener: (n, f) => { winL[n] = f; } };
+    const doc = { documentElement: html, visibilityState: 'visible', addEventListener: (n, f) => { docL[n] = f; } };
+    kit.loadInVm(['docs/pro/daily-success/js/accent-logic.js', 'docs/pro/workout/js/workout-theme.js'], { window: win, document: doc,
+      localStorage: { getItem: (k) => (k in store ? store[k] : null) }, getComputedStyle: () => ({ getPropertyValue: () => paper || '#12161c' }) });
+    return { win, attrs, inline, store, back: () => docL.visibilitychange(), changed: (key) => winL.storage({ key }) };
+  }
+  const T = themed({}).win.NBDWorkoutTheme;
+  const idFor = (store) => T.themeId((k) => (k in store ? store[k] : null));
+
+  ok('it knows exactly the skins Daily Success has colours for', T.SKINS.slice().sort().join() === dsSkins.slice().sort().join() && T.SKINS.length === 10, T.SKINS.join() + ' vs ' + dsSkins.join());
+  const off = [];
+  T.SKINS.forEach((id) => {
+    const sel = id === 'default' ? '[data-theme="default"]' : ':root[data-theme="' + id + '"]';
+    const mine = kit.cssRule(wCss, sel) || {}, theirs = kit.cssRule(dsCss, sel) || {};
+    PROPS.forEach((p) => { if (id === 'default' && !theirs[p] && !mine[p]) return; if (!mine[p] || mine[p] !== theirs[p]) off.push(id + ' ' + p + ' ' + mine[p] + ' vs ' + theirs[p]); });
+  });
+  ok('every skin\'s tokens equal the Daily Success values (16 tokens x 10 skins)', off.length === 0, off.slice(0, 6).join('; '));
+
+  ok('nothing saved: the default skin', idFor({}) === 'default');
+  ok('the theme Daily Success saved is the one worn', T.SKINS.every((id) => idFor({ nbd_pro_theme: id }) === id));
+  ok('same order as Daily Success: nbd_pro_theme, then nbd-theme, then ds-theme', idFor({ nbd_pro_theme: 'ocean', 'nbd-theme': 'ember', 'ds-theme': 'paper' }) === 'ocean'
+    && idFor({ 'nbd-theme': 'ember', 'ds-theme': 'paper' }) === 'ember' && idFor({ 'ds-theme': 'paper' }) === 'paper');
+  ok('the dashboard\'s nbd-original is the default skin here, and does not fall through to an older key', idFor({ nbd_pro_theme: 'nbd-original', 'nbd-theme': 'ember' }) === 'default');
+  ok('a custom theme or junk in storage shows as the default skin', ['custom-1730000000', 'LIGHT', ' light', '__proto__', 'constructor', '<b>'].every((v) => idFor({ nbd_pro_theme: v }) === 'default'));
+
+  const a = themed({ nbd_pro_theme: 'forest' });
+  ok('on load the page is given that theme, with no accent laid over it', a.attrs['data-theme'] === 'forest' && Object.keys(a.inline).length === 0);
+  const dark = themed({ nbd_pro_theme: 'midnight', nbd_ds_accent: 'teal' }, '#12132b');
+  const light = themed({ nbd_pro_theme: 'light', nbd_ds_accent: 'teal' }, '#ffffff');
+  ok('an accent is laid over the skin: the fill, and a text tint picked by the card colour', dark.inline['--ac'] === '#0F766E' && light.inline['--ac'] === '#0F766E'
+    && dark.inline['--ac-text'] === '#5FD6C8' && light.inline['--ac-text'] === '#0B5F58', JSON.stringify([dark.inline, light.inline]));
+  ok('an accent that is not in the list is ignored', Object.keys(themed({ nbd_ds_accent: '#ff0000' }).inline).length === 0);
+  delete light.store.nbd_ds_accent; light.store.nbd_pro_theme = 'paper';
+  light.back();
+  ok('coming back to the app picks up a changed theme and takes a cleared accent back off', light.attrs['data-theme'] === 'paper' && Object.keys(light.inline).length === 0);
+  light.store.nbd_pro_theme = 'ocean'; light.changed('nbd_pro_theme');
+  ok('a change made in another tab is followed at once', light.attrs['data-theme'] === 'ocean');
+  light.store.nbd_pro_theme = 'ember'; light.changed('some_other_key');
+  ok('an unrelated storage change is not a reason to repaint', light.attrs['data-theme'] === 'ocean');
+
+  const head = wDoc.$('head');
+  const inHead = (file) => head.$$('script').find((s) => pathOf(s.attr('src') || '').split('/').pop() === file) || null;
+  const lastSheet = Math.max.apply(null, head.$$('link[rel=stylesheet]').map((l) => l.start));
+  const acc = inHead('accent-logic.js'), th = inHead('workout-theme.js');
+  ok('the theme is set in <head>, after the stylesheets and the accent list, so the first paint is already themed', !!acc && !!th && acc.start > lastSheet && th.start > acc.start && !th.has('defer') && !th.has('async') && dScripts.has(acc.attr('src')));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

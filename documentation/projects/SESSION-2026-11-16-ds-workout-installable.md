@@ -93,8 +93,17 @@ version of this suite had 22). The suite was rewritten to ask structural questio
    Checked in headless Chromium with both apps in one profile (shared storage, the Android case): Finish, prompt on top of the summary,
    Tick it, then Daily Success opened on the Dashboard with the floor ticked and no second question, and today's page got the lifts.
    Not checked: the iPhone path, where the answer has to travel through the account sync.
-4. **Workout is the default dark theme only.** The coach's full-screen logger is dark in every Daily Success theme already; only the
-   small card would differ.
+4. ~~Workout is the default dark theme only.~~ **Built 2026-11-17** (Jo: "make the workout app follow my daily success theme too").
+   `docs/pro/workout/js/workout-theme.js` reads the keys Daily Success saves its theme under, in the same order (`nbd_pro_theme`, then
+   `nbd-theme`, then `ds-theme`), and sets `data-theme` in `<head>` before the first paint. `workout-app.css` (`?v=3`) carries the token
+   blocks of all ten built-in skins, generated from the Daily Success page's own rules; the test compares 16 tokens x 10 skins. The accent
+   (`nbd_ds_accent`) is laid over the skin with `NBDAccent.vars`, judged against the skin's card colour, as `accent-ui.js` does. The header
+   bar and the floor prompt sit on `--bar`, which is dark in every skin, so their text is a fixed light colour.
+   Checked in headless Chromium: for each skin (and light + a teal accent) both pages computed the same ten colours, and no text on the
+   Workout home screen measured under 4.5:1. Ten deliberate breaks: nine caught; the tenth showed a redundant line, which was removed.
+   **Limits:** (a) a saved custom theme shows as the default skin; (b) the theme keys are per device and are NOT synced, so this works where
+   the two apps share storage (Android, or a desktop browser). An installed iPhone app has its own storage and stays on the default skin
+   until the theme is synced through the account, which is not built.
 5. **Not checked on a real phone.** Checked here: the page in headless Chromium at 390 x 844 (card, start a workout, Back closes
    the logger, no console errors). Not checked: the Android install prompt, iPhone Add to Home Screen, sign-in from inside an
    installed iPhone app, the offline open after an install.
