@@ -1,5 +1,14 @@
 # Store price book + per-job materials list — plan (2026-10-02)
 
+> **Update 2026-11-17:** Jo reversed the "No paid data service" answer below.
+> A paid product-data service is now allowed as a flagged, NBD-only pilot
+> called from a Cloud Function; we still never scrape retailer sites
+> ourselves. Recon the same day also found this plan's phase 2 (Stores
+> section + photo field) was never built, the price book is one document per
+> company (not the `items` subcollection described here), it has no manual
+> entry or product link, and the materials list does not read it. See
+> [LIVE-SUPPLIER-PRICING-2026-11-17](LIVE-SUPPLIER-PRICING-2026-11-17.md).
+
 Jo, 2026-10-02:
 - "I want to go on Home Depot live to shop pricing on all of our product
   library … almost clone it to a degree: all kinds of item options with SKU
