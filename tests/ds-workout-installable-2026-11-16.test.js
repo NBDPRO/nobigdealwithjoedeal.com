@@ -16,6 +16,9 @@
  *   7. Daily Success has a sign-in item in its header menu, shown only while signed out (an installed iPhone app starts signed
  *      out with its own empty storage, and the tracker had no sign-in link of its own).
  *
+ *   8. Signing in from either app comes back to it: the links carry a NAME (?redirect=workout), and the login page looks it up in a
+ *      fixed list (docs/pro/js/login-return.js). Anything else, a URL included, is ignored.
+ *
  * Structure and behaviour, not file text (tests/lib/src-kit.js): tags and attributes, CSS declarations, the scripts run in a vm.
  *
  * Run: node tests/ds-workout-installable-2026-11-16.test.js
@@ -120,7 +123,7 @@ ok('the app screen loads after the coach, and the sync module is on the page', a
 const sheets = wDoc.$$('link[rel=stylesheet]').map((l) => l.attr('href')).filter((h) => h.charAt(0) === '/');
 ok('every script and stylesheet the page names exists', wSrcs.concat(sheets).every((s) => kit.exists('docs' + pathOf(s))));
 const card = wDoc.byId('wcCard'), signIn = wDoc.byId('waSignIn');
-ok('a card placeholder for the coach to draw into, and a sign-in link that starts hidden', !!card && !!signIn && signIn.tag === 'a' && signIn.attr('href') === '/pro/login' && signIn.has('hidden'));
+ok('a card placeholder for the coach to draw into, and a sign-in link that starts hidden', !!card && !!signIn && signIn.tag === 'a' && signIn.attr('href') === '/pro/login?redirect=workout' && signIn.has('hidden'));
 ok('none of the Daily Success page code is loaded', at('app.js') === -1);
 
 console.log('\n3. Page helpers (workout-shell.js) match app.js');
@@ -200,7 +203,7 @@ console.log('\n6. Default-theme tokens mirrored into workout-app.css');
 console.log('\n7. Daily Success: the sign-in item in the header menu');
 {
   const menu = dsDoc.byId('dsMenu'), item = dsDoc.byId('dsSignIn');
-  ok('a menu item that links to /pro/login and starts hidden', !!item && item.tag === 'a' && item.attr('role') === 'menuitem' && item.attr('href') === '/pro/login' && item.has('hidden') && item.classes.indexOf('ds-mi') > -1);
+  ok('a menu item that links to /pro/login and starts hidden', !!item && item.tag === 'a' && item.attr('role') === 'menuitem' && item.attr('href') === '/pro/login?redirect=daily-success' && item.has('hidden') && item.classes.indexOf('ds-mi') > -1);
   const order = menu ? menu.$$('.ds-mi').map((e) => e.attr('id') || e.attr('data-action') || e.tag) : [];
   // third: the first two items keep their places (the menu's keyboard contract counts on them), Delete stays last
   ok('it sits in the header menu after Save now, with Delete still last', order.indexOf('dsSignIn') === 2 && order[1] === 'save-now' && order[order.length - 1] === 'trigger-del', order.join(' '));
@@ -229,6 +232,31 @@ console.log('\n7. Daily Success: the sign-in item in the header menu');
   ok('an event that does not say who is signed in leaves it as it was', link.hidden === false);
   fire({ cloud: 'synced', signedIn: true });
   ok('signed in: the item is hidden again', link.hidden === true);
+}
+
+console.log('\n8. Signing in comes back to the app');
+{
+  const win = {};
+  kit.loadInVm(['docs/pro/js/login-return.js'], { window: win, URLSearchParams });
+  const dest = win.NBDLoginReturn.dest;
+  ok('?redirect=workout and ?redirect=daily-success go back to those apps', dest('?redirect=workout') === '/pro/workout' && dest('?redirect=daily-success') === '/pro/daily-success');
+  // each app's own sign-in link is one the login page honours, and it leads back to that app's start page
+  for (const a of APPS) {
+    const link = (a.prefix === 'ds' ? dsDoc.byId('dsSignIn') : wDoc.byId('waSignIn')).attr('href');
+    ok(a.name + ': its sign-in link returns to its own start_url', link.indexOf('/pro/login?') === 0 && dest(link.slice('/pro/login'.length)) === json(a.manifest).start_url, link);
+  }
+  const hostile = ['?redirect=https://evil.example', '?redirect=//evil.example', '?redirect=/pro/workout', '?redirect=%2Fpro%2Fworkout', '?redirect=javascript:alert(1)',
+    '?redirect=constructor', '?redirect=__proto__', '?redirect=toString', '?redirect=Workout', '?redirect=workout%20', '?redirect=', '?next=workout', '', null, undefined];
+  const leaked = hostile.filter((q) => dest(q) !== null);
+  ok('an address, a path, a prototype key or any other value is ignored (the query is a name, never an address)', leaked.length === 0, leaked.join(' '));
+  ok('redirect=pricing is not this list\'s business (login.js keeps handling it)', dest('?redirect=pricing') === null);
+  ok('other query values do not get in the way', dest('?plan=team&redirect=workout') === '/pro/workout');
+  const login = page('docs/pro/login.html');
+  const order = login.$$('script').map((s) => pathOf(s.attr('src') || '').split('/').pop());
+  ok('the login page loads the list before its sign-in module', order.indexOf('login-return.js') > -1 && order.indexOf('login-return.js') < order.indexOf('login.js'), order.join(' '));
+  const mod = kit.read('docs/pro/js/pages/login.js');
+  const pricingAt = mod.indexOf("params.get('redirect') === 'pricing'"), useAt = mod.indexOf('window.NBDLoginReturn.dest(window.location.search)');
+  ok('the sign-in module asks it, after the pricing return and before the dashboard fallback', pricingAt > -1 && useAt > pricingAt && useAt < mod.indexOf("return '/pro/dashboard.html'"));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

@@ -106,7 +106,7 @@ console.log('\nD. the preboot never paints another account\'s layout');
   ok('every login redirect goes through goDashboard(), which records the uid first', (login.match(/goDashboard\(\);/g) || []).length === 6 && !/window\.location\.replace\(POST_LOGIN_DEST\);\s*\n\s*\}\s*catch/.test(login.replace(/function goDashboard[\s\S]*?\n\}/, '')) && /localStorage\.setItem\('nbd_signin_uid', auth\.currentUser\.uid\)/.test(login));
   const reg = read('docs/pro/js/pages/register.js');
   ok('sign-up records it too, before every redirect', (reg.match(/markSignedIn\(\); window\.location\.replace\(/g) || []).length === (reg.match(/window\.location\.replace\(/g) || []).length);
-  ok('kept across sign-out (a device fact, not account data); login.js and the preboot cache-busted', /'nbd_signin_uid'/.test(read('docs/pro/js/nbd-auth.js')) && /login\.js\?v=4/.test(read('docs/pro/login.html')) && /shape-preboot\.js\?v=5/.test(read('docs/pro/dashboard.html')));
+  ok('kept across sign-out (a device fact, not account data); login.js and the preboot cache-busted', /'nbd_signin_uid'/.test(read('docs/pro/js/nbd-auth.js')) && /login\.js\?v=5/.test(read('docs/pro/login.html')) && /shape-preboot\.js\?v=5/.test(read('docs/pro/dashboard.html')));
 }
 
 console.log('\nE. Crew\'s palette');

@@ -60,8 +60,11 @@ version of this suite had 22). The suite was rewritten to ask structural questio
 1. ~~No sign-in link inside Daily Success.~~ **Added the same day** (Jo: "add the sign in link to daily success too"): a menu item,
    shown only while signed out. It is third in the menu, not first, because the menu's keyboard test
    (`tests/ds-flow-batch-3-2026-11-09.test.js`) counts on the first two items staying where they are.
-2. **`/pro/login` does not come back.** After signing in it lands on the CRM dashboard, not the app that sent it. On a phone that
-   means: sign in, then reopen the app from the home screen. A return path is a login-flow change and was left alone.
+2. ~~`/pro/login` does not come back.~~ **Fixed the same day** (Jo: "make login send me back to the app after sign in"). The two
+   sign-in links open `/pro/login?redirect=workout` / `?redirect=daily-success`. The query is a NAME, looked up in a fixed list in
+   `docs/pro/js/login-return.js`; `pages/login.js` (`POST_LOGIN_DEST`) asks it after the existing `redirect=pricing` rule and before the
+   dashboard fallback. A URL, a path or any other value is ignored, so the login page cannot be pointed anywhere else.
+   Not exercised with a real sign-in here (no credentials were used): the lookup and the wiring are tested, the full round trip is not.
 3. **A workout finished in Workout is not copied into today's Exercise Log table** on the day page (the coach only does that when
    today's page is on screen, which it never is here). Everything that reads `nbd_ds_workouts` still sees it. The
    "tick the workout floor?" prompt (`floor-tick-ui.js`, the `nbd-ds-did` event) also only fires inside Daily Success.

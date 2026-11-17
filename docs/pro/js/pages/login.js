@@ -89,6 +89,10 @@ const POST_LOGIN_DEST = (() => {
     if (params.get('redirect') === 'pricing') {
       return '/pro/pricing.html';
     }
+    // A personal web app (Daily Success, Workout) sent the visitor here to sign in: go back to it.
+    // The query is a NAME looked up in a fixed list (js/login-return.js), never an address.
+    const backToApp = window.NBDLoginReturn ? window.NBDLoginReturn.dest(window.location.search) : null;
+    if (backToApp) return backToApp;
     // Bare ?plan= on login (shared link / recovery) → resume checkout.
     if (PLAN_INTENTS.includes(qPlan)) {
       return '/pro/pricing.html';
