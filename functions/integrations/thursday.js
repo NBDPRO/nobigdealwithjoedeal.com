@@ -255,6 +255,11 @@ async function extract(call) {
   if (T.isEffectivelySilent(call)) {
     return { extraction: T.silentExtraction(call), meta: { skipped: 'silent' } };
   }
+  // Spend kill switches (sweep #11, 2026-11-17): feature_flags/global
+  // aiDisabled, or thursdayExtractDisabled for this call alone. Throwing takes
+  // the failed-extraction path, so the call still reaches Jo with Bland's summary.
+  const flags = await require('./killswitch').getFlags();
+  if (flags.aiDisabled === true || flags.thursdayExtractDisabled === true) throw new T.ExtractionError('ai-disabled');
   const key = secretValue(ANTHROPIC_API_KEY);
   if (!key) throw new T.ExtractionError('anthropic-not-configured');
   let r;
@@ -443,7 +448,7 @@ async function notifyAll(ref, data, ctx) {
   if (Object.keys(results).length) await ref.update(results);
 }
 
-exports._test = { notifyAll }; // test seam (tests/ping-volume-2026-10-13.test.js): the quiet-hours hold
+exports._test = { notifyAll, extract }; // test seam (tests/ping-volume-2026-10-13.test.js): the quiet-hours hold
 
 // ── Processing trigger ──────────────────────────────────────────────────────
 
