@@ -35,7 +35,9 @@ function ok(name, cond, detail) {
   else { failed++; console.log('  ✗ ' + name + (detail !== undefined ? ' — ' + (typeof detail === 'string' ? detail : JSON.stringify(detail)) : '')); }
 }
 const ROOT = path.join(__dirname, '..');
-const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+// CRLF-safe (2026-11-17): the slicing regexes below end in \n, and a Windows
+// checkout (core.autocrlf=true) has \r\n, so every slice came back empty there.
+const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
 function slicer(SRC) {
   const EOL = SRC.includes('\r\n') ? '\r\n' : '\n';
   return function (start, end) {
