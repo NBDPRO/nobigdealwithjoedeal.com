@@ -18,6 +18,10 @@
  * Run: node tests/deal-accepted-tier-2026-10-03.test.js
  */
 'use strict';
+// The fixtures' owner 'u1' is NBD: these cases pin NBD's own deposit rule.
+// Since 2026-11-17 (repo sweep M1) a re-tier for any other company uses that
+// company's rule, tests/tenant-deposit-retier-2026-11-17.test.js.
+process.env.NBD_OWNER_UID = 'u1';
 const fs = require('fs');
 const path = require('path');
 

@@ -776,7 +776,9 @@ async function staleDealPrice(db, tx, t, room, tier, price, confirmPrice) {
     let lead = null;
     if (okId(t.leadId)) { const ls = await tx.get(db.doc(`leads/${t.leadId}`)); lead = ls.exists ? (ls.data() || {}) : null; }
     try {
-      const f = require('./deal-accepted-tier').retierFields(est, accepted.tierPrice, { lead, depositRule: require('./deposit-rule') });
+      const DAT = require('./deal-accepted-tier');
+      const depositConfig = await DAT.tenantDepositConfig(db, tx, lead, est);
+      const f = DAT.retierFields(est, accepted.tierPrice, { lead, depositRule: require('./deposit-rule'), depositConfig });
       depositDue = Number.isFinite(Number(f.deposit)) ? Number(f.deposit) : null;
     } catch (_) { depositDue = null; }
   }

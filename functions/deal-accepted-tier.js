@@ -50,6 +50,25 @@ const TIERS = ['economy', 'good', 'better', 'best', 'beyond'];
 const cents = (n) => Math.round(Number(n) * 100) / 100;
 const DR = require('./deposit-rule');
 const PIF = require('./paid-in-full');
+const TenantOps = require('./tenant-ops-logic');
+
+/**
+ * The company's own cash deposit rule for a re-tier (repo sweep 2026-11-17,
+ * M1). deposit-rule.js on the server has no window.NBDTenantRules, so without
+ * this every company was re-tiered on NBD's 50% while the signing-day draft
+ * (deposit-draft.js) billed the company's own rule. Same read and same
+ * tenant-ops-logic depositConfigFor as deposit-draft.js. NBD (or no company
+ * on the job) → undefined, which keeps deposit-rule.js's own rule. A
+ * transaction read: call it before any tx.update.
+ */
+async function tenantDepositConfig(db, tx, lead, est) {
+  const l = lead || {};
+  const e = est || {};
+  const key = String(l.companyId || l.userId || e.companyId || e.userId || '');
+  if (!key || key === TenantOps.NBD_OWNER_UID || key.indexOf('/') !== -1) return undefined;
+  const ps = await tx.get(db.doc('companyProfile/' + key));
+  return TenantOps.depositConfigFor(key, ps && ps.exists ? (ps.data() || {}) : {});
+}
 
 // ── retier block: byte-identical in functions/deal-accepted-tier.js and
 //    docs/pro/js/accepted-tier-chip.js (tests/deal-accepted-tier-2026-10-03 holds them equal) ──
@@ -88,7 +107,9 @@ function retierFields(est, price, opts) {
   if (o.depositCollected || !R) {
     out.acceptedTierDepositKept = true;
   } else {
-    var plan = R.fromEstimate(e, { totalCents: totalCents, lead: o.lead || null });
+    var plan = R.fromEstimate(e, o.depositConfig
+      ? { totalCents: totalCents, lead: o.lead || null, config: o.depositConfig }
+      : { totalCents: totalCents, lead: o.lead || null });
     out.deposit = plan.depositCents / 100;
     out.depositPlan = R.toStored(plan);
     out.acceptedTierDepositKept = false;
@@ -239,7 +260,7 @@ function planAcceptedTier(o) {
   if ((!chosen || override) && estimate.tierApplies !== false) {
     // grandTotal + subtotal + tax + deposit for the picked tier (bug #10).
     const estUpd = Object.assign({}, stamp, { tier, selectedTier: tier, acceptedTierApplied: true },
-      retierFields(estimate, p, { lead, depositRule: o.depositRule || DR, depositCollected: o.depositCollected === true }));
+      retierFields(estimate, p, { lead, depositRule: o.depositRule || DR, depositCollected: o.depositCollected === true, depositConfig: o.depositConfig }));
     if (override) {
       // The tier it replaced, for the rep's history; the prices map follows a
       // re-snapshotted price so a reopen shows the same number.
@@ -294,9 +315,10 @@ async function applyAcceptedTier(db, info, tier, price, deps) {
         // money taken on it (2026-10-05).
         invoices = PIF.invoicesForLead((q && q.docs ? q.docs : []).map((x) => x.data()), lead, info.leadId, null);
       }
+      const depositConfig = estimate ? await tenantDepositConfig(db, tx, lead, estimate) : undefined;
       const at = now();
       const plan = planAcceptedTier({ lead, estimate, estimateId, leadId: info.leadId, ownerUid: info.ownerUid, tier, price, dealId: info.dealId, now: at,
-        depositCollected: depositCollected(invoices, estimateId) });
+        depositCollected: depositCollected(invoices, estimateId), depositConfig });
       if (plan.estimate && estRef) tx.update(estRef, Object.assign({}, plan.estimate, { updatedAt: at }));
       if (plan.lead) tx.update(leadRef, Object.assign({}, plan.lead, { updatedAt: at }));
       if (d.logger) d.logger.info('[deal-accepted-tier]', { leadId: info.leadId, estimateId, reason: plan.reason });
@@ -346,7 +368,7 @@ function planUseAcceptedTier(o) {
     const fromMap = est.prices && Number(est.prices[tier]);
     const price = fromMap > 0 ? fromMap : Number(est.acceptedPrice);
     if (!(price > 0)) return { reason: 'no-price', estimate: null, lead: null };
-    fields = retierFields(est, price, { lead: l, depositRule: R, depositCollected: kept });
+    fields = retierFields(est, price, { lead: l, depositRule: R, depositCollected: kept, depositConfig: o.depositConfig });
   } else {
     const build = tierBuild(est, tier);
     if (!build) return { reason: 'needs-builder', estimate: null, lead: null };
@@ -361,7 +383,8 @@ function planUseAcceptedTier(o) {
     if (kept || !R) {
       fields.acceptedTierDepositKept = true;
     } else {
-      const plan = R.fromEstimate(Object.assign({}, est, fields), { totalCents, lead: l });
+      const plan = R.fromEstimate(Object.assign({}, est, fields),
+        o.depositConfig ? { totalCents, lead: l, config: o.depositConfig } : { totalCents, lead: l });
       fields.deposit = plan.depositCents / 100;
       fields.depositPlan = R.toStored(plan);
       fields.acceptedTierDepositKept = false;
@@ -432,8 +455,9 @@ async function applyHomeownerPick(db, args, deps) {
       }
       const taskRef = leadRef ? db.doc('leads/' + leadId + '/tasks/' + applyTaskId(estimateId)) : null;
       const ts = taskRef ? await tx.get(taskRef) : null;
+      const depositConfig = await tenantDepositConfig(db, tx, lead, est);
       const at = nowFn();
-      const plan = planUseAcceptedTier({ lead, estimate: est, estimateId, now: at, depositCollected: depositCollected(invoices, estimateId) });
+      const plan = planUseAcceptedTier({ lead, estimate: est, estimateId, now: at, depositCollected: depositCollected(invoices, estimateId), depositConfig });
       if (plan.reason !== 'applied') return { ok: false, reason: plan.reason, price: plan.price };
       tx.update(estRef, Object.assign({}, plan.estimate, { updatedAt: at }));
       if (plan.lead && leadRef && lead) tx.update(leadRef, Object.assign({}, plan.lead, { updatedAt: at }));
@@ -473,5 +497,5 @@ async function applyHomeownerPick(db, args, deps) {
 module.exports = {
   planAcceptedTier, applyAcceptedTier, retierFields, depositCollected, TIERS,
   isTierPriced, rowsKey, tierBuild, offerableTierPrices, dealTierPrices, tierOffered,
-  planUseAcceptedTier, applyHomeownerPick, applyTaskId, TIER_BUILD_FIELDS,
+  planUseAcceptedTier, applyHomeownerPick, applyTaskId, TIER_BUILD_FIELDS, tenantDepositConfig,
 };

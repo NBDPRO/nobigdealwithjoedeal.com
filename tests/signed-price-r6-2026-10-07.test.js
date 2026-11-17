@@ -411,6 +411,15 @@ for (const m of ['log', 'info', 'warn', 'error']) {
       });
       const rk = await submit({ token: 'KYTOKEN123456', tier: 'better', signature: sig, consent: true, financing: -1 });
       ok('Kentucky insurance job: the refusal says $0 due at signing at the new price', rk.code === 409 && rk.body && rk.body.depositDue === 0, JSON.stringify(rk.body));
+      // Another company (repo sweep 2026-11-17, M1): the refusal quotes ITS
+      // deposit rule (30%), not NBD's 50% — the same rule its draft bills.
+      db = seedDeal();
+      db.store.set('leads/L1', Object.assign({}, lead0, { companyId: 'co-oaks' }));
+      db.store.set('companyProfile/co-oaks', { businessRules: { deposit: { depositPct: 30, noDepositUnderCents: 0, roundToCents: 100 } } });
+      db.store.set('deal_accept_tokens/OAKSTOKEN12345', { dealId: 'DEAL0001', ownerUid: U, companyId: 'co-oaks', leadId: 'L1', status: 'pending', tierPrices: { better: 12000 }, expiresAt: null });
+      db.store.set('estimates/E1', Object.assign({}, est12, { companyId: 'co-oaks', prices: { good: 11500, better: 13000, best: 16000 }, grandTotal: 13000 }));
+      const ro = await submit({ token: 'OAKSTOKEN12345', tier: 'better', signature: sig, consent: true, financing: -1 });
+      ok('another company: the refusal says its own 30% is due at signing ($3,900), not NBD\'s 50%', ro.code === 409 && ro.body && ro.body.depositDue === 3900, JSON.stringify({ code: ro.code, body: ro.body }));
     }
     Module._load = origLoad;
 
