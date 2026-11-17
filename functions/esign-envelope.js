@@ -858,6 +858,13 @@ exports.getEsignEnvelope = onRequest(
       logger.error('[getEsignEnvelope] source download failed', { envelopeId: tok.envelopeId, err: e.message });
       res.status(500).json({ error: 'Could not load the document. Please try again shortly.' }); return;
     }
+    // Serve only the exact document the fields were placed on — the same
+    // digest submitEsignEnvelope checks. A source.pdf replaced after send
+    // would otherwise be SHOWN to the homeowner and then 409 at Sign.
+    if (env.sourceSha256 && sha256(buf) !== env.sourceSha256) {
+      logger.error('[getEsignEnvelope] SOURCE PDF CHANGED SINCE PLACEMENT — refusing', { envelopeId: tok.envelopeId });
+      res.status(409).json({ error: 'This document changed since it was sent. Please ask your rep for a new link.', reason: 'changed' }); return;
+    }
 
     // First view wins: the old path's fire-and-forget stamp recorded the LAST
     // view, losing the one fact that matters for a dispute. Per signer now —

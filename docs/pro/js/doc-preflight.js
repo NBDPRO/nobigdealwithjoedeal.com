@@ -2370,6 +2370,30 @@
             : 'No workmanship warranty — this job type carries none, or the repair was quoted without one.') +
         '</div></div></div>';
     }
+    // Another company (2026-11-17): its OWN enabled tiers, names and
+    // workmanship sentence — the same tenant-rules answer the fill step
+    // prints — never NBD's labor-year ladder or TAMKO HailGuard. Same test
+    // as the fill step's _wTenant, so NBD (or no rules loaded) is unchanged.
+    var _tr = window.NBDTenantRules;
+    if (_tr && typeof _tr.isPlatformTenant === 'function' && _tr.isPlatformTenant() === false) {
+      var order = (typeof _tr.tierOrder === 'function') ? _tr.tierOrder() : [];
+      // Selected only when the value IS one of its tiers: no card is shown
+      // picked for a value that would print something else.
+      var tcur = String(value || '').toLowerCase();
+      var tcards = order.map(function (id) {
+        var name = (typeof _tr.labelOverride === 'function' && _tr.labelOverride(id)) || id;
+        var lines = (typeof _tr.warrantyLines === 'function') ? _tr.warrantyLines({ tier: id, isNbd: false }) : null;
+        var work = (lines && lines.workmanship) || '';
+        return '<div class="dpf-warranty-card' + (id === tcur ? ' selected' : '') + '" data-warranty-field="' + esc(field.key) + '" data-warranty-tier="' + esc(id) + '">' +
+          '<div class="dpf-warranty-name">' + esc(name) + '</div>' +
+          '<div class="dpf-warranty-tag">' + (work ? 'Workmanship warranty' : 'No workmanship warranty') + '</div>' +
+          '<div class="dpf-warranty-desc">' + (work
+            ? esc(work)
+            : 'None set for this package in Settings, so the document prints no workmanship warranty.') + '</div>' +
+        '</div>';
+      }).join('');
+      return '<div class="dpf-warranty-grid">' + tcards + '</div>';
+    }
     // GBB audit, 2026-09-09: was 5/10/20-year — see WARRANTY_TIER_OPTIONS above.
     // Five tiers since 2026-10-02; written labor years by package (Jo, 2026-10-06).
     var tiers = [
