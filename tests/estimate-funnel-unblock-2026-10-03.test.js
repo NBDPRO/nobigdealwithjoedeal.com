@@ -652,7 +652,10 @@ function fillContact(d) {
     }
     ok('/index.html: #contact hosts the quick form and loads its script + the rating widget', /data-nbd-quick-form/.test(read('docs/index.html')) && /quick-lead-form\.js/.test(read('docs/index.html')) && /google-reviews-widget\.js/.test(read('docs/index.html')));
     const q = read('docs/assets/js/quick-lead-form.js');
-    const iT = q.search(TL), iB = q.indexOf("'<button class=\"qlf-btn\" type=\"submit\"");
+    // 2026-11-17: the quick form's rating (star included) ships inside the hidden wrap with no "Real Google reviews" fallback.
+    const TLQ = /<p class="qlf-trust"><span data-nbd-gr-rating-wrap hidden><span aria-hidden="true">&#9733;<\/span> <span data-nbd-gr-rating><\/span> on Google &middot; <\/span>Fully insured &middot; Joe on every roof<\/p>/;
+    ok('the quick form trust line makes no Google claim until the rating loads', TLQ.test(q) && !/Real Google reviews/.test(q.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')));
+    const iT = q.search(TLQ), iB = q.indexOf("'<button class=\"qlf-btn\" type=\"submit\"");
     ok('the service/area quick form (JS-built on 185 generated pages) renders the line above its Submit', iT > 0 && iB > iT && iB - iT < 400);
     ok('...and hydrates the rating (widget hook or a one-time load)', /hydrateRating\(\);/.test(q) && /nbdHydrateReviewHooks/.test(q));
     const hosts = fs.readdirSync(path.join(ROOT, 'docs', 'areas')).filter((f) => f.endsWith('.html')).map((f) => read('docs/areas/' + f)).filter((h) => /data-nbd-quick-form/.test(h) && /quick-lead-form\.js/.test(h)).length;

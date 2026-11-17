@@ -114,7 +114,7 @@
         // (true or false) for the record.
         '<label class="sc-consent"><input type="checkbox" id="' + uid + '-consent"><span>I agree to receive text messages and calls from No Big Deal Home Solutions (No Big Deal Solutions LLC) at the number above about my request, including my results, appointment confirmations and reminders, estimate and project updates, and replies to my questions. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></span></label>' +
         // Trust line above Submit (2026-10-03). Rating hydrated live (hydrateRating).
-        '<p class="qlf-trust"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating-wrap hidden><span data-nbd-gr-rating></span> on Google</span><span data-nbd-gr-rating-fallback>Real Google reviews</span> &middot; Fully insured &middot; Joe on every roof</p>' +
+        '<p class="qlf-trust"><span data-nbd-gr-rating-wrap hidden><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating></span> on Google &middot; </span>Fully insured &middot; Joe on every roof</p>' +
         '<button class="qlf-btn" type="submit" id="' + uid + '-btn">' + esc(btnLabel) + '</button>' +
         '<div class="qlf-alt">Rather talk now? <a href="tel:+18594207382">Call or text (859) 420-7382</a></div>' +
       '</form>';

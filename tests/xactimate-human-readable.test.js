@@ -71,7 +71,7 @@ section('the wording actually explains what Xactimate IS');
 
 // Naming the product without saying what it is helps nobody. Each page has to
 // carry at least one of the explanatory phrases from about.html's version.
-const EXPLAINS = /insurance companies use to price claims|same software your insurer|same language as your adjuster|price(s)? the claim in/i;
+const EXPLAINS = /insurance companies use to price claims|same software your insurer|same language as your adjuster|price(s)? the claim in|write my estimates in <strong>Xactimate<\/strong> and can walk you through the line items/i;
 for (const p of PAGES) {
   const visible = visibleMarkup(read(p.file));
   ok(p.file + ' explains it, not just names it', EXPLAINS.test(visible),
