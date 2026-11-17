@@ -42,7 +42,6 @@ function section(t) { console.log('\n' + t); }
 
 const ROOT = path.join(__dirname, '..');
 const JS = path.join(ROOT, 'docs/pro/js');
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 // ── Sandbox: the same load order the CRM page uses ──────────────────────
 function loadEnv(opts) {
@@ -70,6 +69,7 @@ function html(type, data) {
   try { return DG.getHTML(type, Object.assign({ homeownerName: 'Test Homeowner', address: '1 Test St' }, data || {})) || ''; }
   catch (e) { return 'RENDER_ERROR ' + e.message; }
 }
+function compileFile(HB, rel) { return HB.compile(fs.readFileSync(path.join(ROOT, rel), 'utf8')); }
 const text = (h) => String(h).replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
 
 ok('the generator and templates load (positive control)', !!DG && typeof DG.getHTML === 'function' && typeof DG.renderSupplementRequest === 'function');
@@ -84,15 +84,15 @@ section('1. "Backed personally by Joe Deal" is gone');
   } catch (e) { ok('functions/ deps load (handlebars, render-pdf.js)', false, e && e.message); }
   if (Handlebars && RENDER) {
     RENDER._registerPartialsOnce(); RENDER._registerHelpersOnce();
-    const W = Handlebars.compile(fs.readFileSync(path.join(ROOT, 'functions/print/templates/warranty.hbs'), 'utf8'));
+    const W = compileFile(Handlebars, 'functions/print/templates/warranty.hbs');
     const base = { owner: 'Jane Smith', address: '1 Elm St', dateFormatted: 'November 17, 2026', work: 'Roof replacement', certNumber: 'X-1',
       preparedFor: { name: 'Jane Smith', address: '1 Elm St' }, preparedBy: { name: 'Rep' }, projectMeta: [],
       tier: 'standard', tierLabel: 'Standard', tierLabelLong: 'Standard', tierTerms: 'x' };
     const nbd = text(W(Object.assign({}, base, { company: { footerName: 'No Big Deal Home Solutions', isNbd: true, seal: 'NBD' } })));
-    const oaks = text(W(Object.assign({}, base, { company: { footerName: 'Oaks Roofing', isNbd: false, seal: 'OAKS' } })));
+    const oaksPdf = text(W(Object.assign({}, base, { company: { footerName: 'Oaks Roofing', isNbd: false, seal: 'OAKS' } })));
     ok('the server warranty PDF (NBD) no longer says Joe Deal backs it personally', !/personally/i.test(nbd), (nbd.match(/.{0,40}personally.{0,40}/i) || [''])[0]);
     ok('...and still prints a plain "Backed by" line (positive control)', /Backed by No Big Deal Home Solutions/.test(nbd), nbd.slice(-400));
-    ok('another company server warranty PDF keeps its own "Backed by" line', /Backed by Oaks Roofing/.test(oaks));
+    ok('another company server warranty PDF keeps its own "Backed by" line', /Backed by Oaks Roofing/.test(oaksPdf));
   }
   const crm = ['docs/pro/js/warranty-cert.js', 'docs/pro/js/document-generator.js', 'docs/pro/js/document-generator-templates.js',
     'docs/pro/js/document-generator-library.js', 'docs/pro/js/doc-preflight.js', 'functions/render-pdf.js', 'functions/print/templates/warranty.hbs']
@@ -286,7 +286,7 @@ section('12. Company Introduction: no fallback service rows, no "quick approval"
 section('13. The legacy "negotiate with my insurance company" authorization stays gone');
 {
   const ui = fs.readFileSync(path.join(JS, 'dashboard-ui.js'), 'utf8');
-  ok('dashboard-ui.js carries neither the negotiate nor the paid-directly sentence', !/negotiate with my insurance company/i.test(ui) && !/receive payment directly from the insurance carrier/i.test(ui));
+  ok('dashboard-ui.js carries neither the negotiate nor the paid-directly sentence', !/negotiate with my insurance company|receive payment directly from the insurance carrier/i.test(ui));
 }
 
 // ═════════════════════════════════════════════════════════════════════════
