@@ -1680,8 +1680,11 @@
             { key: 'headline', label: 'Headline', type: 'text',
               source: 'literal:Free Roof Inspection — No Obligation', persist: PERSIST.DOCUMENT },
             { key: 'services', label: 'Services', type: 'textarea', rows: 2,
-              source: 'literal:Storm damage repair • Insurance claims • Roof replacement • Gutters',
-              persist: PERSIST.DOCUMENT }
+              source: 'literal:Storm damage repair • Roof replacement • Gutters',
+              persist: PERSIST.DOCUMENT },
+            { key: 'nearbyJobAddress', label: 'Nearby job address (optional)', type: 'text',
+              source: 'literal:', persist: PERSIST.DOCUMENT,
+              help: 'Only fill this in if a crew really is working on a job nearby. Left blank, the "crew working nearby" line does not print.' }
           ])
         }
       ]
@@ -1701,8 +1704,6 @@
               source: 'literal:', persist: PERSIST.DOCUMENT, placeholder: 'e.g., West Chester, OH' },
             { key: 'neighborhoodName', label: 'Neighborhood Name', type: 'text',
               source: 'literal:', persist: PERSIST.DOCUMENT, placeholder: 'Defaults to Affected Area' },
-            { key: 'projectAddress', label: 'Nearby Project Address', type: 'text',
-              source: 'lead.address', persist: PERSIST.DOCUMENT, placeholder: 'e.g., 123 Maple St' },
             { key: 'ctaText', label: 'Call to Action', type: 'text',
               source: 'literal:Schedule your free storm damage inspection today', persist: PERSIST.DOCUMENT }
           ]

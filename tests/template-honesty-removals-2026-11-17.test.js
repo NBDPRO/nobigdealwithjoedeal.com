@@ -211,5 +211,111 @@ section('7. Certificate of Completion: the checklist starts unticked and the rep
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+section('8. Work Authorization: cancellation by written notice only');
+{
+  const h = html('work_authorization', { scopeSummary: 'Roof replacement', email: 'office@example.com' });
+  const t = text(h);
+  ok('the authorization renders with its cancellation notice (positive control)', h.length > 800 && /Notice of Cancellation/.test(t) && /provide written notice/i.test(t), h.slice(0, 80));
+  ok('the notice no longer offers cancelling "by calling" the office', !/by calling/i.test(t), (t.match(/.{0,60}by calling.{0,40}/i) || [''])[0]);
+  ok('the three-day cancellation notice itself is unchanged (not rewritten)', /right to cancel this authorization within three \(3\) business\s+days of signing/.test(t));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+section('9. Permit Application is unregistered from the picker, with a legacy guard');
+{
+  ok('the picker/registry no longer lists "permit"', !Object.prototype.hasOwnProperty.call(DG.DOCUMENT_TYPES, 'permit'));
+  ok('no registered type is named "Permit Application"', !Object.keys(DG.DOCUMENT_TYPES).some((k) => /Permit Application/i.test(DG.DOCUMENT_TYPES[k].name)));
+  ok('a neighbouring type is still registered (positive control)', !!DG.DOCUMENT_TYPES.supplement_request);
+  const old = html('permit', { permitNumber: 'P-77' });
+  ok('an old saved doc of type "permit" does not crash: getHTML still returns a page', old.length > 400 && old.indexOf('RENDER_ERROR') !== 0, old.slice(0, 80));
+  ok('...and that page still carries the old fields (positive control)', /P-77/.test(old));
+  ok('...and the title still reads "Permit Application"', /Permit Application/.test(old));
+  ok('an unknown type is still refused (the guard is not a catch-all)', DG.getHTML('no_such_type', {}) === null);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+section('10. Neighborhood Mailer: no neighbor address, no fixed stats, the tenant\'s own service area');
+{
+  const NBD_AREA = 'Greater Cincinnati & Northern Kentucky';
+  const h = html('neighborhood_mailer', { neighborhoodName: 'Maple Ridge', projectAddress: '742 Evergreen Terrace', companyProfile: { serviceArea: NBD_AREA } });
+  const t = text(h);
+  ok('the mailer renders (positive control)', h.length > 800 && /Maple Ridge/.test(t) && /Schedule Your Free Inspection/.test(t), h.slice(0, 80));
+  ok('a past customer\'s street address is not printed', !/742 Evergreen/.test(h) && !/Your neighbor at/i.test(t));
+  ok('the fixed stat tiles are gone (5-star rating, 100% satisfaction, 0 cost)', !/Customer Rating|Satisfaction|Cost for Inspection|5★|100%/.test(t), (t.match(/.{0,30}(Customer Rating|Satisfaction|Cost for Inspection).{0,20}/) || [''])[0]);
+  ok('the footer carries the profile service area, not "Lexington"', t.indexOf(NBD_AREA) !== -1 && !/Lexington/.test(t));
+  const none = text(html('neighborhood_mailer', { neighborhoodName: 'Maple Ridge', companyProfile: {} }));
+  ok('with no service area on file the footer prints no region at all', /Fully Insured/.test(none) && !/Lexington|Surrounding Areas/.test(none));
+  const oaks = loadEnv({ brand: { legalName: 'Oaks Roofing', seal: 'OAKS', colors: {}, contact: {} } });
+  const oh = text(oaks.dg.getHTML('neighborhood_mailer', { neighborhoodName: 'Maple Ridge', companyProfile: { serviceArea: 'Butler County, OH' } }) || '');
+  ok('another company\'s mailer prints its own service area', /Butler County, OH/.test(oh) && !/Lexington/.test(oh));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+section('11. Door Hanger: no claims fallback, no "nearby" claim, no Warranty-Backed');
+{
+  const h = html('door_hanger', { companyProfile: { services: [] } });
+  const t = text(h);
+  ok('the hanger renders (positive control)', h.length > 800 && /Our Services/.test(t) && /Fully Insured/.test(t), h.slice(0, 80));
+  ok('the fallback "Insurance Claims — handled start to finish" row is gone', !/Insurance Claims|handled start to finish/i.test(t));
+  ok('the fallback roofing/siding/gutters rows still print (positive control)', /Roofing/.test(t) && /Gutters/.test(t));
+  ok('"Our crew is working on a project nearby" does not print without a real nearby job', !/working on a project nearby/i.test(t));
+  const near = text(html('door_hanger', { companyProfile: { services: [] }, nearbyJobAddress: '12 Elm St' }));
+  ok('with a real nearby-job address supplied the sentence still prints', /working on a project nearby/i.test(near));
+  ok('"Warranty-Backed" is gone from the footer badge line, "Fully Insured" stays', !/Warranty-Backed/i.test(t) && /Fully Insured/.test(t));
+  const f = env.pf.DOC_SCHEMAS.door_hanger.sections[0].fields.filter((x) => x.key === 'services')[0];
+  ok('the pre-flight default services string no longer lists "Insurance claims"', !!f && !/insurance/i.test(String(env.pf._resolveFieldValue(f, {}))), f && env.pf._resolveFieldValue(f, {}));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+section('12. Company Introduction: no fallback service rows, no "quick approval"');
+{
+  const h = html('company_intro', { companyProfile: { services: [], financePartner: 'Test Lender' } });
+  const t = text(h);
+  ok('the introduction renders (positive control)', h.length > 800 && /Schedule Your Free Inspection/.test(t), h.slice(0, 80));
+  ok('the hard-coded "Full insurance claim management" Storm Damage row is gone', !/insurance claim management/i.test(t));
+  ok('with no profile services there are no service cards at all', !/class="svc-card"/.test(h) && !/Our Services/.test(t));
+  ok('the financing blurb still prints (positive control)', /Test Lender/.test(t) && /affordable monthly payments/i.test(t));
+  ok('"quick approval" is gone from it', !/quick approval/i.test(t));
+  const real = text(html('company_intro', { companyProfile: { services: [{ icon: 'x', name: 'Roofing', desc: 'Replacements and repairs' }] } }));
+  ok('services the profile lists still print', /Roofing/.test(real) && /Replacements and repairs/.test(real));
+  const typed = text(html('company_intro', { companyProfile: { services: [] }, services: 'Roofing, Gutters' }));
+  ok('services the rep types still print', /Roofing/.test(typed) && /Gutters/.test(typed));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+section('13. The legacy "negotiate with my insurance company" authorization stays gone');
+{
+  const ui = fs.readFileSync(path.join(JS, 'dashboard-ui.js'), 'utf8');
+  ok('dashboard-ui.js carries neither the negotiate nor the paid-directly sentence', !/negotiate with my insurance company/i.test(ui) && !/receive payment directly from the insurance carrier/i.test(ui));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+section('14. Testimonial Sheet: no computed average or % recommend, no default 5 stars');
+{
+  const stars = (h) => (text(h).match(/★/g) || []).length;
+  const none = html('testimonial_sheet', { testimonial1: 'Crew was on time and tidy. - A. Homeowner' });
+  const rated = html('testimonial_sheet', { testimonial1: 'Crew was on time and tidy. - A. Homeowner', rating1: '4' });
+  ok('the sheet renders the rep\'s quote (positive control)', none.length > 800 && /Crew was on time/.test(text(none)), none.slice(0, 80));
+  ok('no "Average Rating" stat', !/Average Rating/i.test(text(none)) && !/Average Rating/i.test(text(rated)));
+  ok('no "Would Recommend" percentage', !/Would Recommend/i.test(text(none)) && !/\d+%/.test(text(rated)));
+  ok('a quote with no rating prints no stars (it is no longer a 5)', stars(none) === 0, String(stars(none)));
+  ok('a rating the rep enters still prints that many stars', stars(rated) === 4, String(stars(rated)));
+  const bad = html('testimonial_sheet', { testimonial1: 'Fine.', rating1: '9' });
+  ok('an out-of-range rating is ignored, not turned into 5', stars(bad) === 0, String(stars(bad)));
+  const five = html('testimonial_sheet', { testimonial1: 'Fine.', rating1: 5 });
+  ok('a real 5 still prints 5 stars', stars(five) === 5, String(stars(five)));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+section('15. renderGenericDoc: no signature block');
+{
+  const h = DG.renderGenericDoc({ _documentType: 'permit', address: '12 Elm St', permitNumber: 'P-77', homeownerName: 'Test Homeowner' });
+  ok('the fallback still prints the real fields (positive control)', /12 Elm St/.test(h) && /P-77/.test(h) && /Customer Information/.test(h));
+  ok('it no longer prints a "Homeowner Signature" line', !/Homeowner Signature/.test(h));
+  ok('it no longer prints a "Contractor Signature" line', !/Contractor Signature/.test(h));
+  ok('it carries no signature block markup at all', !/class="sig-block"|class="sig-line"/.test(h.replace(/<style[\s\S]*?<\/style>/gi, '')));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED:\n  - ' + fails.join('\n  - ')); process.exit(1); }
