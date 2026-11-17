@@ -369,6 +369,65 @@ const typed = (patch) => Object.assign({ offerId: OFFER, kind: 'paid', priceMicr
     ok('every audit row names the actor and carries no price', audits().every((p) => W.docs[p].actor.uid === 'u_ca' && !/Micros|price/i.test(JSON.stringify(W.docs[p].detail))));
   }
 
+  console.log('\nReceipt rows from a store export (slice 2: channel hd_csv)');
+  {
+    const HD = 'homedepot_TEST-HD-0001';
+    const stub = { supplierId: 'homedepot', sku: 'TEST-HD-0001', title: 'Test item one', internetSku: 'TEST-900001' };
+    const rcpt = (n) => ({ type: 'receipt', ref: 'TEST-RCPT-000' + n });
+    const hdRow = (patch) => Object.assign({ offerId: HD, kind: 'paid', priceMicros: 11110000, priceType: 'net', taxIncluded: false, observedOn: TODAY, doc: rcpt(1), offer: stub, storeNumber: 'TEST-S1' }, patch || {});
+    const other = (patch) => hdRow(Object.assign({ offerId: 'homedepot_TEST-HD-0002', offer: Object.assign({}, stub, { sku: 'TEST-HD-0002' }) }, patch || {}));
+    const offerPath = CO_A + 'priceOffers/' + HD;
+    const obs = (r, i) => W.docs[CO_A + 'priceObservations/' + r.value.results[i].obsId];
+
+    reset();
+    const r1 = await record('ca', [hdRow(), hdRow({ priceMicros: 22220000, doc: rcpt(2) })], { channel: 'hd_csv' });
+    const made = W.docs[offerPath];
+    ok('an unknown offer with a valid stub is created once, unlinked, pack unknown',
+      r1.value && r1.value.written === 2 && made && made.productId === null && made.pack.status === 'unknown' && made.pack.purchaseUnit === null
+      && made.skuKind === 'store_sku' && made.altIds.internetSku === 'TEST-900001' && made.latest && made.latest.count === 2
+      && W.effects.filter((e) => e === 'create:' + offerPath).length === 1, [r1, made]);
+    const d1 = obs(r1, 0);
+    ok('a row with no unit is accepted on hd_csv, stored with no per-unit price and counted as needs a unit',
+      d1.statedUnit === null && d1.per === 1 && d1.catalogMicros === null && r1.value.needsUnit === 2 && d1.source.channel === 'hd_csv'
+      && d1.kind === 'paid' && d1.attested === true && d1.locationId === null && !('offer' in d1) && !('storeNumber' in d1), d1);
+
+    ok('the same row with no unit is refused on the typed channel', (await record('ca', [other()])).value.results[0].reason === 'needs_unit');
+    const typedStub = await record('ca', [other({ statedUnit: 'EA' })]);
+    ok('a stub on the typed channel creates nothing: unknown_offer', typedStub.value.results[0].reason === 'unknown_offer' && !W.docs[CO_A + 'priceOffers/homedepot_TEST-HD-0002'], typedStub.value);
+    const legacy = await record('ca', [other()], { channel: 'legacy_pricebook' });
+    ok('a caller can not send the migration channel: it is read as typed', legacy.value.results[0].reason === 'needs_unit' && !W.docs[CO_A + 'priceOffers/homedepot_TEST-HD-0002'], legacy.value);
+    const wrongId = await record('ca', [hdRow({ offerId: 'homedepot_TEST-HD-0003', doc: rcpt(3) })], { channel: 'hd_csv' });
+    ok('a stub whose id is not the id of its supplier and SKU is refused: bad_offer', wrongId.value.results[0].reason === 'bad_offer' && !W.docs[CO_A + 'priceOffers/homedepot_TEST-HD-0003'], wrongId.value);
+
+    W.docs[offerPath].title = 'Edited by the owner';
+    await record('ca', [hdRow({ priceMicros: 33330000, doc: rcpt(4), offer: Object.assign({}, stub, { title: 'A different title' }) })], { channel: 'hd_csv' });
+    ok('an existing offer is never overwritten by a stub', W.docs[offerPath].title === 'Edited by the owner' && W.effects.filter((e) => e === 'create:' + offerPath).length === 1);
+
+    await save('ca', 'upsertSupplierAccount', { supplierId: 'homedepot', locations: [{ id: 'store-a', label: 'Test store', storeNumber: 'TEST-S1', preferred: true }] });
+    const st = await record('ca', [hdRow({ priceMicros: 44440000, doc: rcpt(5) }), hdRow({ priceMicros: 55550000, doc: rcpt(6), storeNumber: 'TEST-S9' })], { channel: 'hd_csv' });
+    ok('a store number the account lists becomes that branch; one it does not list is no branch, not a refusal',
+      st.value.written === 2 && obs(st, 0).locationId === 'store-a' && obs(st, 1).locationId === null, st.value);
+
+    const vp = await save('ca', 'verifyPack', { offerId: HD, pack: { purchaseUnit: 'BX', catalogUnit: 'BX', num: 1, den: 1, status: 'known' } });
+    const lp = W.docs[offerPath].latest.lastPaid;
+    ok('after the pack is confirmed, last paid carries the per-unit price', vp.value && vp.value.ok && lp && lp.catalogMicros === lp.priceMicros && W.docs[offerPath].latest.unitState === 'ok', [vp, lp]);
+
+    const before = writes().length;
+    const mg = await record('mgr', [hdRow({ priceMicros: 66660000, doc: rcpt(7) })], { channel: 'hd_csv' });
+    ok('a manager is refused on hd_csv with zero writes', mg.code === 'permission-denied' && writes().length === before, mg);
+
+    reset();
+    const ctxM = { origin: 'migration', channel: 'legacy_pricebook', actor: { uid: 'script', role: 'script', fn: 'migrate-price-book-v2' }, nowMs: Date.now() };
+    const mig = await Store.appendObservations(DB, 'co-a', [hdRow()], ctxM);
+    const md = W.docs[CO_A + 'priceObservations/' + mig.results[0].obsId];
+    ok('a migration row is stored paid, unattested, channel legacy_pricebook, no branch, actor script',
+      mig.written === 1 && md.kind === 'paid' && md.attested === false && md.source.channel === 'legacy_pricebook' && md.locationId === null && md.source.actor.type === 'script', md);
+    ok('a migration does not move the daily counter', Object.keys(W.docs).filter((p) => p.indexOf(CO_A + 'priceMeter/') === 0).length === 0);
+    const twin = await record('ca', [hdRow()], { channel: 'hd_csv' });
+    ok('the same receipt line imported afterwards is the same row: a duplicate', twin.value.written === 0 && twin.value.results[0].status === 'duplicate' && twin.value.results[0].obsId === mig.results[0].obsId, twin.value);
+    ok('a re-run of the migration adds nothing', (await Store.appendObservations(DB, 'co-a', [hdRow()], ctxM)).written === 0);
+  }
+
   console.log('\nThe store builds every path itself');
   {
     reset(); await seed('ca');

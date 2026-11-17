@@ -126,5 +126,26 @@ const dupRec = H.parseSummary(DUP);
 ok('an order listed twice with identical money is ONE purchase', dupRec.filter((r) => r.order === 'WH0001').length === 1);
 ok('a split shipment (same order, different money) keeps both, under distinct keys', dupRec.filter((r) => r.order === 'WH0002').length === 2 && new Set(dupRec.map((r) => r.key)).size === dupRec.length);
 
+// ── The supplier price history (2026-11-17, slice 2) ───────────────────
+// The Details export's "Internet SKU" rides on each item for the history; the
+// expense document and the legacy price-book call are untouched.
+{
+  const HEAD = 'Date,Store Number,Transaction ID,Order Number,SKU Number,Internet SKU,SKU Description,Quantity,Unit price,Department Name,Net Unit Price\n';
+  const withCol = H.parseDetails(PRE + HEAD + '2026-09-26,1111,2281,,TEST-0001,TEST-900001,Test item one,2,$11.11,BLDG. MATERIALS,$22.22\n');
+  const without = H.parseDetails(PRE + HEAD.replace('Internet SKU,', '') + '2026-09-26,1111,2281,,TEST-0001,Test item one,2,$11.11,BLDG. MATERIALS,$22.22\n');
+  ok('parseDetails reads the Internet SKU column, and gives an empty one when the export has none', withCol.length === 1 && withCol[0].internetSku === 'TEST-900001' && without.length === 1 && without[0].internetSku === '', JSON.stringify([withCol, without]));
+  const rec = [{ key: withCol[0].key, items: [], departments: {} }];
+  H.attachDetails(rec, withCol);
+  ok('attachDetails carries it onto the item', rec[0].items.length === 1 && rec[0].items[0].internetSku === 'TEST-900001' && rec[0].items[0].sku === 'TEST-0001');
+  ok('the expense document\'s items do not carry it', JSON.stringify(H.lineItems(rec[0].items)).indexOf('internetSku') === -1 && JSON.stringify(H.lineItems(rec[0].items)).indexOf('TEST-900001') === -1, JSON.stringify(H.lineItems(rec[0].items)));
+  // doImport is not exported: pin the wiring by source, as the price-book suite does.
+  const SRC = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', 'hd-import.js'), 'utf8');
+  const body = SRC.slice(SRC.indexOf('async function doImport('));
+  const legacyAt = body.indexOf('window.NBDPriceBook.record('), feedAt = body.indexOf('await feedPriceHistory(', legacyAt);
+  ok('doImport feeds the price history after the legacy price-book call', legacyAt !== -1 && feedAt > legacyAt);
+  const helper = SRC.slice(SRC.indexOf('async function feedPriceHistory('), SRC.indexOf('async function doImport('));
+  ok('the feed sits in a try and swallows a failure, so it can never fail an import', /try \{[\s\S]*recordHdReceipts\([\s\S]*\} catch \(e\) \{ return null; \}/.test(helper));
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('Failures:'); fails.forEach((x) => console.log('  - ' + x)); process.exit(1); }

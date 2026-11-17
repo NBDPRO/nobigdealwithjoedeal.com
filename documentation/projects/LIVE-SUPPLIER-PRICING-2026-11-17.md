@@ -202,6 +202,16 @@ and adopted (5 in a different form, listed in the design's section 11).
 | 15-16 | SRS and QXO adapters. |
 | 17 | Later: purchase orders per store, delivery and proof-of-delivery filing, invoice-against-order check, Menards. |
 
+## Update 2026-11-17 (later): slice 2 built
+
+Slice 2 (Home Depot receipt lines into the history, the dry-run copy of the
+legacy price book, the ledger in the company export, an "Unlinked items" list)
+is built and ships dark. Jo's answers and where the build departs from its
+checklist are in
+[LIVE-SUPPLIER-PRICING-SLICE-2-PLAN-2026-11-17](LIVE-SUPPLIER-PRICING-SLICE-2-PLAN-2026-11-17.md).
+After the deploy the flag goes on for Jo alone; the copy script's write needs
+Jo's OK for that run.
+
 ## Waiting on Jo
 
 Outside actions (none blocks slice 1):

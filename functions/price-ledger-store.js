@@ -81,11 +81,17 @@ function rowOf(snap) {
  */
 function deriveObservation(clean, offer, account, ctx) {
   const role = ctx.actor && ctx.actor.role;
-  const trusted = role === 'owner' || role === 'company_admin' || role === 'admin';
-  const kind = trusted ? clean.kind : 'manual';
-  const claimedKind = (!trusted && clean.kind !== 'manual') ? clean.kind : null;
+  // The one-time copy of the legacy price book: what it holds was read from the
+  // tenant's own receipts, so the kind stays `paid`, but no person vouched for it
+  // here, so it is unattested. Keeping the kind is also what gives a copied row and
+  // the same receipt line imported later one id (the id is hashed after the kind).
+  const migration = ctx.origin === 'migration';
+  const trusted = !migration && (role === 'owner' || role === 'company_admin' || role === 'admin');
+  const kind = (trusted || migration) ? clean.kind : 'manual';
+  const claimedKind = (!trusted && !migration && clean.kind !== 'manual') ? clean.kind : null;
   const known = L.validPack(offer.pack);
-  const conv = L.toCatalogMicros(clean.priceMicros, clean.per, clean.statedUnit, offer.pack);
+  const channel = ctx.channel || 'manual';
+  const conv = L.catalogMicrosFor({ priceMicros: clean.priceMicros, per: clean.per, statedUnit: clean.statedUnit, channel }, offer);
   const observedAtMs = dateMs(clean.observedOn) + 12 * HOUR_MS;
   const validThroughMs = clean.validThroughOn ? dateMs(clean.validThroughOn) + 36 * HOUR_MS : null;
   const quoteDays = account && account.terms && account.terms.quoteValidDays;
@@ -105,7 +111,7 @@ function deriveObservation(clean, offer, account, ctx) {
     validThroughOn: clean.validThroughOn, validThroughMs,
     levelAtWrite: L.evidenceLevel({ kind, observedAtMs, validThroughMs }, ctx.nowMs, quoteDays),
     doc: { type: clean.doc.type, ref: clean.doc.ref, importId: null, expenseId: null, storagePath: null, leadId: null },
-    source: { channel: ctx.channel || 'manual', adapter: null, actor: { type: 'user', uid: ctx.actor.uid, role, fn: ctx.actor.fn || null } },
+    source: { channel, adapter: null, actor: { type: migration ? 'script' : 'user', uid: ctx.actor.uid, role, fn: ctx.actor.fn || null } },
     attested: trusted, compare: true, flags, supersedes: null,
     voided: false, voidedBy: null, voidedAtMs: null, voidReason: null,
     note: clean.note,
@@ -180,19 +186,22 @@ async function appendObservations(db, companyId, rows, ctx) {
   const n = rows.length;
 
   // 1. The company's rows-per-day meter. Not given back for duplicates or rejects.
-  const meter = meterRef(db, companyId, utcDay(nowMs));
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(meter);
-    const used = snap.exists ? (Number((snap.data() || {}).rows) || 0) : 0;
-    if (used + n > DAILY_ROW_CAP) throw new HttpsError('resource-exhausted', 'This company has recorded its ' + DAILY_ROW_CAP + ' prices for today. Try again tomorrow.');
-    tx.set(meter, { rows: used + n, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-  });
+  // The one-time copy of the legacy price book (an operator script) is not metered.
+  if (ctx.origin !== 'migration') {
+    const meter = meterRef(db, companyId, utcDay(nowMs));
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(meter);
+      const used = snap.exists ? (Number((snap.data() || {}).rows) || 0) : 0;
+      if (used + n > DAILY_ROW_CAP) throw new HttpsError('resource-exhausted', 'This company has recorded its ' + DAILY_ROW_CAP + ' prices for today. Try again tomorrow.');
+      tx.set(meter, { rows: used + n, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    });
+  }
 
   // 2. Sanitize. A bad row is rejected and does not stop the others.
   const results = new Array(n);
   const clean = new Array(n);
   for (let i = 0; i < n; i++) {
-    const s = L.sanitizeObservation(rows[i], { origin: ctx.origin, nowMs });
+    const s = L.sanitizeObservation(rows[i], { origin: ctx.origin, channel: ctx.channel, nowMs });
     if (s.ok) clean[i] = s.value; else results[i] = { i, status: 'rejected', reason: s.reason };
   }
 
@@ -200,6 +209,32 @@ async function appendObservations(db, companyId, rows, ctx) {
   const offerIds = [...new Set(clean.filter(Boolean).map((c) => c.offerId))];
   const offers = {};
   (await getMany(db, offerIds.map((id) => offerRef(db, companyId, id)))).forEach((s) => { if (s.exists) offers[s.id] = s.data() || {}; });
+
+  // 3a. A receipt line for a SKU the ledger has not seen carries a stub (the
+  // sanitizer keeps one only on the store-export channels). Create that offer once,
+  // unlinked; an offer that exists is never touched. No supplier account is needed.
+  const stubs = {};
+  for (let i = 0; i < n; i++) {
+    const c = clean[i];
+    if (!c || offers[c.offerId] || !c.offer) continue;
+    if (c.offerId !== L.offerIdFor(c.offer.supplierId, c.offer.sku)) { results[i] = { i, status: 'rejected', reason: 'bad_offer' }; clean[i] = null; continue; }
+    if (!stubs[c.offerId]) stubs[c.offerId] = c.offer;
+  }
+  await inPool(Object.keys(stubs), WRITE_PARALLEL, async (id) => {
+    const ref = offerRef(db, companyId, id);
+    const doc = Object.assign({}, L.stubOffer(stubs[id]), {
+      photo: null, latest: null, nextCheckMs: null,
+      createdAt: FieldValue.serverTimestamp(), createdBy: ctx.actor.uid,
+      updatedAt: FieldValue.serverTimestamp(), updatedBy: ctx.actor.uid,
+    });
+    try { await ref.create(doc); offers[id] = doc; }
+    catch (e) {
+      if (!alreadyExists(e)) throw e;
+      const snap = await ref.get();
+      if (snap.exists) offers[id] = snap.data() || {};
+    }
+  });
+
   const supplierIds = [...new Set(Object.keys(offers).map((id) => offers[id].supplierId).filter((s) => typeof s === 'string' && s))];
   const accounts = {};
   (await getMany(db, supplierIds.map((id) => accountRef(db, companyId, id)))).forEach((s) => { if (s.exists) accounts[s.id] = s.data() || {}; });
@@ -214,6 +249,12 @@ async function appendObservations(db, companyId, rows, ctx) {
     const account = accounts[offer.supplierId] || null;
     if (c.locationId !== null && !((account && account.locations) || []).some((loc) => loc && loc.id === c.locationId)) {
       results[i] = { i, status: 'rejected', reason: 'unknown_location' }; continue;
+    }
+    // A receipt's store number names a branch only when the account lists it; an
+    // unlisted store is simply no branch.
+    if (c.locationId === null && c.storeNumber) {
+      const hit = ((account && account.locations) || []).find((loc) => loc && loc.storeNumber === c.storeNumber);
+      if (hit) c.locationId = hit.id;
     }
     const doc = deriveObservation(c, offer, account, ctx);
     doc.createdAt = FieldValue.serverTimestamp();

@@ -279,6 +279,50 @@ console.log('\nFlag');
   ok('a person switched off overrides a default that is on', L.flagOn({ supplierPricing: true }, { supplierPricing: false }) === false);
 }
 
+console.log('\nRows with no unit (a store export) and the legacy price book');
+{
+  const P = 11110000;
+  const packOf = (verified, known) => known === false
+    ? { purchaseUnit: null, catalogUnit: null, num: null, den: null, status: 'unknown', verified: false }
+    : { purchaseUnit: 'BX', catalogUnit: 'EA', num: 5, den: 1, status: 'known', verified };
+  const offer = (supplierId, verified, known) => ({ supplierId, pack: packOf(verified, known) });
+  const rowOn = (channel) => ({ priceMicros: P, per: 1, statedUnit: null, source: { channel } });
+  // channel x retail-or-not x pack state: only an export channel + a retail store + a confirmed pack gives a price.
+  const combos = [];
+  ['hd_csv', 'legacy_pricebook', 'manual', undefined].forEach((ch) => ['homedepot', 'other_testco'].forEach((sup) => [[true, true], [false, true], [false, false]].forEach(([v, k]) => {
+    const want = (ch === 'hd_csv' || ch === 'legacy_pricebook') && sup === 'homedepot' && v === true && k === true;
+    const got = L.catalogMicrosFor(rowOn(ch), offer(sup, v, k)).micros;
+    if (want ? got !== Math.round(P / 5) : got !== null) combos.push([ch, sup, v, k, got]);
+  })));
+  ok('a no-unit row is priced per the purchase unit only on an export channel, at a retail store, with the pack confirmed (24 combinations)', combos.length === 0, combos);
+  ok('a row that states its unit ignores the channel and the confirmation', L.catalogMicrosFor({ priceMicros: P, per: 1, statedUnit: 'BX', source: { channel: 'manual' } }, offer('other_testco', false, true)).micros === Math.round(P / 5));
+  ok('summarize uses the same rule', L.summarize(Object.assign({ latest: null }, offer('homedepot', true, true)), [{ obsId: 'a', kind: 'paid', priceMicros: P, per: 1, statedUnit: null, source: { channel: 'hd_csv' }, observedAtMs: NOW - DAY, createdAtMs: NOW - DAY, compare: true }], NOW).lastPaid.catalogMicros === Math.round(P / 5)
+    && L.summarize(Object.assign({ latest: null }, offer('homedepot', false, true)), [{ obsId: 'a', kind: 'paid', priceMicros: P, per: 1, statedUnit: null, source: { channel: 'hd_csv' }, observedAtMs: NOW - DAY, createdAtMs: NOW - DAY, compare: true }], NOW).lastPaid.catalogMicros === null);
+
+  const base = { offerId: 'homedepot_TEST-0001', kind: 'paid', priceMicros: P, priceType: 'net', taxIncluded: false, observedOn: '2026-11-01' };
+  const stub = { supplierId: 'homedepot', sku: 'TEST-0001', title: 'Test item', internetSku: 'TEST-900001' };
+  const onHd = L.sanitizeObservation(Object.assign({ offer: stub, storeNumber: 'TEST-S1' }, base), { nowMs: NOW, channel: 'hd_csv' });
+  ok('sanitizer: no unit is kept as null on an export channel, with the store number and the stub', onHd.ok && onHd.value.statedUnit === null && onHd.value.per === 1 && onHd.value.storeNumber === 'TEST-S1' && onHd.value.offer.sku === 'TEST-0001' && onHd.value.offer.internetSku === 'TEST-900001', onHd);
+  const onTyped = L.sanitizeObservation(Object.assign({ offer: stub, storeNumber: 'TEST-S1', statedUnit: 'EA' }, base), { nowMs: NOW, channel: 'manual' });
+  ok('sanitizer: the typed channel still needs a unit and drops the stub and the store number', L.sanitizeObservation(base, { nowMs: NOW }).reason === 'needs_unit' && onTyped.ok && onTyped.value.offer === null && onTyped.value.storeNumber === null, onTyped);
+  ok('sanitizer: a unit nobody knows is refused on every channel; a stub with no SKU is bad_offer', L.sanitizeObservation(Object.assign({ statedUnit: 'zorkmid' }, base), { nowMs: NOW, channel: 'hd_csv' }).reason === 'needs_unit'
+    && L.sanitizeObservation(Object.assign({ offer: { supplierId: 'homedepot', sku: '' } }, base), { nowMs: NOW, channel: 'hd_csv' }).reason === 'bad_offer');
+
+  const so = L.stubOffer(stub);
+  ok('stubOffer: unlinked, pack unknown with no purchase unit, the store kind of SKU, the internet SKU kept', so.productId === null && so.pack.status === 'unknown' && so.pack.purchaseUnit === null && so.pack.verified === false && so.skuKind === 'store_sku' && so.altIds.internetSku === 'TEST-900001' && so.title === 'Test item', so);
+
+  const lr = L.legacyPurchaseToRow({ store: 'homedepot', sku: 'TEST-0001', desc: 'Test item', cents: 1111, qty: 2, date: '2026-11-01', ref: 'TEST-RCPT-1' });
+  ok('legacyPurchaseToRow: a paid receipt row with no unit, micros from cents, the offer id of the legacy key', lr.offerId === 'homedepot_TEST-0001' && lr.kind === 'paid' && lr.priceMicros === P && lr.doc.type === 'receipt' && lr.doc.ref === 'TEST-RCPT-1'
+    && !('statedUnit' in lr) && lr.qty === 2 && lr.offer.sku === 'TEST-0001' && lr.taxIncluded === false, lr);
+  ok('legacyPurchaseToRow: zero cents, a bad date, no SKU and an unknown store give null', [{ cents: 0 }, { date: '2026-13-01' }, { sku: '' }, { store: 'nostore' }].every((p) => L.legacyPurchaseToRow(Object.assign({ store: 'homedepot', sku: 'TEST-0001', cents: 1111, date: '2026-11-01' }, p)) === null));
+  const li = L.legacyItemToLedger('homedepot_TEST-0001', { store: 'homedepot', sku: 'TEST-0001', desc: 'Test item', productId: 'shingle_001',
+    history: [{ cents: 1111, qty: 1, date: '2026-11-01', ref: 'TEST-RCPT-1' }, { cents: 0, date: '2026-10-01', ref: 'TEST-RCPT-2' }, { cents: 2222, date: 'not a date' }, { cents: 2222, qty: 3, date: '2026-09-01' }] });
+  ok('legacyItemToLedger: one unlinked stub whose id is the legacy key, one paid row per usable history entry', li.offerId === 'homedepot_TEST-0001' && li.offer.productId === null && li.offer.pack.status === 'unknown'
+    && li.rows.length === 2 && li.rows[1].doc.ref === '' && li.rows.every((r) => r.offerId === li.offerId && r.kind === 'paid'), li);
+  const stored = (r) => Object.assign({ statedUnit: null, per: 1 }, r);
+  ok('a copied row and the same receipt line read by the importer have one id', L.obsIdFor(stored(li.rows[0])) === L.obsIdFor(stored(lr)) && L.obsIdFor(stored(li.rows[0])) !== L.obsIdFor(stored(li.rows[1])));
+}
+
 console.log('\nServer and screen copies');
 {
   const cut = (file) => {
