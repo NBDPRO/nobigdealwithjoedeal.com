@@ -2322,7 +2322,7 @@
     var JT = engine();
     if (!state.ratesNote && JT && typeof JT.takeRatesNote === 'function') state.ratesNote = JT.takeRatesNote(res);
     if (!state.ratesNote) return '';
-    return '<div class="jt-ratesnote" role="note" style="margin:0 0 10px;padding:8px 10px;border-radius:6px;background:var(--surface-2,#F6F7F8);font-size:13px;">' +
+    return '<div class="jt-ratesnote" role="note">' +
       esc(state.ratesNote) + '</div>';
   }
 
