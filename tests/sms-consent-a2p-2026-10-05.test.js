@@ -103,7 +103,7 @@ const EXPECTED = {
   'docs/storm-check.html#sc-consent': SHARED_WHAT,
   'docs/roof-score.html#rs-consent': SHARED_WHAT,
   'docs/storm-report.html#sr-consent': SHARED_WHAT,
-  'docs/index.html#fieldConsent': SHARED_WHAT,
+  // 2026-11-17: the homepage's own #fieldConsent box left with the long form; #contact now renders the quick form's box (the line below).
   "docs/assets/js/quick-lead-form.js#' + uid + '-consent": SHARED_WHAT,
   'docs/storm-alerts.html#sa-consent': 'severe weather near my ZIP code (storm alerts, usually 2–4 per season) and related follow-up, such as inspection scheduling and replies to my questions',
   'docs/estimate.html#tcpaConsent': 'my estimate request, including appointment confirmations and reminders, estimate and project updates, and replies to my questions',

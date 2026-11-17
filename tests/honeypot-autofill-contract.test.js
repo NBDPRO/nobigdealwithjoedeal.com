@@ -22,6 +22,8 @@
 'use strict';
 
 const fs = require('fs');
+const K = require('./lib/src-kit');
+const { renderQuickForm } = require('./lib/quick-form-render');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
@@ -91,9 +93,9 @@ function read(rel) { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); }
 
   const homeHtml = read('docs/index.html');
   const homeJs = read('docs/assets/js/inline/72f02d79d0.js');
-  ok('homepage renders id="fieldNbdHp"', homeHtml.includes('id="fieldNbdHp"'));
-  ok('homepage honeypot keeps tabindex="-1"',
-     /id="fieldNbdHp"[^>]*tabindex="-1"/.test(homeHtml));
+  // 2026-11-17: #contact hosts the quick form, whose nbd_hp honeypot the component builds.
+  const qfHp = renderQuickForm().$('.qlf-hp');
+  ok('homepage #contact hosts the quick form, whose honeypot is nbd_hp and keyboard-invisible', !!K.parseTags(homeHtml).$('#contact [data-nbd-quick-form]') && !!qfHp && qfHp.attr('name') === 'nbd_hp' && qfHp.attr('tabindex') === '-1');
   ok('homepage inline JS checks fieldNbdHp',
      homeJs.includes("getElementById('fieldNbdHp')"));
 }

@@ -94,7 +94,8 @@ for (const file of walk(ROOT)) {
   let html = fs.readFileSync(file, 'utf8');
   let changed = false;
 
-  const ann = injectAnnSlide(html);
+  // The homepage deliberately carries no free-roof slide (2026-11-17); never re-add it.
+  const ann = path.relative(ROOT, file) === 'index.html' ? { changed: false } : injectAnnSlide(html);
   if (ann.changed) { html = ann.html; changed = true; stats.annAdded++; }
 
   const foot = injectFooterLink(html);
