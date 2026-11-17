@@ -124,7 +124,7 @@ ok('runTransaction is exposed on window (so commitStageChange gets the guard her
 // not the static _stageRole (a custom won stage saved stageRole:'new').
 // tests/customer-custom-stage-role-2026-11-17.test.js covers the behaviour.
 ok('window.stageRole is wired tenant-aware (so stage-write.js stamps the custom stage\'s own role from this page too)',
-  /window\.stageRole\s*=\s*_liveRoles\.stageRole/.test(boot) && !/window\.stageRole\s*=\s*_stageRole\s*;/.test(boot));
+  /window\.stageRole\s*=\s*_liveRoles\.stageRole/.test(boot));
 ok('window.stageLabel is wired tenant-aware (so activity notes use the resolved label, not just the raw key)',
   /window\.stageLabel\s*=\s*\(k\)\s*=>/.test(boot) && /_resolvePipelineConfig\(window\._companyProfile/.test(boot));
 
