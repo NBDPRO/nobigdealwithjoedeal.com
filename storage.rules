@@ -207,7 +207,12 @@ service firebase.storage {
     match /esign/{uid}/{allPaths=**} {
       allow read: if isOwner(uid) || isAdmin();
       // (allPaths is a path, not a string — the object's full name is.)
-      allow write: if ownerWrites(uid)
+      // 2026-11-17: create-only. source.pdf is hashed into the envelope at
+      // createEsignEnvelope; an overwrite after send would show the signer a
+      // different document. esign-setup.js mints a fresh envelope id (and
+      // path) for every upload, so nothing legitimate updates in place.
+      allow create: if ownerWrites(uid)
+        && resource == null
         && request.resource != null
         && !request.resource.name.matches('.*/signed[.]pdf')
         && request.resource.size < 25 * 1024 * 1024
