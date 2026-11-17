@@ -390,6 +390,9 @@ const CASES = [
   { fn: 'extractReceiptData', file: 'receipt-vision.js', kind: 'call', data: { storagePath: 'receipts/u-rep/r1.jpg' } },
   // 2026-11-04: the Receipt inbox reader (its own path check rejects a caller who is not 'u-rep', after the guard, the kill switch and the limiter ran).
   { fn: 'submitInboxReceipt', file: 'receipt-inbox.js', kind: 'call', data: { storagePath: 'receipts/u-rep/inbox/r1.jpg' } },
+  // 2026-11-17: the supplier price ledger (priceCaller refuses a viewer before the rate limit and before any read).
+  { fn: 'priceLedgerSave', file: 'price-ledger.js', kind: 'call', data: { op: 'archiveOffer', data: { offerId: 'other_testco_TEST-0001' } } },
+  { fn: 'priceLedgerRecord', file: 'price-ledger.js', kind: 'call', data: { rows: [] } },
   { fn: 'resolveAddress', file: 'handlers/geocode.js', kind: 'call', data: { mode: 'forward', address: '123 Main St, Cincinnati OH' } },
 ];
 
@@ -471,6 +474,7 @@ const VERDICTS = {
   getJobWeather: 'role-gated',
   createTeamMember: 'role-gated', deactivateUser: 'role-gated', dictate: 'read-paid',
   exportMyData: 'self', extractReceiptData: 'refused', submitInboxReceipt: 'refused', getAdjusterTacticBoard: 'read',
+  priceLedgerSave: 'refused', priceLedgerRecord: 'refused',
   getAdminAnalytics: 'role-gated', getAiTextingStats: 'read', getAiUsageAnalytics: 'role-gated',
   getConnectStatus: 'read', getDocumentHtml: 'read', getDocumentPdfUrl: 'read', getEsignEnvelopeForOwner: 'read',
   getHailHistory: 'read-paid',

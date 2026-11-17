@@ -283,6 +283,8 @@ const FIRESTORE_FLAGS = [
     meaning: 'Thumbtack Opportunities watcher: scoring, storage and draft filing. Off = every watcher callable refuses and files nothing. Reads and sends nothing on Thumbtack either way.' },
   { name: 'thumbtackOppSend', default: false, dark: true, file: 'opp-rules.js', doc: 'documentation/projects/THUMBTACK-OPPORTUNITIES-2026-11-04.md',
     meaning: 'RESERVED for the Thumbtack Opportunities sender (a later PR). Nothing reads it yet and no sender exists.' },
+  { name: 'supplierPricing', default: false, dark: true, file: 'price-logic.js', doc: 'documentation/projects/LIVE-SUPPLIER-PRICING-2026-11-17.md',
+    meaning: 'Supplier price ledger: the Stores & prices sheet and the two ledger callables. Off = the callables refuse and the screen is hidden. Per person. Never changes a cost book or an estimate.' },
 ];
 
 module.exports = { buildResponse, FLAGS, GROUPS, ENV_DOC, FIRESTORE_FLAGS, flagStatus, parseCommitted, isSafeName, safeValue, stateFor, SECRET_NAME_RE };
