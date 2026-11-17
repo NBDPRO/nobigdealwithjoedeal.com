@@ -51,7 +51,7 @@ Accepted as written in this note (still subject to attorney review, nothing ship
 | Q21 | Add per-sheet decking, soffit baffle and bath-fan duct lines to the catalog (prices from Jo). |
 | Q22 | Add an estimate scope field (re-roof, repair, siding, gutters, other), defaulted from tear-off. |
 | Q23 | Build order after the attic form and payment terms: property condition, decking authorization, emergency tarp request, final walkthrough and punch list, Ohio insurance acknowledgment. |
-| Q24 | Closed with Q6. Still to confirm: state of formation, who signs and their title, and whether the d/b/a is registered where NBD works (Q35). |
+| Q24 | Closed with Q6. Jo (2026-11-17): the LLC is formed in **Kentucky**; the d/b/a **is not registered**; Jo signs as **Manager** (sole manager). |
 | Q25 | Ohio contracts of $25,000 or more print insurer, policy number and expiry as an attachment; TIN only where the attorney says it must be on the contract. |
 | Q26 | Card fee applies to new contracts only; the stray "A convenience fee may apply." text is removed. |
 | Q27 | Wire instructions printed only on request, with a call-to-verify line; never sent by text. |
@@ -427,7 +427,7 @@ section (c) states them correctly.
 | Q32 | Returned-payment fee limits in each state; is "actual bank fee" the right structure? |
 | Q33 | Restocking and special-order cost recovery after the cancellation period: does actual-cost recovery in 3.3(c) conflict with the Ohio and Kentucky cancellation statutes or CSPA? |
 | Q34 | Attic acknowledgment (Part 2): does the declination structure hold up, is "may affect the shingle manufacturer's warranty" accurate for GAF and TAMKO, and should the form say anything about mold beyond "we do not test for it"? |
-| Q35 | Entity facts: No Big Deal Solutions LLC (state of formation?), d/b/a No Big Deal Home Solutions. Is the trade name registered in Ohio and Kentucky as each requires? Who signs for the LLC and with what title (member or manager)? Every contract, invoice and warranty must name the LLC and its d/b/a; remove "sole proprietorship" from `docs/pro/terms.html:327`; reconsider "Backed personally by Joe Deal" (already being removed, Q13). |
+| Q35 | Entity facts: No Big Deal Solutions LLC (Kentucky), d/b/a No Big Deal Home Solutions, **not registered**. Kentucky requires an assumed name certificate (KRS 365.015) before an LLC does business under another name; the possible penalty (KRS 365.990, $25 to $100 fine, from a secondary source) is unverified. Ohio trade-name and foreign-LLC registration (NBD works in Cincinnati) is not researched. Signature block: "No Big Deal Solutions LLC d/b/a No Big Deal Home Solutions, by Joe Deal, Manager". Every contract, invoice and warranty must name the LLC and its d/b/a; remove "sole proprietorship" from `docs/pro/terms.html:327`; reconsider "Backed personally by Joe Deal" (already being removed, Q13). |
 
 ---
 
