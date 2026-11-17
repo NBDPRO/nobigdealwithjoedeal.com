@@ -19,9 +19,11 @@
  *   - Residual: a public user can call rate-limited endpoints (e.g. renderPdf,
  *     30/min) — bounded compute, acceptable for a demo.
  *
- * ⚠ THIS WRITES TO PROD FIRESTORE. Jo runs this (Claude does not write prod).
+ * ⚠ --apply WRITES TO PROD FIRESTORE. Jo runs this (Claude does not write prod).
  *   Auth: GOOGLE_APPLICATION_CREDENTIALS env var (same as functions/seed-demo.js).
- *   Run:  node scripts/seed-demo-access.js
+ *   Run:  node scripts/seed-demo-access.js           # dry run: shows the doc now, writes nothing
+ *         node scripts/seed-demo-access.js --apply   # writes access_codes/DEMO
+ *   (Dry run by default since 2026-11-17, CLAUDE.md rule f.)
  *
  * This is ALSO the agent-access path: the demo button is click-only (no
  * password, no account creation), so any agent can enter the sandboxed demo.
@@ -65,6 +67,12 @@ const DEMO_CODE = {
   const ref = db.collection('access_codes').doc('DEMO');
   const before = await ref.get();
   console.log('Before:', before.exists ? JSON.stringify({ active: before.data().active }) : '(doc missing)');
+  if (!process.argv.includes('--apply')) {
+    console.log('Would set:', JSON.stringify({ active: DEMO_CODE.active, email: DEMO_CODE.email, role: DEMO_CODE.role, plan: DEMO_CODE.plan, useCount: DEMO_CODE.useCount }));
+    console.log('DRY RUN: nothing written. Re-run with --apply to activate access_codes/DEMO.');
+    await db.terminate();
+    process.exit(0);
+  }
   await ref.set(DEMO_CODE, { merge: true });
   const after = await ref.get();
   const a = after.data();

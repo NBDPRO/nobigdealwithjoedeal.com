@@ -271,6 +271,7 @@
     "prod-flags-panel.test.js",
     "address-audit-script.test.js",
     "provision-tenant-sub-key-2026-11-15.test.js",
+    "operator-scripts-dry-run-2026-11-17.test.js",
     "zip-state-check-2026-10-07.test.js",
     "backup-freshness.test.js",
     "vendor-config-export.test.js",

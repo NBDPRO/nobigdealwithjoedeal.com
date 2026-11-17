@@ -25,10 +25,20 @@
  *  - companyProfile/{id} blanks any identity field it doesn't set (no NBD
  *    bleed), so it must carry the tenant's full brand (backfill handles that).
  *
- * NBD (tenant zero) is the SOLO convention (companyId == owner uid) and uses
- * set-jd-claims.js instead — this script is for SLUG tenants (companyId != uid).
+ * NBD (tenant zero) is the SOLO convention (companyId == owner uid): its owner
+ * claims come from mintOwnerClaims at sign-in (functions/handlers/auth.js), not
+ * from this script, which is for SLUG tenants (companyId != uid).
  *
- * ⚠ WRITES PROD AUTH + FIRESTORE. Jo runs this (Claude never writes prod).
+ * DRY RUN BY DEFAULT (CLAUDE.md rule f; repo sweep 2026-11-17, Jo's Q3/Q4):
+ *   without --apply it prints the claims, companies doc and subscription it
+ *   WOULD write, and writes nothing. With --apply it still REFUSES, unless
+ *   --force is also given, to:
+ *     - move an account whose claims already name a different company,
+ *     - demote a platform admin (role 'admin') to company_admin,
+ *     - reassign companies/{id} that already has a different ownerId.
+ *   (--force also still means: overwrite a Stripe-managed subscription.)
+ *
+ * ⚠ --apply WRITES PROD AUTH + FIRESTORE. Jo runs this (Claude never writes prod).
  *   Auth: GOOGLE_APPLICATION_CREDENTIALS -> a nobigdeal-pro service account
  *   (same as backfill-oaks-brand.js). Against the emulator, set
  *   FIREBASE_AUTH_EMULATOR_HOST + FIRESTORE_EMULATOR_HOST first.
@@ -37,13 +47,16 @@
  *   # read-only state check:
  *   node scripts/provision-tenant.js --company oaks --check [--owner-email <e>|--owner-uid <u>]
  *
- *   # provision (create owner if needed + claims + company + subscription):
+ *   # see what provisioning would do (dry run, writes nothing):
  *   node scripts/provision-tenant.js --company oaks \
  *     --owner-email zz-qa-oaks-owner@nobigdealwithjoedeal.com \
  *     --name "Oaks Roofing & Construction" [--password <pw>] [--plan professional]
  *
+ *   # provision for real (create owner if needed + claims + company + subscription):
+ *   ... the same command + --apply
+ *
  *   # attach to an existing account by uid (skip creation):
- *   node scripts/provision-tenant.js --company oaks --owner-uid <uid> --name "Oaks…"
+ *   node scripts/provision-tenant.js --company oaks --owner-uid <uid> --name "Oaks…" --apply
  *
  *   # provision without seeding a subscription (will hit the upgrade wall):
  *   ... --no-subscription
@@ -80,6 +93,8 @@ const name = arg('--name') || companyId || '';
 const plan = arg('--plan') || 'professional';
 let password = arg('--password');
 const checkOnly = has('--check');
+const apply = has('--apply');
+const force = has('--force');
 const seedSub = !has('--no-subscription');
 
 function genPassword() {
@@ -107,7 +122,7 @@ async function resolveOwner(auth, fallbackUid) {
 async function main() {
   if (!companyId) { console.error('✗ --company <id> is required'); process.exit(1); }
   if (/^[A-Za-z0-9]{20,}$/.test(companyId)) {
-    console.error(`✗ --company '${companyId}' looks like a uid. This script is for SLUG tenants; a solo owner (companyId==uid) uses set-jd-claims.js.`);
+    console.error(`✗ --company '${companyId}' looks like a uid. This script is for SLUG tenants; a solo owner (companyId==uid) gets its claims from mintOwnerClaims at sign-in (functions/handlers/auth.js).`);
     process.exit(1);
   }
 
@@ -147,6 +162,39 @@ async function main() {
 
   // ── Provision ──
   if (!ownerUid && !ownerEmail) { console.error('\n✗ provide --owner-email (to create/find) or --owner-uid'); process.exit(1); }
+
+  // ── The plan, and what --apply refuses without --force (Jo, 2026-11-17) ──
+  const existingClaims = owner ? (owner.customClaims || {}) : {};
+  const currentOwnerId = companySnap.exists ? String(companySnap.data().ownerId || '') : '';
+  const refusals = [];
+  if (existingClaims.companyId && existingClaims.companyId !== companyId) {
+    refusals.push(`the account's claims already name company '${existingClaims.companyId}'; provisioning would move it to '${companyId}'`);
+  }
+  if (existingClaims.role === 'admin') {
+    refusals.push("the account is a platform admin (role 'admin'); provisioning would demote it to company_admin");
+  }
+  if (currentOwnerId && currentOwnerId !== (owner ? owner.uid : '')) {
+    refusals.push(`companies/${companyId} already has owner ${currentOwnerId}; provisioning would hand it to ${owner ? owner.uid : 'a new account'}`);
+  }
+  const plannedClaims = { ...existingClaims, companyId: companyId, role: 'company_admin' };
+  console.log(`\n=== plan ===`);
+  console.log(`owner account:           ${owner ? 'use ' + owner.uid : 'CREATE ' + (ownerEmail || '(no --owner-email)')}${(owner && password) ? ' + reset password' : ''}`);
+  console.log(`claims:                  ${JSON.stringify(existingClaims)} → ${JSON.stringify(plannedClaims)} (+ revoke sessions)`);
+  console.log(`companies/${companyId}:   ownerId → ${owner ? owner.uid : '(the new account)'}, name → ${JSON.stringify(name)}`);
+  const subKept = seedSub && coSub.exists && !!coSub.data().stripeSubscriptionId && !force;
+  console.log(`subscriptions/${companyId}: ${!seedSub ? 'not written (--no-subscription)' : subKept ? 'kept (Stripe-managed; --force overwrites it)' : `{plan:'${plan}', status:'active'}`}`);
+  refusals.forEach((r) => console.log(`⚠ REFUSE (needs --force): ${r}`));
+
+  if (!apply) {
+    console.log('\nDRY RUN: nothing written. Re-run with --apply to provision' + (refusals.length ? ' (and --force for the refusals above)' : '') + '.');
+    await db.terminate();
+    process.exit(0);
+  }
+  if (refusals.length && !force) {
+    console.error(`\n✗ refused (${refusals.length}). Nothing written. Check the account and company above; re-run with --apply --force only if this move is intended.`);
+    await db.terminate();
+    process.exit(1);
+  }
 
   // 1) owner auth account (get-or-create)
   let user = owner;

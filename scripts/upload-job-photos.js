@@ -18,9 +18,14 @@
  *     It touches no network and no Firestore.
  *   - --apply needs --yes AND --company=<id>. Run it yourself, in your own terminal,
  *     with your own Google credentials (gcloud application-default login).
- *   - Never overwrites: an existing /photos/{id} is skipped, so rep edits survive a rerun.
- *   - A lead in another company, or not found, is skipped and counted, never guessed.
- *   - Output is counts only.
+ *   - Never overwrites: an existing /photos/{id} is skipped, so rep edits survive a rerun,
+ *     and every Storage upload is create-only (ifGenerationMatch: 0), so an object
+ *     already in Storage is never replaced (2026-11-17).
+ *   - A lead in another company, soft-deleted, or not found, is skipped and counted, never
+ *     guessed. "In the company" is match-job-photos.js leadInCompany: companyId, or for a
+ *     lead written before companyId existed, userId == the company (2026-11-17: those
+ *     older NBD leads used to be skipped as not found).
+ *   - Output is counts only. Exits non-zero when any photo failed.
  *
  * RUN
  *   node scripts/upload-job-photos.js --manifest <csv> --company=<id>            # dry run
@@ -31,15 +36,8 @@
 const fs = require('fs');
 const crypto = require('crypto');
 const U = require('./lib/photo-upload.js');
+const { leadInCompany, isDeleted } = require('./match-job-photos.js');
 
-const args = process.argv.slice(2);
-const flag = (n) => args.includes(n);
-const val = (n) => { const a = args.find((x) => x.startsWith(n + '=')); return a ? a.slice(n.length + 1) : (args.includes(n) ? args[args.indexOf(n) + 1] : ''); };
-const APPLY = flag('--apply');
-const YES = flag('--yes');
-const COMPANY = val('--company');
-const MANIFEST = val('--manifest');
-const LIMIT = Number(val('--limit')) || 0;   // --limit=N uploads only the first N (a small first run)
 const PROJECT = process.env.NBD_PROJECT || 'nobigdeal-pro';
 const BUCKET = process.env.NBD_BUCKET || 'nobigdeal-pro.firebasestorage.app';
 
@@ -63,8 +61,17 @@ function readManifest(file) {
   return rows.filter((x) => x.length >= h.length).map((x) => { const o = {}; h.forEach((k, i) => { o[k] = x[i]; }); return o; });
 }
 
-async function main() {
-  if (flag('--help') || !MANIFEST) { console.log(fs.readFileSync(__filename, 'utf8').split('*/')[0].replace(/^[/ *]+/gm, '')); return; }
+// → the exit code: 0, or 1 when any photo failed.
+async function main(argv) {
+  const args = argv || process.argv.slice(2);
+  const flag = (n) => args.includes(n);
+  const val = (n) => { const a = args.find((x) => x.startsWith(n + '=')); return a ? a.slice(n.length + 1) : (args.includes(n) ? args[args.indexOf(n) + 1] : ''); };
+  const APPLY = flag('--apply');
+  const YES = flag('--yes');
+  const COMPANY = val('--company');
+  const MANIFEST = val('--manifest');
+  const LIMIT = Number(val('--limit')) || 0;   // --limit=N uploads only the first N (a small first run)
+  if (flag('--help') || !MANIFEST) { console.log(fs.readFileSync(__filename, 'utf8').split('*/')[0].replace(/^[/ *]+/gm, '')); return 0; }
   if (!COMPANY) throw new Error('--company=<id> is required (/leads is multi-tenant)');
   if (APPLY && !YES) throw new Error('--apply needs --yes');
   const rows = readManifest(MANIFEST);
@@ -78,7 +85,7 @@ async function main() {
     s.mb = Math.round(s.bytes / 1e6);
     console.log(JSON.stringify(s, null, 2));
     console.log('Nothing uploaded. Run with --apply --yes in your own terminal to file these.');
-    return;
+    return 0;
   }
 
   const { initAdmin, getFirestore, getStorage } = require('./_admin');
@@ -88,15 +95,19 @@ async function main() {
 
   // Resolve leads and existing photo ids from the live CRM.
   // The CRM export's "Customer ID" is a display id (NBD-0367) stored in the lead's customerId
-  // field. Exactly one match, inside this company, or the lead is skipped (never guessed).
+  // field. Exactly one live match inside this company (leadInCompany: companyId, or userId for
+  // a lead written before companyId), or the lead is skipped (never guessed). Display ids can
+  // repeat across tenants, so the company filter runs here rather than in the query, which
+  // would also miss the older leads that carry no companyId.
   const leads = {};
   for (const id of new Set(rows.map((r) => r.lead_id))) {
-    const s = await db.collection('leads').where('customerId', '==', id).where('companyId', '==', COMPANY).get();
-    if (s.size !== 1) continue;
-    const d = s.docs[0];
+    const s = await db.collection('leads').where('customerId', '==', id).get();
+    const mine = s.docs.filter((d) => { const x = d.data() || {}; return !isDeleted(x) && leadInCompany(x, COMPANY, COMPANY); });
+    if (mine.length !== 1) continue;
+    const d = mine[0];
     const x = d.data() || {};
-    if (x.deleted === true || !x.userId) continue;
-    leads[id] = { docId: d.id, uid: x.userId, companyId: x.companyId, lat: Number(x.lat), lng: Number(x.lng) };
+    if (!x.userId) continue;
+    leads[id] = { docId: d.id, uid: x.userId, companyId: COMPANY, lat: Number(x.lat), lng: Number(x.lng) };
   }
   const existingIds = new Set();
   for (const r of rows) {
@@ -113,8 +124,11 @@ async function main() {
     try {
       const { photoPath, thumbPath } = U.buildPaths(p.uid, p.leadId, p.id);
       const tok1 = crypto.randomUUID(), tok2 = crypto.randomUUID();
-      await bucket.upload(p.row.jpeg, { destination: photoPath, metadata: { contentType: 'image/jpeg', metadata: { firebaseStorageDownloadTokens: tok1 } } });
-      await bucket.upload(p.row.thumb, { destination: thumbPath, metadata: { contentType: 'image/jpeg', metadata: { firebaseStorageDownloadTokens: tok2 } } });
+      // Create-only: an object already at this path (a rep's own upload, or an earlier
+      // half-finished run) fails this photo instead of being replaced.
+      const createOnly = { ifGenerationMatch: 0 };
+      await bucket.upload(p.row.jpeg, { destination: photoPath, preconditionOpts: createOnly, metadata: { contentType: 'image/jpeg', metadata: { firebaseStorageDownloadTokens: tok1 } } });
+      await bucket.upload(p.row.thumb, { destination: thumbPath, preconditionOpts: createOnly, metadata: { contentType: 'image/jpeg', metadata: { firebaseStorageDownloadTokens: tok2 } } });
       const dl = (path, tok) => `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${encodeURIComponent(path)}?alt=media&token=${tok}`;
       const doc = U.buildPhotoDoc({
         id: p.id, leadId: p.leadId, uid: p.uid, companyId: p.companyId,
@@ -134,7 +148,9 @@ async function main() {
     }
   }
   console.log(JSON.stringify({ uploaded: ok, failed }));
+  if (failed) console.error(failed + ' photo(s) failed: this run is NOT complete. Nothing that went in is undone; check the lines above, then re-run (filed photos are skipped).');
+  return failed ? 1 : 0;
 }
 
-if (require.main === module) main().catch((e) => { console.error(String(e && e.message || e)); process.exit(1); });
-module.exports = { readManifest, parseCsv };
+if (require.main === module) main().then((code) => process.exit(code || 0), (e) => { console.error(String(e && e.message || e)); process.exit(1); });
+module.exports = { readManifest, parseCsv, main };

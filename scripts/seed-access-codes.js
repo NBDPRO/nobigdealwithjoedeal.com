@@ -29,8 +29,13 @@
  * SETUP (once):
  *   export GOOGLE_APPLICATION_CREDENTIALS=~/.nbd/nobigdeal-pro-sa.json
  *
- * RUN:
- *   BETA_COUNT=10 DEMO_COUNT=3 node scripts/seed-access-codes.js
+ * RUN (dry run by default, CLAUDE.md rule f; repo sweep 2026-11-17):
+ *   BETA_COUNT=10 DEMO_COUNT=3 node scripts/seed-access-codes.js           # shows the plan, writes nothing
+ *   BETA_COUNT=10 DEMO_COUNT=3 node scripts/seed-access-codes.js --apply   # writes + prints the codes once
+ *
+ * The public 'DEMO' code (the /pro login "Launch Demo Dashboard" button) is
+ * NOT rotated here any more (Jo, 2026-11-17): it is deliberately public and
+ * managed by scripts/seed-demo-access.js. Rotating it broke Try Demo silently.
  */
 
 // firebase-admin resolution + the modular API live in scripts/_admin.js
@@ -67,7 +72,20 @@ async function main() {
 
   // Step 1: deactivate any existing `active: true` codes that look like
   // legacy hardcoded ones. This renders every pre-rotation code dead.
-  const LEGACY_IDS = ['NBD-2026','NBD-DEMO','DEMO','TRYIT','DEAL-2026','ROOFCON26','NBD-STORM'];
+  // 'DEMO' is not on this list (2026-11-17): it is the public Try Demo code.
+  const LEGACY_IDS = ['NBD-2026','NBD-DEMO','TRYIT','DEAL-2026','ROOFCON26','NBD-STORM'];
+  if (!process.argv.includes('--apply')) {
+    const found = [];
+    for (const legacy of LEGACY_IDS) {
+      const snap = await db.doc('access_codes/' + legacy).get();
+      if (snap.exists && snap.data().active !== false) found.push(legacy);
+    }
+    console.log('DRY RUN: nothing written, no codes minted.');
+    console.log('Would deactivate legacy codes: ' + (found.length ? found.join(', ') : '(none active)'));
+    console.log('Would mint ' + BETA_COUNT + ' beta (' + EXPIRE_BETA_DAYS + 'd) and ' + DEMO_COUNT + ' demo (' + EXPIRE_DEMO_DAYS + 'd) codes, maxUses ' + MAX_USES + '.');
+    console.log('The public DEMO code is left alone. Re-run with --apply to write and print the codes once.');
+    process.exit(0);
+  }
   for (const legacy of LEGACY_IDS) {
     const ref = db.doc('access_codes/' + legacy);
     const snap = await ref.get();
