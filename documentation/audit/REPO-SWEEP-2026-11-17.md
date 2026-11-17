@@ -1,5 +1,35 @@
 # Repo sweep, 2026-11-17
 
+## Update, later on 2026-11-17: what was fixed, and what is still open
+
+Jo answered the fix questions the same day (Q1-Q17). The answers are recorded in each PR body. Every fix below was built red-test-first and went through an independent review with two skeptics per finding. Confirmed review findings were fixed in the same PR.
+
+| Finding | PR | State at writing |
+|---|---|---|
+| M1 tenant deposit on re-tier, M2 custom-stage roles on the customer page | [#3127](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3127) | merged |
+| M3 "Email My Estimate" abuse: server-built email, passed-Turnstile gate, 3 per IP per day | [#3128](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3128) | merged |
+| M6, L14, L15, L16 operator scripts: dry run unless `--apply`, provision refusals, DEMO kept, admin claim merge, photo upload/sweep | [#3129](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3129) | open |
+| M4, M5, L6, L7 pricing (Job Templates use Settings rates and Round to, cents rollup, pass-through cents) + supplement invoices use the tenant's deposit rule (found by the M1 review) | [#3131](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3131) | open |
+| The six CRLF-only call-to-close test failures (baseline below) | [#3132](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3132) | open |
+| L1 Stripe webhooks share one idempotency marker | — | open: check which event types each endpoint subscribes to in the Stripe dashboard first |
+| L2, L3, L4, L5 (Thursday kill switch, admin analytics fail-open, UTC due date, thank-you screen) | — | open |
+| L8 e-sign source overwrite, L9 preflight warranty ladder, L10 unescaped stage label | — | open |
+| L11, L12, L13 site (breadcrumb JSON-LD, /sites colour + canonical, visualizer label) | — | open |
+| L17 vacuous `|| true` test, L18-L21 service worker and caching | — | open |
+
+**Decisions not to re-ask:**
+- Admin scripts write only with `--apply`.
+- `provision-tenant.js` needs `--force` to move an account, demote a platform admin, or reassign an owned company.
+- DEMO stays public.
+- Template prices follow Settings, with a one-time note.
+- The 1¢ rounding items were OK'd to change.
+
+**Also found during the fixes and left alone:**
+- The admin "Rotate access codes" prompt (`docs/pro/js/admin-manager.js`) still names the seed script without `--apply`. Running it that way now prints the dry run, which tells you to add `--apply`.
+- Archived runbooks that name these scripts were not changed.
+
+---
+
 This was a read-only sweep across eight risk areas:
 - Firestore and Storage rules
 - Cloud Functions correctness
