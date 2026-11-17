@@ -47,6 +47,16 @@ Not done in slice 1's PR: nobody has clicked through the sheet in a real
 browser. Jo sets `feature_flags/{his uid}.supplierPricing = true` after the
 deploy and tries it; see the design's section 12, step 34.
 
+**Jo's answers to the four open design calls (2026-11-17, in chat).** They
+match the design's defaults, so nothing built changes:
+
+| Question | Answer |
+|---|---|
+| May sales reps see a supplier's latest price? | Yes. Reps read offers and their latest price; not the history or the audit trail. Viewers see nothing. |
+| May managers record prices? | Yes, as notes: stored unconfirmed until an owner or company admin confirms. Managers never add suppliers, change pack sizes or approve. |
+| A cost above the sell price at approval (slice 4) | An explicit second confirm, not a refusal. |
+| Cost-book tax basis (slice 4) | Supplier price with sales tax included, as decided 2026-08-19. The tax rate itself is still to come from Jo before slice 4, with the floor value and the alert threshold. |
+
 **What each supplier portal exports** (read by a local browser session in Jo's
 own signed-in Chrome on 2026-11-17; formats and counts only):
 
