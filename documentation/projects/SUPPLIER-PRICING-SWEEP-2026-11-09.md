@@ -249,6 +249,28 @@ longer points at an open PR. The seven quantity-rule findings are still
 unapplied. The live supplier pricing lane starts at
 [LIVE-SUPPLIER-PRICING-2026-11-17](LIVE-SUPPLIER-PRICING-2026-11-17.md).
 
+## Update 2026-11-17 (later): the floor moves from 20% to 30%
+
+Jo set the margin floor after labor at 30% (35% is the target, not the
+floor). Built on branch `claude/catalog-30pct-floor-2026-11-17`:
+
+- **What moved:** retail sells only, on 82 `product-data.js` SKUs (238 tier
+  sells). 135 tiers were under 30% on the live cost book; 103 more move only
+  to keep their good/better/best gap above a lifted tier. No sell went down.
+  The SKUs and their before and after retail sells are listed in
+  `tests/catalog-price-floor-30-2026-11-17.test.js`.
+- **Devices:** `DATA_VERSION` 8, with `product-data.js?v=6`,
+  `product-library.js?v=18` and `script-loader.js?v=229`. Same migration
+  rules as versions 6 and 7: rows a user edited, added, archived or deleted
+  are kept as they are.
+- **Not covered:** RoofIVent SKUs (`roofivent-catalog.js`) stay at MSRP. Most
+  of them sit under 30% after labor; that needs its own decision from Jo.
+- **Not checked in CI:** the margin itself. It needs the private cost book
+  (`NBD_PRIVATE_COST_BOOK`); the list was computed from the live book on
+  2026-11-17 and is kept outside the repo.
+- The 20% suite's exact pin is now a lower bound; the 30% suite holds the
+  exact sells.
+
 ## Related
 
 - [CATALOG-UNDER-COST-2026-08-19](../audit/CATALOG-UNDER-COST-2026-08-19.md),
