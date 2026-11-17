@@ -1116,6 +1116,14 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
 .nbd-social a.s-yelp:hover{background:#d32323}
 .nbd-social svg{width:15px;height:15px;display:block}
 @media(max-width:640px){.nbd-social{margin-left:0;margin-top:8px;display:flex;gap:8px}}
+.nbd-social{flex-wrap:wrap}
+.nbd-social a.s-yt:hover{background:#ff0000}
+.nbd-social a.s-tt:hover,.nbd-social a.s-th:hover{background:#000}
+.nbd-social a.s-pin:hover{background:#e60023}
+.nbd-social a.s-hz:hover{background:#4dbc15}
+.nbd-social a.s-nd:hover{background:#00b246}
+.nbd-social a.s-x:hover{background:#000}
+.nbd-social a.s-bsky:hover{background:#1185fe}
 .pd-wrap{max-width:1000px;margin:0 auto;padding:32px 5% 64px;}
 .pd-crumb{font-size:.78rem;margin-bottom:18px;}
 .pd-crumb a{color:var(--orange);text-decoration:none;font-weight:700;display:inline-block;padding:5px 0;}

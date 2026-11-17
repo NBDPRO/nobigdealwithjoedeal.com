@@ -1125,7 +1125,8 @@
     "field-lead-stage-2026-11-14.test.js",
     "touch-targets-2026-11-14.test.js",
     "offline-banner-weak-signal-2026-11-14.test.js",
-    "sign-price-snapshot-2026-11-14.test.js"
+    "sign-price-snapshot-2026-11-14.test.js",
+    "atproto-did-2026-11-16.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
