@@ -1,20 +1,23 @@
 /**
  * NBD Pro Service Worker v1.0
- * Production-grade offline PWA with intelligent caching and background sync
+ * Offline PWA caching for /pro/. GET only: writes are never intercepted,
+ * queued or replayed here (the CRM's own offline queues live in the pages:
+ * Firestore's on-device queue, offline-manager.js, photo-queue-store.js).
  *
  * Caching Strategies:
- * - App Shell (cache-first): HTML, CSS, JS, fonts
- * - CDN Libraries (cache-first, long TTL): Leaflet, MarkerCluster, leaflet-heat
- * - Map Tiles (cache-first with limit): ESRI tiles, max 500 tiles
- * - Firebase/API (network-first): Firestore REST API, Cloud Functions
- * - Images (stale-while-revalidate): User photos from Firebase Storage
+ * - Same-origin JS/CSS and other assets (network-first, cache fallback)
+ * - Map Tiles (cache-first with limit): ESRI / OSM tile hosts, max 500 tiles
+ * - Public API (network-first): only the small public GET endpoints in
+ *   CACHEABLE_API_PATHS; every other /api/ request goes to the browser
+ * - Images (stale-while-revalidate)
+ * - Offline app shells (see APP_SHELLS)
  */
 
 const CACHE_VERSIONS = {
   shell: 'nbd-shell-v32', // v32 (2026-10-04, offline safety): assets revalidate with 304s instead of re-downloading every launch, a 4 s timeout falls back to the cached copy, and an OFFLINE navigation is answered from the app-shell cache below. The byte change is what makes browsers install this worker; the name bump makes activate() post SW_UPDATE_AVAILABLE so open pages reload onto it.
   cdn: 'nbd-cdn-v31',     // deliberately NOT bumped: this cache holds the ~4 MB of app JS/CSS. Renaming it would make every phone download all of it again — the cost this version exists to remove. Its entries are revalidated on every load anyway.
   tiles: 'nbd-tiles-v1',
-  api: 'nbd-api-v1',
+  api: 'nbd-api-v2', // v2 (2026-11-17): v1 stored EVERY same-origin /api/ GET forever (never evicted, a previous user's bodies left on a shared phone); the rename makes activate() delete it. v2 holds only CACHEABLE_API_PATHS.
   images: 'nbd-images-v2',
   // Static HTML shells of the two installed-app pages, stored ONLY at the
   // request of a signed-in page (CACHE_APP_SHELL) and served ONLY to an
@@ -101,9 +104,12 @@ function isAuthGatedHTML(url) {
   return false;
 }
 
-const OFFLINE_QUEUE_DB_NAME = 'nbd-offline-db';
-const OFFLINE_QUEUE_STORE = 'pending-writes';
-const SYNC_TAG = 'nbd-sync-queue';
+// The only same-origin /api/ GETs this worker keeps for offline use: small,
+// public, the same for every visitor. Anything else under /api/ (per-user,
+// token-bound, large or streamed) is left to the browser and stored nowhere.
+const CACHEABLE_API_PATHS = new Set([
+  '/api/google-reviews',
+]);
 
 // ─────────────────────────────────────────────────────────
 // INSTALL: Precache app shell
@@ -181,7 +187,7 @@ self.addEventListener('fetch', event => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET requests (handled by background sync)
+  // Skip non-GET requests (never intercepted, never queued)
   if (request.method !== 'GET') {
     return;
   }
@@ -198,12 +204,15 @@ self.addEventListener('fetch', event => {
   // the network or the server. This is the root cause of the long-running
   // "Ctrl+R won't fix it, only Shift+Ctrl+R does" reports.
   //
-  // Auth-gated HTML is ALREADY `no-store` at the HTTP layer (firebase.json:
-  // /pro/dashboard, /pro/vault, /pro/customer, /pro/login, …), so letting the
-  // browser fetch navigations natively caches nothing new and changes no
-  // security property — the no-cache guarantee is unchanged. Sub-resources
-  // (JS/CSS network-first, images, tiles, API, offline-write queue) still route
-  // through this SW below, so PWA/offline behaviour for assets is preserved.
+  // Since the SW no longer sees these navigations, the no-cache guarantee for
+  // the pages in NO_CACHE_HTML rests on the HTTP layer: firebase.json sends
+  // every one of them except the public /pro/ landing page `no-store` (/pro/dashboard, /pro/vault, /pro/customer,
+  // /pro/login, /pro/register, /pro/daily-success, /pro/workout, and the
+  // /pro/@(portal|estimate-view|analytics|…) rule added 2026-11-17, which
+  // had been going out `public, max-age=300`). /admin/** is no-store too.
+  // Sub-resources (JS/CSS network-first, images, tiles, the public API
+  // allowlist) still route through this SW below, so PWA/offline behaviour
+  // for assets is preserved.
   //
   // Trade-off: an OFFLINE top-level navigation now shows the browser's default
   // offline page instead of /offline.html. Acceptable for an auth-gated CRM
@@ -248,7 +257,11 @@ self.addEventListener('fetch', event => {
   if (isMapTile(url)) {
     event.respondWith(handleMapTileRequest(request));
   } else if (isAPIRequest(url)) {
-    event.respondWith(handleAPIRequest(request));
+    // Only the public allowlist is cached; every other /api/ GET is left to
+    // the browser (no respondWith), so it is never stored by this worker.
+    if (CACHEABLE_API_PATHS.has(url.pathname)) {
+      event.respondWith(handleAPIRequest(request));
+    }
   } else if (isImageRequest(url)) {
     event.respondWith(handleImageRequest(request));
   } else if (isJSorCSS(url)) {
@@ -277,15 +290,6 @@ async function handleAuthGatedHTML(request) {
     });
   }
 }
-
-// ─────────────────────────────────────────────────────────
-// BACKGROUND SYNC: Replay queued writes on reconnect
-// ─────────────────────────────────────────────────────────
-self.addEventListener('sync', event => {
-  if (event.tag === SYNC_TAG) {
-    event.waitUntil(flushOfflineQueue());
-  }
-});
 
 // ─────────────────────────────────────────────────────────
 // MESSAGE: Handle client messages (skip-waiting, etc)
@@ -376,10 +380,11 @@ function isExternalCDN(url) {
 }
 
 function isMapTile(url) {
-  // ESRI satellite tiles, OpenStreetMap, etc.
+  // ESRI satellite tiles and OpenStreetMap: tile HOSTS only. A same-origin
+  // path that merely contains '/tile' (e.g. a /pro/js/tile-grid.js) is app
+  // code and must take the revalidating asset path, never cache-first.
   return url.hostname === 'server.arcgisonline.com' ||
-         url.hostname === 'tile.openstreetmap.org' ||
-         url.pathname.includes('/tile');
+         url.hostname === 'tile.openstreetmap.org';
 }
 
 function isAPIRequest(url) {
@@ -569,39 +574,37 @@ async function handleMapTileRequest(request) {
 }
 
 // ─────────────────────────────────────────────────────────
-// Network-first for API calls (Firestore, Cloud Functions)
+// Network-first for the public API allowlist (CACHEABLE_API_PATHS, GET only)
 // ─────────────────────────────────────────────────────────
+// Stored only as a full 200 that is not video: a 206 makes cache.put throw,
+// and a media body has no business in this cache.
+function isStorableAPIResponse(response) {
+  if (!response || response.status !== 200) return false;
+  const type = (response.headers && response.headers.get && response.headers.get('Content-Type')) || '';
+  return !/^video\//i.test(type);
+}
+
 async function handleAPIRequest(request) {
   const cache = await caches.open(CACHE_VERSIONS.api);
 
   try {
     const response = await fetch(request);
-
-    // Only cache successful reads (not writes)
-    if (response.ok && request.method === 'GET') {
-      const responseClone = response.clone();
-      cache.put(request, responseClone);
+    if (isStorableAPIResponse(response)) {
+      const copy = response.clone();
+      Promise.resolve().then(() => cache.put(request, copy)).catch(() => { /* quota: keep serving */ });
     }
-
     return response;
   } catch (err) {
-    // Network failed: try cache, then queue for sync if it's a write
-    const cached = await cache.match(request);
-
+    // Network failed: the stored copy, if there is one.
+    let cached;
+    try { cached = await cache.match(request); } catch (_) { cached = undefined; }
     if (cached) {
       return cached;
     }
 
-    // If this is a write (POST/PUT/DELETE), queue it for background sync
-    if (request.method !== 'GET') {
-      const body = await request.clone().text();
-      await queueOfflineWrite(request.url, request.method, body);
-    }
-
     return new Response(JSON.stringify({
       error: 'Offline',
-      message: 'Request queued for sync',
-      queued: true
+      message: 'You are offline. Please reconnect to continue.'
     }), {
       status: 503,
       headers: { 'Content-Type': 'application/json' }
@@ -643,94 +646,5 @@ async function handleImageRequest(request) {
       '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect fill="#ccc"/></svg>',
       { headers: { 'Content-Type': 'image/svg+xml' } }
     );
-  }
-}
-
-// ─────────────────────────────────────────────────────────
-// IndexedDB: Queue offline writes
-// ─────────────────────────────────────────────────────────
-function getOfflineDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(OFFLINE_QUEUE_DB_NAME, 1);
-
-    req.onerror = () => reject(req.error);
-    req.onsuccess = () => resolve(req.result);
-
-    req.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(OFFLINE_QUEUE_STORE)) {
-        db.createObjectStore(OFFLINE_QUEUE_STORE, { keyPath: 'id', autoIncrement: true });
-      }
-    };
-  });
-}
-
-async function queueOfflineWrite(url, method, body) {
-  try {
-    const db = await getOfflineDB();
-    const tx = db.transaction(OFFLINE_QUEUE_STORE, 'readwrite');
-    const store = tx.objectStore(OFFLINE_QUEUE_STORE);
-
-    store.add({
-      url,
-      method,
-      body,
-      timestamp: Date.now()
-    });
-  } catch (err) {
-    console.warn('Failed to queue offline write:', err);
-  }
-}
-
-async function flushOfflineQueue() {
-  try {
-    const db = await getOfflineDB();
-    const tx = db.transaction(OFFLINE_QUEUE_STORE, 'readonly');
-    const store = tx.objectStore(OFFLINE_QUEUE_STORE);
-    const items = await new Promise((resolve, reject) => {
-      const req = store.getAll();
-      req.onerror = () => reject(req.error);
-      req.onsuccess = () => resolve(req.result);
-    });
-
-    let synced = 0;
-    let failed = 0;
-
-    for (const item of items) {
-      try {
-        const opts = {
-          method: item.method,
-          headers: { 'Content-Type': 'application/json' },
-          body: item.body
-        };
-
-        const response = await fetch(item.url, opts);
-
-        if (response.ok) {
-          // Delete from queue
-          const delTx = db.transaction(OFFLINE_QUEUE_STORE, 'readwrite');
-          delTx.objectStore(OFFLINE_QUEUE_STORE).delete(item.id);
-          synced++;
-        } else {
-          failed++;
-        }
-      } catch (err) {
-        failed++;
-      }
-    }
-
-    // Notify clients of sync completion
-    if (synced > 0) {
-      const clients = await self.clients.matchAll();
-      clients.forEach(client => {
-        client.postMessage({
-          type: 'OFFLINE_SYNC_COMPLETE',
-          synced,
-          failed
-        });
-      });
-    }
-  } catch (err) {
-    console.warn('Error flushing offline queue:', err);
   }
 }

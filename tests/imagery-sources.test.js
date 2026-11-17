@@ -132,10 +132,20 @@ console.log('\nD2D — KyFromAbove is a basemap choice, layered over Esri imager
   ok('setBasemap guards bringToBack (a layerGroup has none)', /if \(layer\.bringToBack\) layer\.bringToBack\(\)/.test(src));
 }
 
-console.log('\nSERVICE WORKER — the tile cache still recognises both hosts');
+console.log('\nSERVICE WORKER — the tile cache matches tile hosts only');
 {
-  const sw = codeOnly(read('docs/pro/sw.js'));
-  ok('isMapTile matches any /tile path, which covers both new hosts', /url\.pathname\.includes\('\/tile'\)/.test(sw));
+  // 2026-11-17 sweep #29: the old '/tile' substring only ever matched SAME-origin
+  // paths (cross-origin requests leave the fetch handler before isMapTile unless
+  // isExternalCDN matches), so it sent app code like a /pro/js/tile-grid.js to a
+  // cache-forever handler. Run the real isMapTile instead of reading its text.
+  const swCtx = { self: { location: { origin: 'https://www.nobigdealwithjoedeal.com' }, addEventListener() {} }, URL, Set, Map, console };
+  vm.createContext(swCtx);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'sw.js'), 'utf8'), swCtx);
+  ok('isMapTile matches the ESRI and OSM tile hosts',
+     swCtx.isMapTile(new URL('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/1/2/3')) &&
+     swCtx.isMapTile(new URL('https://tile.openstreetmap.org/1/2/3.png')));
+  ok('isMapTile does not match a same-origin path containing /tile',
+     !swCtx.isMapTile(new URL('https://www.nobigdealwithjoedeal.com/pro/js/tile-grid.js')));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
