@@ -144,8 +144,30 @@ version of this suite had 22). The suite was rewritten to ask structural questio
      built-in skins unchanged; a synced custom theme arriving on each real page is drawn, listed, and survives a reload.
    - Not covered: inside the coach's full-screen logger the muted / rule colours of a LIGHT theme sit on its fixed dark background (true
      of the built-in light skins in Daily Success too); only its accent-filled buttons were made safe.
-   **Limits:** (a) a custom theme is drawn properly in the Workout app but still half-applied in Daily Success (above), so the two do not
-   look alike for a custom theme; (b) NOT exercised against the real cloud or on a phone: the sync is tested against the harness's fake Firestore;
+   **Daily Success fixed too (same day; Jo: "Yes, fix it"), and both apps now draw a custom theme from ONE function.**
+   - `docs/pro/daily-success/js/custom-theme-logic.js` (`NBDCustomTheme`): what counts as a custom theme, and `derive()`, the full token
+     row from the five colours. The Workout app's own copy of this (above) was removed; `workout-theme.js` (`?v=4`) and `look-sync.js`
+     both use it. Loaded before `app.js` on Daily Success and before `workout-theme.js` on the Workout app.
+   - `app.js`: `_nbdLayCustom(t)` lays the row inline in `nbdApplyTheme` and at boot; `_nbdClearCustom()` takes it off before the next
+     theme. `accent-ui.js` (`?v=3`) re-applied the theme's RAW accent and cleared `--ac-text` / `--ac-on-dark` every time `data-theme`
+     changed; for a custom theme it now uses the derived fill and puts those two back.
+   - What `derive()` keeps true, because the tracker's styles count on it: the bar carries light text (a light surface cannot be the bar:
+     the theme's dark text colour is, else near-black, as Warm Paper does); `--on-dark` / `--ac-on-dark` read on the bar AND on the three
+     surfaces that stay dark in every skin (coach logger, week-glance panel, onboarding banner); every accent-FILLED control paints white
+     text on `--ac`, so an accent too pale for white is darkened, keeping its hue, only as far as needed (the accent as picked is still
+     used as text where it reads). Text under 4.5:1 becomes black or white; readable picks are used exactly as chosen.
+   - Three page rules assumed a built-in skin: `body` colour now `var(--page-ink,var(--ink))`; the accent words on the banner use
+     `--ac-on-dark`; a ghost button on the banner takes `--on-dark` (this one was also 1.5:1 on the built-in Light and Warm Paper skins,
+     so those improved); under `[data-theme^="custom-"]` the "not earned" box takes the page accent. The two rules older suites pin
+     (`daily-success-theme-sweep`, `daily-success-themes`) are byte-identical; the new behaviour is in separate rules.
+   - Measured with a live sweep in headless Chromium (every piece of text on the Dashboard and today's page against what is behind it):
+     before, a custom theme had 11-14 low spots (down to 1.3:1) and Light / Warm Paper had 2; after, 0 for all six custom samples (dark,
+     light, light page + dark cards, dark page + light cards, pale accent, unreadable picks) and 0 for default / light / paper / midnight.
+     Both apps compute identical tokens for a custom theme. The sweep is a manual script, not a CI test.
+   - Tests: `tests/custom-theme-2026-11-17.test.js` (34 checks; 400 random themes x 25 colour pairings), `ds-workout-installable` 151,
+     `look-sync` 64. 38 deliberate breaks, all caught (one only after a check was tightened).
+   - Not swept: the overlays (Money, Sunday review, onboarding wizard, appearance picker), the Notebook, the other seven layouts, print.
+   **Limits:** (a) a pale custom accent shows darker on buttons than the colour picked (its text uses still show it as picked); (b) NOT exercised against the real cloud or on a phone: the sync is tested against the harness's fake Firestore;
    (c) a pick made in the first seconds on a brand-new install, before its first sync has finished, is stamped newer than the look chosen
    elsewhere and wins; (d) the records are account data, cleared on an account switch (the Daily Success device theme stays, the Workout
    app's own theme goes back to following until the account's copy arrives).

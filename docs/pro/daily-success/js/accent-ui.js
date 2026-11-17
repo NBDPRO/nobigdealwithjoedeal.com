@@ -26,8 +26,15 @@
     html.style.removeProperty('--ac-on-dark');
     const id = pick();
     const theme = themeAccent();
+    // A custom theme's own accent-as-text colours live inline only (js/custom-theme-logic.js): put back what was just removed.
+    const CT = window.NBDCustomTheme;
+    const custom = CT && theme && theme.cat === 'custom' ? CT.normCustom(theme) : null;
+    const base = custom ? CT.derive(custom) : null;
+    if (base) ['--ac-text', '--ac-on-dark'].forEach((p) => html.style.setProperty(p, base[p]));
+    // The fill every accent-coloured button uses: for a custom theme, the derived one (a picked accent too pale for white text is darkened).
+    const fill = base ? base['--ac'] : (theme && theme.accent);
     if (!id) {
-      ['--ac', '--orange'].forEach((p) => { if (theme && theme.accent) html.style.setProperty(p, theme.accent); else html.style.removeProperty(p); });
+      ['--ac', '--orange'].forEach((p) => { if (fill) html.style.setProperty(p, fill); else html.style.removeProperty(p); });
       return;
     }
     const paper = A.surfaceOf(getComputedStyle(html).getPropertyValue('--paper'), theme && theme.bg);

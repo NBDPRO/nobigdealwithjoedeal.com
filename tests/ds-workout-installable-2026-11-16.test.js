@@ -501,6 +501,7 @@ console.log('\n12. The Workout app can wear its own accent');
 
 console.log('\n13. Custom themes in the Workout app');
 {
+  const CT = require('../docs/pro/daily-success/js/custom-theme-logic.js');   // the colours themselves: tests/custom-theme-2026-11-17.test.js
   const mk = (n, accent, bg, s, tc, m, name) => ({ id: 'custom-170000000000' + n, name: name || 'Custom ' + n, cat: 'custom', plan: 'command', accent, bg, s, tc, m });
   const C1 = mk(1, '#22AA66', '#101820', '#1c2836', '#f0f0f0', '#99aabb', 'Night shift');
   const C2 = mk(2, '#aa2266', '#f4f1ea', '#ffffff', '#221a12', '#6a5f55');
@@ -510,56 +511,31 @@ console.log('\n13. Custom themes in the Workout app');
       style: { setProperty: (p, v) => { inline[p] = v; }, removeProperty: (p) => { delete inline[p]; } } };
     const docL = {};
     const win = { addEventListener: () => {}, NBDLook: { changed: () => { sent.push(store.nbd_wk_theme || ''); } } };
-    kit.loadInVm(['docs/pro/daily-success/js/accent-logic.js', 'docs/pro/workout/js/workout-theme.js'], { window: win, document: { documentElement: html, visibilityState: 'visible', addEventListener: (n, f) => { docL[n] = f; } },
+    kit.loadInVm(['docs/pro/daily-success/js/accent-logic.js', 'docs/pro/daily-success/js/custom-theme-logic.js', 'docs/pro/workout/js/workout-theme.js'], { window: win,
+      document: { documentElement: html, visibilityState: 'visible', addEventListener: (n, f) => { docL[n] = f; } },
       localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } }, getComputedStyle: () => ({ getPropertyValue: () => '#12161c' }) });
     return { T: win.NBDWorkoutTheme, A: win.NBDAccent, attrs, inline, sent, store, back: () => docL.visibilitychange() };
   }
   const a = customApp({ 'nbd-customs': JSON.stringify([C1, C2]), nbd_pro_theme: C1.id });
   const T = a.T;
   ok('a custom theme Daily Success saved is worn, not replaced by the default skin', a.attrs['data-theme'] === C1.id);
-  ok('all five of its colours are used: page, surface, accent, text and muted', a.inline['--bg'] === '#101820' && a.inline['--bar'] === '#1c2836' && a.inline['--paper'] === '#1c2836' && a.inline['--ac'] === '#22aa66' && a.inline['--ink'] === '#f0f0f0' && a.inline['--muted'] === '#99aabb', JSON.stringify(a.inline));
+  ok('it is drawn with exactly the colours Daily Success uses for it (one shared function)', JSON.stringify(a.inline) === JSON.stringify(CT.derive(CT.normCustom(C1))), JSON.stringify(a.inline));
+  ok('all five of its colours show: page, surface, text, muted, and the accent as text', a.inline['--bg'] === '#101820' && a.inline['--paper'] === '#1c2836' && a.inline['--ink'] === '#f0f0f0' && a.inline['--muted'] === '#99aabb' && a.inline['--ac-text'] === '#22aa66', JSON.stringify(a.inline));
   a.store.nbd_pro_theme = 'ocean'; a.back();
   ok('switching to a built-in theme takes every custom colour back off', a.attrs['data-theme'] === 'ocean' && Object.keys(a.inline).length === 0, Object.keys(a.inline).join());
   a.store.nbd_pro_theme = C2.id; a.back();
   ok('and another custom theme lays its own', a.attrs['data-theme'] === C2.id && a.inline['--bg'] === '#f4f1ea' && a.inline['--ink'] === '#221a12');
   ok('a custom theme whose colours are not on this device shows as the default skin', customApp({ nbd_pro_theme: C1.id }).attrs['data-theme'] === 'default' && customApp({ 'nbd-customs': 'not json', nbd_pro_theme: C1.id }).attrs['data-theme'] === 'default');
-
-  const good = { id: 'custom-1', name: 'X', accent: '#112233', bg: '#000000', s: '#111111', tc: '#ffffff', m: '#aaaaaa' };
-  const bad = [null, 'x', Object.assign({}, good, { id: 'ocean' }), Object.assign({}, good, { id: 'custom-1; x' }), Object.assign({}, good, { bg: 'red' }), Object.assign({}, good, { s: '#fff' }),
-    Object.assign({}, good, { accent: 'url(x)' }), Object.assign({}, good, { tc: '#12345g' }), Object.assign({}, good, { m: null })];
-  ok('a stored theme needs a custom id and five six-digit hex colours; anything else is ignored', bad.every((c) => T.normCustom(c) === null) && T.normCustom(good) !== null);
-  ok('the list drops bad entries and repeats', T.customs((k) => JSON.stringify([good, bad[4], good, Object.assign({}, good, { id: 'custom-2' })])).map((c) => c.id).join() === 'custom-1,custom-2');
-
-  // Readable whatever was picked: 400 random five-colour themes (fixed seed), every text colour measured against what it sits on.
-  let seed = 20261117;
-  const rnd = () => { seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff; return seed / 0x80000000; };
-  const hex = () => '#' + [0, 0, 0].map(() => Math.floor(rnd() * 256).toString(16).padStart(2, '0')).join('');
-  const worst = { ink: 99, pageInk: 99, muted: 99, pageMuted: 99, acText: 99, pageAc: 99, onAc: 99, barInk: 99 };
-  const low = (k, v) => { if (v < worst[k]) worst[k] = v; };
-  let kept = 0;
-  for (let i = 0; i < 400; i++) {
-    const c = { id: 'custom-9', name: 'r', accent: hex(), bg: hex(), s: hex(), tc: hex(), m: hex() };
-    const d = T.derive(c);
-    low('ink', T.contrast(d['--ink'], c.s)); low('pageInk', T.contrast(d['--wa-page-ink'], c.bg));
-    low('muted', T.contrast(d['--muted'], c.s)); low('pageMuted', T.contrast(d['--wa-page-muted'], c.bg));
-    low('acText', T.contrast(d['--ac-text'], c.s)); low('pageAc', T.contrast(d['--wa-page-ac'], c.bg));
-    low('onAc', T.contrast(d['--wa-on-ac'], c.accent)); low('barInk', T.contrast(d['--wa-bar-ink'], c.s));
-    if (d['--ink'] === c.tc) kept++;
-  }
-  const short = Object.keys(worst).filter((k) => worst[k] < (k === 'muted' || k === 'pageMuted' ? 3 : 4.5));
-  ok('text is at least 4.5:1 (muted 3:1) on its own surface for every one of 400 random themes', short.length === 0, short.map((k) => k + ' ' + worst[k].toFixed(2)).join(', '));
-  ok('control: random picks really are often unreadable (the guard is doing work), and readable picks are kept', kept > 20 && kept < 380, String(kept));
-  const d1 = T.derive(T.normCustom(C1));
-  ok('readable picks are used exactly as chosen', d1['--ink'] === '#f0f0f0' && d1['--muted'] === '#99aabb' && d1['--ac-text'] === '#22aa66');
-  const split = T.derive(T.normCustom(mk(3, '#e0a030', '#f4f1ea', '#3a2f25', '#221a12', '#6a5f55')));
-  ok('a light page with dark cards gets dark text on the page and light text on the cards', split['--wa-page-ink'] === '#221a12' && split['--ink'] === '#ffffff');
-  ok('a pale accent carries dark button text, a deep one white', T.derive(T.normCustom(mk(4, '#ffe066', '#0b0b0f', '#17171f', '#eeeeee', '#9090a0')))['--wa-on-ac'] === '#000000' && T.derive(T.normCustom(C2))['--wa-on-ac'] === '#ffffff');
+  ok('a stored entry that is not a well-formed custom theme is not offered or worn', customApp({ 'nbd-customs': JSON.stringify([Object.assign({}, C1, { bg: 'red' })]), nbd_pro_theme: C1.id }).attrs['data-theme'] === 'default'
+    && T.customs(() => JSON.stringify([C1, Object.assign({}, C2, { tc: '#fff' }), C1])).map((c) => c.id).join() === C1.id);
 
   const acc = customApp({ 'nbd-customs': JSON.stringify([C2]), nbd_pro_theme: C2.id, nbd_ds_accent: 'teal' });
   const teal = acc.A.ACCENTS.find((x) => x.id === 'teal');
-  ok('an accent over a custom theme: its fill, white text on it, and the text tint for a light card and a light page', acc.inline['--ac'] === teal.fill && acc.inline['--wa-on-ac'] === '#ffffff' && acc.inline['--ac-text'] === teal.onLight && acc.inline['--wa-page-ac'] === teal.onLight, JSON.stringify(acc.inline));
+  ok('an accent over a custom theme: its fill, and its text tint for a light card and a light page', acc.inline['--ac'] === teal.fill && acc.inline['--ac-text'] === teal.onLight && acc.inline['--page-ac'] === teal.onLight, JSON.stringify(acc.inline));
+  const accDark = customApp({ 'nbd-customs': JSON.stringify([mk(3, '#e0a030', '#f4f1ea', '#3a2f25', '#221a12', '#6a5f55')]), nbd_pro_theme: 'custom-1700000000003', nbd_ds_accent: 'teal' });
+  ok('on a light page with dark cards the card gets the light tint and the page the dark one', accDark.inline['--ac-text'] === teal.onDark && accDark.inline['--page-ac'] === teal.onLight);
   delete acc.store.nbd_ds_accent; acc.back();
-  ok('taking the accent off goes back to the theme\'s own accent', acc.inline['--ac'] === '#aa2266');
+  ok('taking the accent off goes back to the theme\'s own accent', acc.inline['--ac'] === '#aa2266' && acc.inline['--ac-text'] === '#aa2266');
 
   const own = customApp({ 'nbd-customs': JSON.stringify([C1, C2]), nbd_pro_theme: 'ocean' });
   ok('a custom theme can be the Workout app\'s own, handed to the sync', own.T.setOwn(C2.id) === C2.id && own.attrs['data-theme'] === C2.id && own.sent.join() === C2.id);
@@ -570,7 +546,7 @@ console.log('\n13. Custom themes in the Workout app');
     appendChild(c) { c.parentNode = this; this.children.push(c); if (c.id) byId[c.id] = c; return c; }, removeChild(c) { this.children = this.children.filter((x) => x !== c); if (c.id) delete byId[c.id]; return c; } });
   const byId = {};
   const selEl = mkNode('select'); selEl.id = 'waTheme'; byId.waTheme = selEl;
-  let list = [T.normCustom(C1), T.normCustom(C2)];
+  let list = [CT.normCustom(C1), CT.normCustom(C2)];
   const docL = {};
   const doc = { readyState: 'complete', visibilityState: 'visible', addEventListener: (n, f) => { (docL[n] = docL[n] || []).push(f); }, getElementById: (id) => byId[id] || null, createElement: mkNode };
   const win = { addEventListener: () => {}, NBDWorkoutTheme: { own: () => C1.id, setOwn: (v) => v, customs: () => list } };
@@ -580,7 +556,7 @@ console.log('\n13. Custom themes in the Workout app');
   ok('and shows the one in use', selEl.value === C1.id);
   docL.visibilitychange.forEach((f) => f());
   ok('drawing again does not list them twice', selEl.children.filter((c) => c.tag === 'optgroup').length === 1 && group().children.length === 2);
-  list = [T.normCustom(C2)];
+  list = [CT.normCustom(C2)];
   docL.visibilitychange.forEach((f) => f());
   ok('a changed list is redrawn', group().children.map((o) => o.value).join() === C2.id);
   list = [];
@@ -589,11 +565,12 @@ console.log('\n13. Custom themes in the Workout app');
 
   const css = kit.read('docs/pro/workout/workout-app.css');
   const decl = (sel, prop) => (kit.cssRule(css, sel) || {})[prop] || '';
-  ok('the built-in skins keep their colours: every hook a custom theme fills falls back to the old value',
-    decl('.btn-red', 'color') === 'var(--wa-on-ac,#fff)' && decl('.wa-top', 'color') === 'var(--wa-bar-ink,#f2f4f8)' && decl('body', 'color') === 'var(--wa-page-ink,var(--ink))'
-    && decl('.wa-status.ok', 'color') === 'var(--wa-ok,#4caf82)' && decl('.wa-link-quiet', 'color') === 'var(--wa-page-muted,var(--muted))' && decl('.wc-go', 'color') === 'var(--wa-on-ac,#fff)',
-    [decl('.btn-red', 'color'), decl('.wa-top', 'color'), decl('body', 'color'), decl('.wa-status.ok', 'color'), decl('.wa-link-quiet', 'color'), decl('.wc-go', 'color')].join(' | '));
+  ok('text straight on the page uses the page hooks, each falling back to the skin\'s own colour (the ten skins draw as before)',
+    decl('body', 'color') === 'var(--page-ink,var(--ink))' && decl('.wa-link-quiet', 'color') === 'var(--page-muted,var(--muted))' && decl('.wa-link', 'color') === 'var(--page-ac,var(--ac-text))' && decl('.wa-main .wc-card', 'color') === 'var(--ink)',
+    [decl('body', 'color'), decl('.wa-link-quiet', 'color'), decl('.wa-link', 'color'), decl('.wa-main .wc-card', 'color')].join(' | '));
+  const head = wDoc.$('head');
+  const pos = (file) => { const s = head.$$('script').find((x) => pathOf(x.attr('src') || '').split('/').pop() === file); return s ? s.start : -1; };
+  ok('the shared colour logic loads before the theme script, at the Daily Success version', pos('custom-theme-logic.js') > -1 && pos('custom-theme-logic.js') < pos('workout-theme.js') && dScripts.has(wSrcs[at('custom-theme-logic.js')]));
 }
-
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

@@ -55,7 +55,7 @@ function phone(kind, storage) {
   }
   // app.js's in-memory list of custom themes (a top-level `let`, so a bare global to other scripts): only the Daily Success page has it
   const mem = kind === 'ds' ? (() => { try { return JSON.parse(store.get('nbd-customs') || '[]'); } catch (_) { return []; } })() : null;
-  kit.loadInVm(['docs/pro/daily-success/js/look-sync.js'], Object.assign({ window: win, localStorage: ls }, mem ? { _nbd_customs: mem } : {}));
+  kit.loadInVm(['docs/pro/daily-success/js/custom-theme-logic.js', 'docs/pro/daily-success/js/look-sync.js'], Object.assign({ window: win, localStorage: ls }, mem ? { _nbd_customs: mem } : {}));
   const look = win.NBDLook;
   return {
     store, calls, look, win, mem,
@@ -64,7 +64,7 @@ function phone(kind, storage) {
     // the theme the Workout app would draw from this storage (workout-theme.js themeId, the real one)
     workoutTheme: () => {
       const w = { addEventListener: () => {} };
-      kit.loadInVm(['docs/pro/workout/js/workout-theme.js'], { window: w, document: { documentElement: { getAttribute: () => null, setAttribute: () => {}, style: { setProperty: () => {}, removeProperty: () => {} } }, addEventListener: () => {} },
+      kit.loadInVm(['docs/pro/daily-success/js/custom-theme-logic.js', 'docs/pro/workout/js/workout-theme.js'], { window: w, document: { documentElement: { getAttribute: () => null, setAttribute: () => {}, style: { setProperty: () => {}, removeProperty: () => {} } }, addEventListener: () => {} },
         localStorage: ls, getComputedStyle: () => ({ getPropertyValue: () => '' }) });
       return w.NBDWorkoutTheme.themeId(ls.getItem);
     },

@@ -47,18 +47,15 @@
   var isId = function (v) { return typeof v === 'string' && ID.test(v); };
 
   // ── custom themes (app.js nbdSaveCustom writes nbd-customs) ──
-  var CUSTOMS = 'nbd-customs', CUSTOM_ID = /^custom-[0-9]{1,16}$/, HEX = /^#[0-9a-f]{6}$/i, COLS = ['accent', 'bg', 's', 'tc', 'm'];
-  /** A custom theme definition with a well-formed id and five hex colours, or null. Only these fields are kept. */
-  function normCustom(c) {
-    if (!c || typeof c !== 'object' || typeof c.id !== 'string' || !CUSTOM_ID.test(c.id)) return null;
-    for (var i = 0; i < COLS.length; i++) if (typeof c[COLS[i]] !== 'string' || !HEX.test(c[COLS[i]])) return null;
-    var name = typeof c.name === 'string' ? c.name.replace(/\s+/g, ' ').trim().slice(0, 40) : '';
-    return { id: c.id, name: name || 'Custom', accent: c.accent, bg: c.bg, s: c.s, tc: c.tc, m: c.m };
-  }
+  var CUSTOMS = 'nbd-customs';
+  // The check for a well-formed custom theme lives in custom-theme-logic.js (loaded before this file on both pages). Without it no
+  // definition is accepted, carried or adopted.
+  function normCustom(c) { var C = window.NBDCustomTheme; return C ? C.normCustom(c) : null; }
+  function isCustomId(id) { var C = window.NBDCustomTheme; return !!C && C.isCustomId(id); }
   function deviceCustoms() { var l = parse(CUSTOMS); return Array.isArray(l) ? l : []; }
   /** The definition of custom theme `id` on this device, or null (also null for a built-in theme id). */
   function customFor(id) {
-    if (typeof id !== 'string' || !CUSTOM_ID.test(id)) return null;
+    if (!isCustomId(id)) return null;
     var l = deviceCustoms();
     for (var i = 0; i < l.length; i++) if (l[i] && l[i].id === id) return normCustom(l[i]);
     return null;
