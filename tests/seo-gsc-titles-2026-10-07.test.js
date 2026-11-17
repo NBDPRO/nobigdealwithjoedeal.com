@@ -15,6 +15,10 @@
  *   - a blog post winning "roof replacement cincinnati" while its body link
  *     pointed at the region hub, not the Cincinnati town page.
  *
+ * 2026-11-17 (Jo): the eight per-town "<Town>, ST Roofer | ..." titles below were
+ * folded back into ONE pattern for all 45 town pages (tests/town-cta-seo-2026-11-17.test.js); the "roofer
+ * <town>" wording stays on the page H1 only. The homepage owns "Cincinnati roofer".
+ *
  * These pins go red if a rewritten title/description drifts back to the old
  * wording, falls outside 50–60 / 120–155 characters, or the blog link moves.
  * HTML comments are stripped first. Pure-Node, zero-dep.
@@ -45,14 +49,6 @@ const head = (rel) => {
 
 // page -> [regex the title must match, regex the description must match]
 const PAGES = {
-  'areas/fort-mitchell-ky.html': [/^Fort Mitchell, KY Roofer \| Roof Repair/, /Fort Mitchell, KY/],
-  'areas/indian-hill-oh.html': [/^Indian Hill, OH Roofer \| Roof Repair/, /Indian Hill, OH/],
-  'areas/amelia-oh.html': [/^Amelia, OH Roofer \| Roof Repair/, /Amelia, OH/],
-  'areas/mt-orab-oh.html': [/^Mt\. Orab, OH Roofer \| Roof Repair/, /Mount Orab, OH/],
-  'areas/loveland-oh.html': [/^Loveland, OH Roofer \|/, /Loveland, OH/],
-  'areas/montgomery-oh.html': [/^Montgomery, OH Roofer \| Siding Contractor/, /Montgomery, OH/],
-  'areas/mason-oh.html': [/^Mason, OH Roofer \|/, null],
-  'areas/cincinnati-oh.html': [/^Cincinnati, OH Roofer \|/, null],
   'services/siding-replacement-loveland-oh.html': [/^Siding Replacement in Loveland, OH \| James Hardie/, /James Hardie/],
   'services/lumanail/index.html': [/^LumaNail Orange Roofing Nails/, /orange, ring-shank/],
   'services/roof-replacement-lexington-ky.html': [/^Roof Replacement in Lexington, KY \| Free Estimate/, /Lexington, KY/],
@@ -76,9 +72,9 @@ for (const [rel, [tRe, dRe]] of Object.entries(PAGES)) {
 
 console.log('\n2. no boilerplate or claim-selling wording came back');
 const BOILER = /^Honest roofing, siding & gutter services in /;
-for (const rel of Object.keys(PAGES).filter((r) => r.startsWith('areas/'))) {
+for (const rel of require('fs').readdirSync(path.join(DOCS, 'areas')).filter((f) => f.endsWith('.html') && f !== 'index.html').map((f) => 'areas/' + f)) {
   const h = head(rel);
-  if (PAGES[rel][1]) ok(rel + ': description is not the shared boilerplate', !BOILER.test(h.desc), h.desc);
+  ok(rel + ': description is not the shared boilerplate', !BOILER.test(h.desc), h.desc);
   ok(rel + ': title does not sell "Insurance Claims"/"Storm Claims"', !/(Insurance|Storm) Claims/i.test(h.title), h.title);
   ok(rel + ': no "Licensed" in title/description (Fully insured, never Licensed)', !/\blicensed\b/i.test(h.title + ' ' + h.desc));
 }
