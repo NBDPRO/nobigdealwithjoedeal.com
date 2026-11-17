@@ -91,14 +91,22 @@ console.log('\nM4 + M5: Job Templates price on the shop\'s saved rates and round
     ok('resolveSelection hands the engine the saved markup / overhead / profit', seen && seen.materialMarkupPct === 0.30 && seen.overheadPct === 0.15 && seen.profitPct === 0.15, seen);
     ok('…and the saved Round to', seen && seen.roundTo === 1, seen);
     ok('the template estimate\'s totals carry 15% / 15%', r.totals && Math.abs(r.totals.overheadPct - 0.15) < 1e-9 && Math.abs(r.totals.profitPct - 0.15) < 1e-9, r.totals && [r.totals.overheadPct, r.totals.profitPct]);
-    const note = (r.warnings || []).filter((w) => /Settings rates/.test(w));
-    ok('the first template estimate on rates other than 25/10/10 says so, once', note.length === 1, r.warnings);
-    const r2 = JT.resolveSelection([{ templateId: id }], { tier: 'better', jobMode: 'cash', county: '' });
-    ok('…and not again on the next one (one-time note)', !(r2.warnings || []).some((w) => /Settings rates/.test(w)), r2.warnings);
+    ok('the resolve reports the "Now using your Settings rates" note (res.ratesNote) with the rates', /Settings rates/.test(r.ratesNote || '') && /30%/.test(r.ratesNote) && /15%/.test(r.ratesNote), r.ratesNote);
+    ok('…resolving (e.g. the gallery\'s background price bands) never spends the one-time flag', !env.store.nbd_jt_settings_rates_note_v1);
+    ok('the preview takes it once: takeRatesNote → the note, then null on this device', JT.takeRatesNote(r) === r.ratesNote && JT.takeRatesNote(r) === null);
+    ok('the resolve reports the Round to it priced at, for the upgrade unwind', r.roundTo === 1, r.roundTo);
+    // Template upgrades unwind a floored total at the same Round to.
+    let applyOpts = null;
+    W.NBDUpgrades = {
+      offeredFor: () => [], price: () => ({ rows: [{ upgradeId: 'x', desc: 'Upgrade — x' }], errors: [] }),
+      applyToEstimate: (p, priced, opts) => { applyOpts = opts; return p; },
+    };
+    try { JT.applyUpgrades({ taxRate: 0, rows: [] }, r, { picks: ['x'] }); } catch (e) { /* the stub is enough to reach applyToEstimate */ }
+    ok('applyUpgrades hands applyToEstimate the shop\'s Round to (it re-rounded at $25)', !!applyOpts && applyOpts.roundTo === 1, applyOpts);
 
     const plain = stack(null);
     const rp = plain.win.JobTemplates.resolveSelection([{ templateId: id }], { tier: 'better', jobMode: 'cash', county: '' });
-    ok('default settings (25/10/10, $25): no note, and the same totals as before', !(rp.warnings || []).some((w) => /Settings rates/.test(w)) && Math.abs(rp.totals.overheadPct - 0.10) < 1e-9 && rp.totals.total % 25 === 0, rp.totals && rp.totals.total);
+    ok('default settings (25/10/10, $25): no note, and the same totals as before', !rp.ratesNote && Math.abs(rp.totals.overheadPct - 0.10) < 1e-9 && rp.totals.total % 25 === 0, rp.totals && rp.totals.total);
   }
   const bad = stack({ overheadPct: '', profitPct: null, materialMarkupPct: 'abc', roundTo: 0 });
   const id2 = (bad.win.NBD_JOB_TEMPLATES || [])[0] && bad.win.NBD_JOB_TEMPLATES[0].id;
