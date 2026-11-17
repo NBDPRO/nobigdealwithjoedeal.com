@@ -485,10 +485,58 @@ These are all fixed in the Oct 13 plan's drafts; none has shipped.
 
 ---
 
-## Part 5. Per-template liability audit (in progress)
+## Part 5. Per-template liability audit
 
-The line-by-line pass of each template (every clause quoted, every merge field that could print blank on a signed
-document, every missing exclusion) is being extracted from the renderers now. It will be appended here as Part 5 with
-one subsection per template, each ending in a **Gaps** list and a **Fix** list.
+Three focused audits run in parallel; the first has landed. 5B (warranty, completion, billing) and 5C (inspection, insurance, marketing) will be appended as they finish.
+
+### 5A. Contract and proposal group (source read only; no renderer was run; findings the two earlier plans already record are not repeated)
+
+**Cross-cutting, every template.** No template names "No Big Deal Solutions LLC". The contracting party prints as the d/b/a only (`document-generator.js:23`), the signer label is "Contractor - NBD Home Solutions" (:351) or "Authorized NBD Representative", and "NBD" is never defined. Fix: print "No Big Deal Solutions LLC d/b/a No Big Deal Home Solutions" as the party and add "By: Joe Deal, Manager". Define "NBD" once as "the Contractor".
+
+**Proposal / Estimate (`document-generator.js:2523`)**
+- Gaps: default scope promises gutters and ridge vents unpriced; no "not included" block, hidden-conditions, weather, access, interior, attic or permit/HOA text; the 30-day validity is buried inside the liability sentence; "see warranty section below" points at a section that prints above; price can print blank or $0.00; the Pledge is unlimited in time next to a 1-year labor tier; "cancel within 3 days (KY Residential Finance Law)" is wrong for Ohio and is not the statute.
+- Fix: blank the default scope; add a printed "Not included" block, CO-2, SCH-1/2/3, DISP-8; print validity as its own line; block send on blank price; print the Pledge only with its WAR-6 definition.
+
+**Roofing Contract (`:2727`)**
+- Gaps: no hidden-conditions, weather, access, interior, attic, permit/HOA, subcontractor, warranty-exclusion, limitation-of-liability or lien-rights clause outside the KY insurance block; no contract date or owner recital; two conflicting cancel texts ("10 days" vs "TEN BUSINESS DAYS"); "mediation or binding arbitration" is an either/or with no way to choose; "NBD reserves the right to adjust pricing" contradicts the both-sign change-order rule; fixed "5-7 business days" and "Upon contract execution" with no weather carve-out; blank address or phone prints as empty on a signed document.
+- Fix: add CO-1, CO-2, SCH-1/2/3, SUB-1, WAR-2, DISP-1/3/4/8, LIEN-1/2 (state-aware); delete the "reserves the right" sentence; one cancel statement from CANC-1; print contract date and owner recital; hard-block send on blank price, address, start or completion.
+
+**Scope of Work (`document-generator-templates.js:807`) - the worst document in this group**
+- Gaps: seven hardcoded sections print on every job, even a repair. It promises "Verify structural integrity of all rafters and trusses" and "Verify balanced intake/exhaust ventilation per code", which NBD is not hired to do and which contradicts its own exclusion "structural framing repairs"; "Replace any damaged or rotted decking" is unpriced and unlimited; "Ensure soffit vents are unobstructed" promises something about the house; ridge vent promised even where the estimate has none; "[Homeowner Name]" and "[Property Address]" brackets can print on a signed doc.
+- Fix: generate sections from the estimate lines only; replace the three promises with "visible decking will be photographed; replacement beyond the estimate is priced per sheet (CO-2)"; delete "verify structural integrity" and "per code"; expand the exclusions (hidden conditions, mold, interior, existing ventilation, electrical); add an order-of-precedence line; block send on a bracket token.
+
+**Work Authorization (`:896`)**
+- Gaps: "To cancel, provide written notice ... or by calling" (not a valid written cancellation); blank scope falls back to a full re-roof; refers to "the associated contract" with no number, date or price; no cancel form attached; start date and witness optional.
+- Fix: delete "or by calling"; require contract number, date and price; add "work will not begin before the cancellation period ends, unless you sign a separate emergency request (CANC-1)"; attach the cancel packet; require a start date.
+
+**Change Order (`:1040`)**
+- Gaps: can ship with no contract number, date or original total; default text "No change to estimated completion date" can print on a change that adds work; no price basis or photos for hidden conditions; no rule on approval by text; "payment follows the original contract" is ambiguous on due date.
+- Fix: require original contract number, date and price; remove the default schedule text and make days mandatory; add CO-1 and CO-2 with the per-sheet price, photos attached, and a due-on-signing or due-with-balance field.
+
+**Good-Better-Best Options (`document-generator-library.js:411`)**
+- Gaps: says every option covers "the same scope" while tiers use different materials; "Option chosen / Initials" blanks on a template with no signer or date; "fully transferable ... all subsequent owners" and the Pledge outlive NBD; no validity date.
+- Fix: say "same roof area and tear-off; materials and warranty differ as listed"; make it a signed, dated selection tied to the proposal number; state that choosing an option is not a contract until the contract is signed.
+
+**Material & Color Selection (`:353`)**
+- Gaps: no color-variance clause (the most common complaint on selection sheets); blank rows still print "I approve"; no special-order-not-returnable sentence; "what you sign here is what goes on your home" is unqualified.
+- Fix: add "Colors seen on samples, screens or other homes can look different on your roof, and shingles vary slightly between batches. NBD is not responsible for a color you approved here"; block signing while a required row is blank; add the special-order sentence (3.3(b)); print the date.
+
+**Notice of Right to Cancel (`:285`) and packet (`ky-insurance-law.js:835, 889`)**
+- Gaps: a blank mailing address falls back to "the address on the form" and the form prints a blank, so the notice is defective; seller is the d/b/a, not the LLC; with no state it cites "your state's home solicitation sales law" and does not print Ohio's required notice text; the packet date regenerates, so the receipt date proves delivery only if signed on the signing day.
+- Fix: hard-block send until the mailing address and legal name are set; print the Ohio notice for Ohio properties (CANC-1); refuse a signed copy dated differently from the packet; use the LLC name.
+
+**Signature block (`renderSignatureBlock`, 2317)**
+- Gaps: the non-interactive branch has no printed-name line; no contractor signer states authority; no co-owner language on paper; no "I am the owner" sentence anywhere.
+- Fix: add "By: Joe Deal, Manager" and a printed-name line; auto-stamp the date; add "I am the owner (or authorized to sign for all owners) of the property listed" (ESIGN-1).
+
+**`_statutoryBlocks` and `ky-insurance-law.js`**
+- Gaps: no lien-rights notice or owner acknowledgment on cash jobs in either state; "Contractor" in the KY lien clause is never defined; `partiesExtra` prints "(not set — add it in Company Profile)" on a signed Kentucky contract when the address is missing; unknown state fails to Kentucky text with no state label on an Ohio homeowner's paper.
+- Fix: block the send when the address is empty; add LIEN-1 and LIEN-2 on cash jobs; name the party in the payment and lien clauses.
+
+**Server e-sign PDF (`functions/estimate-esign-pdf.js`) - the document most remote customers actually sign**
+- Gaps: carries no change-order, hidden-conditions, warranty, exclusions, dispute, entire-agreement, lien, subcontractor or weather clause, only the payment clause and cancellation notices; scope is "as described in your estimate", which is neither attached nor numbered; the fallback payment sentence is non-specific; the total can print $0.00 (the envelope refuses it, the PDF function does not); the contractor never signs; "authorize" grammar slip; Ohio insurance jobs get no deductible or no-claim-representation text.
+- Fix: port the Oct 13 clauses (CO-1/2, SCH, WAR, DISP-1/3/4/8, LIEN-1/2/4, SUB-1, ESIGN-1); attach the estimate with its ID; fail the build when the address or price is blank; add "NBD accepts by performing, signed for the LLC by Joe Deal, Manager".
+
+**Priority within this group:** (1) e-sign PDF has no operative terms; (2) the contract lacks hidden-conditions, weather, access and attic clauses and has two conflicting cancel texts; (3) Scope of Work's "verify structural / per code" promises; (4) legal party name and signer on everything; (5) blank address or price printing on signed documents; (6) Work Authorization "or by calling"; (7) selection-sheet color variance.
 
 PLACEHOLDER-AUDIT
