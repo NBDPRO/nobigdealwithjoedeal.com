@@ -295,7 +295,7 @@ console.log('\nMANIFEST — two manifests, one per audience, never crossed');
   ok('docs/manifest.json does not exist (scope "/" Pro copy deleted 2026-09-13)', !fs.existsSync(path.join(DOCS, 'manifest.json')));
   const walk = (d, o = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (e.name.endsWith('.html')) o.push(p); } return o; };
   const offenders = [];
-  let linkedPro = 0, linkedHome = 0;
+  let linkedPro = 0, linkedHome = 0, linkedApp = 0;
   for (const f of walk(DOCS)) {
     const html = fs.readFileSync(f, 'utf8');
     const rel = path.relative(DOCS, f).replace(/\\/g, '/');
@@ -304,11 +304,13 @@ console.log('\nMANIFEST — two manifests, one per audience, never crossed');
       const href = tool.hrefOf(tag);
       if (href === '/pro/manifest.json' && rel.startsWith('pro/')) linkedPro++;
       else if (href === '/manifest.webmanifest' && audience === 'homeowner' && !rel.startsWith('pro/')) linkedHome++;
+      else if (tool.APP_PAGES[rel] && href === tool.APP_PAGES[rel].manifest) linkedApp++;   // a personal web app links its own manifest (2026-11-16)
       else offenders.push(`${rel}: ${href}`);
     }
   }
   ok('every rel="manifest" is /pro/manifest.json on a /pro page or /manifest.webmanifest on a homeowner-site page', offenders.length === 0, offenders.join(' | '));
   ok('…and the PRO manifest is still linked somewhere (≥ 1)', linkedPro >= 1);
+  ok('…and each personal web app page (Daily Success, Workout) links its own manifest, once', linkedApp === Object.keys(tool.APP_PAGES).length, String(linkedApp));
   ok('…and the homeowner manifest is linked site-wide (≥ 250 pages)', linkedHome >= 250, String(linkedHome));
 }
 

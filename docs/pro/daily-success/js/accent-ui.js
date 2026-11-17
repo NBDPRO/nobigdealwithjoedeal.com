@@ -41,6 +41,7 @@
     memory = next;
     apply();
     render();
+    if (window.NBDLook) window.NBDLook.changed();   // the accent follows the account too (look-sync.js)
     return next;
   }
 

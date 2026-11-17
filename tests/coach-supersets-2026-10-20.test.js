@@ -41,7 +41,10 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 // Re-blessed 2026-11-14 for audit #8 (a workout is filed under the day its first set was logged): the live session now
 // carries firstSetDay / firstSetAt. Proven: with those two fields deleted from each hashed live state, this run hashes to
 // the previous digest d5fb43905d78b6b00a307ccc54190a15a7ea40e6, so nothing else moved.
-const GOLDEN_DIGEST = '29d41e27a47327295fed1ed9e1ac606a3d8ca62e';
+// Re-blessed 2026-11-17 for the Exercise Log copy (a workout finished with no day page on screen is copied in later): the saved
+// session now carries inLog. Proven: with that one field left out of Finish, this run hashes to the previous digest
+// 29d41e27a47327295fed1ed9e1ac606a3d8ca62e, so nothing else moved.
+const GOLDEN_DIGEST = '444aafcb18df83c6163fc2ac1afd3add21158b45';
 
 console.log('\n1. the plain logger is unchanged (nothing paired)');
 {
