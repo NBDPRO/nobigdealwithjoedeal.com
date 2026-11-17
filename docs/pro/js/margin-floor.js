@@ -203,8 +203,54 @@
     return '';
   }
 
+  /**
+   * May the signed-in person see an estimate's dollar cost breakdown and the
+   * Internal View? The owner and a company admin (Jo, 2026-11-17). A rep or a
+   * manager sees the margin percentage and its band only. SCREEN-LEVEL: their
+   * browser still loads the costs it prices with.
+   */
+  function canSeeCosts() { return canFinalizeUnder(callerRole()); }
+
+  /**
+   * The confirm step for a job under the floor, for screens that offer no
+   * price raise of their own (job templates). The V2 builder words its own
+   * the same way. Resolves { ok, note }:
+   *   not under, or a prior note the margin still holds -> ok, nothing asked
+   *   a rep or a manager                                 -> told, not ok
+   *   the owner or a company admin                       -> asked; yes gives a
+   *                                                         private note with an
+   *                                                         optional reason
+   * opts = { say(msg), prev: an earlier note, extra: text after the facts }
+   */
+  async function confirmUnder(v, opts) {
+    const o = opts || {};
+    if (!v || v.state !== 'under') return { ok: true, note: null };
+    const prev = o.prev;
+    if (prev && typeof prev.marginPct === 'number' && v.marginPct >= prev.marginPct - 0.05) return { ok: true, note: prev };
+    const floor = v.check.floorPct, need = v.check.neededPreTaxCents;
+    const facts = 'This job is at ' + v.marginPct.toFixed(1) + '% margin before tax. Your company floor is ' + floor + '%.'
+      + (need ? ' A price of $' + Math.ceil(need / 100).toLocaleString() + ' before tax reaches it.' : '')
+      + (o.extra ? ' ' + o.extra : '');
+    const role = callerRole();
+    if (!canFinalizeUnder(role)) {
+      const msg = facts + ' Raise the price, or save it as a draft for an owner or admin to send.';
+      if (typeof o.say === 'function') o.say(msg, 'error');
+      if (typeof window.showToast === 'function') window.showToast(msg, 'warning');
+      return { ok: false, note: null };
+    }
+    const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
+    if (!(await ask(facts + ' Send it at this price anyway?'))) return { ok: false, note: null };
+    let reason = '';
+    if (typeof window.nbdPrompt === 'function') {
+      try { reason = String((await window.nbdPrompt('Reason for going under your floor (optional, kept private):', '')) || '').replace(/\s+/g, ' ').trim().slice(0, 200); } catch (_) { reason = ''; }
+    }
+    const note = confirmNote({ uid: (window._user && window._user.uid) || '', role, marginPct: v.marginPct, floorPct: floor, atMs: Date.now() });
+    if (note && reason) note.reason = reason;
+    return { ok: !!note, note };
+  }
+
   window.NBDMarginFloor = {
     sanitizeSettings, marginOf, priceForFloorCents, check, band, BAND_TEXT, BAND_CLASS, canFinalizeUnder, confirmNote,
-    jobFromEstimate, settingsNow, view, badgeHtml, callerRole,
+    jobFromEstimate, settingsNow, view, badgeHtml, callerRole, canSeeCosts, confirmUnder,
   };
 })();

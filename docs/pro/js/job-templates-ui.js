@@ -2979,6 +2979,22 @@
     var leadId = state.createdLeadId;
     if (!estId) { toast('Estimate not saved yet', 'error'); return; }
     if (!leadId) { toast('Attach a customer to this estimate to send it', 'info'); return; }
+    // Margin floor (2026-11-17): an estimate under the company's floor needs the
+    // owner's or a company admin's confirm. A raise is made in the estimate
+    // builder (open the estimate there), not on this screen.
+    var MF = window.NBDMarginFloor;
+    var JTe = (typeof engine === 'function') ? engine() : null;
+    var last = (JTe && typeof JTe.lastCreated === 'function') ? JTe.lastCreated() : null;
+    if (MF && last && last.id === estId && last.payload) {
+      var v = MF.view(Object.assign({}, last.payload, { costUnsetCount: last.costUnsetCount }));
+      var r = await MF.confirmUnder(v, { prev: state.floorNote || null, extra: 'Open it in the estimate builder to raise the price.' });
+      if (!r.ok) return;
+      if (r.note && r.note !== state.floorNote) {
+        state.floorNote = r.note;
+        try { if (window.updateDoc && window.doc && window.db) await window.updateDoc(window.doc(window.db, 'estimates', estId), { floorConfirm: r.note }); }
+        catch (e) { console.warn('[job-templates] floor note not saved', e && e.code); }
+      }
+    }
     if (!window.CustomerPortal || typeof window.CustomerPortal.mintUrl !== 'function') {
       toast('Portal module not loaded — open the estimate and share from there', 'error');
       return;

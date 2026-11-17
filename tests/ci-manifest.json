@@ -647,6 +647,7 @@
     "promise-channel-2026-10-13.test.js",
     "ai-automations-server-2026-10-04.test.js",
     "ai-automations-client-2026-10-04.test.js",
+    "margin-floor-part3-2026-11-17.test.js",
     "month-close-2026-10-01.test.js",
     "margin-floor-display-2026-11-17.test.js",
     "kanban-board-logic-2026-10-01.test.js",

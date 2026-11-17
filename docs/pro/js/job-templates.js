@@ -1595,6 +1595,9 @@
   // opts.upgrades (stage 2, 2026-09-25): the build screen's upgrade selection,
   // applied by the same applyUpgrades the preview rendered. A refusal throws —
   // the rep sees it and nothing is saved.
+  let _lastCreated = null;
+  function lastCreated() { return _lastCreated; }
+
   async function createEstimate(selection, opts) {
     opts = opts || {};
     const resolved = resolveSelection(selection, opts);
@@ -1632,6 +1635,9 @@
     }
     window._editingEstimateId = null;
     const id = await window._saveEstimate(payload);
+    // For the margin floor check on "Send to customer" (job-templates-ui.js):
+    // the saved figures and how many lines have no cost (not saved on the doc).
+    _lastCreated = { id: (id && typeof id === 'object') ? (id.id || id.estimateId || null) : (id || null), payload: payload, costUnsetCount: Number(resolved.totals && resolved.totals.costUnsetCount) || 0 };
     // Stickiness: only AFTER the save resolves — a failed save must not
     // inflate useCount. markUsed never throws (usage is telemetry).
     markUsed(resolved.sourceTemplates);
@@ -1798,6 +1804,7 @@
     upgradeOffers,
     applyUpgrades,
     createEstimate,
+    lastCreated,
     insertIntoV2,
     applyMemberDiscount,
     openLibrary

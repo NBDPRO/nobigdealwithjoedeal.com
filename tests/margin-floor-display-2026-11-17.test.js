@@ -93,7 +93,8 @@ console.log('\nThe classic estimator and the loader');
 {
   const classic = read('estimates.js');
   ok('the classic panel no longer uses the undefined 35 / 20 band classes', !/margin-strong|margin-ok|margin-weak/.test(classic));
-  ok('the classic panel reads the shared view with the tax taken out', /NBDMarginFloor\.view\(\{ mode: d\.mode, grandTotal, taxAmount: estData\.taxAmount \|\| 0, costBasis \}\)/.test(classic));
+  // Part three: the classic "cost basis" is built from catalog SELL prices, so it is shown with no floor band (settings null) and says so.
+  ok('the classic panel reads the shared view with the tax taken out, with no floor band', /NBDMarginFloor\.view\(\{ mode: d\.mode, grandTotal, taxAmount: estData\.taxAmount \|\| 0, costBasis \}, null\)/.test(classic) && /against catalog prices \(not your costs\)/.test(classic));
   const loader = read('script-loader.js');
   const at = (f) => loader.indexOf("'js/" + f);
   ok('margin-floor.js loads before the three files that read it', at('margin-floor.js') !== -1 && at('margin-floor.js') < at('estimates.js') && at('margin-floor.js') < at('estimate-finalization.js') && at('margin-floor.js') < at('estimate-v2-ui.js'));

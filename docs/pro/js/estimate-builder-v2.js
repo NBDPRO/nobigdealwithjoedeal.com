@@ -1034,7 +1034,11 @@
 
     // Base from per-SQ flat rate. Money runs in integer cents from here to
     // the return boundary (2026-08-07) — see the cents-helpers note above.
-    const rate = Number(s.tierRates[tier]) || TIER_RATES[tier];
+    // Margin floor "Use this price" (2026-11-17): this ESTIMATE's own raise, in
+    // whole dollars per square by tier (estimate-v2-ui.js). Never the shop's rates.
+    const _floorAdd = (input.rateAddPerSq && Number.isFinite(Number(input.rateAddPerSq[tier])) && Number(input.rateAddPerSq[tier]) > 0)
+      ? Number(input.rateAddPerSq[tier]) : 0;
+    const rate = (Number(s.tierRates[tier]) || TIER_RATES[tier]) + _floorAdd;
     const baseTotalCents = _toCents(sq * rate);
 
     // Add-ons — each is a customer-visible line, so each rounds to a cent

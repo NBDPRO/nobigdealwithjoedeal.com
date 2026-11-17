@@ -257,7 +257,12 @@
     // job with no material to mark up. null = the shop's own rates. Saved and
     // reopened; the shop's Settings are never touched.
     floorMarkupPct: null,
-    floorProfitPct: null
+    floorProfitPct: null,
+    // The per-square form of "Use this price": { fromTier, perSq } raises the
+    // chosen package's price per square, and every package above it by the
+    // same dollars, so Good / Better / Best stays in order (the ladder rule Jo
+    // approved for the catalog, 2026-11-09). This estimate only.
+    floorPerSq: null
   };
 
   // The per-estimate half of `state` as it stands at page load — what "a new
@@ -272,6 +277,7 @@
     upgrades: state.upgrades, upgradeLog: state.upgradeLog,
     floorConfirm: state.floorConfirm,
     floorMarkupPct: state.floorMarkupPct, floorProfitPct: state.floorProfitPct,
+    floorPerSq: state.floorPerSq,
   });
 
   // ── Job Template estimates reopened here (review 2026-09-25) ───────
@@ -2616,7 +2622,9 @@
       // minimum (calculatePerSq precedence). null = none set → the engine
       // uses the shop's per-SQ minimum. Before 2026-10-05 (bug #5) this was
       // never sent, so a $500 preset still quoted the $2,500 roof floor.
-      minJobCharge:     state.minJobCharge
+      minJobCharge:     state.minJobCharge,
+      // Margin floor: this estimate's own per-square raise, by tier (or none).
+      rateAddPerSq:     _floorRateAdd()
     };
   }
 
@@ -3769,6 +3777,13 @@
       ? `<br>Tax: <strong>$${Math.round(estimate.tax).toLocaleString()}</strong> (${(estimate.taxRate * 100).toFixed(2)}%)`
       : '<br>Tax: <strong>Insurance mode (no tax)</strong>';
 
+    // Reps see the tax and the margin percentage, not the cost breakdown (Jo, 2026-11-17).
+    const ivBtn = document.querySelector ? document.querySelector('[data-action="finalize"][data-arg="internal-view"]') : null;
+    if (ivBtn) ivBtn.hidden = !_canSeeCosts();
+    if (!_canSeeCosts()) {
+      rollupEl.innerHTML = taxDisplay.replace(/^<br>/, '') + '<br>' + _marginLineHtml(estimate);
+      return;
+    }
     rollupEl.innerHTML = `
       Material: <strong>$${Math.round(estimate.materialRetail).toLocaleString()}</strong><br>
       Labor: <strong>$${Math.round(estimate.laborCost).toLocaleString()}</strong><br>
@@ -3792,7 +3807,8 @@
     }
     const v = MF.view(estimate);
     if (!v.known) return 'Margin: <strong>unknown</strong> (a line has no cost) ' + MF.badgeHtml(v);
-    return 'Margin before tax: <strong>' + v.marginPct.toFixed(1) + '%</strong> ($' + Math.round(v.marginCents / 100).toLocaleString() + ') ' + MF.badgeHtml(v);
+    return 'Margin before tax: <strong>' + v.marginPct.toFixed(1) + '%</strong>'
+      + (_canSeeCosts() ? ' ($' + Math.round(v.marginCents / 100).toLocaleString() + ')' : '') + ' ' + MF.badgeHtml(v);
   }
 
   // ── Margin floor gate (2026-11-17, part two) ───────────────────────────
@@ -3830,9 +3846,11 @@
     // 1. Offer the raise (anyone; it only ever raises this estimate's price).
     const plan = _floorRaisePlan();
     if (plan.ok) {
-      const how = plan.kind === 'profit'
-        ? ' This job has no material to mark up, so the raise goes on the profit percentage, which the customer document prints (' + Math.round(plan.pct * 100) + '%).'
-        : ' The line prices rise; the profit percentage on the customer document stays as it is.';
+      const how = plan.kind === 'per_sq'
+        ? ' This package goes up $' + plan.perSq.toLocaleString() + ' a square, and so does every package above it, so the order stays the same. The ones below do not change.'
+        : plan.kind === 'profit'
+          ? ' This job has no material to mark up, so the raise goes on the profit percentage, which the customer document prints (' + Math.round(plan.pct * 100) + '%).'
+          : ' The line prices rise; the profit percentage on the customer document stays as it is.';
       const use = await ask(facts + ' Raise this estimate to $' + Math.round(plan.preTaxCents / 100).toLocaleString() + ' before tax ($' + Math.round(plan.totalCents / 100).toLocaleString() + ' with tax)?' + how);
       if (use) {
         _floorRaiseApply(plan);
@@ -3866,6 +3884,28 @@
     const n = Number(v);
     return (Number.isFinite(n) && n >= 0 && n <= 10) ? n : null;
   }
+  // A stored per-square raise: { fromTier: a package id, perSq: whole dollars 1 to 100,000 }, else null.
+  function _floorPerSqOrNull(v) {
+    if (!v || typeof v !== 'object') return null;
+    const n = Number(v.perSq);
+    if (_v2Tiers().indexOf(v.fromTier) === -1 || !Number.isSafeInteger(n) || n < 1 || n > 100000) return null;
+    return { fromTier: v.fromTier, perSq: n };
+  }
+  // The per-square raise as the engine reads it: { tier: dollars } for the
+  // chosen package and every package above it. None on an insurance scope.
+  function _floorRateAdd() {
+    const f = _floorPerSqOrNull(state.floorPerSq);
+    if (!f || state.jobMode === 'insurance') return null;
+    const tiers = _v2Tiers(), out = {};
+    tiers.slice(tiers.indexOf(f.fromTier)).forEach((t) => { out[t] = f.perSq; });
+    return out;
+  }
+  // The owner and a company admin see the dollar breakdown and the Internal
+  // View; a rep or a manager sees the margin percentage and its band.
+  function _canSeeCosts() {
+    const MF = window.NBDMarginFloor;
+    return !MF || typeof MF.canSeeCosts !== 'function' || MF.canSeeCosts();
+  }
   const _FLOOR_NO_RAISE = {
     per_sq: 'This is a per-square price, so it is raised with the price per square, not here.',
     no_cost: 'There is no cost on this job to work a price from.',
@@ -3885,15 +3925,28 @@
     const fail = (reason) => ({ ok: false, reason: reason });
     if (!MF) return fail('not_under');
     if (state.jobMode === 'insurance') return fail('not_under');
-    if (_perSqOverlayApplies()) return fail('per_sq');
-    const keepClean = state._reopenedClean, keepM = state.floorMarkupPct, keepP = state.floorProfitPct;
-    const restore = () => { state._reopenedClean = keepClean; state.floorMarkupPct = keepM; state.floorProfitPct = keepP; };
+    const keepClean = state._reopenedClean, keepM = state.floorMarkupPct, keepP = state.floorProfitPct, keepS = state.floorPerSq;
+    const restore = () => { state._reopenedClean = keepClean; state.floorMarkupPct = keepM; state.floorProfitPct = keepP; state.floorPerSq = keepS; };
     try {
       state._reopenedClean = false;
       const before = getCurrentEstimate();
       if (!before) return fail('no_cost');
       const v0 = MF.view(before);
       if (v0.state !== 'under') return fail(v0.known ? 'not_under' : 'no_cost');
+      if (_perSqOverlayApplies()) {
+        // Per-square: the smallest whole dollars per square on this package
+        // (and the ones above it) that clears the floor, priced by the engine.
+        const tier = state.tier;
+        const start = (keepS && keepS.fromTier === tier) ? keepS.perSq : 0;
+        const clearsSq = (n) => { state.floorPerSq = { fromTier: tier, perSq: n }; const e = getCurrentEstimate(); return (e && MF.view(e).state !== 'under') ? e : null; };
+        let lo = start, hi = start + 2000;
+        if (!clearsSq(hi)) return fail('no_reach');
+        while (hi - lo > 1) { const mid = Math.floor((lo + hi) / 2); if (clearsSq(mid)) hi = mid; else lo = mid; }
+        const afterSq = clearsSq(hi);
+        if (!afterSq) return fail('no_reach');
+        const js = MF.jobFromEstimate(afterSq);
+        return { ok: true, kind: 'per_sq', tier: tier, perSq: hi, preTaxCents: js.preTaxCents, totalCents: Math.round(Number(afterSq.total) * 100) };
+      }
       const kind = (Number(before.materialCost) > 0) ? 'markup' : 'profit';
       const key = kind === 'markup' ? 'floorMarkupPct' : 'floorProfitPct';
       const base = Number(kind === 'markup' ? before.materialMarkupPct : before.profitPct);
@@ -3915,7 +3968,9 @@
   // Apply a plan from _floorRaisePlan to this estimate (never to Settings).
   function _floorRaiseApply(plan) {
     if (!plan || plan.ok !== true) return false;
-    if (plan.kind === 'markup') state.floorMarkupPct = plan.pct; else state.floorProfitPct = plan.pct;
+    if (plan.kind === 'per_sq') state.floorPerSq = { fromTier: plan.tier, perSq: plan.perSq };
+    else if (plan.kind === 'markup') state.floorMarkupPct = plan.pct;
+    else state.floorProfitPct = plan.pct;
     state._reopenedClean = false;   // re-resolve live, stop replaying the saved numbers
     state.floorConfirm = null;      // the job is no longer under the floor
     try { if (typeof render === 'function') render(); } catch (_) { /* nothing to draw in a test or a closed builder */ }
@@ -4778,6 +4833,7 @@
       floorConfirm: (state.floorConfirm && typeof state.floorConfirm === 'object') ? Object.assign({}, state.floorConfirm) : null,
       floorMarkupPct: _floorPctOrNull(state.floorMarkupPct),
       floorProfitPct: _floorPctOrNull(state.floorProfitPct),
+      floorPerSq: _floorPerSqOrNull(state.floorPerSq),
     });
   }
 
@@ -5103,6 +5159,7 @@
     // The per-estimate floor raise, so an edit after reopening keeps it.
     state.floorMarkupPct = _floorPctOrNull(doc.floorMarkupPct);
     state.floorProfitPct = _floorPctOrNull(doc.floorProfitPct);
+    state.floorPerSq = _floorPerSqOrNull(doc.floorPerSq);
     // Upgrade rows (stage 2, 2026-09-25): kept whole, out of the catalog
     // scope, and re-added after the engine by _applyUpgradeLines — the same
     // "restore it or the first edit drops it" fix as the fees above, plus tax.
@@ -5178,6 +5235,11 @@
       ? window.showToast(msg, kind || 'error')
       : console.warn('[V2 preview]', kind || 'info', msg);
 
+    // The Internal View shows costs: the owner and a company admin only.
+    if (format === 'internal-view' && !_canSeeCosts()) {
+      toast('Only the owner or a company admin can open the Internal View.', 'warning');
+      return;
+    }
     // Margin floor: a customer-facing document is a price reaching a customer.
     // The Internal View is not gated.
     if (format !== 'internal-view' && !(await _floorGate(effectiveEstimate()))) return;
@@ -6849,6 +6911,8 @@
       floorGate: _floorGate,             // tests/margin-floor-gate-2026-11-17.test.js
       floorRaisePlan: _floorRaisePlan,   // tests/margin-floor-use-price-2026-11-17.test.js
       floorRaiseApply: _floorRaiseApply,
+      floorRateAdd: _floorRateAdd,       // tests/margin-floor-part3-2026-11-17.test.js
+      marginLineFor: function (est) { return _marginLineHtml(est); },
       floorConfirm: function (v) { if (arguments.length) state.floorConfirm = v; return state.floorConfirm; },
       collectDraft: collectDraft,
       getState: () => state,
