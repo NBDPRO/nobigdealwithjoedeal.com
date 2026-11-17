@@ -14,6 +14,8 @@
  *      "Same as Daily Success" travels as well.
  *   7. The Workout app's own accent rides in the same record as its own theme: an accent, 'none' (the theme's own colour) or
  *      "same as Daily Success"; it never touches the Daily Success accent, and theme and accent change independently.
+ *   8. A custom theme's five colours travel with the record that names it, so a phone that never made the theme can draw it: the
+ *      Workout app gets it in its device list, Daily Success also in app.js's in-memory list, before the theme is applied.
  *   5. Applying a synced look is not itself a new choice (nothing is re-stamped), and a restore that changes nothing does nothing.
  *   6. Only well-formed ids are stored or applied.
  *
@@ -51,10 +53,12 @@ function phone(kind, storage) {
   } else {
     win.NBDWorkoutTheme = { apply: () => { calls.repaints++; } };
   }
-  kit.loadInVm(['docs/pro/daily-success/js/look-sync.js'], { window: win, localStorage: ls });
+  // app.js's in-memory list of custom themes (a top-level `let`, so a bare global to other scripts): only the Daily Success page has it
+  const mem = kind === 'ds' ? (() => { try { return JSON.parse(store.get('nbd-customs') || '[]'); } catch (_) { return []; } })() : null;
+  kit.loadInVm(['docs/pro/daily-success/js/look-sync.js'], Object.assign({ window: win, localStorage: ls }, mem ? { _nbd_customs: mem } : {}));
   const look = win.NBDLook;
   return {
-    store, calls, look, win,
+    store, calls, look, win, mem,
     get: (k) => (store.has(k) ? store.get(k) : null),
     json: (k) => { try { return JSON.parse(store.get(k)); } catch (_) { return null; } },
     // the theme the Workout app would draw from this storage (workout-theme.js themeId, the real one)
@@ -230,6 +234,61 @@ const settings = (cloud) => cloud.get('userSettings/U1') || {};
     ok('a Workout-only accent picked on a fresh phone does not disturb the Daily Success look', JSON.stringify(settings(cloud).dsLook) === '{"theme":"ocean","accent":"teal"}' && settings(cloud).dsWkLook.accent === 'amber');
     const seeded = phone('workout', { nbd_wk_accent: 'sky' });
     ok('an accent already on the phone is recorded on load, without a stamp', JSON.stringify(seeded.json('nbd_wk_look')) === '{"theme":"","accent":"sky"}' && seeded.get('nbd_wk_look_at') === null);
+  }
+
+  console.log('\n8. Custom themes travel with their colours');
+  {
+    const C1 = { id: 'custom-1700000000001', name: 'Night shift', cat: 'custom', plan: 'command', accent: '#22aa66', bg: '#101820', s: '#1c2836', tc: '#f0f0f0', m: '#99aabb' };
+    const DEF = '{"id":"custom-1700000000001","name":"Night shift","accent":"#22aa66","bg":"#101820","s":"#1c2836","tc":"#f0f0f0","m":"#99aabb"}';
+    const cloud = new Map();
+    const a = phone('ds', { 'nbd-customs': JSON.stringify([C1]), 'nbd-theme': C1.id, nbd_pro_theme: C1.id });
+    ok('a look that names a custom theme records its definition (id, name and the five colours only)', JSON.stringify(a.json('nbd_ds_look').custom) === DEF, JSON.stringify(a.json('nbd_ds_look')));
+    await a.sync(cloud);
+    ok('the definition reaches the cloud with the look', JSON.stringify(settings(cloud).dsLook.custom) === DEF);
+    const w = phone('workout', {});
+    ok('before the sync the fresh Workout app cannot draw it', w.workoutTheme() === 'default');
+    await w.sync(cloud);
+    const got = w.json('nbd-customs') || [];
+    ok('after the sync its device list holds the theme, in the shape Daily Success stores', got.length === 1 && got[0].id === C1.id && got[0].cat === 'custom' && got[0].tc === '#f0f0f0' && got[0].name === 'Night shift', JSON.stringify(got));
+    ok('and it wears it', w.get('nbd-theme') === C1.id && w.workoutTheme() === C1.id && w.calls.repaints === 1);
+    await w.sync(cloud);
+    ok('a second sync does not add it twice or re-stamp anything', (w.json('nbd-customs') || []).length === 1 && w.calls.stamps.length === 0);
+    // a phone that already has the theme in its list (it made it, or got it earlier) and now receives a look that names it
+    const has = phone('workout', { 'nbd-customs': JSON.stringify([C1]), 'nbd-theme': 'ocean', nbd_pro_theme: 'ocean', nbd_ds_look: JSON.stringify({ theme: C1.id, accent: null, custom: JSON.parse(DEF) }), nbd_ds_look_at: '9' });
+    ok('receiving a theme the phone already has does not list it twice', has.look.restore() === true && (has.json('nbd-customs') || []).length === 1 && has.get('nbd-theme') === C1.id);
+    const hasDs = phone('ds', { 'nbd-customs': JSON.stringify([C1]), 'nbd-theme': 'ocean', nbd_pro_theme: 'ocean', nbd_ds_look: JSON.stringify({ theme: C1.id, accent: null, custom: JSON.parse(DEF) }), nbd_ds_look_at: '9' });
+    hasDs.look.restore();
+    ok('nor twice in Daily Success\'s in-memory list', hasDs.mem.filter((x) => x.id === C1.id).length === 1 && (hasDs.json('nbd-customs') || []).length === 1);
+    const ds2 = phone('ds', {});
+    let memAtApply = -1;
+    const realApply = ds2.win.nbdApplyTheme;
+    ds2.win.nbdApplyTheme = (id) => { memAtApply = ds2.mem.filter((x) => x.id === id).length; realApply(id); };
+    await ds2.sync(cloud);
+    ok('a fresh Daily Success install has the theme in app.js\'s in-memory list BEFORE nbdApplyTheme looks it up', memAtApply === 1 && ds2.calls.applied.join() === C1.id);
+    ok('and in its stored list for the next load', (ds2.json('nbd-customs') || []).some((x) => x.id === C1.id));
+
+    // the Workout app's own custom theme
+    const C2 = Object.assign({}, C1, { id: 'custom-1700000000002', name: 'Gym', accent: '#aa2266' });
+    w.store.set('nbd-customs', JSON.stringify((w.json('nbd-customs') || []).concat([C2])));
+    w.store.set('nbd_wk_theme', C2.id); w.look.changed();
+    ok('a custom theme picked as the Workout app\'s own carries its definition in the Workout record', w.json('nbd_wk_look').custom.id === C2.id && w.json('nbd_wk_look').custom.accent === '#aa2266' && w.calls.stamps.join() === 'nbd_wk_look');
+    await w.sync(cloud); await a.sync(cloud);
+    ok('the other phone receives it and a Workout app there wears it, while Daily Success keeps its own', a.workoutTheme() === C2.id && a.get('nbd-theme') === C1.id && a.mem.some((x) => x.id === C2.id));
+    a.win.nbdApplyTheme('ocean');
+    ok('going back to a built-in theme drops the definition from the look', a.json('nbd_ds_look').custom === undefined && a.json('nbd_ds_look').theme === 'ocean');
+  }
+  {
+    const Lk = phone('ds', {}).look;
+    const good = { id: 'custom-1700000000009', name: 'X', accent: '#112233', bg: '#000000', s: '#111111', tc: '#ffffff', m: '#aaaaaa' };
+    const bad = [null, {}, Object.assign({}, good, { id: 'ocean' }), Object.assign({}, good, { id: 'custom-abc' }), Object.assign({}, good, { bg: 'red' }), Object.assign({}, good, { tc: '#fff' }),
+      Object.assign({}, good, { accent: 'url(javascript:1)' }), Object.assign({}, good, { s: '#11111g' }), Object.assign({}, good, { m: undefined })];
+    ok('a definition needs a custom id and five six-digit hex colours', bad.every((c) => Lk.normCustom(c) === null) && Lk.normCustom(good) !== null);
+    ok('nothing else rides along, and a long or odd name is tidied', JSON.stringify(Object.keys(Lk.normCustom(Object.assign({}, good, { evil: 1, cat: 'x', name: '  a   b ' + 'z'.repeat(80) })))) === '["id","name","accent","bg","s","tc","m"]'
+      && Lk.normCustom(Object.assign({}, good, { name: '  a   b ' + 'z'.repeat(80) })).name.length === 40 && Lk.normCustom(Object.assign({}, good, { name: 7 })).name === 'Custom');
+    ok('a record cannot smuggle in a definition for a different theme than the one it names', Lk.norm({ theme: 'ocean', custom: good }).custom === undefined && Lk.norm({ theme: 'custom-1700000000001', custom: good }).custom === undefined && Lk.normWk({ theme: '', custom: good }).custom === undefined);
+    const p = phone('workout', { nbd_ds_look: JSON.stringify({ theme: good.id, accent: null, custom: Object.assign({}, good, { bg: 'expression(alert(1))' }) }) });
+    p.look.restore();
+    ok('a restored record with a malformed definition adds nothing to the device list', p.get('nbd-customs') === null && p.workoutTheme() === 'default');
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

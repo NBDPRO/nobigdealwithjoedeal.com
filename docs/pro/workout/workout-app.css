@@ -16,45 +16,50 @@
 :root[data-theme="graphite"]{--ac:#3F63D9;--ac-text:#8FA8FF;--ac-on-dark:#8FA8FF;--on-dark:#c7ccd4;--gold:#fbbf24;--bg:#08090b;--bar:#0e1014;--paper:#14161a;--ink:#f0f2f5;--rule:rgba(255,255,255,.12);--muted:#a0a6b0;--grn:#34d399;--blu:#60a5fa;--ghost:#c3cfdf;--input-bg:#0d1015;--ph:#8793a4;}
 :root[data-theme="terminal"]{--ac:#0B7A0B;--ac-text:#3dff3d;--ac-on-dark:#3dff3d;--on-dark:#9cf59c;--gold:#ccff00;--bg:#000000;--bar:#030803;--paper:#061006;--ink:#b8ffb8;--rule:rgba(255,255,255,.12);--muted:#7fd27f;--grn:#00ff00;--blu:#00cc44;--ghost:#c3cfdf;--input-bg:#0d1015;--ph:#8793a4;}
 html{-webkit-text-size-adjust:100%;}
-body{background:var(--bg);font-family:'Barlow',sans-serif;color:var(--ink);min-height:100vh;min-height:100dvh;}
+/* --wa-* hooks: a custom theme (five free colours, js/workout-theme.js derive()) can have a light bar, a page and cards far apart, or an
+   accent that cannot carry white text. Each hook falls back to what the ten built-in skins always used, so they draw exactly as before. */
+body{background:var(--bg);font-family:'Barlow',sans-serif;color:var(--wa-page-ink,var(--ink));min-height:100vh;min-height:100dvh;}
+.wa-main .wc-card{color:var(--ink);}
 :root input,:root select,:root textarea{color-scheme:dark;}
 :root input::placeholder,:root textarea::placeholder{color:var(--ph,#8793a4);opacity:1;}
 
 .btn{font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;border:none;border-radius:6px;padding:7px 12px;cursor:pointer;transition:all .15s;white-space:nowrap;line-height:1.2;height:32px;display:flex;align-items:center;gap:4px;}
-.btn-red{background:var(--ac);color:#fff;}.btn-red:hover{background:#a14a22;}
+.btn-red{background:var(--ac);color:var(--wa-on-ac,#fff);}
+/* The coach paints white text on every accent-filled control (daily-success/css/workout-coach.css). A custom accent can be too pale for that. */
+.wc-go,.wc-finish,.wc-chip.on,.pg-chip.on,.wc-ss-tag{color:var(--wa-on-ac,#fff);}.btn-red:hover{background:#a14a22;}
 .btn-ghost{background:rgba(255,255,255,.06);color:var(--ghost,#c3cfdf);border:1px solid rgba(255,255,255,.1);}.btn-ghost:hover{background:rgba(189,87,40,.08);color:#fff;border-color:var(--ac);}
 :root .wc-ov .btn-ghost{color:var(--on-dark,#c3cfdf);}
 :root .wc-card .wc-lbl{color:var(--muted);}
 :root .wc-card .wt-up{color:var(--ac-text,#b45309);}
 :root .wc-card .wt-down{color:var(--grn,#16a34a);}
 
-.wa-top{color:#f2f4f8;position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(var(--sat) + 12px) max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));background:var(--bar);border-bottom:1px solid var(--rule);}
+.wa-top{color:var(--wa-bar-ink,#f2f4f8);position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(var(--sat) + 12px) max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));background:var(--bar);border-bottom:1px solid var(--rule);}
 .wa-brand{display:flex;align-items:center;gap:10px;min-width:0;}
 .wa-logo{border-radius:8px;flex-shrink:0;}
 .wa-title{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;line-height:1;}
 .wa-date{font-size:13px;color:var(--on-dark,#a9b8cc);margin-top:3px;}
 .wa-status{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--on-dark,#a9b8cc);text-align:right;}
-.wa-status.ok{color:#4caf82;}.wa-status.err{color:#ff8a80;}
+.wa-status.ok{color:var(--wa-ok,#4caf82);}.wa-status.err{color:var(--wa-err,#ff8a80);}
 .wa-status button{font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;background:none;border:0;text-decoration:underline;cursor:pointer;min-height:44px;padding:0 0 0 8px;}
 .wa-main{max-width:640px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right,0px)) calc(var(--sab) + 96px) max(16px,env(safe-area-inset-left,0px));}
 .wa-loading{color:var(--muted);font-size:14px;}
-.wa-link{display:flex;align-items:center;justify-content:center;min-height:48px;margin-top:12px;padding:10px 14px;border:1px solid var(--rule);border-radius:10px;color:var(--ac-text);font-size:14px;font-weight:600;text-align:center;text-decoration:none;}
+.wa-link{display:flex;align-items:center;justify-content:center;min-height:48px;margin-top:12px;padding:10px 14px;border:1px solid var(--wa-page-rule,var(--rule));border-radius:10px;color:var(--wa-page-ac,var(--ac-text));font-size:14px;font-weight:600;text-align:center;text-decoration:none;}
 .wa-link[hidden]{display:none;}
-.wa-link-quiet{border-color:transparent;color:var(--muted);font-weight:500;}
+.wa-link-quiet{border-color:transparent;color:var(--wa-page-muted,var(--muted));font-weight:500;}
 .wa-link:focus-visible,.wa-status button:focus-visible,.wa-theme select:focus-visible{outline:2px solid var(--ac-text);outline-offset:2px;}
-.wa-theme{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid var(--rule);font-size:14px;color:var(--muted);}
+.wa-theme{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid var(--wa-page-rule,var(--rule));font-size:14px;color:var(--wa-page-muted,var(--muted));}
 .wa-theme + .wa-theme{margin-top:10px;padding-top:0;border-top:0;}
 .wa-theme select{flex:0 1 230px;min-width:0;min-height:44px;padding:0 10px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit;font-size:16px;}
 .wa-noscript{padding:24px 16px;color:var(--muted);text-align:center;}
 
 /* "Workout done. Tick the floor?" (workout-app.js): above the coach's full-screen logger (z-index 10000), which is showing the summary. */
-.wa-tick{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + var(--sab));z-index:10001;width:min(520px,calc(100vw - 24px));display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:8px 8px 8px 16px;background:var(--bar);color:#f2f4f8;border:1px solid var(--ac);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.55);font-size:14px;}
+.wa-tick{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + var(--sab));z-index:10001;width:min(520px,calc(100vw - 24px));display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:8px 8px 8px 16px;background:var(--bar);color:var(--wa-bar-ink,#f2f4f8);border:1px solid var(--ac);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.55);font-size:14px;}
 .wa-tick[hidden]{display:none;}
 .wa-tick .wa-tick-msg{flex:1 1 180px;min-width:0;}
 .wa-tick .wa-tick-msg b{display:block;font-weight:700;}
 .wa-tick .wa-tick-msg small{display:block;opacity:.8;}
-.wa-tick button{min-height:44px;min-width:44px;padding:0 14px;border-radius:8px;font:inherit;font-weight:700;font-size:14px;cursor:pointer;border:1px solid rgba(255,255,255,.28);background:transparent;color:inherit;}
-.wa-tick button[data-wa-action="tick-yes"]{background:var(--ac);border-color:var(--ac);color:#fff;}
+.wa-tick button{min-height:44px;min-width:44px;padding:0 14px;border-radius:8px;font:inherit;font-weight:700;font-size:14px;cursor:pointer;border:1px solid var(--wa-bar-rule,rgba(255,255,255,.28));background:transparent;color:inherit;}
+.wa-tick button[data-wa-action="tick-yes"]{background:var(--ac);border-color:var(--ac);color:var(--wa-on-ac,#fff);}
 .wa-tick button:focus-visible{outline:2px solid var(--ac-text);outline-offset:2px;}
 
 .ds-sync-badge{position:fixed;top:calc(var(--sat) + 68px);right:max(16px,env(safe-area-inset-right,0px));z-index:9999;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:20px;background:rgba(189,87,40,.12);border:1px solid rgba(189,87,40,.3);color:var(--ac-text,#E4783F);transition:opacity .4s;opacity:0;pointer-events:none;}
