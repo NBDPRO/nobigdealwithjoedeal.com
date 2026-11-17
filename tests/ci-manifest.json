@@ -1140,6 +1140,7 @@
     "touch-targets-2026-11-14.test.js",
     "offline-banner-weak-signal-2026-11-14.test.js",
     "sign-price-snapshot-2026-11-14.test.js",
+    "sweep-lows-server-2026-11-17.test.js",
     "atproto-did-2026-11-16.test.js"
   ],
   "smoke": {
