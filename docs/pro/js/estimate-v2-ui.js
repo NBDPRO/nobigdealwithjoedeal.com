@@ -244,7 +244,12 @@
     // (care-plan-discount.js) applies only to 'repair'. Set by the repair /
     // replacement presets, the V3 Repair-or-roof choice, Job Template
     // inserts, and the rep's "This is repair work" button; saved and reopened.
-    workKind: null
+    workKind: null,
+    // Margin floor (2026-11-17, js/margin-floor.js): the private note kept when an
+    // owner or admin confirms sending this estimate under the company's floor
+    // ({ by, role, marginPct, floorPct, atMs }), else null. Saved and reopened;
+    // never customer-facing.
+    floorConfirm: null
   };
 
   // The per-estimate half of `state` as it stands at page load — what "a new
@@ -257,6 +262,7 @@
     specialOrderAmount: state.specialOrderAmount, constructionLoan: state.constructionLoan,
     minJobCharge: state.minJobCharge, jobType: state.jobType, workKind: state.workKind,
     upgrades: state.upgrades, upgradeLog: state.upgradeLog,
+    floorConfirm: state.floorConfirm,
   });
 
   // ── Job Template estimates reopened here (review 2026-09-25) ───────
@@ -3773,6 +3779,45 @@
     return 'Margin before tax: <strong>' + v.marginPct.toFixed(1) + '%</strong> ($' + Math.round(v.marginCents / 100).toLocaleString() + ') ' + MF.badgeHtml(v);
   }
 
+  // ── Margin floor gate (2026-11-17, part two) ───────────────────────────
+  // Called before a price reaches a customer: send for signature, the deal
+  // link (send to homeowner, sign on this phone) and a customer-facing PDF.
+  // Saving a draft and the Internal View are never gated.
+  //   not under the company's floor (or no floor set, an insurance scope, an
+  //   uncosted job)                          -> true, nothing shown
+  //   under it, a rep or a manager           -> false, with the margin, the
+  //                                             floor and the price that reaches it
+  //   under it, the owner or a company admin -> asks; yes keeps a private note
+  //                                             on the estimate and returns true
+  // A confirm stands while the margin holds: it asks again only when the
+  // margin has dropped below what was confirmed.
+  // SCREEN-LEVEL ONLY: the server does not know an estimate's margin, so this
+  // is not a security boundary (a follow-up moves it server-side).
+  async function _floorGate(estimate, say) {
+    const MF = window.NBDMarginFloor;
+    if (!MF || !estimate) return true;
+    const v = MF.view(estimate);
+    if (v.state !== 'under') return true;
+    const prev = state.floorConfirm;
+    if (prev && typeof prev.marginPct === 'number' && v.marginPct >= prev.marginPct - 0.05) return true;
+    const floor = v.check.floorPct;
+    const need = v.check.neededPreTaxCents;
+    const facts = 'This job is at ' + v.marginPct.toFixed(1) + '% margin before tax. Your company floor is ' + floor + '%.'
+      + (need ? ' A price of $' + Math.ceil(need / 100).toLocaleString() + ' before tax reaches it.' : '');
+    const role = MF.callerRole();
+    if (!MF.canFinalizeUnder(role)) {
+      const msg = facts + ' Raise the price, or save it as a draft for an owner or admin to send.';
+      if (typeof say === 'function') say(msg, 'error');
+      if (typeof window.showToast === 'function') window.showToast(msg, 'warning');
+      return false;
+    }
+    const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
+    const yes = await ask(facts + ' Send it at this price anyway?');
+    if (!yes) return false;
+    state.floorConfirm = MF.confirmNote({ uid: (window._user && window._user.uid) || '', role: role, marginPct: v.marginPct, floorPct: floor, atMs: Date.now() });
+    return true;
+  }
+
   function render() {
     // Tier shingle lock on EVERY scope path (V3 E2E 2026-10-02).
     if (_v2EnforceTierShingles(state.tier)) state._reopenedClean = false;
@@ -4625,6 +4670,8 @@
       // in cents when it is on this estimate (null = not applied).
       workKind:       state.workKind || null,
       memberDiscount: estimate.memberDiscount ? Object.assign({}, estimate.memberDiscount) : null,
+      // Margin floor: the private under-floor confirm, or null. Internal only.
+      floorConfirm: (state.floorConfirm && typeof state.floorConfirm === 'object') ? Object.assign({}, state.floorConfirm) : null,
     });
   }
 
@@ -4945,6 +4992,8 @@
     // (finding 2, 2026-11-14). Read after state.passThru: an older doc infers
     // its floor from the saved total less those fees.
     state.minJobCharge = _savedMinJobCharge(doc, state.passThru);
+    // The under-floor confirm belongs to the doc, never to the previous session.
+    state.floorConfirm = (doc.floorConfirm && typeof doc.floorConfirm === 'object') ? Object.assign({}, doc.floorConfirm) : null;
     // Upgrade rows (stage 2, 2026-09-25): kept whole, out of the catalog
     // scope, and re-added after the engine by _applyUpgradeLines — the same
     // "restore it or the first edit drops it" fix as the fees above, plus tax.
@@ -5019,6 +5068,10 @@
     const toast = (msg, kind) => (typeof window.showToast === 'function')
       ? window.showToast(msg, kind || 'error')
       : console.warn('[V2 preview]', kind || 'info', msg);
+
+    // Margin floor: a customer-facing document is a price reaching a customer.
+    // The Internal View is not gated.
+    if (format !== 'internal-view' && !(await _floorGate(effectiveEstimate()))) return;
 
     // 3B: on a clean reopen of a 3A-capable doc this replays the saved numbers
     // (B-8 retail honored); otherwise it re-resolves live.
@@ -5472,6 +5525,9 @@
       if (typeof window.showToast === 'function') window.showToast(KY_SIGN_MSG, 'warning');
       return 'ky';
     }
+
+    // Margin floor: an under-floor job needs an owner's or admin's confirm first.
+    if (!(await _floorGate(effectiveEstimate(), say))) return 'floor';
 
     // B2: if name/email missing and we have a linked lead, try to
     // auto-fill before complaining.
@@ -6395,6 +6451,8 @@
     if (!name) { say('Add the customer name (Customer step) first.', 'error'); return null; }
     const prices = _dealPricesFor(estimate);
     if (!prices) { say('Price the estimate first — no package has a total yet.', 'error'); return null; }
+    // Margin floor: before the save, so a confirm's private note is saved with it.
+    if (!(await _floorGate(estimate, say))) return null;
 
     // 1. Save. Re-sending the same estimate updates it instead of adding a
     //    copy; save() pins it, runs the signed / changed-elsewhere checks and
@@ -6679,6 +6737,8 @@
       effectiveEstimate: effectiveEstimate,
       applyNote: applyNote,   // tests/estimate-reopen-min-job-2026-11-14.test.js
       marginLineHtml: _marginLineHtml,   // tests/margin-floor-display-2026-11-17.test.js
+      floorGate: _floorGate,             // tests/margin-floor-gate-2026-11-17.test.js
+      floorConfirm: function (v) { if (arguments.length) state.floorConfirm = v; return state.floorConfirm; },
       collectDraft: collectDraft,
       getState: () => state,
       // Display helpers. Pure, and the two that decide whether the scope

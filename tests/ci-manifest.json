@@ -461,6 +461,7 @@
     "nbd-os-acts-2026-11-09.test.js",
     "nbd-os-acts-dom-2026-11-09.test.js",
     "nbd-os-home-2026-11-09.test.js",
+    "margin-floor-gate-2026-11-17.test.js",
     "nbd-os-coach-2026-11-09.test.js",
     "nbd-os-daily-success-2026-11-09.test.js",
     "nbd-os-home-edit-2026-11-09.test.js",
