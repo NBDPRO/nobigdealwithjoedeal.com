@@ -28,6 +28,8 @@
  *  11. The apps may wear different themes: the Workout app's Theme control picks its own skin or "Same as Daily Success"; its own
  *      choice wins on that app only, and every change is handed to look-sync.js (tests/look-sync-2026-11-17.test.js covers the sync).
  *
+ *  12. ...and its own accent: the Accent control picks an accent, "Theme default" (none), or "Same as Daily Success".
+ *
  * Structure and behaviour, not file text (tests/lib/src-kit.js): tags and attributes, CSS declarations, the scripts run in a vm.
  *
  * Run: node tests/ds-workout-installable-2026-11-16.test.js
@@ -439,6 +441,59 @@ console.log('\n11. The Workout app can wear its own theme');
   winL['nbd-ds-settings-restored'].forEach((f) => f());
   ok('a theme that arrived with the account shows in the control', selEl.value === 'paper');
   ok('look-sync.js is on both pages, and on the Workout page before the app screen (its restore runs first)', at('look-sync.js') > -1 && at('look-sync.js') < at('workout-app.js') && dScripts.has(wSrcs[at('look-sync.js')]));
+}
+
+console.log('\n12. The Workout app can wear its own accent');
+{
+  function accentApp(store, paper) {
+    const attrs = {}, inline = {}, sent = [];
+    const html = { getAttribute: (k) => (k in attrs ? attrs[k] : null), setAttribute: (k, v) => { attrs[k] = String(v); },
+      style: { setProperty: (p, v) => { inline[p] = v; }, removeProperty: (p) => { delete inline[p]; } } };
+    const win = { addEventListener: () => {}, NBDLook: { changed: () => { sent.push('nbd_wk_accent' in store ? store.nbd_wk_accent : ''); } } };
+    kit.loadInVm(['docs/pro/daily-success/js/accent-logic.js', 'docs/pro/workout/js/workout-theme.js'], { window: win, document: { documentElement: html, visibilityState: 'visible', addEventListener: () => {} },
+      localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } }, getComputedStyle: () => ({ getPropertyValue: () => paper || '#12132b' }) });
+    return { T: win.NBDWorkoutTheme, A: win.NBDAccent, inline, sent, store };
+  }
+  const fill = (x, id) => x.A.ACCENTS.find((c) => c.id === id).fill;
+  const a = accentApp({ nbd_pro_theme: 'midnight', nbd_ds_accent: 'teal' });
+  ok('with no accent of its own it wears the Daily Success one', a.inline['--ac'] === fill(a, 'teal') && a.T.ownAccent() === '');
+  ok('picking its own accent repaints at once and is handed to the sync', a.T.setOwnAccent('rose') === 'rose' && a.inline['--ac'] === fill(a, 'rose') && a.sent.join() === 'rose');
+  ok('the Daily Success accent key is left as it was', a.store.nbd_ds_accent === 'teal');
+  ok('"Theme default" takes every accent colour off, even though Daily Success has one', a.T.setOwnAccent('none') === 'none' && Object.keys(a.inline).length === 0 && a.store.nbd_wk_accent === 'none');
+  ok('"Same as Daily Success" goes back to following it', a.T.setOwnAccent('') === '' && a.inline['--ac'] === fill(a, 'teal') && !('nbd_wk_accent' in a.store) && a.sent.join() === 'rose,none,');
+  ok('only a listed accent or "none" can be picked, and a rejected pick leaves nothing in storage', ['Rose', '#ff0000', 'ocean', null, 7].every((v) => { const x = accentApp({ nbd_ds_accent: 'teal' }); return x.T.setOwnAccent(v) === '' && !('nbd_wk_accent' in x.store) && x.inline['--ac'] === fill(x, 'teal'); }));
+  ok('a stored own accent that is not in the list is ignored', accentApp({ nbd_ds_accent: 'teal', nbd_wk_accent: 'nope' }).T.ownAccent() === '' && accentApp({ nbd_ds_accent: 'teal', nbd_wk_accent: 'nope' }).inline['--ac'] === fill(a, 'teal'));
+  const own = accentApp({ nbd_wk_theme: 'paper', nbd_wk_accent: 'moss', nbd_pro_theme: 'ocean', nbd_ds_accent: 'teal' }, '#faf7f0');
+  const moss = own.A.ACCENTS.find((c) => c.id === 'moss');
+  ok('its own theme and its own accent together: the text tint is picked for that theme\'s card', own.inline['--ac'] === moss.fill && own.inline['--ac-text'] === moss.onLight);
+
+  const sel = wDoc.byId('waAccent');
+  const opts = sel ? sel.$$('option').map((o) => o.attr('value')) : [];
+  ok('the Accent control offers "Same as Daily Success", "Theme default", then each Daily Success accent once', !!sel && sel.tag === 'select' && opts.join() === ['', 'none'].concat(a.A.ACCENTS.map((c) => c.id)).join(), opts.join());
+  const names = sel ? sel.$$('option').slice(2).map((o) => o.text.trim()) : [];
+  ok('with the Daily Success names', names.join() === a.A.ACCENTS.map((c) => c.label).join(), names.join());
+  ok('it has a visible label', !!wDoc.$('label[for=waAccent]') && wDoc.$('label[for=waAccent]').text.indexOf('Accent') > -1);
+
+  const calls = []; let mine = 'sky';
+  const accEl = { id: 'waAccent', value: 'unset' }, themeEl = { id: 'waTheme', value: 'unset' };
+  const docL = {}, winL = {};
+  const doc = { readyState: 'complete', visibilityState: 'visible', addEventListener: (n, f) => { (docL[n] = docL[n] || []).push(f); }, getElementById: (id) => ({ waAccent: accEl, waTheme: themeEl }[id] || null) };
+  const win = { addEventListener: (n, f) => { (winL[n] = winL[n] || []).push(f); },
+    NBDWorkoutTheme: { own: () => 'forest', setOwn: (v) => { calls.push('theme:' + v); return v; }, ownAccent: () => mine, setOwnAccent: (v) => { calls.push('accent:' + v); mine = v === 'bad' ? '' : v; return mine; } } };
+  kit.loadInVm(['docs/pro/workout/js/workout-app.js'], { window: win, document: doc, navigator: { onLine: true }, setTimeout: () => 0, clearTimeout: () => {} });
+  ok('on load both controls show the app\'s own choices', accEl.value === 'sky' && themeEl.value === 'forest');
+  accEl.value = 'amber';
+  docL.change.forEach((f) => f({ target: accEl }));
+  ok('choosing an accent sets the accent, not the theme', calls.join() === 'accent:amber' && accEl.value === 'amber');
+  themeEl.value = 'ember';
+  docL.change.forEach((f) => f({ target: themeEl }));
+  ok('and choosing a theme sets the theme, not the accent', calls.join() === 'accent:amber,theme:ember');
+  accEl.value = 'bad';
+  docL.change.forEach((f) => f({ target: accEl }));
+  ok('the control then shows what was really set', accEl.value === '');
+  mine = 'none';
+  winL['nbd-ds-settings-restored'].forEach((f) => f());
+  ok('an accent that arrived with the account shows in the control', accEl.value === 'none');
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

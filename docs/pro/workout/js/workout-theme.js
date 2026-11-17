@@ -8,6 +8,8 @@
  *
  * The apps may wear different themes (Jo, 2026-11-17): nbd_wk_theme holds the Workout app's OWN skin when one was picked on its Theme
  * control (workout-app.js). Empty, it follows Daily Success. setOwn() writes it and tells look-sync.js, which sends it with the account.
+ * The accent works the same way through nbd_wk_accent and setOwnAccent(): empty follows Daily Success, 'none' is the theme's own colour
+ * (what Daily Success calls "Theme default"), an accent id is that accent.
  *
  * Only the ten built-in skins are known here. A saved custom theme, or anything else in storage, shows as the default skin.
  * The keys are per device. Where the two apps share storage (Android) the Workout app follows a change at once. An installed iPhone
@@ -20,8 +22,8 @@
   'use strict';
   if (window.NBDWorkoutTheme) return;
   var SKINS = ['default', 'light', 'paper', 'contrast', 'midnight', 'forest', 'ocean', 'ember', 'graphite', 'terminal'];
-  var OWN = 'nbd_wk_theme';
-  var KEYS = [OWN, 'nbd_pro_theme', 'nbd-theme', 'ds-theme', 'nbd_ds_accent'];
+  var OWN = 'nbd_wk_theme', OWN_ACCENT = 'nbd_wk_accent';
+  var KEYS = [OWN, OWN_ACCENT, 'nbd_pro_theme', 'nbd-theme', 'ds-theme', 'nbd_ds_accent'];
   var laid = [];   // the inline properties the accent set last time, so a cleared accent takes them back off
 
   // get(key) -> the stored string or null. Same order as app.js nbdBoot. The dashboard's 'nbd-original' (this surface's 'default')
@@ -43,7 +45,12 @@
     laid.forEach(function (p) { html.style.removeProperty(p); });
     laid = [];
     var A = window.NBDAccent;
-    var accent = A && typeof A.normAccent === 'function' ? A.normAccent(read(A.KEY)) : null;
+    var accent = null;
+    if (A && typeof A.normAccent === 'function') {
+      var mine = read(OWN_ACCENT);
+      // this app's own accent, or its own "no accent"; with neither, the Daily Success one
+      accent = mine === 'none' ? null : (A.normAccent(mine) || A.normAccent(read(A.KEY)));
+    }
     if (accent) {
       var paper = A.surfaceOf(getComputedStyle(html).getPropertyValue('--paper'), '');
       var v = A.vars(accent, paper);
@@ -63,9 +70,25 @@
     return own();
   }
 
+  /** The Workout app's own accent: an accent id, 'none' (the theme's own colour), or '' when it follows Daily Success. */
+  function ownAccent() {
+    var v = read(OWN_ACCENT), A = window.NBDAccent;
+    if (v === 'none') return 'none';
+    return (A && typeof A.normAccent === 'function' && A.normAccent(v)) || '';
+  }
+  /** Pick this app's own accent (an accent id or 'none'), or go back to following Daily Success (anything else). Returns what is now set. */
+  function setOwnAccent(id) {
+    var A = window.NBDAccent;
+    var next = id === 'none' ? 'none' : ((A && typeof A.normAccent === 'function' && A.normAccent(id)) || '');
+    try { if (next) localStorage.setItem(OWN_ACCENT, next); else localStorage.removeItem(OWN_ACCENT); } catch (_) { /* blocked storage: nothing to show differently */ }
+    apply();
+    if (window.NBDLook && typeof window.NBDLook.changed === 'function') window.NBDLook.changed();
+    return ownAccent();
+  }
+
   apply();
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') apply(); });
   window.addEventListener('storage', function (ev) { if (!ev || ev.key == null || KEYS.indexOf(ev.key) > -1) apply(); });
 
-  window.NBDWorkoutTheme = { SKINS: SKINS, themeId: themeId, apply: apply, own: own, setOwn: setOwn };
+  window.NBDWorkoutTheme = { SKINS: SKINS, themeId: themeId, apply: apply, own: own, setOwn: setOwn, ownAccent: ownAccent, setOwnAccent: setOwnAccent };
 })();

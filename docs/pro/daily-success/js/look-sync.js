@@ -7,8 +7,9 @@
  * other settings (userSettings, newest stamp wins), and turns them back into the device keys when a newer one arrives:
  *
  *   nbd_ds_look = { theme, accent }   the Daily Success look (userSettings.dsLook)
- *   nbd_wk_look = { theme }           the Workout app's OWN theme (userSettings.dsWkLook). Jo, 2026-11-17: the apps may wear
- *                                     different themes. theme '' means "same as Daily Success". Device key: nbd_wk_theme.
+ *   nbd_wk_look = { theme, accent }   the Workout app's OWN theme and accent (userSettings.dsWkLook). Jo, 2026-11-17: the apps may
+ *                                     wear different themes and accents. '' means "same as Daily Success"; accent 'none' means the
+ *                                     theme's own colour. Device keys: nbd_wk_theme, nbd_wk_accent.
  *
  * Two records, not one, because the sync replaces a record whole: a Workout-only choice made on a phone that has not yet received
  * the Daily Success look would otherwise send "default" along with it and overwrite the look chosen elsewhere.
@@ -32,7 +33,7 @@
 (function () {
   'use strict';
   if (window.NBDLook) return;
-  var KEY = 'nbd_ds_look', WK_KEY = 'nbd_wk_look', WK_DEVICE = 'nbd_wk_theme';
+  var KEY = 'nbd_ds_look', WK_KEY = 'nbd_wk_look', WK_DEVICE = 'nbd_wk_theme', WK_ACCENT = 'nbd_wk_accent';
   var ID = /^[a-z0-9][a-z0-9_-]{0,39}$/;
   var busy = false;   // our own restore is re-applying a look: changed() must not treat it as a new choice
 
@@ -46,11 +47,12 @@
     if (!v || typeof v !== 'object' || !isId(v.theme)) return null;
     return { theme: v.theme, accent: isId(v.accent) ? v.accent : null };
   }
-  /** A Workout-theme record: { theme: '<id>' } or { theme: '' } (same as Daily Success), or null. */
+  /** A Workout record: { theme, accent }, each an id or '' (same as Daily Success), or null. A record from before the accent has none: ''. */
   function normWk(v) {
     if (!v || typeof v !== 'object') return null;
-    if (v.theme === '') return { theme: '' };
-    return isId(v.theme) ? { theme: v.theme } : null;
+    var theme = v.theme === '' ? '' : (isId(v.theme) ? v.theme : null);
+    if (theme === null) return null;
+    return { theme: theme, accent: isId(v.accent) ? v.accent : '' };
   }
   function same(a, b) { return !!a && !!b && a.theme === b.theme && (a.accent || null) === (b.accent || null); }
 
@@ -63,8 +65,8 @@
     return { look: look, chosen: (!!saved && look.theme !== 'default') || !!look.accent };
   }
   function currentWk() {
-    var v = get(WK_DEVICE);
-    return { look: { theme: isId(v) ? v : '' }, chosen: isId(v) };
+    var v = get(WK_DEVICE), a = get(WK_ACCENT);
+    return { look: { theme: isId(v) ? v : '', accent: isId(a) ? a : '' }, chosen: isId(v) || isId(a) };
   }
   var stored = function () { return norm(parse(KEY)); };
   var storedWk = function () { return normWk(parse(WK_KEY)); };
@@ -99,8 +101,8 @@
     if (!newLook && !newWk) return false;
     busy = true;
     try {
-      // The Workout app's own theme is only a device key on both pages (Daily Success never draws it, it only must not lose it).
-      if (newWk) put(WK_DEVICE, wk.theme || null);
+      // The Workout app's own theme and accent are only device keys on both pages (Daily Success never draws it, it only must not lose it).
+      if (newWk) { put(WK_DEVICE, wk.theme || null); put(WK_ACCENT, wk.accent || null); }
       if (newLook && typeof window.nbdApplyTheme === 'function') {
         // Daily Success: the page's own functions check the theme exists, draw it and write the device keys.
         window.nbdApplyTheme(look.theme);

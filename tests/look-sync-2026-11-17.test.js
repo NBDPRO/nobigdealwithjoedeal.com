@@ -12,6 +12,8 @@
  *   3. A new pick wins by time and reaches the other phone; picking the default again travels too.
  *   4. The Workout app's own theme is a separate record: it travels, it never touches the Daily Success look, and
  *      "Same as Daily Success" travels as well.
+ *   7. The Workout app's own accent rides in the same record as its own theme: an accent, 'none' (the theme's own colour) or
+ *      "same as Daily Success"; it never touches the Daily Success accent, and theme and accent change independently.
  *   5. Applying a synced look is not itself a new choice (nothing is re-stamped), and a restore that changes nothing does nothing.
  *   6. Only well-formed ids are stored or applied.
  *
@@ -185,9 +187,49 @@ const settings = (cloud) => cloud.get('userSettings/U1') || {};
     ok('a record without a clean theme id is no record', bad.every((v) => L.norm(v) === null));
     ok('a bad accent is dropped, the theme kept', JSON.stringify(L.norm({ theme: 'ocean', accent: '#ff0000' })) === '{"theme":"ocean","accent":null}');
     ok('extra fields are not carried', JSON.stringify(L.norm({ theme: 'ocean', accent: 'teal', evil: 'x', wk: 'y' })) === '{"theme":"ocean","accent":"teal"}');
-    ok('the Workout record is an id or the empty "same as Daily Success"', JSON.stringify(L.normWk({ theme: '' })) === '{"theme":""}' && JSON.stringify(L.normWk({ theme: 'midnight', x: 1 })) === '{"theme":"midnight"}' && L.normWk({ theme: 'Bad Id' }) === null && L.normWk({}) === null);
+    ok('the Workout record is a theme and an accent, each an id or the empty "same as Daily Success"', JSON.stringify(L.normWk({ theme: '', accent: '' })) === '{"theme":"","accent":""}'
+      && JSON.stringify(L.normWk({ theme: 'midnight', accent: 'rose', x: 1 })) === '{"theme":"midnight","accent":"rose"}' && L.normWk({ theme: 'Bad Id' }) === null && L.normWk({}) === null);
+    ok('a Workout record from before it had an accent reads as "same as Daily Success" for the accent', JSON.stringify(L.normWk({ theme: 'ember' })) === '{"theme":"ember","accent":""}');
+    ok('a bad Workout accent is dropped, the theme kept', JSON.stringify(L.normWk({ theme: 'ember', accent: '#ff0000' })) === '{"theme":"ember","accent":""}');
     const p = phone('workout', { nbd_ds_look: '{"theme":"<script>","accent":null}', nbd_wk_look: 'not json' });
     ok('a malformed stored record is ignored on restore', p.look.restore() === false && p.get('nbd-theme') === null && p.calls.repaints === 0);
+  }
+
+  console.log('\n7. The Workout app\'s own accent');
+  {
+    const cloud = new Map();
+    const a = phone('ds', { 'nbd-theme': 'ocean', nbd_pro_theme: 'ocean', nbd_ds_accent: 'teal' });
+    await a.sync(cloud);
+    const w = phone('workout', {});
+    await w.sync(cloud);
+    ok('with none of its own the Workout phone has the Daily Success accent', w.get('nbd_ds_accent') === 'teal' && w.get('nbd_wk_accent') === null);
+    w.store.set('nbd_wk_accent', 'rose'); w.look.changed();      // workout-theme.js setOwnAccent('rose')
+    ok('its own accent is recorded with the Workout theme record, and only that record', JSON.stringify(w.json('nbd_wk_look')) === '{"theme":"","accent":"rose"}' && w.calls.stamps.join() === 'nbd_wk_look' && w.json('nbd_ds_look').accent === 'teal');
+    await w.sync(cloud); await a.sync(cloud);
+    ok('it travels', settings(cloud).dsWkLook.accent === 'rose' && a.get('nbd_wk_accent') === 'rose');
+    ok('the Daily Success accent is untouched on both phones and in the cloud', a.get('nbd_ds_accent') === 'teal' && w.get('nbd_ds_accent') === 'teal' && settings(cloud).dsLook.accent === 'teal' && a.calls.accents.length === 0);
+    w.store.set('nbd_wk_theme', 'midnight'); w.look.changed();
+    ok('picking a Workout theme keeps the Workout accent', JSON.stringify(w.json('nbd_wk_look')) === '{"theme":"midnight","accent":"rose"}');
+    w.store.set('nbd_wk_accent', 'none'); w.look.changed();
+    await w.sync(cloud); await a.sync(cloud);
+    ok('"Theme default" (no accent) is a choice of its own and travels', a.get('nbd_wk_accent') === 'none' && a.get('nbd_wk_theme') === 'midnight');
+    w.store.delete('nbd_wk_accent'); w.look.changed();
+    await w.sync(cloud); await a.sync(cloud);
+    ok('"Same as Daily Success" for the accent travels, and leaves the Workout theme alone', a.get('nbd_wk_accent') === null && a.get('nbd_wk_theme') === 'midnight' && JSON.stringify(settings(cloud).dsWkLook) === '{"theme":"midnight","accent":""}', JSON.stringify(settings(cloud).dsWkLook));
+    a.win.NBDAccent.set('plum');
+    await a.sync(cloud); await w.sync(cloud);
+    ok('a later Daily Success accent pick reaches the Workout phone as the Daily Success accent', w.get('nbd_ds_accent') === 'plum' && w.get('nbd_wk_accent') === null);
+  }
+  {
+    const cloud = new Map();
+    const a = phone('ds', { 'nbd-theme': 'ocean', nbd_pro_theme: 'ocean', nbd_ds_accent: 'teal' });
+    await a.sync(cloud);
+    const fresh = phone('workout', {});
+    fresh.store.set('nbd_wk_accent', 'amber'); fresh.look.changed();   // picked before this phone ever synced
+    await fresh.sync(cloud);
+    ok('a Workout-only accent picked on a fresh phone does not disturb the Daily Success look', JSON.stringify(settings(cloud).dsLook) === '{"theme":"ocean","accent":"teal"}' && settings(cloud).dsWkLook.accent === 'amber');
+    const seeded = phone('workout', { nbd_wk_accent: 'sky' });
+    ok('an accent already on the phone is recorded on load, without a stamp', JSON.stringify(seeded.json('nbd_wk_look')) === '{"theme":"","accent":"sky"}' && seeded.get('nbd_wk_look_at') === null);
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

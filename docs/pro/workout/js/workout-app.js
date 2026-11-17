@@ -6,7 +6,8 @@
  *   - signed out: shows the sign-in link. An installed iPhone app keeps its own storage, so signing in here is how it gets
  *     the workouts logged in Daily Success or on another device
  *   - asks the service worker to keep an offline copy of this page (same request Daily Success makes for itself)
- *   - the Theme control: this app's own theme, or "Same as Daily Success" (workout-theme.js setOwn; the choice syncs with the account)
+ *   - the Theme and Accent controls: this app's own, or "Same as Daily Success" (workout-theme.js setOwn / setOwnAccent; the choice
+ *     syncs with the account)
  *   - at Finish asks "Workout done. Tick the floor?" and stores the answer on the workout (NBDCoachUI.answerFloor). There are no floors
  *     or day pages here, so nothing is ticked on this screen: Daily Success applies a yes the next time it opens, and never asks again
  *
@@ -71,12 +72,16 @@
   function drawTheme() {
     const sel = $('waTheme'), T = window.NBDWorkoutTheme;
     if (sel && T && typeof T.own === 'function') sel.value = T.own();
+    const acc = $('waAccent');
+    if (acc && T && typeof T.ownAccent === 'function') acc.value = T.ownAccent();
   }
   document.addEventListener('change', (ev) => {
     const t = ev.target;
-    if (!t || t.id !== 'waTheme') return;
+    if (!t || (t.id !== 'waTheme' && t.id !== 'waAccent')) return;
     const T = window.NBDWorkoutTheme;
-    if (T && typeof T.setOwn === 'function') t.value = T.setOwn(t.value);
+    if (!T) return;
+    if (t.id === 'waTheme') { if (typeof T.setOwn === 'function') t.value = T.setOwn(t.value); }
+    else if (typeof T.setOwnAccent === 'function') t.value = T.setOwnAccent(t.value);
   });
   // A look that arrived with the account (look-sync.js has applied it by now: it registered first): the control shows it.
   window.addEventListener('nbd-ds-settings-restored', drawTheme);
