@@ -3019,6 +3019,8 @@
       estimate.subtotal = (Math.round((Number(estimate.subtotal) || 0) * 100) + amtCents) / 100;
       estimate.total    = (Math.round((Number(estimate.total)    || 0) * 100) + amtCents) / 100;
       estimate.materialRetail = estimate.materialRetail || 0;
+      // Margin floor: what was passed through at face is cost, not margin.
+      estimate.passThroughCost = (Math.round((Number(estimate.passThroughCost) || 0) * 100) + amtCents) / 100;
     }
 
     // ── V2-2 / V2-pkb (estimate-qa-2026-06-08): canonical customer total ──
@@ -3825,57 +3827,112 @@
   // margin has dropped below what was confirmed.
   // SCREEN-LEVEL ONLY: the server does not know an estimate's margin, so this
   // is not a security boundary (a follow-up moves it server-side).
-  async function _floorGate(estimate, say) {
+  // opts.allPackages (the deal link): judge every package the link offers, not
+  // only the chosen one, and ask once for all of those under the floor.
+  async function _floorGate(estimate, say, opts) {
     const MF = window.NBDMarginFloor;
     if (!MF || !estimate) return true;
-    const v = MF.view(estimate);
-    if (v.state !== 'under') return true;
+    const all = !!(opts && opts.allPackages);
+    const judge = (e) => (all ? _offeredPackageViews(e) : [{ tier: null, view: MF.view(e) }]).filter((p) => p.view.state === 'under');
+    let under = judge(estimate);
+    if (!under.length) return true;
+    const worst = (l) => Math.min.apply(null, l.map((p) => p.view.marginPct));
     const prev = state.floorConfirm;
-    if (prev && typeof prev.marginPct === 'number' && v.marginPct >= prev.marginPct - 0.05) return true;
-    const floor = v.check.floorPct;
-    const need = v.check.neededPreTaxCents;
-    const facts = 'This job is at ' + v.marginPct.toFixed(1) + '% margin before tax. Your company floor is ' + floor + '%.'
-      + (need ? ' A price of $' + Math.ceil(need / 100).toLocaleString() + ' before tax reaches it.' : '');
+    if (prev && typeof prev.marginPct === 'number' && worst(under) >= prev.marginPct - 0.05) return true;
+    const v = MF.view(estimate);                       // the chosen package
+    const floor = under[0].view.check.floorPct;
     const role = MF.callerRole();
     const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
     const tell = (msg) => {
       if (typeof say === 'function') say(msg, 'error');
       if (typeof window.showToast === 'function') window.showToast(msg, 'warning');
     };
+    const chosen = String(estimate.tier || state.tier || '');
+    const factsOf = (x) => 'This job is at ' + x.marginPct.toFixed(1) + '% margin before tax. Your company floor is ' + floor + '%.'
+      + (x.check.neededPreTaxCents ? ' A price of $' + Math.ceil(x.check.neededPreTaxCents / 100).toLocaleString() + ' before tax reaches it.' : '');
+    const factsFor = (list) => (list.length === 1 && (list[0].tier === null || list[0].tier === chosen))
+      ? factsOf(list[0].view)
+      : 'These packages are under your company floor of ' + floor + '%: ' + list.map((p) => _tierWord(p.tier) + ' at ' + p.view.marginPct.toFixed(1) + '%'
+        + (p.view.check.neededPreTaxCents ? ' (a price of $' + Math.ceil(p.view.check.neededPreTaxCents / 100).toLocaleString() + ' before tax reaches it)' : '')).join('; ') + '.';
 
-    // 1. Offer the raise (anyone; it only ever raises this estimate's price).
-    const plan = _floorRaisePlan();
-    if (plan.ok) {
-      const how = plan.kind === 'per_sq'
-        ? ' This package goes up $' + plan.perSq.toLocaleString() + ' a square, and so does every package above it, so the order stays the same. The ones below do not change.'
-        : plan.kind === 'profit'
-          ? ' This job has no material to mark up, so the raise goes on the profit percentage, which the customer document prints (' + Math.round(plan.pct * 100) + '%).'
-          : ' The line prices rise; the profit percentage on the customer document stays as it is.';
-      const use = await ask(facts + ' Raise this estimate to $' + Math.round(plan.preTaxCents / 100).toLocaleString() + ' before tax ($' + Math.round(plan.totalCents / 100).toLocaleString() + ' with tax)?' + how);
-      if (use) {
-        _floorRaiseApply(plan);
-        if (typeof window.showToast === 'function') window.showToast('Price raised to reach your floor. This estimate only; your Settings are unchanged.', 'ok');
-        return true;
+    // 1. Offer the raise on the chosen package when it is under (anyone; it only ever raises this estimate).
+    let plan = { ok: false, reason: 'not_under' };
+    if (v.state === 'under') {
+      plan = _floorRaisePlan();
+      if (plan.ok) {
+        const how = plan.kind === 'per_sq'
+          ? ' This package goes up $' + plan.perSq.toLocaleString() + ' a square, and so does every package above it, so the order stays the same. The ones below do not change.'
+          : plan.kind === 'profit'
+            ? ' This job has no material to mark up, so the raise goes on the profit percentage, which the customer document prints (' + Math.round(plan.pct * 100) + '%).'
+            : ' The line prices rise; the profit percentage on the customer document stays as it is.';
+        const use = await ask(factsOf(v) + ' Raise this estimate to $' + Math.round(plan.preTaxCents / 100).toLocaleString() + ' before tax ($' + Math.round(plan.totalCents / 100).toLocaleString() + ' with tax)?' + how);
+        if (use) {
+          _floorRaiseApply(plan);
+          if (typeof window.showToast === 'function') window.showToast('Price raised to reach your floor. This estimate only; your Settings are unchanged.', 'ok');
+          under = judge(getCurrentEstimate());
+          if (!under.length) return true;
+          plan = { ok: false, reason: 'not_under' };
+        }
       }
     }
+    const noRaise = (plan.ok || !_FLOOR_NO_RAISE[plan.reason]) ? '' : ' ' + _FLOOR_NO_RAISE[plan.reason];
 
     // 2. Not raised. A rep or a manager stops here; a draft still saves.
     if (!MF.canFinalizeUnder(role)) {
-      tell(facts + (plan.ok ? '' : ' ' + _FLOOR_NO_RAISE[plan.reason]) + ' Raise the price, or save it as a draft for an owner or admin to send.');
+      tell(factsFor(under) + noRaise + ' Raise the price, or save it as a draft for an owner or admin to send.');
       return false;
     }
 
     // 3. The owner or a company admin may send it as it is, with a private note.
-    const yes = await ask(facts + (plan.ok ? '' : ' ' + _FLOOR_NO_RAISE[plan.reason]) + ' Send it at this price anyway?');
+    const yes = await ask(factsFor(under) + noRaise + ' Send it at this price anyway?');
     if (!yes) return false;
     let reason = '';
     if (typeof window.nbdPrompt === 'function') {
       try { reason = String((await window.nbdPrompt('Reason for going under your floor (optional, kept private):', '')) || '').replace(/\s+/g, ' ').trim().slice(0, 200); } catch (_) { reason = ''; }
     }
-    const note = MF.confirmNote({ uid: (window._user && window._user.uid) || '', role: role, marginPct: v.marginPct, floorPct: floor, atMs: Date.now() });
+    const note = MF.confirmNote({ uid: (window._user && window._user.uid) || '', role: role, marginPct: worst(under), floorPct: floor, atMs: Date.now() });
     if (note && reason) note.reason = reason;
+    if (note && all && under.some((p) => p.tier)) note.packages = under.map((p) => ({ tier: p.tier, marginPct: Math.round(p.view.marginPct * 10) / 10 }));
     state.floorConfirm = note;
     return true;
+  }
+
+  // Every package a deal link offers, judged: [{ tier, view }], the chosen one
+  // first. The others are priced by switching the tier and resolving, as
+  // _tierBuildsFor does, then switching back.
+  function _offeredPackageViews(estimate) {
+    const MF = window.NBDMarginFloor;
+    const chosen = String(estimate.tier || state.tier || '');
+    const out = [{ tier: chosen, view: MF.view(estimate) }];
+    if (state.jobMode === 'insurance') return out;
+    const prices = _dealPricesFor(estimate) || {};
+    const others = Object.keys(prices).filter((t) => t !== chosen);
+    if (!others.length) return out;
+    const cfg = window.NBD_ESTIMATE_CONFIG;
+    const scopeItems = _v2ScopeItems();
+    const keepTier = state.tier, keepClean = state._reopenedClean;
+    try {
+      state._reopenedClean = false;
+      others.forEach((t) => {
+        if (cfg && typeof cfg.checkTierShingles === 'function' && !cfg.checkTierShingles(t, scopeItems).ok) return;
+        state.tier = t;
+        const e = getCurrentEstimate();
+        if (e) out.push({ tier: t, view: MF.view(e) });
+      });
+    } finally { state.tier = keepTier; state._reopenedClean = keepClean; }
+    return out;
+  }
+  function _tierWord(t) {
+    const cfg = window.NBD_ESTIMATE_CONFIG;
+    const lbl = cfg && cfg.TIER_LABELS && cfg.TIER_LABELS[t];
+    return lbl ? String(lbl) : (t ? t.charAt(0).toUpperCase() + t.slice(1) : 'This package');
+  }
+  // The fees passed through at face on a saved estimate, in dollars (the same
+  // rows rehydrateFromSaved restores as state.passThru).
+  function _passThroughDollarsOfRows(rows) {
+    const cents = (rows || []).filter((r) => r && r.code && (/^SVC /.test(r.code) || r.source === 'passthru') && !_isUpgradeRow(r) && !_isMemberDiscountLine(r))
+      .reduce((s, r) => s + Math.round((Number(r.total) || Number(r.unitPrice) || 0) * 100), 0);
+    return cents / 100;
   }
 
   // A stored per-estimate rate: a finite number from 0 up to 10 (1000%), else null.
@@ -4948,6 +5005,8 @@
         ? Number(doc.internal.hardCost)
         : ((doc.materialCost != null && doc.laborCost != null)
             ? Number(doc.materialCost) + Number(doc.laborCost) : null),
+      // Margin floor: the fees passed through at face, from the saved rows.
+      passThroughCost: _passThroughDollarsOfRows(doc.rows),
       // materialRetail = materialCost × (1+markup); the internal-view format
       // reads it. Prefer deriving from retailBeforeOHP − laborCost when present.
       materialRetail: (doc.retailBeforeOHP != null && doc.laborCost != null)
@@ -6615,15 +6674,21 @@
 
   // Steps 1–3. Resolves { deal, url } or null (the reason is on `say`).
   async function _prepareDealLink(say) {
-    const estimate = effectiveEstimate();
+    let estimate = effectiveEstimate();
     if (!estimate) { say('Add line items to the scope first.', 'error'); return null; }
     const c = state.customer || {};
     const name = (c.name || '').trim();
     if (!name) { say('Add the customer name (Customer step) first.', 'error'); return null; }
-    const prices = _dealPricesFor(estimate);
+    let prices = _dealPricesFor(estimate);
     if (!prices) { say('Price the estimate first — no package has a total yet.', 'error'); return null; }
-    // Margin floor: before the save, so a confirm's private note is saved with it.
-    if (!(await _floorGate(estimate, say))) return null;
+    // Margin floor: every package this link offers (Jo, 2026-11-17), before the
+    // save, so a confirm's private note is saved with it.
+    if (!(await _floorGate(estimate, say, { allPackages: true }))) return null;
+    // "Use this price" may have raised the estimate: re-read it, so the link
+    // carries the prices the homeowner is quoted, not the ones from before.
+    estimate = effectiveEstimate();
+    prices = _dealPricesFor(estimate);
+    if (!estimate || !prices) { say('Price the estimate first — no package has a total yet.', 'error'); return null; }
 
     // 1. Save. Re-sending the same estimate updates it instead of adding a
     //    copy; save() pins it, runs the signed / changed-elsewhere checks and
@@ -6912,6 +6977,7 @@
       floorRaisePlan: _floorRaisePlan,   // tests/margin-floor-use-price-2026-11-17.test.js
       floorRaiseApply: _floorRaiseApply,
       floorRateAdd: _floorRateAdd,       // tests/margin-floor-part3-2026-11-17.test.js
+      offeredPackageViews: _offeredPackageViews,   // tests/margin-floor-finish-2026-11-17.test.js
       marginLineFor: function (est) { return _marginLineHtml(est); },
       floorConfirm: function (v) { if (arguments.length) state.floorConfirm = v; return state.floorConfirm; },
       collectDraft: collectDraft,

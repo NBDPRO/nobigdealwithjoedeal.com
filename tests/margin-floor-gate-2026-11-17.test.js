@@ -138,7 +138,7 @@ const est = (cost, extra) => Object.assign({ mode: 'cash', total: 10780, tax: 78
     const src = read('estimate-v2-ui.js');
     ok('a reopened estimate restores its own note, and a new estimate starts with none', /state\.floorConfirm = \(doc\.floorConfirm && typeof doc\.floorConfirm === 'object'\)/.test(src) && /const _FRESH_ESTIMATE = JSON\.stringify\(\{[\s\S]{0,900}?floorConfirm: state\.floorConfirm,/.test(src));
     const order = (fn, a, b) => { const body = src.slice(src.indexOf(fn)); const i = body.indexOf(a), j = body.indexOf(b); return i !== -1 && j !== -1 && i < j; };
-    ok('the deal link gates before it saves, so a confirm is saved with the estimate', order('async function _prepareDealLink(say) {', '_floorGate(estimate, say)', 'await save()'));
+    ok('the deal link gates before it saves, so a confirm is saved with the estimate', order('async function _prepareDealLink(say) {', '_floorGate(estimate, say, { allPackages: true })', 'await save()'));
     ok('send for signature gates before it saves', order('async function sendForSignature(opts) {', "return 'floor';", 'save({'));
     ok('a customer document is gated and the Internal View is not', /if \(format !== 'internal-view' && !\(await _floorGate\(effectiveEstimate\(\)\)\)\) return;/.test(src));
   }
