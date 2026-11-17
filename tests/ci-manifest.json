@@ -487,6 +487,7 @@
     "nbd-os-wallpaper-2026-11-09.test.js",
     "nbd-os-wallpaper-picker-2026-11-09.test.js",
     "nbd-os-pywal-2026-11-09.test.js",
+    "margin-floor-logic-2026-11-17.test.js",
     "nbd-os-kpi-2026-11-09.test.js",
     "nbd-os-setup-2026-11-09.test.js",
     "nbd-os-runner-2026-11-09.test.js",
