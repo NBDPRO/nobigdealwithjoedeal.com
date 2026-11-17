@@ -212,6 +212,18 @@ checklist are in
 After the deploy the flag goes on for Jo alone; the copy script's write needs
 Jo's OK for that run.
 
+## Update 2026-11-17 (evening): slice 3 built
+
+Slice 3, cut down by Jo (no nightly job, no stored alerts, no cost-book
+change), is built and ships dark: Import prices (supplier CSV files on the new
+`csv_import` channel), suggested links on Unlinked items, suppliers side by side
+on each product, Compare suppliers with on-screen alerts and a shared seen
+list, and a Supplier Price Compare panel in Company Settings (tax rate and alert
+threshold, off until set). Details, Jo's nine decisions and what is not done:
+[LIVE-SUPPLIER-PRICING-SLICE-3-2026-11-17](LIVE-SUPPLIER-PRICING-SLICE-3-2026-11-17.md).
+Next: after the deploy Jo loads the SRS and QXO price sheets through the
+import, each only after his OK on its preview.
+
 ## Waiting on Jo
 
 Outside actions (none blocks slice 1):
