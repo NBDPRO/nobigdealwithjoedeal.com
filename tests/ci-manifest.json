@@ -303,6 +303,7 @@
     "docgen-address-guard.test.js",
     "estimate-min-job-optin.test.js",
     "estimate-engine-parity.test.js",
+    "pricing-shop-settings-2026-11-17.test.js",
     "estimate-formula-eval.test.js",
     "estimate-pricing.test.js",
     "estimate-profit.test.js",
