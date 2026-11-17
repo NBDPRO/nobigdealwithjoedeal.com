@@ -22,9 +22,8 @@ On 11-17 a read-only sweep ([REPO-SWEEP-2026-11-17](../audit/REPO-SWEEP-2026-11-
 1. **#3131 pricing** (Job Templates use the Settings rates and Round to, cents rollup, tenant supplement deposit). Auto-merge is on.
    - Your template prices move only if your saved rates aren't 25/10/10. The first template preview says so once.
    - Line-item totals move only if your "Round to" isn't $25.
-2. **#3136 lows, CRM** (e-sign source locked + hash check, tenant warranty picker, stage label as text).
-   - **Rebase it after #3131 lands**: both bump `script-loader.js` and `customer.html` versions.
-   - Then re-run its suite and `asset-version-consistency-2026-11-14`, push, and turn auto-merge on.
+   - Update: #3136 merged first after all, and #3131 still merges cleanly onto main (checked with `git merge-tree`). Another worktree (`C:/Users/jonat/nbd-wt-3131`) has merged main into it and swapped the one-time note's inline style for a `.jt-ratesnote` class, because an inline-style ratchet exists.
+2. **#3136 lows, CRM** (e-sign source locked + hash check, tenant warranty picker, stage label as text). Merged.
 3. **#3145 leftovers** (rotateAccessCodes no longer kills DEMO, seed `--apply` prompt, dead sync listener, local test budget 40 min + floors, `/pro` no-store). Auto-merge is on.
    - If it lands after #3131 and #3136, `run-test-manifest --check` will warn that the floors are stale by their new suites. That is a warning, not a failure; set the floors to what `--check` prints.
 
