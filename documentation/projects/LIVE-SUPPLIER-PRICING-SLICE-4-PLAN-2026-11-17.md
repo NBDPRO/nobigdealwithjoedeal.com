@@ -1,9 +1,9 @@
 # Live supplier pricing, slice 4 plan: approve a supplier price into the cost book (2026-11-17)
 
 Status: **plan only, not built.** Nothing in the code changed to write this.
-The checklist assumes the recommended answer to every question at the bottom;
-Jo's answers are recorded there when he gives them. This note carries no cost,
-price or account number.
+Jo answered all eight questions at the bottom the same day, each with the
+recommended answer, so the checklist stands as written. Building waits for his
+go-ahead. This note carries no cost, price or account number.
 
 - Lane note: [LIVE-SUPPLIER-PRICING-2026-11-17](LIVE-SUPPLIER-PRICING-2026-11-17.md)
 - Design: [LIVE-SUPPLIER-PRICING-DESIGN-2026-11-17](LIVE-SUPPLIER-PRICING-DESIGN-2026-11-17.md)
@@ -306,6 +306,25 @@ Each has a recommended answer; the checklist assumes it.
   approved change per tier, while the cost book still holds that value; it
   writes the old cost back through the same checks and is logged.
 
-## Jo's answers
+## Jo's answers (2026-11-17, in chat)
 
-Not answered yet.
+Jo answered every question with the recommended answer. The checklist above
+already assumes them. Slice 4 is not built until he says to build it.
+
+- **Q1:** the button sits on the price (Stores & prices sheet and Compare
+  suppliers alerts); the server rebuilds the change at Approve. No stored list.
+- **Q2:** fresh own paperwork only, from any linked supplier he picks; never a
+  manager's note, a list or promo price, or a delivered price. Owner and
+  company admins approve.
+- **Q3:** Good / Better / Best ticks on the item's link form, Good by default;
+  one line per ticked tier.
+- **Q4:** the estimate margin floor (`companyProfile.pricing.marginFloor`),
+  after labor from the cost book; no floor set means no check; missing labor
+  counts as zero and the panel says "no labor set".
+- **Q5:** a cost above the sell asks "Approve anyway?", saves, and the product
+  shows a "cost is above sell" warning until the sell is raised.
+- **Q6:** yes: every cost save writes only the costs changed in that save,
+  flag on or off.
+- **Q7:** product photos move to their own slice after this one.
+- **Q8:** Undo for the last approved change per tier, while the book still
+  holds that value, through the same checks, logged.
