@@ -224,6 +224,8 @@ const WOULD = {
   transcribeVoiceMemo: 'transcribe a voice memo',
   extractReceiptData: 'read a receipt with AI',
   submitInboxReceipt: 'read a receipt into your inbox with AI',
+  priceLedgerSave: 'save a store, a supplier item or its pack size',
+  priceLedgerRecord: 'record a supplier price in your price history',
   renderPdf: 'render the PDF on the server',
   getDocumentPdfUrl: 'render the PDF on the server',
   exportMyData: 'export your company data',
