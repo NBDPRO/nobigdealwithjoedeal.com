@@ -42,7 +42,7 @@ So:
 | Sign-in item in the Daily Success header menu ("Sign in to back up and sync", third, after Save now), shown only while signed out. Hidden items are skipped by the menu's keyboard focus. | `docs/pro/daily-success/index.html`, `js/menu-ui.js`, `css/flow-batch-3.css` |
 | Test (66 checks, structure and behaviour through `tests/lib/src-kit.js`): manifests, every icon PNG walked chunk by chunk, script-version parity between the two pages, the helpers against app.js, the status line, the shell entry (sw.js run in a vm), the headers, the mirrored theme tokens, the sign-in item. | `tests/ds-workout-installable-2026-11-16.test.js` |
 
-`workout-coach.js`, `workout-coach-logic.js` and `ds-firebase-sync.js` are unchanged.
+`workout-coach-logic.js` and `ds-firebase-sync.js` are unchanged. `workout-coach.js` was unchanged on 2026-11-16 and gained the Exercise Log copy on 2026-11-17 (Known gaps, item 3).
 
 CI note: the first push failed `tests/source-pin-ratchet.test.js` (a new suite may hold at most 5 assertions on file text; the first
 version of this suite had 22). The suite was rewritten to ask structural questions and run the code instead.
@@ -65,9 +65,15 @@ version of this suite had 22). The suite was rewritten to ask structural questio
    `docs/pro/js/login-return.js`; `pages/login.js` (`POST_LOGIN_DEST`) asks it after the existing `redirect=pricing` rule and before the
    dashboard fallback. A URL, a path or any other value is ignored, so the login page cannot be pointed anywhere else.
    Not exercised with a real sign-in here (no credentials were used): the lookup and the wiring are tested, the full round trip is not.
-3. **A workout finished in Workout is not copied into today's Exercise Log table** on the day page (the coach only does that when
-   today's page is on screen, which it never is here). Everything that reads `nbd_ds_workouts` still sees it. The
-   "tick the workout floor?" prompt (`floor-tick-ui.js`, the `nbd-ds-did` event) also only fires inside Daily Success.
+3. ~~A workout finished in Workout is not copied into today's Exercise Log.~~ **Built 2026-11-17** (Jo: "copy the workout into
+   today's exercise log too"). A session now carries `inLog`: Finish saves it as `false`, and `true` once its lifts are on a day page.
+   The Daily Success page is still the only writer of day pages: when a day's own page is on screen it copies every `inLog === false`
+   session for that date into the Exercise Log (after the rows already there), then marks the session with a newer `mt` and pushes it,
+   so no other screen or device copies it again. It runs when a day page is drawn, when the sync calls `NBDCoachUI.refresh()`, and when
+   the app comes back to the front. Sessions saved before the field existed are never copied (their rows may already be on the page).
+   A refused page save puts the page and the session back; a focused field is never redrawn away. `workout-coach.js` is at `?v=30` on
+   both pages. Test: `tests/coach-exercise-log-copy-2026-11-17.test.js` (28 checks; nine deliberate breaks of the code were each caught).
+   Still only inside Daily Success: the "tick the workout floor?" prompt (`floor-tick-ui.js`, the `nbd-ds-did` event).
 4. **Workout is the default dark theme only.** The coach's full-screen logger is dark in every Daily Success theme already; only the
    small card would differ.
 5. **Not checked on a real phone.** Checked here: the page in headless Chromium at 390 x 844 (card, start a workout, Back closes

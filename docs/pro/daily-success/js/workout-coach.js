@@ -238,7 +238,8 @@
   function hookFitness() {
     const orig = window.buildFitnessSection;
     if (typeof orig !== 'function' || orig.__coach) return false;
-    const wrapped = function (p) { return cardHtml() + orig.apply(this, arguments); };
+    // A day page with a workout waiting for its Exercise Log (finished in the Workout app or on another device): copied in right after this draw.
+    const wrapped = function (p) { if (p && !p.name && pendingFor(p.dk).length) setTimeout(logPending, 0); return cardHtml() + orig.apply(this, arguments); };
     wrapped.__coach = true;
     window.buildFitnessSection = wrapped;
     return true;
@@ -809,7 +810,7 @@
     // "workout"). History already shows no minutes for that; the summary and the day page's duration skip it too.
     const startedAt = day === live.date ? live.startedAt : (live.firstSetAt || 0);
     const session = {
-      id: live.id, date: day, split: live.split, startedAt, finishedAt: now, mt: now,
+      id: live.id, date: day, split: live.split, startedAt, finishedAt: now, mt: now, inLog: false,
       exercises: live.exercises.map((x, k) => Object.assign({ exId: x.exId, name: x.name, slot: x.slot, repRange: x.repRange,
         sets: (x.sets || []).filter((st) => st.done).map((st) => Object.assign({ reps: parseFloat(st.reps) || 0, weight: st.weight === '' ? '' : (parseFloat(st.weight) || 0), rpe: parseFloat(st.rpe) || '', done: true }, st.warm ? { warm: true } : {}, !st.warm && (st.kind === 'drop' || st.kind === 'fail') ? { kind: st.kind } : {})) }, x.deload ? { deload: true } : {}, x.pair && pairStarts(live.exercises).includes(k) && ((live.exercises[k + 1] || {}).sets || []).some((st) => st.done) ? { pair: true } : {}))
         .filter((x) => x.sets.length),
@@ -819,6 +820,7 @@
     if (!writeJson(SESS, all)) { toastErr("Couldn't save this workout on your phone - it's still open. Free some space or try again."); return; }
     try { const pushed = window.NBDDsCloud && typeof window.NBDDsCloud.pushWorkout === 'function' ? window.NBDDsCloud.pushWorkout(session) : null; if (pushed && typeof pushed.catch === 'function') pushed.catch(() => {}); } catch (_) { /* the cloud copy is best-effort; the device copy above is saved */ }
     const wrotePage = writeToPage(session);
+    if (wrotePage) { const marked = setInLog([session.id]); if (marked) pushSessions(marked.changed); }
     summary = {
       label: live.label, prs: C().detectPRs(session, prior), vol: C().volume(session),
       minutes: startedAt ? Math.max(1, Math.round((now - startedAt) / 60000)) : null,
@@ -830,6 +832,63 @@
     render();
   }
 
+  // One finished workout's lifts onto a day page object (not the DOM table): after the rows already there, blank rows dropped.
+  function putOnPage(onScreen, session) {
+    const kept = (onScreen.exercises || []).filter((r) => r && Object.values(r).some((v) => String(v || '').trim()));
+    onScreen.exercises = kept.concat(C().toPageRows(session));
+    onScreen.data = onScreen.data || {};
+    // Drop the onScreen's ex-N-* mirror of the old list; the next collect rebuilds it.
+    Object.keys(onScreen.data).forEach((k) => { if (/^ex-\d+-/.test(k)) delete onScreen.data[k]; });
+    if (!String(onScreen.data['fit-focus'] || '').trim()) onScreen.data['fit-focus'] = (C().SPLITS[session.split] || {}).label || session.split;
+    if (session.startedAt && !String(onScreen.data['fit-dur'] || '').trim()) onScreen.data['fit-dur'] = Math.max(1, Math.round((session.finishedAt - session.startedAt) / 60000)) + ' min';
+  }
+
+  // ── workouts finished where no day page was on screen (2026-11-17) ──────────
+  // The standalone Workout app has no day pages, another device has its own screen, and here Finish only writes when today's page
+  // is the one showing. A session says where it stands: `inLog` is false when Finish could not put its lifts in an Exercise Log,
+  // true once they are there. Sessions saved before this field have neither and are never copied (their rows may already be on
+  // the page, and nothing marks them). The Daily Success page is the only writer of day pages: it copies a pending workout in
+  // when that day's own page is on screen, then marks the session so no screen and no other device copies it twice.
+  const pendingFor = (dk) => sessions().filter((s) => s && s.inLog === false && !s.deleted && s.date === dk).sort((a, b) => (Number(a.finishedAt) || 0) - (Number(b.finishedAt) || 0));
+  // Marks sessions as in the log (a newer mt, so the mark wins every merge). Returns { was, changed }, or null when the phone refused the write.
+  function setInLog(ids) {
+    const want = new Set(ids.map(String)), now = Date.now(), was = sessions(), changed = [];
+    const all = was.map((s) => { if (!s || !want.has(String(s.id))) return s; const n = Object.assign({}, s, { inLog: true, mt: Math.max(now, (Number(s.mt) || 0) + 1) }); changed.push(n); return n; });
+    if (!changed.length || !writeJson(SESS, all)) return null;
+    return { was, changed };
+  }
+  function pushSessions(list) {
+    const cloud = window.NBDDsCloud;
+    if (!cloud || typeof cloud.pushWorkout !== 'function') return;
+    list.forEach((s) => { try { const p = cloud.pushWorkout(s); if (p && typeof p.catch === 'function') p.catch(() => {}); } catch (_) { /* the next sync sends it */ } });
+  }
+  function logPending() {
+    try {
+      if (typeof window.collectPage !== 'function' || typeof window.savePages !== 'function') return false;   // not the Daily Success page
+      /* global pages, cur */
+      const onScreen = (typeof pages !== 'undefined' && typeof cur !== 'undefined') ? pages[cur] : null;
+      if (!onScreen || onScreen.name) return false;   // the Dashboard, or a named page: only a day's own page has that day's log
+      const pend = pendingFor(onScreen.dk);
+      if (!pend.length) return false;
+      // A field has focus: the redraw below would take it away mid-word. The next draw, sync or return to the app tries again.
+      const a = document.activeElement;
+      if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return false;
+      // Mark first: a workout that is marked but not copied is still in history; one copied but not marked would be copied again.
+      const marked = setInLog(pend.map((s) => s.id));
+      if (!marked) return false;
+      window.collectPage(true);
+      const before = { exercises: onScreen.exercises, data: Object.assign({}, onScreen.data || {}) };
+      pend.forEach((s) => putOnPage(onScreen, s));
+      if (window.savePages() === false) {   // a full phone: put both back, so it is tried again later instead of being lost or doubled
+        onScreen.exercises = before.exercises; onScreen.data = before.data;
+        writeJson(SESS, marked.was);
+        return false;
+      }
+      pushSessions(marked.changed);
+      if (typeof window.renderPage === 'function') window.renderPage();
+      return true;
+    } catch (_) { return false; }
+  }
   // The day page's Exercise Log (app.js addExercise/collectPage) — only when
   // the page on screen is today's, so a workout never lands on another day.
   function writeToPage(session) {
@@ -843,13 +902,7 @@
       // Keep anything typed on the page first, then write to the page object
       // itself (not the DOM table), save, and re-render from it.
       window.collectPage(true);
-      const kept = (onScreen.exercises || []).filter((r) => r && Object.values(r).some((v) => String(v || '').trim()));
-      onScreen.exercises = kept.concat(C().toPageRows(session));
-      onScreen.data = onScreen.data || {};
-      // Drop the page's ex-N-* mirror of the old list; the next collect rebuilds it.
-      Object.keys(onScreen.data).forEach((k) => { if (/^ex-\d+-/.test(k)) delete onScreen.data[k]; });
-      if (!String(onScreen.data['fit-focus'] || '').trim()) onScreen.data['fit-focus'] = (C().SPLITS[session.split] || {}).label || session.split;
-      if (session.startedAt && !String(onScreen.data['fit-dur'] || '').trim()) onScreen.data['fit-dur'] = Math.max(1, Math.round((session.finishedAt - session.startedAt) / 60000)) + ' min';
+      putOnPage(onScreen, session);
       // A refused save (full storage) must not show "Logged to today's Exercise Log" (the workout itself is saved above).
       const saved = window.savePages() !== false;
       if (typeof window.renderPage === 'function') window.renderPage();
@@ -1092,5 +1145,8 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.NBDCoachUI = { refresh: refreshCard, open: openOrStart, close, start, _render: render };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') logPending(); });
+
+  // refresh() is what ds-firebase-sync.js calls after it merges the cloud's workouts: the card, then any workout that came in for the day on screen.
+  window.NBDCoachUI = { refresh: () => { refreshCard(); logPending(); }, open: openOrStart, close, start, _render: render, _logPending: logPending };
 })();
