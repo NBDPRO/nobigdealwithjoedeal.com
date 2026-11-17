@@ -16,10 +16,13 @@
  *   - Additive. Does NOT touch submitPublicLead / lead-alert / lead-bridge.
  *     The lead is captured + the office notified by the normal path
  *     regardless; this only adds the homeowner's emailed copy.
- *   - No new public endpoint → no "email anything to anyone" abuse vector.
- *     It can only fire on a lead the gated, rate-limited capture already
- *     created, and only emails the address on that lead (gateway-capped:
- *     email ≤200, estimateSummary ≤2000).
+ *   - No new public endpoint. It can only fire on a lead the gated,
+ *     rate-limited capture already created, and only emails the address on
+ *     that lead. 2026-11-17 (repo sweep M3): that was NOT enough — the email
+ *     carried the visitor-written estimateSummary under Joe's signature to any
+ *     address. It now carries only text built by estimate-email-logic.js from
+ *     a validated structured estimate, needs a Turnstile check that really
+ *     passed, and is limited to 3 requests per IP per day at the gateway.
  *   - NBD-only: a lead tagged with a non-NBD tenant companyId is skipped —
  *     this email is signed by Joe and books Joe's calendar.
  *   - Idempotent: Firestore triggers are at-least-once. We transactionally
@@ -48,6 +51,7 @@ const { Resend } = require('resend');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
 const { envCap } = require('./env-number');
 const MessagingControls = require('./messaging-controls');
+const EmailLogic = require('./estimate-email-logic');
 
 // ───────────────────────────────────────────────────────────────
 // Config
@@ -69,17 +73,6 @@ const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1
 // Helpers
 // ───────────────────────────────────────────────────────────────
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function isValidEmail(email) {
-  return typeof email === 'string' && email.length <= 254 && EMAIL_RE.test(email);
-}
-
-function sanitizeString(value, maxLen = 200) {
-  if (typeof value !== 'string') return '';
-  return value.trim().slice(0, maxLen);
-}
-
 function escapeHtml(value) {
   return String(value == null ? '' : value)
     .replace(/&/g, '&amp;')
@@ -88,7 +81,16 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
-function buildEstimateEmailHtml({ firstName, estimateSummary }) {
+// The opening line: the estimate "just like you asked", or (an old cached
+// page sent no structured estimate, so the block has no numbers) a plain
+// thank-you.
+function introLine(generic) {
+  return generic
+    ? 'Joe here. Thanks for running the numbers on my site:'
+    : "Joe here. Thanks for running the numbers on my site — here's your estimate, just like you asked:";
+}
+
+function buildEstimateEmailHtml({ firstName, estimateSummary, generic }) {
   const greeting = firstName ? `Hey ${escapeHtml(firstName)},` : 'Hey,';
   return `<!DOCTYPE html>
 <html>
@@ -101,7 +103,7 @@ function buildEstimateEmailHtml({ firstName, estimateSummary }) {
     </div>
     <div style="background:#fff;padding:32px 28px;border-radius:0 0 10px 10px;border:1px solid #e8e5e0;border-top:none;">
       <p style="font-size:16px;margin:0 0 16px;">${greeting}</p>
-      <p style="font-size:16px;margin:0 0 16px;">Joe here. Thanks for running the numbers on my site — here's your estimate, just like you asked:</p>
+      <p style="font-size:16px;margin:0 0 16px;">${escapeHtml(introLine(generic))}</p>
       <div style="background:#f5f3ef;border-left:4px solid #12223d;border-radius:6px;padding:16px 18px;margin:18px 0;font-family:'Courier New',Courier,monospace;font-size:14px;white-space:pre-line;">${escapeHtml(estimateSummary)}</div>
       <p style="font-size:16px;margin:0 0 16px;">The next step is simple, and it's free: I'll come out, walk the roof myself, and confirm exactly what you need (and what you don't).</p>
       <div style="text-align:center;margin:28px 0;">
@@ -122,12 +124,12 @@ function buildEstimateEmailHtml({ firstName, estimateSummary }) {
 </html>`;
 }
 
-function buildEstimateEmailText({ firstName, estimateSummary }) {
+function buildEstimateEmailText({ firstName, estimateSummary, generic }) {
   const greeting = firstName ? `Hey ${firstName},` : 'Hey,';
   return [
     greeting,
     '',
-    "Joe here. Thanks for running the numbers on my site — here's your estimate, just like you asked:",
+    introLine(generic),
     '',
     estimateSummary,
     '',
@@ -180,27 +182,23 @@ exports.estimateEmail = onDocumentCreated(
     const data = snap.data() || {};
     const leadId = event.params && event.params.id;
 
-    // Only the estimator's explicit "Email My Estimate" requests.
-    if (data.type !== 'email_estimate_request') return;
-
-    // NBD-only: skip leads tagged to another tenant.
-    if (data.companyId && String(data.companyId) !== NBD_OWNER_UID) {
-      logger.info('estimate_email_skipped_non_nbd_tenant', { leadId, companyId: data.companyId });
+    // Who gets it and what it says (repo sweep 2026-11-17, M3,
+    // estimate-email-logic.js): only an explicit "Email My Estimate" request,
+    // NBD's own, a plausible address, a Turnstile check that really passed
+    // (turnstileVerified, set by the gateway only) and not over the per-IP
+    // limit. The text is built from the structured estimate and NBD's own
+    // template; nothing the visitor wrote is emailed but a one-word name.
+    const decision = EmailLogic.decideEstimateEmail(data, NBD_OWNER_UID);
+    if (decision.action !== 'send') {
+      logger.info('estimate_email_skipped', { leadId, reason: decision.reason });
+      // Unverified / over the IP limit: a visible marker, nothing claimed, so
+      // a manual resend can still pick it up.
+      if (decision.status) await snap.ref.update({ estimateEmailStatus: decision.status }).catch(() => {});
       return;
     }
-
-    if (!isValidEmail(data.email)) {
-      logger.info('estimate_email_skipped_invalid_email', { leadId });
-      return;
-    }
-
-    const estimateSummary = sanitizeString(data.estimateSummary, 2000);
-    if (!estimateSummary) {
-      logger.info('estimate_email_skipped_empty_summary', { leadId });
-      return;
-    }
-
-    const firstName = sanitizeString(data.firstName, 80);
+    const estimateSummary = decision.summary;
+    const firstName = decision.firstName;
+    const generic = decision.generic;
 
     if (!enabled) {
       // Log only the non-PII leadId — never the homeowner email/firstName.
@@ -347,8 +345,8 @@ exports.estimateEmail = onDocumentCreated(
         to: data.email,
         replyTo: REPLY_TO,
         subject: 'Your Roof Estimate — No Big Deal Home Solutions',
-        html: buildEstimateEmailHtml({ firstName, estimateSummary }),
-        text: buildEstimateEmailText({ firstName, estimateSummary }),
+        html: buildEstimateEmailHtml({ firstName, estimateSummary, generic }),
+        text: buildEstimateEmailText({ firstName, estimateSummary, generic }),
         headers: {
           'X-NBD-Campaign': 'estimate-email-v1',
         },

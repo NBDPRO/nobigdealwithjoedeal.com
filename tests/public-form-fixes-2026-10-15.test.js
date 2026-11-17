@@ -348,7 +348,7 @@ function buildQuiz(P) {
     const run = async (savedId) => {
       const btn = { textContent: '', disabled: false, style: {} };
       const ctx = {
-        funnelData: { email: 'pat@example.com', estimate: {} }, trackCTA() {}, buildEstimateSummary: () => 's',
+        funnelData: { email: 'pat@example.com', estimate: {} }, trackCTA() {}, trackEvent() {}, emailEstimatePayload: () => ({ v: 1 }),
         window: { _saveLead: async () => savedId }, document: { getElementById: () => null }, console,
       };
       vm.createContext(ctx);
