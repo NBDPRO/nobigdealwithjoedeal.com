@@ -12,6 +12,8 @@
  *   4. app.js lays the whole token row for a custom theme and takes it off for the next theme.
  *   5. accent-ui.js: with no accent picked a custom theme keeps its own (derived) accent colours; a picked accent still wins.
  *   6. The three page rules that assumed a built-in skin, and the script order on both pages.
+ *   7. The wide sweep (every layout and overlay): colours that are drawn faded or on a tinted panel still read under a custom theme,
+ *      and the surfaces that are dark in every skin no longer borrow the card colours (these were wrong on the built-in skins too).
  *
  * Run: node tests/custom-theme-2026-11-17.test.js
  */
@@ -66,6 +68,15 @@ console.log('\n2. derive(): readable whatever was picked');
     low('--page-ink on the page', CT.contrast(d['--page-ink'], c.bg)); low('--page-muted on the page', CT.contrast(d['--page-muted'], c.bg));
     low('--page-ac on the page', CT.contrast(d['--page-ac'], c.bg)); low('--footer on the page', CT.contrast(d['--footer'], c.bg));
     if (CT.contrast('#ffffff', bar) < 7) low('the bar is dark enough for light text', 0);
+    // Drawn at 80% opacity (several captions are), and on a panel with a light tint over it. On a mid-tone surface even black or
+    // white cannot reach 4.5:1 faded, so the bar to clear is 4.5:1 or the best that black / white can do there, whichever is lower.
+    const faded = (col, on) => CT.contrast(CT.mix(col, on, 0.8), on);
+    const best = (on) => Math.min(4.5, faded(CT.bw(on), on));
+    if (faded(d['--muted'], paper) < best(paper) - 1e-9) low('--muted, faded, on the cards', 0);
+    if (faded(d['--page-muted'], c.bg) < best(c.bg) - 1e-9) low('--page-muted, faded, on the page', 0);
+    [bar, CT.tinted(bar)].concat(CT.FIXED_DARK).forEach((dk) => { if (faded(d['--on-dark'], dk) < best(dk) - 1e-9) low('--on-dark, faded, on a dark surface', 0); });
+    low('--ac-on-dark on the tinted bar', CT.contrast(d['--ac-on-dark'], CT.tinted(bar)));
+    if (CT.contrast('#ffffff', paper) >= 7) { low('--on-dark on a dark card', CT.contrast(d['--on-dark'], paper)); low('--ac-on-dark on a tinted dark card', CT.contrast(d['--ac-on-dark'], CT.tinted(paper))); }
     if (d['--ink'] === c.tc) keptInk++;
     if (d['--ac'] === c.accent) keptFill++; else deepest = Math.max(deepest, CT.contrast('#ffffff', d['--ac']));
     if (bar === c.s) keptBar++;
@@ -161,6 +172,30 @@ console.log('\n6. Page rules and script order');
   const logicTag = dsDoc.$$('script').find((s) => String(s.attr('src') || '').indexOf('custom-theme-logic.js') > -1);
   ok('Daily Success loads the colour logic before app.js, not deferred (app.js uses it as it boots)', ds.indexOf('custom-theme-logic.js') > -1 && ds.indexOf('custom-theme-logic.js') < ds.indexOf('app.js') && !!logicTag && !logicTag.has('defer') && !logicTag.has('async'));
   ok('the Workout app loads it before its theme script', wk.indexOf('custom-theme-logic.js') > -1 && wk.indexOf('custom-theme-logic.js') < wk.indexOf('workout-theme.js'));
+}
+
+console.log('\n7. The wide sweep: every layout and overlay');
+{
+  const d = D(PALE);   // its muted (#9090a0) clears 4.5:1 on its cards at full strength, but not at 80% opacity
+  const faded = (col, on) => CT.contrast(CT.mix(col, on, 0.8), on);
+  ok('a muted colour that only reads at full strength is replaced (captions are drawn at 80% opacity)', CT.contrast('#9090a0', '#17171f') >= 4.5 && faded('#9090a0', '#17171f') < 4.5 && d['--muted'] !== '#9090a0' && faded(d['--muted'], '#17171f') >= 4.5, d['--muted']);
+  ok('one with room to spare is kept as picked', D(DARK)['--muted'] === '#99aabb' && faded('#99aabb', '#1c2836') >= 4.5);
+  ok('the helpers: 80% of white over black, and a 10% light tint', CT.mix('#ffffff', '#000000', 0.8) === '#cccccc' && CT.tinted('#000000') === '#1a1a1a');
+
+  const rule = (css, sel) => kit.cssRule(css, sel) || {};
+  ok('a ghost button on the search bar (which follows the bar) takes the on-dark colour', rule(dsCss, ':root .sbar .btn-ghost').color === 'var(--on-dark,#c3cfdf)');
+  ok('a caption straight on the dark review overlay takes the on-dark colour; one inside a card there keeps the card\'s muted', rule(dsCss, ':root .wc-ov .wc-meta').color === 'var(--on-dark,#c3cfdf)' && rule(dsCss, ':root .wc-ov .wc-card .wc-meta').color === 'var(--muted)');
+  ok('the welcome guide\'s "Pick your layout" heading has its own colour (it inherited the card ink on a dark panel)', rule(dsCss, '#wg-layouts-wrap h3').color === '#fff');
+  const guide = dsDoc.byId('welcomeModal');
+  const words = guide ? guide.$$('[style]').filter((e) => { const st = e.attr('style').replace(/\s+/g, ''); return st.indexOf('color:var(--ac,') > -1 && st.indexOf('background:var(--ac,') !== 0; }) : [null];
+  const onDark = guide ? guide.$$('[style]').filter((e) => e.attr('style').replace(/\s+/g, '').indexOf('color:var(--ac-on-dark,var(--ac,#BD5728))') > -1).length : 0;
+  ok('no words in the welcome guide use the button fill as their text colour; they use the on-dark accent', words.length === 0 && onDark >= 4, words.length + ' / ' + onDark);
+  ok('the How-to panel (fixed dark): titles in the on-dark accent, step numbers white on the fill, a readable subtitle',
+    rule(dsCss, '.nhm-section-title').color === 'var(--ac-on-dark, var(--orange, #BD5728))' && rule(dsCss, '.nhm-num').color === '#fff' && CT.contrast(rule(dsCss, '.nhm-sub').color, '#0d1017') >= 4.5, JSON.stringify([rule(dsCss, '.nhm-section-title').color, rule(dsCss, '.nhm-num').color, rule(dsCss, '.nhm-sub').color]));
+  const lay = kit.read('docs/pro/daily-success/css/layouts.css'), chk = kit.read('docs/pro/daily-success/css/checkin.css');
+  ok('Cockpit: the check-in card\'s labels (same class name as the HUD labels) keep the card\'s text colour', rule(lay, '[data-ui="cockpit"] .ck-card .ck-l').color === 'inherit' && rule(lay, '[data-ui="cockpit"] .ck-l').color === 'var(--on-dark, #c3cfdf)');
+  ok('Journal: its field labels clear 4.5:1 on the journal paper', CT.contrast(rule(lay, '[data-ui="journal"] .jn-l').color, '#f7f3ea') >= 4.5, rule(lay, '[data-ui="journal"] .jn-l').color);
+  ok('the check-in caption is the muted colour at full strength, not the accent at 70%', rule(chk, '.ck-card small').color === 'var(--muted, #6b7280)' && !('opacity' in rule(chk, '.ck-card small')));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

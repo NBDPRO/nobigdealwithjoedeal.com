@@ -48,7 +48,7 @@
 [data-ui="journal"] .jn-date { font-size: 15px; font-style: italic; color: #4b5563; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 [data-ui="journal"] .jn-today { font-style: normal; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #a14a22; }
 [data-ui="journal"] .jn-field { display: block; margin-top: 14px; }
-[data-ui="journal"] .jn-l { display: block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #6b7280; margin-bottom: 4px; font-family: inherit; }
+[data-ui="journal"] .jn-l { display: block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #5f6673; margin-bottom: 4px; font-family: inherit; }
 [data-ui="journal"] .jn-in, [data-ui="journal"] .jn-note { display: block; width: 100%; min-height: 44px; padding: 8px 2px; border: 0; border-bottom: 1px solid #c9bda2; border-radius: 0; background: transparent; color: #1f2937; font: inherit; font-size: 19px; line-height: 1.5; }
 [data-ui="journal"] .jn-note { min-height: 128px; resize: vertical; border-bottom: 0; background-image: repeating-linear-gradient(transparent, transparent 27px, #d8cfb8 27px, #d8cfb8 28px); background-attachment: local; line-height: 28px; padding-top: 0; }
 [data-ui="journal"] .jn-in::placeholder, [data-ui="journal"] .jn-note::placeholder { color: #9ca3af; font-style: italic; }
@@ -123,6 +123,7 @@
 [data-ui="cockpit"] .ck-l { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--on-dark, #c3cfdf); overflow-wrap: anywhere; line-height: 1.2; }
 [data-ui="cockpit"] .ck-v { font-size: 17px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
 [data-ui="cockpit"] .ck-t.ok .ck-v { color: var(--grn, #34d399); }
+[data-ui="cockpit"] .ck-card .ck-l { color: inherit; }   /* the check-in card's labels share the class name; they sit on the card, not the HUD */
 [data-ui="cockpit"] .ck-s { font-size: 11px; color: var(--on-dark, #c3cfdf); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 [data-ui="cockpit"] .ck-behind { margin-top: 8px; font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--ac-on-dark, #E4783F); }
 [data-ui="cockpit"] .ck-behind.ok { color: var(--grn, #34d399); }

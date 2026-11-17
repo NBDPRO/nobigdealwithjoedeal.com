@@ -166,7 +166,35 @@ version of this suite had 22). The suite was rewritten to ask structural questio
      Both apps compute identical tokens for a custom theme. The sweep is a manual script, not a CI test.
    - Tests: `tests/custom-theme-2026-11-17.test.js` (34 checks; 400 random themes x 25 colour pairings), `ds-workout-installable` 151,
      `look-sync` 64. 38 deliberate breaks, all caught (one only after a check was tightened).
-   - Not swept: the overlays (Money, Sunday review, onboarding wizard, appearance picker), the Notebook, the other seven layouts, print.
+   - ~~Not swept: the overlays, the Notebook, the other seven layouts.~~ **Swept after #3124 merged (Jo: "sweep the overlays and other
+     layouts for custom themes too").** 37 screens: the Dashboard and day page of all eight layouts, eighteen overlays (Money, Sunday
+     review, Notebook, quick jump, export, history import, coach logger / settings / history, appearance, customize, welcome guide,
+     how-to, header menu, search, rename, delete, floor prompt) and the Workout app's logger. About 2,890 pieces of text per theme,
+     only text that is really on top at its own centre point, each against what is behind it.
+
+     | Theme | low-contrast spots before | after |
+     |---|---|---|
+     | Default | 24 | 1 (Quest's XP badge, 4.49:1) |
+     | Light | 31 | 0 |
+     | Warm Paper | not measured | 0 |
+     | custom dark | 30 | 0 |
+     | custom light | 41 | 0 |
+     | custom light page + dark cards | 26 | 0 |
+     | custom dark page + light cards | 39 | 0 |
+     | custom pale accent | 41 | 0 |
+
+     Custom themes were about level with the built-in skins: almost every spot was a bug the built-in skins had too. Fixed at the source:
+     the check-in caption (the accent at 70% opacity, 3.2-3.8:1 in every skin) is the muted colour; Cockpit's HUD label rule also hit the
+     check-in card's labels (same class name, `.ck-l`: 1.6:1 on Light); the welcome guide's "Pick your layout" heading had no colour and
+     inherited the card ink on a dark panel (1:1 on Light), and its accent words used the button fill; the How-to panel's titles, step
+     numbers and subtitle; a ghost button on the search bar and a caption on the review overlay used the card colours on a dark surface;
+     Journal's field labels (4.4:1). Custom-only: `derive()` now also keeps the muted and on-dark colours readable at 80% opacity (several
+     captions are drawn faded) and on a panel with a light tint over it. The property test caught a real edge there: with clashing hues
+     the faded colour can measure BETTER than the full one, so both are checked. `custom-theme-logic.js?v=2`, `layouts.css?v=14`,
+     `checkin.css?v=2`. `tests/custom-theme-2026-11-17.test.js` is at 45 checks; 20 deliberate breaks, all caught (one showed a
+     redundant line, which was removed).
+   - Still not swept: print, the PDF export, tablet / desktop widths, and overlays that need data to open (a workout summary with PRs,
+     a filled Sunday review). The sweep skips text over a gradient or an image. It is a manual script, not a CI test.
    **Limits:** (a) a pale custom accent shows darker on buttons than the colour picked (its text uses still show it as picked); (b) NOT exercised against the real cloud or on a phone: the sync is tested against the harness's fake Firestore;
    (c) a pick made in the first seconds on a brand-new install, before its first sync has finished, is stamped newer than the look chosen
    elsewhere and wins; (d) the records are account data, cleared on an account switch (the Daily Success device theme stays, the Workout
