@@ -153,6 +153,7 @@
       '<div class="prl-otitle"><span class="prl-store">' + esc(supplierLabel(offer.supplierId)) + '</span>' + esc(offer.title) + '</div>' +
       '<div class="prl-src">' + (offer.sku ? 'SKU ' + esc(offer.sku) : 'No SKU') + link + '</div>' +
       '<div class="prl-pack">' + packLine(offer) + '</div>' +
+      photoBlock('offer', offer.id, offer.photo, offer.title) +
       bestBlock(offer) +
       '<div class="prl-actions">' + btns.join('') + '</div>' +
       costPanelHtml(offer) +
@@ -233,6 +234,23 @@
       (S.error ? '<div class="prl-error" role="alert">' + esc(S.error) + '</div>' : '') +
       '</div>';
   }
+  /**
+   * A product's or an item's photo (2026-11-18). The picture is read with getBlob
+   * (NBDPriceLedger.paintPhotos fills the src); the owner and admins add, change or
+   * remove it. The file input sits inside its label: no inline handler.
+   */
+  function photoBlock(target, id, photo, what) {
+    const admin = PL().canSave();
+    const has = photo && typeof photo.path === 'string';
+    if (!has && !admin) return '';
+    const input = '<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="prl-file-input" data-prl-change="photo" data-prl-target="' + esc(target) + '" data-prl-id="' + esc(id) + '">';
+    return '<div class="prl-photo-row">' +
+      (has ? '<img class="prl-photo" alt="' + esc('Photo of ' + what) + '" data-prl-photo="' + esc(photo.path) + '"' + (photo.w && photo.h ? ' width="' + esc(photo.w) + '" height="' + esc(photo.h) + '"' : '') + '>' : '') +
+      (admin ? '<div class="prl-actions"><label class="ui-btn-quiet prl-btn prl-file">' + (has ? 'Change photo' : 'Add a photo') + input + '</label>' +
+        (has ? '<button type="button" class="ui-btn-quiet prl-btn" data-prl-action="removePhoto" data-prl-target="' + esc(target) + '" data-prl-id="' + esc(id) + '">Remove photo</button>' : '') + '</div>' : '') +
+      '</div>';
+  }
+
   /** Above the items: a tier whose cost is above its sell (Q5), and the last approved change per tier with Undo (Q8). */
   function costNotesHtml() {
     const p = S.product, out = [];
@@ -397,6 +415,7 @@
       : (admin ? 'Start by adding a store or supplier you buy from.' : 'No stores or suppliers have been added yet. An owner or admin adds them.')) + '</div>';
     return '<div class="prl-actions">' + top.join('') + '</div>' +
       (S.form && !S.form.offerId ? formHtml() : '') +
+      photoBlock('product', S.productId, S.link && S.link.photo, (S.product && S.product.name) || 'this product') +
       costNotesHtml() +
       (w.NBDPriceCompareUI ? w.NBDPriceCompareUI.productBlock(S.product, offers, S.suppliers) : '') +
       empty + offers.map(offerCard).join('');
@@ -404,12 +423,15 @@
 
   function paint() {
     const el = document.getElementById('prlBody');
-    if (el && S) el.innerHTML = bodyHtml();
+    if (el && S) {
+      el.innerHTML = bodyHtml();
+      if (typeof PL().paintPhotos === 'function') PL().paintPhotos(el).catch(() => { /* a picture that fails stays hidden */ });
+    }
   }
 
   async function reload() {
     const [suppliers, offers, links] = await Promise.all([PL().suppliers(), S.mode === 'unlinked' ? PL().unlinked() : PL().offersFor([S.productId]),
-      (S.mode !== 'unlinked' && PL().canSave() && typeof PL().productLinks === 'function') ? PL().productLinks() : Promise.resolve([])]);
+      (S.mode !== 'unlinked' && typeof PL().productLinks === 'function') ? PL().productLinks() : Promise.resolve([])]);
     if (!S) return;
     S.suppliers = suppliers; S.offers = offers; S.loading = false;
     S.link = (links || []).find((l) => l && l.id === S.productId) || null;
@@ -557,6 +579,17 @@
       toast('Pack size confirmed.', 'success');
       await reload();
     },
+    async removePhoto(id, el) {
+      const target = el && el.dataset.prlTarget;
+      if (target !== 'product' && target !== 'offer') return;
+      const ask = w.nbdConfirm || ((m) => Promise.resolve(w.confirm(m)));
+      if (!(await ask('Remove this photo?')) || !S) return;
+      const r = await PL().removePhoto(target, id);
+      if (!S) return;
+      if (!r.ok) { toast(r.message, 'error'); return; }
+      toast('Photo removed.', 'success');
+      await reload();
+    },
     async archive(id) {
       const r = await PL().archiveOffer(id, false);
       if (!S) return;
@@ -679,6 +712,19 @@
     document.addEventListener('change', function (ev) {
       const el = ev.target;
       if (S && el && el.dataset && el.dataset.prlChange === 'costTick' && S.cost) { S.cost.ticks[el.value] = el.checked === true; return; }
+      if (S && el && el.dataset && el.dataset.prlChange === 'photo') {
+        const file = el.files && el.files[0];
+        const target = el.dataset.prlTarget, id = el.dataset.prlId;
+        if (!file || (target !== 'product' && target !== 'offer') || !id) return;
+        toast('Saving the photo…', 'info');
+        PL().savePhoto(target, id, file).then(async (r) => {
+          if (!S) return;
+          if (!r.ok) { toast(r.message || 'That photo could not be saved.', 'error'); return; }
+          toast('Photo saved.', 'success');
+          await reload();
+        }).catch((e) => console.error('[price-offers-ui] photo failed:', e));
+        return;
+      }
       if (!S || !el || !el.dataset || el.dataset.prlChange !== 'packUnit') return;
       const box = document.getElementById('prlPackFields');
       if (box) box.innerHTML = packFields(el.value, null);

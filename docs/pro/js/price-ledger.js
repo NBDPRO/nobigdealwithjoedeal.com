@@ -332,6 +332,90 @@
     return syncing;
   }
 
+  // ── Product photos (2026-11-18) ──────────────────────────────────────
+  // Owner and admins add a photo to a product or a supplier item. The server
+  // re-encodes it into Storage (product-photos/{companyId}/…). It is read here with
+  // getBlob into a blob: URL, never a download link, and shown only inside the CRM.
+  const STORAGE_SDK = '/assets/vendor/firebase/10.12.2/firebase-storage.js';
+  const PHOTO_MAX = 3 * 1024 * 1024;
+  const blobUrls = {};
+
+  function readAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result || ''));
+      fr.onerror = () => reject(fr.error || new Error('read failed'));
+      fr.readAsDataURL(file);
+    });
+  }
+  /** Save a photo for a product ('product', productId) or an item ('offer', offerId) from a picked file. */
+  async function savePhoto(target, id, file) {
+    if (!enabled() || !canSave()) return { ok: false, message: 'Only the owner or an admin can add a photo.' };
+    if (!file || !/^image\/(png|jpeg|jpg|webp|gif)$/.test(file.type || '')) return { ok: false, message: 'Choose a JPG, PNG, WebP or GIF photo.' };
+    if (file.size > PHOTO_MAX) return { ok: false, message: 'That photo is over 3 MB. Choose a smaller one.' };
+    let image;
+    try { image = await readAsDataUrl(file); } catch (e) { warn('readPhoto', e); return { ok: false, message: 'That file could not be read.' }; }
+    const r = await save('savePhoto', { target, id, image });
+    if (r.ok) linksCache = null;
+    return r;
+  }
+  async function removePhoto(target, id) {
+    if (!enabled() || !canSave()) return { ok: false, message: 'Only the owner or an admin can remove a photo.' };
+    const r = await save('savePhoto', { target, id, remove: true });
+    if (r.ok) linksCache = null;
+    return r;
+  }
+  /** A blob: URL for a stored photo path, or null. Cached for the page's life. */
+  async function photoUrl(path) {
+    if (typeof path !== 'string' || path.indexOf('product-photos/') !== 0 || !w.storage) return null;
+    if (blobUrls[path]) return blobUrls[path];
+    try {
+      const st = await import(STORAGE_SDK);
+      const blob = await st.getBlob(st.ref(w.storage, path));
+      blobUrls[path] = URL.createObjectURL(blob);
+      return blobUrls[path];
+    } catch (e) { warn('photo', e); return null; }
+  }
+  /** Fill every <img data-prl-photo="<path>"> under root that has no picture yet. */
+  async function paintPhotos(root) {
+    const imgs = Array.prototype.slice.call((root || document).querySelectorAll('img[data-prl-photo]:not([src])'));
+    for (const img of imgs) {
+      const url = await photoUrl(img.getAttribute('data-prl-photo'));
+      if (url) img.src = url; else img.hidden = true;
+    }
+  }
+  // The product cards: one productLinks read per page view (refreshed after a save).
+  let linksCache = null;
+  async function cardPhotos() {
+    const slots = Array.prototype.slice.call(document.querySelectorAll('[data-prl-card-photo]:not([data-prl-done])'));
+    if (!slots.length || !enabled()) return;
+    slots.forEach((s) => s.setAttribute('data-prl-done', '1'));
+    if (!linksCache) linksCache = productLinks();
+    const links = await linksCache;
+    const byId = {};
+    (links || []).forEach((l) => { if (l && l.photo && l.photo.path) byId[l.id] = l.photo.path; });
+    for (const s of slots) {
+      const p = byId[s.getAttribute('data-prl-card-photo')];
+      if (!p) continue;
+      const url = await photoUrl(p);
+      if (!url) continue;
+      const img = document.createElement('img');
+      img.className = 'prl-card-img'; img.alt = ''; img.src = url; img.loading = 'lazy';
+      s.appendChild(img);
+      s.hidden = false;
+    }
+  }
+  let cardTimer = null;
+  function watchCards() {
+    if (typeof MutationObserver !== 'function' || !document.body) return;
+    new MutationObserver(() => {
+      if (cardTimer || !enabled()) return;
+      cardTimer = setTimeout(() => { cardTimer = null; cardPhotos().catch((e) => warn('cardPhotos', e)); }, 150);
+    }).observe(document.body, { childList: true, subtree: true });
+    cardPhotos().catch((e) => warn('cardPhotos', e));
+  }
+  try { watchCards(); } catch (e) { warn('watchCards', e); }
+
   // The Product Library may draw its cards before the flags arrive: ask for one re-render.
   w.addEventListener('nbd:flags-loaded', function () {
     try { if (enabled() && w._productLib && typeof w._productLib.render === 'function' && document.querySelector('.plx-card-foot')) w._productLib.render(); } catch (e) { warn('re-render', e); }
@@ -344,5 +428,6 @@
     suppliers, offersFor, history, unlinked, allOffers, seenMarks, compareSettings,
     saveAccount, saveOffer, linkOffer, verifyPack, archiveOffer, voidObservation, record, recordHdReceipts, importRows, markSeen,
     approveCost, undoCost, productLinks, syncApplied, observation,
+    savePhoto, removePhoto, photoUrl, paintPhotos, cardPhotos,
   };
 })();

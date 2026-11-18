@@ -8,7 +8,9 @@
  *     voidObservation; markSeen (slice 3: the shared "seen" list for on-screen alerts,
  *     priceBook/{companyId}/priceConfig/seen); approveCost and undoCost (slice 4: a
  *     supplier price into the company's cost book, one tier at a time; the only
- *     callable path that writes catalogCosts, and only costs.<productId>.cost.<tier>).
+ *     callable path that writes catalogCosts, and only costs.<productId>.cost.<tier>);
+ *     savePhoto (2026-11-18: a product's or an item's photo, re-encoded, in Storage
+ *     product-photos/{companyId}/…; 20 an hour per person).
  *     Answers { ok, id }, plus `applied` for approveCost and undoCost.
  *   priceLedgerRecord  { rows: [1..500], channel? }   owner / company_admin / manager
  *     Typed prices into the dated, append-only history. A manager's row is stored
@@ -96,12 +98,18 @@ const REASONS = {
   no_change: 'Your cost book already has this cost.',
   confirm_floor: 'This takes the margin under your floor. Approve it again to confirm.',
   confirm_above_sell: 'This cost is above the sell price. Approve it again to confirm.',
+  // product photos (2026-11-18)
+  bad_photo_target: 'That photo could not be saved here.',
+  photo_bad: 'That file could not be read as a photo. Choose a JPG, PNG, WebP or GIF.',
+  photo_too_big: 'That photo is over 3 MB. Choose a smaller one.',
 };
 
 async function priceLedgerSave(request) {
   const caller = await priceCaller(request, 'admin', 'priceLedgerSave', 60);
   const op = request.data && request.data.op;
   if (typeof op !== 'string' || !Object.prototype.hasOwnProperty.call(Store.saveOps, op)) throw new HttpsError('invalid-argument', 'Unknown operation');
+  // A photo is re-encoded on the server: its own, tighter limit (20 an hour per person).
+  if (op === 'savePhoto') await callableRateLimit(request, 'priceLedgerSavePhoto', 20, 3_600_000);
   const data = (request.data && typeof request.data.data === 'object' && request.data.data) || {};
   const out = await Store.saveOps[op](getFirestore(), caller.companyId, data, { uid: caller.uid, role: caller.role }, Date.now());
   if (!out.ok) {
@@ -178,6 +186,7 @@ async function priceCaller(request, need, name, perMinute) {
 }
 
 const OPTS = { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true, timeoutSeconds: 60, memory: '256MiB' };
-exports.priceLedgerSave = onCall(OPTS, withSentry('priceLedgerSave', require('./tenant-guard').wrapCallable(priceLedgerSave)));
+// priceLedgerSave re-encodes product photos with sharp (savePhoto): more memory, as uploadCompanyLogo has.
+exports.priceLedgerSave = onCall(Object.assign({}, OPTS, { memory: '512MiB' }), withSentry('priceLedgerSave', require('./tenant-guard').wrapCallable(priceLedgerSave)));
 exports.priceLedgerRecord = onCall(OPTS, withSentry('priceLedgerRecord', require('./tenant-guard').wrapCallable(priceLedgerRecord)));
 exports._internal = { priceCaller, priceLedgerSave, priceLedgerRecord, MESSAGES, REASONS };
