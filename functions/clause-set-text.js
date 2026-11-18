@@ -459,5 +459,7 @@
       ]
     }
   };
-  return { CLAUSES: CLAUSES };
+  // The packet's three milestone placeholders, replaced as one run by the real milestones.
+  var MILESTONES = '{{milestone 1 label and percent}}, {{milestone 2}}, {{milestone 3}}';
+  return { CLAUSES: CLAUSES, MILESTONES: MILESTONES };
 });
