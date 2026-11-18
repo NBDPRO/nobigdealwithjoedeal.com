@@ -102,6 +102,7 @@ class Layout {
  *   lines: [{ name, quantity, lineTotalCents }], tierName, totalCents,
  *   depositPlan: { label, valueText, summary, rows: [{ label, due, amountText }] } | null,
  *   signers: [{ id, name }],
+ *   clauseSet: ClauseSet.renderV1 result + party (flag docClauseSetV1, set by the caller) | absent = today's document
  * }
  */
 async function buildEstimateContractPdf(input) {
@@ -113,6 +114,7 @@ async function buildEstimateContractPdf(input) {
       type: 'estimate_esign', priceCents: i.totalCents == null ? null : Number(i.totalCents),
       address: (i.customer || {}).address, homeownerName: (i.customer || {}).name,
       mailingAddress: i.sellerAddress, needsMailingAddress: true, entityName: i.entityName,
+      clauseConfigMissing: i.clauseSet && Array.isArray(i.clauseSet.missing) ? i.clauseSet.missing : [],
     });
     if (gaps.length) {
       const err = new Error('contract has blanks: ' + gaps.map((g) => g.code).join(','));
@@ -137,6 +139,13 @@ async function buildEstimateContractPdf(input) {
       .filter(Boolean).join('  ·  ') || ' ', { size: 9, gap: 8, color: [0.35, 0.37, 0.42] })
     .rule();
 
+  // Clause set v1 (flag docClauseSetV1): every paragraph prints with its clause id, bold lead-ins as plain text.
+  const cs = i.clauseSet && Array.isArray(i.clauseSet.sections) ? i.clauseSet : null;
+  const clauseText = (t) => String(t).replace(/\*\*/g, '');
+  const clauseItems = (items) => (items || []).filter((x) => !x.byRef).forEach((x) => x.paragraphs.forEach((p) => {
+    L.text(x.id + '  ' + clauseText(p), { size: 9, gap: 4 });
+  }));
+
   const c = i.customer || {};
   L.text('PREPARED FOR', { size: 8.5, bold: true, gap: 2, color: [0.35, 0.37, 0.42] })
     .text(c.name || '-', { bold: true, gap: 1 });
@@ -145,6 +154,11 @@ async function buildEstimateContractPdf(input) {
   if (contact) L.text(contact, { gap: 1 });
   L.y -= 6;
   L.rule();
+  if (cs && cs.party) {
+    L.text('PARTIES', { size: 8.5, bold: true, gap: 3, color: [0.35, 0.37, 0.42] });
+    cs.party.paragraphs.forEach((p) => L.text('PARTY-1  ' + clauseText(p), { size: 9.5, gap: 6 }));
+    L.rule();
+  }
 
   // ── Scope ──────────────────────────────────────────────────────────────
   L.text('SCOPE OF WORK', { size: 8.5, bold: true, gap: 4, color: [0.35, 0.37, 0.42] });
@@ -197,6 +211,14 @@ async function buildEstimateContractPdf(input) {
   }
   L.y -= 3;
   L.text(KyLaw.PAYMENT_CLAUSE, { size: 9.5, gap: 8 });
+  if (cs) {
+    cs.sections.forEach((s) => {
+      if (!s.items.some((x) => !x.byRef)) return;
+      L.ensure(40);
+      L.text(s.title.toUpperCase(), { size: 8.5, bold: true, gap: 3, color: [0.35, 0.37, 0.42] });
+      clauseItems(s.items);
+    });
+  }
 
   // ── Acceptance + signatures (kept together with the FTC statement) ─────
   const accept = 'By signing below, the homeowner' + (signers.length > 1 ? 's' : '') +
@@ -208,12 +230,15 @@ async function buildEstimateContractPdf(input) {
   const kyHssa = KyLaw.kyHomeSolicitationApplies(i.state);
   const hssaLines = [KyLaw.KY_HSSA_CAPTION, KyLaw.KY_HSSA_TEXT, company, i.sellerAddress || '________________________________'];
   const hssaH = kyHssa ? hssaLines.reduce((h, t) => h + L.textHeight(t, 10.5, true) + 3, 8) : 0;
-  const need = L.textHeight(accept, BODY, false) + L.textHeight(KyLaw.FTC_STATEMENT, 10.5, true) + hssaH + 24 + signers.length * SIG_BLOCK;
+  const partyLines = cs && cs.party && cs.partyBlock ? [cs.partyBlock.nameLine, cs.partyBlock.byLine] : [];
+  const need = L.textHeight(accept, BODY, false) + L.textHeight(KyLaw.FTC_STATEMENT, 10.5, true) + hssaH + 24 + signers.length * SIG_BLOCK
+    + partyLines.reduce((h, t) => h + L.textHeight(t, BODY, false) + 4, 0);
   if (L.y - need < M) L.newPage();
   L.text('ACCEPTANCE', { size: 8.5, bold: true, gap: 3, color: [0.35, 0.37, 0.42] })
     .text(accept, { gap: 8 })
     // 16 CFR 429.1(a): in immediate proximity to the buyer's signature, bold, >= 10 pt.
     .text(KyLaw.FTC_STATEMENT, { size: 10.5, bold: true, gap: 10 });
+  partyLines.forEach((t, k) => L.text(t, { gap: k === partyLines.length - 1 ? 8 : 1 }));
   if (kyHssa) {
     L.text(KyLaw.KY_HSSA_CAPTION, { size: 10.5, bold: true, gap: 3 })
       .text(KyLaw.KY_HSSA_TEXT, { size: 10.5, bold: true, gap: 3 })
@@ -271,7 +296,7 @@ async function buildEstimateContractPdf(input) {
 
   const bytes = await doc.save({ useObjectStreams: true });
   const pages = doc.getPages().map(() => ({ w: W, h: H, rotation: 0 }));
-  return { bytes, pages, fields, systemFields };
+  return { bytes, pages, fields, systemFields, clauseRefs: cs ? cs.refs.slice() : null };
 }
 
 /**

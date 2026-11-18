@@ -29,17 +29,20 @@ const Checks = require('./doc-send-checks');
 
 const FLAG_NAME = 'docEvidenceFoundation';
 const FLAG_DEFAULT = false;
+// Phase 2 (2026-11-18): print the clause set v1 on the contract-class paths. Per person, default OFF.
+const CLAUSE_FLAG_NAME = 'docClauseSetV1';
 
 // The platform tenant's legal entity (company-profile.js brand.entityName default,
 // the same string). A tenant key-less record, or the NBD owner's, is NBD's; any
 // other tenant must set its own — never inherited.
 const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const NBD_ENTITY_NAME = 'No Big Deal Solutions LLC';
+const NBD_PHONE = '(859) 420-7382';
 
 /** Only the boolean true turns the flag on; per-person overrides the default doc. */
-function flagOn(flagsDefault, flagsMine) {
+function flagOn(flagsDefault, flagsMine, name) {
   const merged = Object.assign({}, flagsDefault || {}, flagsMine || {});
-  return merged[FLAG_NAME] === true;
+  return merged[name || FLAG_NAME] === true;
 }
 
 /**
@@ -58,7 +61,7 @@ async function flagForUid(db, uid, opts) {
     if (flagDocId) reads.push(strict ? db.doc('feature_flags/' + flagDocId).get() : db.doc('feature_flags/' + flagDocId).get().catch(() => null));
     const snaps = await Promise.all(reads);
     const docs = snaps.map((s) => (s && s.exists ? (s.data() || {}) : {}));
-    return flagOn(docs[0], docs[1]);
+    return flagOn(docs[0], docs[1], opts && opts.flag);
   } catch (e) { if (strict) throw e; return false; }
 }
 
@@ -116,6 +119,8 @@ function buildEvidence(input) {
     path: _s(i.path, 40),
     clauseSetVersion: _s(i.clauseSetVersion, 60),
     clauseIds: Array.isArray(i.clauseIds) ? i.clauseIds.slice(0, 60).map(String) : [],
+    // true when the stored document's clause-set marker did not match the refs the server recomputed (review 2026-11-18, item 4).
+    clauseRefsMismatch: i.clauseRefsMismatch === true,
     documentSha256: _s(i.documentSha256, 64),
     signedSha256: _s(i.signedSha256, 64),
     consent: {
@@ -133,8 +138,60 @@ function buildEvidence(input) {
   };
 }
 
-/** { clauseSetVersion, clauseIds } for a lead (+ estimate), through the one Kentucky classifier. */
-function stampFor(KyLaw, lead, est) {
+/**
+ * Which by-reference clauses (statutory blocks the registry does not retype) a document's TEXT actually carries
+ * (review 2026-11-18, item 1). PAY-2 and WAR-4 are the template's own sections and cannot be read back from text: the
+ * caller that built the document attests them. -> { 'CANC-1': bool, 'INS-1': bool, 'INS-3': bool, 'INS-4': bool, 'LIEN-3': bool, 'PAY-2': false, 'WAR-4': false }
+ */
+function printedByRef(KyLaw, html) {
+  const raw = html == null ? '' : String(html);
+  const text = Checks.visibleText(raw).replace(/\s+/g, ' ');
+  const has = (s) => typeof s === 'string' && s.trim() !== '' && text.indexOf(s.replace(/\s+/g, ' ').trim()) !== -1;
+  return {
+    'CANC-1': !!(KyLaw && typeof KyLaw.hasCancelPacket === 'function' && KyLaw.hasCancelPacket(raw)),
+    'INS-1': has(KyLaw && KyLaw.PAYMENT_CLAUSE),
+    'INS-3': has(KyLaw && KyLaw.KY_NOTICE_CANCEL) && has(KyLaw && KyLaw.KY_NOTICE_NO_ASSIGNMENT),
+    'INS-4': /data-nbd-noc="ky"/.test(raw),
+    'LIEN-3': has(KyLaw && KyLaw.KY_LIEN_CLAUSE),
+    'PAY-2': false,
+    'WAR-4': false,
+  };
+}
+
+// Refs a document may carry or omit without that being a disagreement: the template's own payment schedule and
+// warranty section (a contract with no warranty tier prints no WAR-4).
+const OPTIONAL_REFS = ['PAY-2_V1', 'WAR-4_V1'];
+
+/**
+ * The v1 refs a document of this lead's kind can carry, recomputed on the server from the lead (state, payment
+ * source) and the registry's CURRENT wording versions; never read from the document. By-reference blocks are
+ * included only when printed (html given: read from the text; html null: all, for a server-built document).
+ */
+function expectedV1Refs(KyLaw, lead, est, html) {
+  const ctx = clauseContextFor(KyLaw, lead, est);
+  const byRef = html == null
+    ? { 'INS-1': true, 'INS-3': true, 'INS-4': true, 'LIEN-3': true, 'CANC-1': true }
+    : printedByRef(KyLaw, html);
+  const r = ClauseSet.renderV1({
+    state: ctx.state, paymentSource: ctx.paymentSource,
+    terms: ClauseSet.paymentTermsFor({}, true), party: ClauseSet.partyFor({}, true), facts: {},
+    printed: Object.assign({}, byRef, { 'PAY-2': true, 'WAR-4': true }),
+  });
+  return r.refs;
+}
+
+const _core = (list) => list.filter((x) => OPTIONAL_REFS.indexOf(x) === -1).slice().sort().join(',');
+
+/**
+ * { clauseSetVersion, clauseIds [, clauseRefsMismatch: true] } for a lead (+ estimate), through the one Kentucky classifier.
+ * opts.refs: refs a SERVER-built document reports (e-sign PDF, deal page); only refs the registry would print for this
+ *   lead are kept.
+ * opts.html + opts.v1: a stored document from the rep's browser. Its marker comment is only a HINT (a rep can write
+ *   anything into stored HTML): the refs are recomputed here from the lead and the document text, the marker must agree
+ *   with them, the version must be the registry's current one, and the clause flag must have been on (opts.v1 === true).
+ *   Anything else records the legacy statutory refs only and sets clauseRefsMismatch.
+ */
+function stampFor(KyLaw, lead, est, opts) {
   let j = null;
   try { j = KyLaw.classifyLead(lead || {}, est || {}); } catch (_) { j = null; }
   let source = '';
@@ -144,7 +201,124 @@ function stampFor(KyLaw, lead, est) {
     source = j.insurance ? 'insurance' : (jt === 'finance' ? 'financed' : 'cash');
   }
   const d = ClauseSet.describeFor({ state: j ? j.state : '', paymentSource: source });
-  return { clauseSetVersion: d.clauseSetVersion, clauseIds: d.clauses.map((c) => c.ref) };
+  const out = { clauseSetVersion: d.clauseSetVersion, clauseIds: d.clauses.map((c) => c.ref) };
+  const o = opts || {};
+  const add = (refs) => refs.forEach((r) => { if (out.clauseIds.indexOf(r) === -1) out.clauseIds.push(r); });
+  if (Array.isArray(o.refs)) {
+    let exp = [];
+    try { exp = expectedV1Refs(KyLaw, lead, est, null); } catch (_) { exp = []; }
+    const keep = o.refs.map(String).filter((r) => exp.indexOf(r) !== -1);
+    if (keep.length) add(keep);
+  } else if (typeof o.html === 'string') {
+    const m = /<!-- nbd:clause-set (CS-[0-9.-]+) ([A-Za-z0-9_,-]{1,2000}) -->/.exec(o.html);
+    if (m) {
+      let exp = null;
+      try { exp = expectedV1Refs(KyLaw, lead, est, o.html); } catch (_) { exp = null; }
+      const claimed = m[2].split(',');
+      const same = !!exp && o.v1 === true && m[1] === ClauseSet.CLAUSE_SET_VERSION
+        && claimed.every((r) => exp.indexOf(r) !== -1) && _core(claimed) === _core(exp);
+      if (same) add(claimed); else out.clauseRefsMismatch = true;
+    }
+  }
+  return out;
+}
+
+/** Is this tenant key the NBD platform tenant (or key-less, which reads as NBD like entityNameFor)? */
+function isNbdTenant(tenantKey) { return !tenantKey || String(tenantKey) === NBD_OWNER_UID; }
+
+/** { state, paymentSource } the clause set reads for a lead (+ estimate): unreadable state keeps the source unknown (strict). */
+function clauseContextFor(KyLaw, lead, est) {
+  let j = null;
+  try { j = KyLaw.classifyLead(lead || {}, est || {}); } catch (_) { j = null; }
+  if (!j || !j.state) return { state: '', paymentSource: '' };
+  const jt = typeof KyLaw.normJobType === 'function' ? KyLaw.normJobType((lead || {}).jobType) : '';
+  return { state: j.state, paymentSource: j.insurance ? 'insurance' : (jt === 'finance' ? 'financed' : 'cash') };
+}
+
+/**
+ * The clause set v1 for a server-built document (flag docClauseSetV1): renderV1 with this tenant's numbers
+ * (NBD's own only for the NBD tenant), its party block and the job facts. Pure; the caller reads the flag.
+ */
+function buildClauseSet(KyLaw, lead, est, profile, tenantKey, facts, printed) {
+  // Review 2026-11-18, item 9: a lead with neither companyId nor userId is nobody's. It never reads as NBD (NBD's numbers
+  // and party names); the v1 build is refused instead.
+  if (!tenantKey) {
+    const err = new Error('This lead has no company on it, so the clause set cannot be built. Open the lead, check its company, and try again.');
+    err.clauseRefused = true;
+    throw err;
+  }
+  const nbd = isNbdTenant(tenantKey);
+  const p = profile || {};
+  const brand = p.brand || {};
+  const ctx = clauseContextFor(KyLaw, lead, est);
+  const phone = String(((brand.contact || {}).phone) || '').trim() || (nbd ? NBD_PHONE : '');
+  return ClauseSet.renderV1({
+    state: ctx.state, paymentSource: ctx.paymentSource,
+    terms: ClauseSet.paymentTermsFor(p.paymentTerms, nbd),
+    party: ClauseSet.partyFor(brand, nbd),
+    // Review 2026-11-18, item 7: user-supplied facts carry no scannable {{token}} into the document.
+    facts: Object.assign({ companyPhone: ClauseSet.plain(phone) }, safeFacts(facts)),
+    printed: printed || undefined,
+  });
+}
+
+/** The job facts with every string made token-safe (ClauseSet.plain); non-strings (milestones) pass through. */
+function safeFacts(facts) {
+  const out = {};
+  Object.keys(facts || {}).forEach((k) => {
+    const v = facts[k];
+    out[k] = typeof v === 'string' ? ClauseSet.plain(v) : (Array.isArray(v) ? v.map((x) => (typeof x === 'string' ? ClauseSet.plain(x) : x)) : v);
+  });
+  return out;
+}
+
+/** The by-reference blocks the server e-sign estimate PDF actually prints: the Payment clause, the FTC cancellation forms and, when the estimate has a deposit plan, its schedule. */
+function pdfByRef(hasDepositPlan) {
+  return { 'PAY-2': !!hasDepositPlan, 'INS-1': true, 'CANC-1': true, 'WAR-4': false, 'INS-3': false, 'INS-4': false, 'LIEN-3': false };
+}
+
+/** buildClauseSet for a callable: a refusal becomes a failed-precondition HttpsError (HttpsError is passed in). */
+function buildClauseSetFor(HttpsError, KyLaw, lead, est, profile, tenantKey, facts, printed) {
+  try { return buildClauseSet(KyLaw, lead, est, profile, tenantKey, facts, printed); }
+  catch (e) {
+    if (e && e.clauseRefused) throw new HttpsError('failed-precondition', e.message);
+    throw e;
+  }
+}
+
+const _esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+/** The clause set as the HTML block the deal page carries: escaped, ids shown, bold lead-ins. */
+function clauseSetHtml(cs) {
+  const para = (t) => _esc(t).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  const items = (list) => (list || []).filter((x) => !x.byRef).map((x) => x.paragraphs.map((p) =>
+    '<p style="margin:6px 0;"><span style="color:#777;font-size:10px;">' + _esc(x.id) + '</span> ' + para(p) + '</p>').join('')).join('');
+  const parts = [];
+  if (cs.party) parts.push('<h3 style="margin:10px 0 4px;font-size:13px;">Parties</h3><p style="margin:6px 0;"><span style="color:#777;font-size:10px;">PARTY-1</span> ' + para(cs.party.paragraphs[0]) + '</p>');
+  (cs.sections || []).forEach((s) => {
+    const inner = items(s.items);
+    if (inner) parts.push('<h3 style="margin:10px 0 4px;font-size:13px;">' + _esc(s.title) + '</h3>' + inner);
+  });
+  if (cs.partyBlock) parts.push('<p style="margin:10px 0 4px;font-size:12px;"><strong>' + _esc(cs.partyBlock.nameLine) + '</strong><br>' + _esc(cs.partyBlock.byLine) + '</p>');
+  return '<div data-nbd-clause-set="' + _esc(cs.clauseSetVersion) + '" style="background:#fff;color:#111;border-radius:10px;padding:14px;margin:16px 0;font-size:12px;line-height:1.5;">' + parts.join('') + '</div>';
+}
+
+/** Put the clause block before the page's Sign & Schedule section (else the signature box, else the end). */
+function injectClauseBlock(html, block) {
+  const h = String(html == null ? '' : html);
+  if (!block) return h;
+  const marks = ['<div class="section-title">Sign & Schedule</div>', '<div class="section-title">Sign &amp; Schedule</div>', '<div class="sign-section">', '</body>'];
+  for (let k = 0; k < marks.length; k++) {
+    const at = h.indexOf(marks[k]);
+    if (at >= 0) return h.slice(0, at) + block + h.slice(at);
+  }
+  return h + block;
+}
+
+/** The flag as a send gate reads it (a read error is a retryable refusal, never "off"). */
+async function clauseFlagForGate(db, uid, HttpsError) {
+  try { return await flagForUid(db, uid, { strict: true, flag: CLAUSE_FLAG_NAME }); }
+  catch (_) { throw new HttpsError('unavailable', FLAG_UNREADABLE_MSG); }
 }
 
 /** The legal entity a tenant's contracts name: its own, else NBD's for the NBD tenant only. */
@@ -184,6 +358,7 @@ function serverContractGaps(o) {
     entityName: entityNameFor(x.profile, x.tenantKey),
     startDate: 'not observable on the server', estimatedCompletion: 'not observable on the server',
     text: x.html == null ? '' : x.html,
+    clauseConfigMissing: x.clauseConfigMissing,
   });
 }
 
@@ -193,9 +368,13 @@ function estimateCents(est) {
   return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
 }
 
+/** Is the clause-set v1 flag on for this person? An unreadable flag reads OFF (it only adds text; the send gate is the other flag). */
+function clauseFlagForUid(db, uid) { return flagForUid(db, uid, { flag: CLAUSE_FLAG_NAME }); }
+
 module.exports = {
+  CLAUSE_FLAG_NAME, clauseFlagForUid,
   FLAG_NAME, FLAG_DEFAULT, NBD_ENTITY_NAME, CLAUSE_SET_VERSION: ClauseSet.CLAUSE_SET_VERSION,
-  flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
+  NBD_OWNER_UID_FOR_TESTS: NBD_OWNER_UID, clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, buildClauseSetFor, clauseFlagForGate, printedByRef, expectedV1Refs, pdfByRef, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
   serverContractGaps, estimateCents, isContractClass: Checks.isContractClass,
   describeGaps: Checks.describeGaps,
 };

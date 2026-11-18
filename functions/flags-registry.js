@@ -287,6 +287,8 @@ const FIRESTORE_FLAGS = [
     meaning: 'Supplier price ledger: the Stores & prices sheet and the two ledger callables. Off = the callables refuse and the screen is hidden. Per person. Never changes a cost book or an estimate.' },
   { name: 'docEvidenceFoundation', default: false, dark: true, file: 'doc-evidence.js', doc: 'documentation/projects/CLAUSE-EVIDENCE-FOUNDATION-2026-11-18.md',
     meaning: 'Contract send checks (blank price, address, names, placeholders refuse the send), the in-person signing evidence write and the remote-link consent box. Off = none run. Per person. New contracts only.' },
+  { name: 'docClauseSetV1', default: false, dark: true, file: 'doc-evidence.js', doc: 'documentation/projects/CLAUSE-SET-V1-2026-11-18.md',
+    meaning: 'Prints the clause set v1 (payment, late, change-order, lien, warranty, dispute and party text) on new contracts and refuses a send that lacks a Company Profile payment term. Off = every document is byte-identical. Per person.' },
 ];
 
 module.exports = { buildResponse, FLAGS, GROUPS, ENV_DOC, FIRESTORE_FLAGS, flagStatus, parseCommitted, isSafeName, safeValue, stateFor, SECRET_NAME_RE };

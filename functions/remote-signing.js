@@ -437,7 +437,10 @@ exports.createSignRequest = onCall(
     // flagOnAtMint is ALSO what the sign page will do about consent: it is stamped on the token (consentAsked)
     // so getSignDocument and submitSignature follow the decision made here and never re-read the flag (finding 7).
     const flagOnAtMint = await DE.flagForGate(db, uid, HttpsError);
-    const gateOn = flagOnAtMint && (CW.isContractDocType(docMeta.type) || gateClass);
+    // Review 2026-11-18, item 6: the unresolved-number / placeholder gate also runs under docClauseSetV1 (strict read,
+    // a read error refuses). The consent checkbox above stays docEvidenceFoundation's alone.
+    const clauseFlagOnAtMint = await DE.clauseFlagForGate(db, uid, HttpsError);
+    const gateOn = (flagOnAtMint || clauseFlagOnAtMint) && (CW.isContractDocType(docMeta.type) || gateClass);
     let gateHtml = null;
     if (CW.isContractDocType(docMeta.type)) {
       let contractHtml = '';
@@ -553,7 +556,7 @@ exports.createSignRequest = onCall(
       priceSnapshot,
       ...(isContract && !priceSnapshot ? { priceSnapshotMissing: true, priceLockReason } : {}),
       // Evidence parity (2026-11-18): the clause set this document was sent under.
-      ...DE.stampFor(KyLaw, lead, {}),
+      ...DE.stampFor(KyLaw, lead, {}, { html: gateHtml, v1: clauseFlagOnAtMint === true }),
       status: 'pending',
       mintedAt: FieldValue.serverTimestamp(),
       expiresAt,
@@ -905,11 +908,13 @@ exports.submitSignature = onRequest(
         tx.update(tokRef, { status: 'signed', signedAt: FieldValue.serverTimestamp(),
           evidenceFacts: Object.assign({}, evidenceFacts, {
             clauseSetVersion: t.clauseSetVersion || null, clauseIds: Array.isArray(t.clauseIds) ? t.clauseIds : [],
+            clauseRefsMismatch: t.clauseRefsMismatch === true,
           }),
         });
         return { leadId: t.leadId, docId: t.docId, ownerUid: t.ownerUid, htmlPath: t.htmlPath, signerName: t.signerName || '',
           docType: t.docType || null,
           clauseSetVersion: t.clauseSetVersion || null, clauseIds: Array.isArray(t.clauseIds) ? t.clauseIds : [],
+          clauseRefsMismatch: t.clauseRefsMismatch === true,
           priceSnapshot: (t.priceSnapshot && typeof t.priceSnapshot === 'object') ? t.priceSnapshot : null,
           priceSnapshotMissing: t.priceSnapshotMissing === true, priceLockReason: t.priceLockReason || null };
       });
@@ -1017,7 +1022,7 @@ exports.submitSignature = onRequest(
       // the server's own copy of the text.
       signatureEvidence: DE.buildEvidence({
         path: 'remote_link',
-        clauseSetVersion: info.clauseSetVersion, clauseIds: info.clauseIds,
+        clauseSetVersion: info.clauseSetVersion, clauseIds: info.clauseIds, clauseRefsMismatch: info.clauseRefsMismatch === true,
         documentSha256: originalHtml ? sha(originalHtml) : null,
         signedSha256: recordSaved ? sha(recordHtml) : null,
         consent: consentAsked ? { agreed: true, text: ESL.CONSENT_TEXT, at: signedAtNow.getTime() } : { agreed: null },

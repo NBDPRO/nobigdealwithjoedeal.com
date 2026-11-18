@@ -2766,13 +2766,35 @@ service cloud.firestore {
       function cpTzOk(d) {
         return !('timeZone' in d) || (d.timeZone is string && d.timeZone.size() <= 64);
       }
+      // paymentTerms (clause set v1, review 2026-11-18, item 3): the numbers the printed clauses carry. Sanity bounds only
+      // (never the legal ceilings): a real number per field, null/absent = unset, nothing else (no strings, booleans,
+      // arrays, NaN or a stray key). The same bounds live in clause-set.js numOk.
+      function ptInt(t, k, lo, hi) {
+        return !(k in t) || t[k] == null || (t[k] is int && t[k] >= lo && t[k] <= hi);
+      }
+      function ptNum(t, k, lo, hi) {
+        return !(k in t) || t[k] == null || ((t[k] is int || t[k] is float) && t[k] >= lo && t[k] <= hi);
+      }
+      function cpPtOk(d) {
+        return !('paymentTerms' in d) || d.paymentTerms == null || (d.paymentTerms is map
+          && d.paymentTerms.keys().hasOnly(['lateGraceDays', 'lateInterestPct', 'disputeDays', 'finalPaymentDays', 'punchListDays',
+            'pauseNoticeDays', 'restockPct', 'cardFeePct', 'deckingPerSheetCents', 'deckingSheetsBeforeChangeOrder',
+            'atticFreeCheckDays', 'claimNoticeDays'])
+          && ptInt(d.paymentTerms, 'lateGraceDays', 0, 365) && ptNum(d.paymentTerms, 'lateInterestPct', 0, 100)
+          && ptInt(d.paymentTerms, 'disputeDays', 0, 365) && ptInt(d.paymentTerms, 'finalPaymentDays', 0, 365)
+          && ptInt(d.paymentTerms, 'punchListDays', 0, 365) && ptInt(d.paymentTerms, 'pauseNoticeDays', 0, 365)
+          && ptNum(d.paymentTerms, 'restockPct', 0, 100) && ptNum(d.paymentTerms, 'cardFeePct', 0, 10)
+          && ptInt(d.paymentTerms, 'deckingPerSheetCents', 0, 100000) && ptInt(d.paymentTerms, 'deckingSheetsBeforeChangeOrder', 1, 200)
+          && ptInt(d.paymentTerms, 'atticFreeCheckDays', 0, 365) && ptInt(d.paymentTerms, 'claimNoticeDays', 0, 365));
+      }
       // create: a client may NOT seed a docPrefix/seal — those come from the
       // reserveCompanyPrefix callable only (both must be absent/null here).
       allow create: if cpCanWrite()
         && brandPrefix(request.resource.data) == null
         && brandSeal(request.resource.data) == null
         && cpCoachAiOk(request.resource.data)
-        && cpTzOk(request.resource.data);
+        && cpTzOk(request.resource.data)
+        && cpPtOk(request.resource.data);
       // update: an owner/admin may write anything EXCEPT introducing or changing
       // docPrefix/seal. A deep-merge that doesn't touch them carries the existing
       // value forward (request == resource) and passes; only the admin SDK (which
@@ -2781,7 +2803,8 @@ service cloud.firestore {
         && brandPrefix(request.resource.data) == brandPrefix(resource.data)
         && brandSeal(request.resource.data) == brandSeal(resource.data)
         && cpCoachAiOk(request.resource.data)
-        && cpTzOk(request.resource.data);
+        && cpTzOk(request.resource.data)
+        && cpPtOk(request.resource.data);
       // delete: owner/admin only (deleting does NOT release the docPrefixes/{PREFIX}
       // reservation, which is admin-SDK-only, so no prefix-collision abuse).
       allow delete: if cpCanWrite();

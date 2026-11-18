@@ -70,8 +70,12 @@ exports.recordInPersonSignature = onCall(
       // request, the digest from the stored signed copy; the flag is read per person.
       const DE = require('./doc-evidence');
       // A flag read that FAILS refuses (retryable): it must not read "off" and skip the checks.
-      const evidence = (await DE.flagForGate(db, uid, HttpsError)) ? Object.assign({
+      // Either flag (docEvidenceFoundation or docClauseSetV1, review 2026-11-18 item 6) turns the server gate on; both reads are strict.
+      const evidenceFlag = await DE.flagForGate(db, uid, HttpsError);
+      const clauseFlag = await DE.clauseFlagForGate(db, uid, HttpsError);
+      const evidence = (evidenceFlag || clauseFlag) ? Object.assign({
         enabled: true,
+        clauseFlag,
         readBytes: async (p, max) => {
           const f = getStorage().bucket().file(p);
           if (max) {
