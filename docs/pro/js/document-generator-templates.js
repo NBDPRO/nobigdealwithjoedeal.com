@@ -703,6 +703,7 @@
           ${_pledge ? `<p style="max-width:520px;margin:0 auto 8px;font-size:14px;color:#444;font-weight:700;">${esc(_pledge)}</p>` : ''}
           ${warrantyText ? `<p style="max-width:520px;margin:0 auto;font-size:14px;color:#444;">${warrantyText}</p>` : ''}
           <p style="font-size:14px;color:#444;margin-top:8px;">${esc(_mfgLine)}.</p>`}
+          ${typeof d.atticExclusionLine === 'string' && d.atticExclusionLine ? '<p style="max-width:520px;margin:12px auto 0;font-size:12px;color:#555;">' + esc(d.atticExclusionLine) + '</p>' : ''}
         </div>
         <dl class="cert-details">
           <div><dt>Certificate #</dt><dd>${esc(d.certificateNumber)}</dd></div>

@@ -489,7 +489,7 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-18  1154/74/1308 -> 1156/74/1311: supplier pricing product photos add price-ledger-photos-2026-11 (node) and storage-rules.product-photos (wired-individually); the floor was already stale by 1 node on main. MEASURED via --check.
 //   2026-11-18  1156/74/1311 -> 1158/74/1313: supplier pricing slice 7 adds price-logic-materials-2026-11 (node), after merging main (#3164, #3166; main was stale by 1). MEASURED via --check.
 //   2026-11-18  -> 1161/74/1316: supplier pricing slice 9 adds price-import-doc-read-2026-11 (node); main was stale by the suites other PRs added. MEASURED via --check.
-const FLOORS = { node: 1169, smoke: 74, disk: 1326 };
+const FLOORS = { node: 1173, smoke: 74, disk: 1331 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
@@ -774,7 +774,7 @@ const queue = buckets[RUN_BUCKET];
 if (!queue.length) die('RUNNER ERROR: bucket "' + RUN_BUCKET + '" is empty — refusing to report success over zero suites.');
 
 const PER_SUITE_TIMEOUT_MS = 60000;    // slowest measured suite is 18.7s
-const BUCKET_BUDGET_MS = 8 * 60000;    // job cap is 10 min; fail with a report, not a kill
+const BUCKET_BUDGET_MS = 11 * 60000;   // job cap is 14 min (ci.yml 'Unit suites (manifest)'); fail with a report, not a kill. Raised from 8 min 2026-11-18: normal runs took ~6.5 min and one queue run timed out at 8.9 min as suites were added
 const MAX_BUFFER = 32 * 1024 * 1024;   // default 1 MiB turns a chatty PASS into ENOBUFS
 
 const gh = !!process.env.GITHUB_ACTIONS;

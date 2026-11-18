@@ -289,6 +289,8 @@ const FIRESTORE_FLAGS = [
     meaning: 'Contract send checks (blank price, address, names, placeholders refuse the send), the in-person signing evidence write and the remote-link consent box. Off = none run. Per person. New contracts only.' },
   { name: 'docClauseSetV1', default: false, dark: true, file: 'doc-evidence.js', doc: 'documentation/projects/CLAUSE-SET-V1-2026-11-18.md',
     meaning: 'Prints the clause set v1 (payment, late, change-order, lien, warranty, dispute and party text) on new contracts and refuses a send that lacks a Company Profile payment term. Off = every document is byte-identical. Per person.' },
+  { name: 'docAtticAckV1', default: false, dark: true, file: 'doc-evidence.js', doc: 'documentation/projects/ATTIC-ACK-V1-2026-11-18.md',
+    meaning: 'Attic, Ventilation & Moisture Acknowledgment: the rep attic panel, the signed form or not-inspected page, and the gate that stops a re-roof contract being sent or signed without one. Off = nothing changes. Per person. New contracts only.' },
 ];
 
 module.exports = { buildResponse, FLAGS, GROUPS, ENV_DOC, FIRESTORE_FLAGS, flagStatus, parseCommitted, isSafeName, safeValue, stateFor, SECRET_NAME_RE };

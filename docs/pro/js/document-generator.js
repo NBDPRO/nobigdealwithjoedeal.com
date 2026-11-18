@@ -191,6 +191,83 @@ window.NBDDocGen = {
   },
 
   /**
+   * Feature flag docAtticAckV1 (default OFF, per person): the attic acknowledgment and its gate.
+   */
+  _atticOn() {
+    return !!(typeof window !== 'undefined' && window.NBDAtticAck && window.NBDFlags && typeof window.NBDFlags.enabled === 'function'
+      && window.NBDFlags.enabled('docAtticAckV1'));
+  },
+
+  /**
+   * Client side of the re-roof gate (UX only: functions/attic-gate.js decide() is the gate). A re-roof contract is
+   * not generated for signing until the signed attic form, the signed not-inspected page or an owner override exists.
+   * What the browser cannot read (an override it may not list) counts as "unknown", never as a refusal: the server decides.
+   * Returns true when clear to go.
+   */
+  async _atticGate(type, data) {
+    if (!this._atticOn() || (data && data._isBlankPreview)) return true;
+    if (['contract', 'proposal', 'work_authorization'].indexOf(type) === -1) return true;
+    const AA = window.NBDAtticAck;
+    const leadId = (data && (data.leadId || (data.customer && data.customer.id))) || window._customerId || null;
+    if (!leadId || !window.db || !window.getDocs || !window.collection || !window.query || !window.where) return true;
+    const lead = (window._leadDoc && window._leadDoc.id === leadId) ? window._leadDoc : (window._leadDoc || {});
+    let est = null;
+    try {
+      if (lead.primaryEstimateId && window.getDoc && window.doc) {
+        const es = await window.getDoc(window.doc(window.db, 'estimates', lead.primaryEstimateId));
+        est = es && es.exists && es.exists() ? es.data() : null;
+      }
+    } catch (_) { est = null; }
+    const scope = AA.effectiveScope(lead, est);
+    if (!AA.needsForm(scope)) {
+      if (scope === 'repair' && typeof showToast === 'function') showToast('A repair does not need the attic form, but it can be offered. Use Attic check in the document menu.', 'warning');
+      return true;
+    }
+    let signedForm = false;
+    try {
+      for (const t of AA.DOC_TYPES) {
+        const snap = await window.getDocs(window.query(window.collection(window.db, 'leads', leadId, 'documents'), window.where('type', '==', t)));
+        snap.forEach((d) => { const r = d.data(); if (AA.isSignedForm(r) && r.atticAckResult && r.atticAckResult.complete === true) signedForm = true; });
+      }
+    } catch (_) { return true; /* unreadable: the server gate decides */ }
+    let override = false;
+    if (!signedForm) {
+      try {
+        const ov = await window.getDocs(window.query(window.collection(window.db, 'attic_overrides'), window.where('leadId', '==', leadId)));
+        override = !ov.empty;
+      } catch (_) { override = true; /* a rep cannot list overrides: the server decides */ }
+    }
+    const g = AA.gate({ scope, signedForm, override });
+    if (g.satisfied) return true;
+    if (typeof showToast === 'function') showToast(g.message + ' Open Attic check in the document menu.', 'error'); else console.error(g.message);
+    return false;
+  },
+
+  /**
+   * Warranty certificate (flag docAtticAckV1): when the signed attic form shows a declined recommendation, or the attic was
+   * not inspected, the certificate prints the packet's WAR-2 attic line with the form date. Only that line.
+   */
+  async _atticWarrantyLine(data) {
+    try {
+      if (!this._atticOn() || !data || data._isBlankPreview) return;
+      const AA = window.NBDAtticAck;
+      const leadId = data.leadId || window._customerId || null;
+      if (!leadId || !window.db || !window.getDocs || !window.collection || !window.query || !window.where) return;
+      let res = null;
+      for (const t of AA.DOC_TYPES) {
+        const snap = await window.getDocs(window.query(window.collection(window.db, 'leads', leadId, 'documents'), window.where('type', '==', t)));
+        snap.forEach((d) => { const r = d.data(); if (AA.isSignedForm(r) && r.atticAckResult && r.atticAckResult.complete === true && !res) res = r.atticAckResult; });
+      }
+      let when = res && res.formDateMs ? new Date(res.formDateMs) : null;
+      const lead = window._leadDoc || {};
+      if (!res && lead.atticCheck && lead.atticCheck.status === 'not_inspected') { res = { notInspected: true }; when = lead.atticCheck.recordedAt ? new Date(lead.atticCheck.recordedAt) : null; }
+      if (!res || !AA.needsWarrantyExclusion(res)) return;
+      const day = when && !isNaN(when.getTime()) ? when.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+      if (day) data.atticExclusionLine = AA.warrantyLine(day);
+    } catch (_) { /* a missing line is never a reason to stop the certificate */ }
+  },
+
+  /**
    * Fail-closed send check (flag docEvidenceFoundation): a contract-class document with
    * a blank price, address, homeowner name, mailing address, legal entity name, start or
    * completion, or a leftover [Placeholder] / {{token}} is refused with a plain list of
@@ -199,6 +276,12 @@ window.NBDDocGen = {
    */
   _docSendGate(type, data, html) {
     const C = (typeof window !== 'undefined') && window.NBDDocSendChecks;
+    // The attic form prints Company Profile's atticFreeCheckDays; an unset number refuses it (never an invented number).
+    if (html && (type === 'attic_acknowledgment' || type === 'attic_not_inspected') && String(html).indexOf('{{atticFreeCheckDays}}') !== -1) {
+      const m = 'Set atticFreeCheckDays in Company Profile.';
+      if (typeof showToast === 'function') showToast(m, 'error'); else console.error(m);
+      return false;
+    }
     // Either flag turns the check on: a contract that prints the clause set v1 is refused while a clause number is unset.
     // Flag docClauseSetV1 on but the clause wording (or the cancel packet module) did not load: refuse a contract-class
     // document with a clear message. The render fell back to the full legacy text; nothing goes out unchecked.
@@ -732,6 +815,11 @@ window.NBDDocGen = {
     data.companyProfile = (_profileSrc && typeof _profileSrc === 'object')
       ? _profileSrc
       : (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
+
+    // Phase 3 (flag docAtticAckV1, default OFF): a re-roof contract is not generated for signing until the attic form is
+    // signed (the server is the gate); the warranty certificate reads the signed result for its WAR-2 attic line.
+    if (!(await this._atticGate(type, data))) return;
+    if (type === 'warranty_certificate') await this._atticWarrantyLine(data);
 
     // ─── Retired: Assignment of Benefits AND Direction to Pay (2026-09-27) ───
     // An AOB is void in Kentucky (KRS 304.20-105); Jo retired it and every

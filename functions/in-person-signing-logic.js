@@ -14,6 +14,7 @@
  */
 'use strict';
 
+const AA = require('./attic-ack');
 const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 // The most bytes of a stored document the gap check will read (review 2, item 5). The callable passes
 // it to readBytes, which refuses to download an object over it.
@@ -134,6 +135,8 @@ async function recordEvidence(db, ctx, evidence) {
     consent: { agreed: null },
     signedAtMs: Date.now(), ip: evidence.ip, ipSource: evidence.ipSource, ua: evidence.ua, recordedByUid: uid,
   });
+  // Phase 3: the ticks a signed attic form carries, read from the stored signed copy (never from the call).
+  if (signedHtml && AA.DOC_TYPES.indexOf(String(docMeta.type || '')) !== -1) record.acknowledgments = AA.evidenceAcks(AA.parseAcks(signedHtml));
   record.signedCopySha256 = signedSha256;
   record.signedAtClientReported = clientSignedAt;
   // What this record proves: the rep's signed-in device made the call, at this server time, from this
@@ -202,6 +205,40 @@ async function handleInPersonSignature(db, auth, data, deps) {
     // The evidence write never blocks the card move below: the contract is saved either way.
     try { await recordEvidence(db, { leadId, docId, lead, docMeta, uid, data: d }, evidence); }
     catch (e) { if (typeof evidence.onError === 'function') evidence.onError(e); }
+  }
+  // Phase 3 (flag docAtticAckV1, deps.attic): a signed attic form is read back and its server-owned result written;
+  // a contract-class document is refused when a re-roof has no signed attic form. Like the gap check above, the
+  // rep's browser already wrote the row as signed, so a refusal marks it (evidenceRefused is server-owned).
+  const attic = deps && deps.attic;
+  // The flag is read here, after the lead is loaded (the acting user's OR the tenant owner's; a failed read throws a retryable refusal).
+  if (attic && (attic.on === true || (typeof attic.flagOn === 'function' && await attic.flagOn(lead)))) {
+    const AG = require('./attic-gate');
+    const refuse = async (message) => {
+      try { await db.doc('leads/' + leadId + '/documents/' + docId).set({ evidenceRefused: { reasons: [{ code: 'atticAck', message }], at: Date.now() } }, { merge: true }); } catch (_) { /* the refusal is the signal */ }
+      throw new RefusalError('failed-precondition', message);
+    };
+    if (AG.isAtticDoc(docMeta.type)) {
+      const htmlPath = typeof docMeta.htmlPath === 'string' ? docMeta.htmlPath : '';
+      let buf = null;
+      try { buf = htmlPathOk(htmlPath, leadId) && attic.readBytes ? await attic.readBytes(htmlPath, READ_CAP_BYTES) : null; } catch (_) { buf = null; }
+      if (!buf) throw new RefusalError('unavailable', 'Could not read the signed attic form. Try again in a moment.');
+      const storedHtml = Buffer.from(buf).toString('utf8');
+      const result = AG.resultFor(docMeta.type, storedHtml, Date.now());
+      if (storedHtml.length > AG.MAX_HTML) await refuse(AG.TOO_LARGE_MSG);
+      if (!result.complete) await refuse('Every box on the attic form must be ticked and every line answered Yes or No before it counts as signed.');
+      // What this proves (review 2026-11-18): the rep's signed-in device made the call, at this server time, over a copy of the form that
+      // matches the server's manifest. It does not prove the homeowner ticked or signed it (the same limit as the evidence record's attests).
+      result.attests = 'rep_device_and_time_only';
+      // Review 2 (item 4): the form covers the estimate it was signed against (id and stamp), the same binding an override has.
+      let fb;
+      try { fb = await AG.formBasis(db, leadId, lead); } catch (_) { throw new RefusalError('unavailable', 'Could not check the attic acknowledgment just now. Try again in a moment.'); }
+      result.estimateId = fb.id; result.estimateStamp = fb.stamp;
+      await db.doc('leads/' + leadId + '/documents/' + docId).set({ atticAckResult: result }, { merge: true });
+    } else if (AG.gated(docMeta.type)) {
+      let dec;
+      try { dec = await AG.decide(db, leadId, lead, { estimateId: docMeta.estimateId }); } catch (_) { throw new RefusalError('unavailable', 'Could not check the attic acknowledgment just now. Try again in a moment.'); }
+      if (!dec.satisfied) await refuse(dec.message);
+    }
   }
   if (String(docMeta.type || '') !== 'contract') return { ok: true, skipped: 'not_a_contract' };
 
