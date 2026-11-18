@@ -255,6 +255,23 @@ const failDocSets = (db) => {
     ok('6: both twins are still byte-identical', fs.readFileSync(path.join(ROOT, 'docs/pro/js/doc-send-checks.js'), 'utf8').replace(/\r\n/g, '\n') === fs.readFileSync(path.join(FN, 'doc-send-checks.js'), 'utf8').replace(/\r\n/g, '\n'));
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('7. the remote path never deep-merges into an existing signatureEvidence');
+  if (!kit || !DE) ok('harness available', false);
+  else {
+    const INP = { path: 'in_person', attests: 'rep_device_and_time_only', ip: '9.9.9.9', recordedByUid: 'U1', signedCopySha256: 'f'.repeat(64), clauseSetVersion: 'CS-OLD' };
+    let x = await remoteRun({ doc: { signatureEvidence: INP }, req: { ip: '198.51.100.9' } });
+    ok('7: signing still succeeds and the row is stamped signed', x.sub.statusCode === 200 && x.doc.status === 'signed' && x.tok.status === 'signed');
+    ok('7: the in-person record already on the row is left exactly as it was (no hybrid under path remote_link)', JSON.stringify(x.doc.signatureEvidence) === JSON.stringify(INP), JSON.stringify(x.doc.signatureEvidence));
+    ok('7: the homeowner\'s remote evidence is not lost: it is kept whole on the admin-only token', x.tok.signatureEvidence && x.tok.signatureEvidence.path === 'remote_link' && x.tok.signatureEvidence.ip === '198.51.100.9' && !('attests' in x.tok.signatureEvidence));
+    ok('7: the skipped stamp is logged, never silent', x.logs.some((l) => /signatureEvidence/.test(String(l[1])) || /signatureEvidence/.test(JSON.stringify(l[2] || {}))));
+    // a row carrying a stale same-path record with extra keys: replaced, not merged
+    x = await remoteRun({ doc: { signatureEvidence: { path: 'remote_link', attests: 'stale', extra: 1, ip: '1.1.1.1' } }, req: { ip: '198.51.100.9' } });
+    ok('7: a stale record of the same path is REPLACED (no leftover keys from it)', x.doc.signatureEvidence && x.doc.signatureEvidence.ip === '198.51.100.9' && !('attests' in x.doc.signatureEvidence) && !('extra' in x.doc.signatureEvidence), JSON.stringify(x.doc.signatureEvidence));
+    x = await remoteRun({ req: { ip: '198.51.100.9' } });
+    ok('7: control: an ordinary row gets the remote evidence on the row, none on the token beyond the facts', x.doc.signatureEvidence && x.doc.signatureEvidence.path === 'remote_link' && !x.tok.signatureEvidence);
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join('; ')); process.exit(1); }
 })().catch((e) => { console.error('FATAL', e); process.exit(1); });

@@ -884,8 +884,7 @@ exports.submitSignature = onRequest(
         if (!verifiedPath || t.htmlPath !== verifiedPath || record == null) {
           const e = new Error('unverified'); e._http = 409; e._msg = 'This document changed while you were signing. Please reload the page.'; throw e;
         }
-        tx.update(tokRef, {
-          status: 'signed', signedAt: FieldValue.serverTimestamp(),
+        tx.update(tokRef, { status: 'signed', signedAt: FieldValue.serverTimestamp(),
           evidenceFacts: Object.assign({}, evidenceFacts, {
             clauseSetVersion: t.clauseSetVersion || null, clauseIds: Array.isArray(t.clauseIds) ? t.clauseIds : [],
           }),
@@ -1008,6 +1007,24 @@ exports.submitSignature = onRequest(
         ...DE.requestFacts(req),
       }),
     };
+    // Review 2 (2026-11-18), item 7: the row write REPLACES signatureEvidence as a whole (mergeFields lists the
+    // top-level keys), so the new record can never deep-merge into an older one and read as a hybrid. And a row
+    // that already carries evidence from ANOTHER path (an in-person record) keeps it untouched: the homeowner's
+    // record then lives whole on the admin-only token (signatureEvidence there), and the skip is logged.
+    let evidenceSkipped = false;
+    try {
+      const curRow = await docRef.get();
+      const ce = curRow && curRow.exists ? (curRow.data() || {}).signatureEvidence : null;
+      if (ce && typeof ce === 'object' && ce.path !== 'remote_link') evidenceSkipped = true;
+    } catch (_) { evidenceSkipped = false; }
+    const rowPatch = Object.assign({}, docPatch);
+    if (evidenceSkipped) {
+      delete rowPatch.signatureEvidence;
+      logger.warn('[submitSignature] the row already has signatureEvidence from another path — kept as is; the remote signatureEvidence is on the sign token', ids);
+      try { await tokRef.update({ signatureEvidence: docPatch.signatureEvidence, signatureEvidenceNotStamped: 'row_has_other_path' }); }
+      catch (e) { logger.error('[submitSignature] could not keep the remote signatureEvidence on the token either', Object.assign({ msg: e.message }, ids)); }
+    }
+    const rowWrite = { mergeFields: Object.keys(rowPatch) };
     const who = info.signerName ? info.signerName + ' ' : 'A homeowner ';
     const note = {
       userId: info.ownerUid,
@@ -1030,7 +1047,7 @@ exports.submitSignature = onRequest(
       const backoffMs = [0, 250, 1000];
       for (let attempt = 1; attempt <= backoffMs.length && !stamped; attempt++) {
         if (backoffMs[attempt - 1]) await new Promise((r) => setTimeout(r, backoffMs[attempt - 1]));
-        try { await docRef.set(docPatch, { merge: true }); stamped = true; }
+        try { await docRef.set(rowPatch, rowWrite); stamped = true; }
         catch (e) { logger.warn('[submitSignature] doc meta stamp failed (attempt ' + attempt + ' of ' + backoffMs.length + ')', { msg: e.message }); }
       }
       if (!stamped) {
@@ -1068,7 +1085,7 @@ exports.submitSignature = onRequest(
       for (let attempt = 1; attempt <= 2 && !notified; attempt++) {
         try {
           const b = db.batch();
-          b.set(docRef, docPatch, { merge: true });
+          b.set(docRef, rowPatch, rowWrite);
           b.set(db.collection('notifications').doc(), note);
           b.update(tokRef, { signedSaveFailed: true });
           await b.commit();
@@ -1080,7 +1097,7 @@ exports.submitSignature = onRequest(
       if (!notified) {
         // Second channel: the flag alone, and a row on the lead's activity
         // timeline. The bell is tried once more on its own below.
-        try { await docRef.set(docPatch, { merge: true }); } catch (e) {
+        try { await docRef.set(rowPatch, rowWrite); } catch (e) {
           logger.error('[submitSignature] save-failure flag write failed', Object.assign({ msg: e.message }, ids));
         }
         try {

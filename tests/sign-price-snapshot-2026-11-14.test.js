@@ -90,7 +90,7 @@ function makeDb(seed) {
     collection: (cn) => col(p + '/' + cn),
     async get() { const d = store.get(p); return { exists: d !== undefined, id: p.split('/').pop(), data: () => clone(d) }; },
     async update(patch) { if (!store.has(p)) throw new Error('NOT_FOUND ' + p); store.set(p, apply(store.get(p), patch)); },
-    async set(data, opt) { store.set(p, opt && opt.merge ? apply(store.get(p) || {}, data) : apply({}, data)); },
+    async set(data, opt) { store.set(p, opt && (opt.merge || opt.mergeFields) ? apply(store.get(p) || {}, data) : apply({}, data)); },
     async create(data) { if (store.has(p)) { const e = new Error('ALREADY_EXISTS'); e.code = 6; throw e; } store.set(p, apply({}, data)); },
   });
   const query = (cn, filters, lim) => ({

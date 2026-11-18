@@ -36,7 +36,7 @@ function makeDb(seed) {
   const ref = (p) => ({
     id: p.split('/').pop(), path: p,
     get: async () => { const d = store.get(p); return { exists: d !== undefined, data: () => d, ref: ref(p), id: p.split('/').pop() }; },
-    set: async (patch, opts) => { store.set(p, applyPatch((opts && opts.merge) ? store.get(p) : {}, patch, !!(opts && opts.merge))); },
+    set: async (patch, opts) => { store.set(p, applyPatch((opts && (opts.merge || opts.mergeFields)) ? store.get(p) : {}, patch, !!(opts && opts.merge))); },
     update: async (patch) => {
       if (!store.has(p)) throw new Error('NOT_FOUND ' + p);
       const flat = {}; const dotted = [];
