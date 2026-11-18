@@ -283,6 +283,84 @@ const ON_OWNER = { _default: {}, CO: { docAtticAckV1: true } };
     ok('the source says a deal with no resolvable lead falls back to its own estimate and refuses when neither resolves', /no resolvable lead/i.test(src('functions/deal-acceptance.js')));
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('6. an override is bound to the estimate, expires after 30 days, can be revoked and needs a real owner or admin');
+  {
+    const fail = (c, m) => Object.assign(new Error(m), { code: c });
+    const call = async (db, auth, data, deps) => { try { return { v: await AG.recordOverride(db, auth, data, fail, deps) }; } catch (e) { return { e }; } };
+    const REASON = 'Homeowner will not sign the page; Joe approved by phone.';
+    const OWNER = { uid: 'CO', token: { companyId: 'CO', name: 'Joe Deal' } };
+    const mk = (o) => world(ON_OWNER, Object.assign({ lead: { primaryEstimateId: 'E1' } }, o));
+    const NOW = Date.now();
+    const goodOv = (extra) => Object.assign({ leadId: 'L1', companyId: 'CO', byUid: 'CO', kind: 'proceed', reason: REASON, estimateId: 'E1', estimateStamp: AG.estimateStamp(REROOF), at: NOW - 1000, expiresAt: NOW + 20 * 86400000, version: 'ATTIC_ACK_V1' }, extra || {});
+
+    // who may record it
+    let db = mk();
+    let r = await call(db, { uid: 'REP', token: {} }, { leadId: 'L1', reason: REASON });
+    ok('the lead\'s own rep with NO companyId claim is denied (a member of a company is not its owner)', !!r.e && r.e.code === 'permission-denied' && db._all('attic_overrides').length === 0);
+    r = await call(db, { uid: 'REP', token: { companyId: 'CO', role: 'sales_rep' } }, { leadId: 'L1', reason: REASON });
+    ok('the lead\'s own rep WITH the claim is denied', !!r.e && r.e.code === 'permission-denied');
+    r = await call(db, { uid: 'ZZ', token: { companyId: 'OTHER', role: 'company_admin' } }, { leadId: 'L1', reason: REASON });
+    ok('another tenant\'s company_admin is denied', !!r.e && r.e.code === 'permission-denied' && db._all('attic_overrides').length === 0);
+    r = await call(db, { uid: 'ZZ', token: { role: 'company_admin' } }, { leadId: 'L1', reason: REASON });
+    ok('a company_admin with no companyId claim is denied', !!r.e && r.e.code === 'permission-denied');
+    const solo = world({ _default: {}, SOLO: { docAtticAckV1: true } }, { lead: { userId: 'SOLO', companyId: 'SOLO', primaryEstimateId: 'E1' } });
+    r = await call(solo, { uid: 'SOLO', token: {} }, { leadId: 'L1', reason: REASON });
+    ok('control: a solo owner (uid is the tenant) with no claims is allowed', !!r.v, r.e && r.e.message);
+
+    // what it records
+    db = mk();
+    r = await call(db, OWNER, { leadId: 'L1', reason: REASON });
+    const ev = db._all('attic_overrides')[0] || {};
+    ok('the event is bound to the estimate (id + stamp), expires in 30 days and says what kind it is', !!r.v && ev.kind === 'proceed' && ev.estimateId === 'E1' && ev.estimateStamp === AG.estimateStamp(REROOF) && Math.abs(ev.expiresAt - ev.at - 30 * 86400000) < 1000);
+    r = await mint(world(ON_OWNER, { lead: { primaryEstimateId: 'E1' }, overrides: [ev] }));
+    ok('the recorded event clears the gate while it is valid', !!r.v, r.e && r.e.message);
+
+    // when it stops counting
+    r = await mint(world(ON_OWNER, { lead: { primaryEstimateId: 'E1' }, overrides: [goodOv()] }));
+    ok('control: a hand-built valid override clears the gate', !!r.v, r.e && r.e.message);
+    r = await mint(world(ON_OWNER, { lead: { primaryEstimateId: 'E1' }, overrides: [goodOv({ expiresAt: NOW - 1000 })] }));
+    ok('an expired override (past 30 days) no longer clears it', !!r.e && r.e.code === 'failed-precondition');
+    r = await mint(world(ON_OWNER, { lead: { primaryEstimateId: 'E1' }, overrides: [goodOv({ expiresAt: undefined })] }));
+    ok('an override with no expiry (the old shape) does not count', !!r.e);
+    r = await mint(world(ON_OWNER, { lead: { primaryEstimateId: 'E1' }, overrides: [goodOv({ revokedAt: NOW - 10, revokedBy: 'CO' })] }));
+    ok('a revoked override does not count', !!r.e);
+    r = await mint(world(ON_OWNER, { lead: { primaryEstimateId: 'E1' }, overrides: [goodOv({ estimateId: 'E-OTHER' })] }));
+    ok('an override recorded for a different estimate does not cover this one', !!r.e);
+    r = await mint(world(ON_OWNER, { lead: { primaryEstimateId: 'E1' }, overrides: [goodOv()], est: { grandTotal: 19999, rows: [{ code: 'LAB TO1' }, { code: 'EXTRA' }] } }));
+    ok('the estimate was re-priced after the override: it needs a new one', !!r.e);
+
+    // revoke
+    db = mk({ overrides: [goodOv()] });
+    r = await call(db, { uid: 'REP', token: { companyId: 'CO', role: 'sales_rep' } }, { leadId: 'L1', revoke: true });
+    ok('a rep cannot revoke an override', !!r.e && r.e.code === 'permission-denied');
+    r = await call(db, OWNER, { leadId: 'L1', revoke: true });
+    const o0 = db._get('attic_overrides/o0') || {};
+    ok('the owner can revoke it: revokedAt and revokedBy are set', !!r.v && r.v.revoked === 1 && typeof o0.revokedAt === 'number' && o0.revokedBy === 'CO');
+    r = await mint(db);
+    ok('after the revoke the re-roof is blocked again', !!r.e && r.e.code === 'failed-precondition');
+
+    // scope lowered through the callable only
+    db = mk();
+    r = await call(db, OWNER, { leadId: 'L1', kind: 'scope_lowered', toScope: 'repair', reason: 'This is a flat-roof repair; the tear-off line is a leftover.' });
+    const lw = db._all('attic_overrides')[0] || {};
+    ok('the owner records scope_lowered with a reason: an override of that kind, bound to the estimate, and the lead\'s scope is set', !!r.v && lw.kind === 'scope_lowered' && lw.toScope === 'repair' && lw.estimateId === 'E1' && (db._get('leads/L1') || {}).scope === 'repair');
+    r = await mint(world(ON_OWNER, { lead: { primaryEstimateId: 'E1', scope: 'repair' }, overrides: [lw] }));
+    ok('with the valid scope_lowered the re-roof contract goes out as a repair', !!r.v, r.e && r.e.message);
+    r = await mint(world(ON_OWNER, { lead: { primaryEstimateId: 'E1', scope: 'repair' }, overrides: [Object.assign({}, lw, { expiresAt: NOW - 5 })] }));
+    ok('an expired scope_lowered no longer lowers it', !!r.e);
+    db = mk();
+    r = await call(db, OWNER, { leadId: 'L1', kind: 'scope_lowered', toScope: 'reroof', reason: REASON });
+    ok('"lowering" to the same or a higher scope is refused', !!r.e && r.e.code === 'failed-precondition');
+    r = await call(db, { uid: 'REP', token: { companyId: 'CO', role: 'sales_rep' } }, { leadId: 'L1', kind: 'scope_lowered', toScope: 'repair', reason: REASON });
+    ok('a rep cannot lower the scope through the callable either', !!r.e && r.e.code === 'permission-denied');
+
+    // the flag on the callable is the either-flag rule
+    const flagged = await call(world({ _default: {} }, { lead: { primaryEstimateId: 'E1' } }), OWNER, { leadId: 'L1', reason: REASON }, { flagOn: async () => false });
+    ok('with the flag off for this tenant the callable refuses', !!flagged.e && flagged.e.code === 'failed-precondition');
+    ok('the callable passes the lead-aware either-flag check', /atticGateOn/.test(src('functions/attic-override.js')) && /flagOn/.test(src('functions/attic-gate.js')));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

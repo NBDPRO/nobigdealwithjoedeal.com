@@ -115,6 +115,8 @@
     h += '<div class="attic-actions"><button type="button" class="btn" data-attic-act="save">Save record</button> ' +
       '<button type="button" class="btn btn-orange" data-attic-act="form">Make the form for signing</button> ' +
       '<button type="button" class="btn" data-attic-act="override">Owner: proceed without a signed page</button> ' +
+      '<button type="button" class="btn" data-attic-act="lower">Owner: lower the scope</button> ' +
+      '<button type="button" class="btn" data-attic-act="revoke">Owner: revoke approvals</button> ' +
       '<button type="button" class="btn" data-attic-act="close">Close</button></div>';
     host.innerHTML = h;
   }
@@ -201,7 +203,26 @@
     if (!w._functions || !w._httpsCallable) { say('Not ready. Reload and try again.', 'error'); return; }
     try {
       await w._httpsCallable(w._functions, 'recordAtticOverride')({ leadId: S.leadId, reason: reason });
-      say('Recorded. The contract can now be sent. The form stays logged as notice, never as signed.', 'success');
+      say('Recorded for this estimate, good for 30 days. The contract can now be sent. The form stays logged as notice, never as signed.', 'success');
+    } catch (e) { say((e && e.message) || 'Only the company owner or an admin can do that.', 'error'); }
+  }
+  // Review 2026-11-18: the scope only goes down through the owner/admin callable, with a reason (bound to the estimate, 30 days).
+  async function lowerScope() {
+    var to = typeof w.prompt === 'function' ? String(w.prompt('Lower this job to which scope: repair, siding, gutters or other? (owner or admin only)') || '').trim().toLowerCase() : '';
+    if (!to) return;
+    var reason = typeof w.prompt === 'function' ? w.prompt('Why is this job not a re-roof? (recorded with your name)') : '';
+    if (!reason) return;
+    if (!w._functions || !w._httpsCallable) { say('Not ready. Reload and try again.', 'error'); return; }
+    try {
+      await w._httpsCallable(w._functions, 'recordAtticOverride')({ leadId: S.leadId, kind: 'scope_lowered', toScope: to, reason: reason });
+      say('Recorded. The scope is now ' + to + ' for this estimate, for 30 days.', 'success');
+    } catch (e) { say((e && e.message) || 'Only the company owner or an admin can do that.', 'error'); }
+  }
+  async function revokeOverrides() {
+    if (!w._functions || !w._httpsCallable) { say('Not ready. Reload and try again.', 'error'); return; }
+    try {
+      var r = await w._httpsCallable(w._functions, 'recordAtticOverride')({ leadId: S.leadId, revoke: true });
+      say('Revoked ' + ((r && r.data && r.data.revoked) || 0) + ' approval(s).', 'success');
     } catch (e) { say((e && e.message) || 'Only the company owner or an admin can do that.', 'error'); }
   }
 
@@ -223,6 +244,8 @@
     else if (a === 'save') save(false).catch(function (x) { say('Not saved: ' + (x && x.message || x), 'error'); });
     else if (a === 'form') makeForm().catch(function (x) { say('Could not make the form: ' + (x && x.message || x), 'error'); });
     else if (a === 'override') override();
+    else if (a === 'lower') lowerScope();
+    else if (a === 'revoke') revokeOverrides();
     else if (a === 'close') close();
   });
   document.addEventListener('change', function (e) {

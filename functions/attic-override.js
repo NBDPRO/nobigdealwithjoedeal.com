@@ -27,9 +27,8 @@ exports.recordAtticOverride = onCall(
     await callableRateLimit(request, 'recordAtticOverride', 10, 60_000);
     const DE = require('./doc-evidence');
     const db = getFirestore();
-    if (!(await DE.atticFlagForGate(db, request.auth.uid, HttpsError))) {
-      throw new HttpsError('failed-precondition', 'The attic acknowledgment is not turned on for your account.');
-    }
-    return AG.recordOverride(db, { uid: request.auth.uid, token: request.auth.token || {} }, request.data, (code, msg) => new HttpsError(code, msg));
+    // The flag: the acting user's OR the tenant owner's (strict), read once the lead is loaded (review 2026-11-18, finding 3).
+    return AG.recordOverride(db, { uid: request.auth.uid, token: request.auth.token || {} }, request.data, (code, msg) => new HttpsError(code, msg),
+      { flagOn: (lead) => DE.atticGateOn(db, request.auth.uid, lead, HttpsError) });
   }
 );

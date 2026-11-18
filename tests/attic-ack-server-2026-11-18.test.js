@@ -153,7 +153,7 @@ const tickAll = (h, no) => h.replace(/<input\b[^>]*>/gi, (tag) => {
     ok('a row the rep marked signed WITHOUT the server result does not count', !!r.e && tokens(r.db) === 0);
     r = await mint(world({ docAtticAckV1: true }, { docs: [Object.assign({}, SIGNED, { status: 'sent' })] }));
     ok('a sent but unsigned form is notice, never signed: refused', !!r.e);
-    r = await mint(world({ docAtticAckV1: true }, { overrides: [{ leadId: 'L1', byUid: 'U1', reason: 'homeowner would not sign the page' }] }));
+    r = await mint(world({ docAtticAckV1: true }, { overrides: [{ leadId: 'L1', byUid: 'U1', kind: 'proceed', reason: 'homeowner would not sign the page', estimateId: 'E1', estimateStamp: AG.estimateStamp({ grandTotal: 14500, rows: [{ code: 'LAB TO1' }] }), at: Date.now(), expiresAt: Date.now() + 86400000, version: 'ATTIC_ACK_V1' }] }));
     ok('flag on, with a recorded owner override: the link goes out', !!r.v, r.e && r.e.message);
     r = await mint(world({ docAtticAckV1: true }, { overrides: [{ leadId: 'OTHER', byUid: 'U1', reason: 'a different lead' }] }));
     ok('an override on another lead does not count', !!r.e);

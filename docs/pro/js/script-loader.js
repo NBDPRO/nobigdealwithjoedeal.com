@@ -245,7 +245,7 @@
       // 2026-11-18 attic acknowledgment (flag docAtticAckV1): wording, then logic. Same group, loaded together.
       'js/attic-ack-text.js?v=1',
       'js/attic-ack.js?v=2',
-      'js/attic-panel.js?v=2'
+      'js/attic-panel.js?v=3'
     ],
     // Estimate engine (PR 2c). The revenue-critical builder + its product/
     // catalog data. Only needed when the rep builds an estimate, opens the

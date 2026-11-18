@@ -169,7 +169,11 @@ async function _estimateSet(db, leadId, lead, o) {
 
 /**
  * The gate for a contract-class document on this lead. A read that fails THROWS (the caller fails closed; a
- * missing attic form is never assumed). -> { scope, required, satisfied, how, message, warn }
+ * missing attic form is never assumed). opts = { estimate, estimateId } the estimate actually being sent (else the lead's
+ * primary), requireResolved (a deal with no lead: refuse when no estimate resolves), noWrite.
+ * -> { scope, basis: { id, stamp }, required, satisfied, how, message, warn }
+ * An override (kind 'proceed') or a lowered scope (kind 'scope_lowered') counts only while it is not revoked, not expired and
+ * bound to THIS basis estimate (id and stamp): a re-priced or re-scoped estimate needs a new one.
  */
 async function decide(db, leadId, lead, opts) {
   const o = opts || {};
@@ -180,65 +184,114 @@ async function decide(db, leadId, lead, opts) {
     return { scope: 'unknown', basis: set.basis, required: true, satisfied: false, how: null, warn: false,
       message: 'This deal is not linked to a customer or an estimate, so the attic acknowledgment cannot be checked. Link the deal to the customer, then send it. Nothing was sent.' };
   }
-  const scope = AA.effectiveScope(L, set.list.map((x) => x.data));
+  let scope = AA.effectiveScope(L, set.list.map((x) => x.data));
+  const rawScope = scope;
+  // Overrides recorded on this lead that are still good for this basis.
+  let valid = [];
+  if (okId(leadId) && AA.scopeRank(scope) >= 2) {
+    const ov = await db.collection(OVERRIDES).where('leadId', '==', leadId).get();
+    const now = Date.now();
+    valid = ov.docs.map((d) => d.data() || {}).filter((v) => v.version === AA.VERSION && !v.revokedAt && typeof v.expiresAt === 'number' && v.expiresAt > now
+      && String(v.estimateId || '') === set.basis.id && String(v.estimateStamp || '') === set.basis.stamp);
+    const lowered = valid.filter((v) => v.kind === 'scope_lowered' && AA.SCOPES.indexOf(v.toScope) !== -1 && AA.scopeRank(v.toScope) < AA.scopeRank(rawScope))[0];
+    if (lowered) scope = lowered.toScope;
+  }
   const g0 = AA.gate({ scope, signedForm: false, override: false });
-  if (!g0.required) return Object.assign({ scope, basis: set.basis }, g0);
+  if (!g0.required) return Object.assign({ scope, rawScope, basis: set.basis }, g0);
   // Remember that this was a re-roof (server-owned floor): taking the tear-off line off the estimate later does not lower it.
   if (L.atticScopeFloor !== 'reroof' && okId(leadId) && o.noWrite !== true) {
     try { await db.doc('leads/' + leadId).set({ atticScopeFloor: 'reroof' }, { merge: true }); } catch (_) { /* the gate below is the control */ }
   }
-  const found = [];
   // No lead: no signed form can exist (the forms live on the lead) and no override can be recorded: the gate stays closed.
-  if (!okId(leadId)) return Object.assign({ scope, basis: set.basis }, AA.gate({ scope, signedForm: false, override: false }));
+  if (!okId(leadId)) return Object.assign({ scope, rawScope, basis: set.basis }, AA.gate({ scope, signedForm: false, override: false }));
+  const found = [];
   for (const t of AA.DOC_TYPES) {
     const snap = await db.collection('leads/' + leadId + '/documents').where('type', '==', t).get();
     snap.docs.forEach((d) => found.push(d));
   }
-  const docs = { docs: found };
   // A form counts only with the server-written result (atticAckResult, server-owned in firestore.rules): the row's
   // own status and signedAt are written by the rep's browser on the in-person path.
-  const signedForm = docs.docs.some((d) => {
+  const signedForm = found.some((d) => {
     const r = d.data() || {};
     return AA.isSignedForm(r) && r.atticAckResult && r.atticAckResult.version === AA.VERSION && r.atticAckResult.complete === true;
   });
-  let override = false;
-  if (!signedForm) {
-    const ov = await db.collection(OVERRIDES).where('leadId', '==', leadId).limit(1).get();
-    override = !ov.empty;
-  }
-  return Object.assign({ scope, basis: set.basis }, AA.gate({ scope, signedForm, override }));
+  const override = valid.some((v) => v.kind !== 'scope_lowered');
+  return Object.assign({ scope, rawScope, basis: set.basis }, AA.gate({ scope, signedForm, override }));
+}
+
+const OVERRIDE_DAYS = 30;
+
+/** The owner or admin of THIS tenant: the platform admin, the tenant's company_admin, or the tenant's own owner (uid is the tenant). */
+function _ownerOrAdmin(auth, lead) {
+  const uid = auth && auth.uid;
+  const token = (auth && auth.token) || {};
+  const companyId = String(lead.companyId || lead.userId || '');
+  const role = String(token.role || '');
+  const tokenCo = typeof token.companyId === 'string' ? token.companyId : '';
+  // A member of a company is never its owner just because they created the lead (review 2026-11-18, finding 6).
+  return role === 'admin' || (role === 'company_admin' && tokenCo !== '' && tokenCo === companyId) || uid === companyId;
 }
 
 /**
- * Q18: only an owner or admin may record "proceed anyway", with a required reason, as a server-written event
- * (name, uid, time, reason). auth = { uid, token }. Throws { code, message } objects via the thrower (so this
- * module needs no firebase-functions import).
+ * Q18: only an owner or admin may record "proceed anyway" (kind 'proceed'), or lower a job's scope (kind 'scope_lowered', with
+ * toScope), with a required reason, as a server-written event (name, uid, time, reason) bound to the estimate it covers, good for
+ * 30 days. { revoke: true, overrideId? } ends them. auth = { uid, token }. Throws via the thrower (no firebase-functions import).
+ * deps.flagOn(lead) is the lead-aware flag check (the acting user's OR the tenant owner's, strict).
  */
-async function recordOverride(db, auth, data, fail) {
+async function recordOverride(db, auth, data, fail, deps) {
   const uid = auth && auth.uid;
   if (!uid) throw fail('unauthenticated', 'Sign in required');
   const token = (auth && auth.token) || {};
-  const leadId = data && typeof data.leadId === 'string' ? data.leadId.trim() : '';
-  const reason = data && typeof data.reason === 'string' ? data.reason.trim() : '';
+  const d = data || {};
+  const leadId = typeof d.leadId === 'string' ? d.leadId.trim() : '';
+  const reason = typeof d.reason === 'string' ? d.reason.trim() : '';
   if (!ID_RE.test(leadId)) throw fail('invalid-argument', 'leadId required');
-  if (reason.length < 10 || reason.length > 500) throw fail('invalid-argument', 'Give the reason the job proceeds without a signed attic page (at least 10 characters).');
   const ls = await db.doc('leads/' + leadId).get();
   if (!ls.exists) throw fail('not-found', 'Lead not found');
   const lead = ls.data() || {};
   if (lead.deleted === true) throw fail('not-found', 'Lead not found');
   const companyId = String(lead.companyId || lead.userId || '');
-  // Owner or admin only: the platform admin, the company_admin of THIS tenant, or the tenant's own owner (solo uid).
-  const role = String(token.role || '');
-  const tokenCo = typeof token.companyId === 'string' ? token.companyId : '';
-  const isOwner = uid === companyId || (uid === lead.userId && !tokenCo);
-  const isCompanyAdmin = role === 'company_admin' && tokenCo && tokenCo === companyId;
-  if (!(role === 'admin' || isCompanyAdmin || isOwner)) throw fail('permission-denied', 'Only the company owner or an admin can approve a job to proceed without a signed attic page.');
-  const gate = await decide(db, leadId, lead);
-  if (!gate.required) throw fail('failed-precondition', 'This job does not need an attic acknowledgment.');
+  if (!_ownerOrAdmin(auth, lead)) throw fail('permission-denied', 'Only the company owner or an admin can approve a job to proceed without a signed attic page.');
+  if (deps && typeof deps.flagOn === 'function' && !(await deps.flagOn(lead))) throw fail('failed-precondition', 'The attic acknowledgment is not turned on for your account.');
+  const now = Date.now();
+  if (d.revoke === true) {
+    const snap = await db.collection(OVERRIDES).where('leadId', '==', leadId).get();
+    let n = 0;
+    for (const x of snap.docs) {
+      const v = x.data() || {};
+      if (v.revokedAt || (typeof d.overrideId === 'string' && d.overrideId && x.id !== d.overrideId)) continue;
+      await db.doc(OVERRIDES + '/' + x.id).set({ revokedAt: now, revokedBy: uid }, { merge: true });
+      n++;
+    }
+    return { ok: true, revoked: n };
+  }
+  const kind = d.kind === 'scope_lowered' ? 'scope_lowered' : 'proceed';
+  if (reason.length < 10 || reason.length > 500) throw fail('invalid-argument', kind === 'scope_lowered' ? 'Give the reason this job is not at that scope (at least 10 characters).' : 'Give the reason the job proceeds without a signed attic page (at least 10 characters).');
+  let estimateId;
+  if (d.estimateId != null && d.estimateId !== '') {
+    if (!okId(d.estimateId)) throw fail('invalid-argument', 'estimateId is not valid');
+    const es = await db.doc('estimates/' + d.estimateId).get();
+    const e = es && es.exists ? (es.data() || {}) : null;
+    if (!e) throw fail('not-found', 'Estimate not found');
+    if (!(e.userId === lead.userId || e.userId === companyId || e.companyId === companyId || e.leadId === leadId)) throw fail('permission-denied', 'That estimate is not on this customer.');
+    estimateId = d.estimateId;
+  }
+  const gate = await decide(db, leadId, lead, { estimateId, noWrite: true });
   const name = String((token.name || token.email || '')).slice(0, 120);
+  const rec = { leadId, companyId, byUid: uid, byName: name || null, kind, reason, scope: gate.scope, estimateId: gate.basis.id, estimateStamp: gate.basis.stamp, at: now, expiresAt: now + OVERRIDE_DAYS * 86400000, version: AA.VERSION };
+  if (kind === 'scope_lowered') {
+    const to = typeof d.toScope === 'string' ? d.toScope : '';
+    const from = gate.rawScope || gate.scope;
+    if (AA.SCOPES.indexOf(to) === -1 || !(AA.scopeRank(to) < AA.scopeRank(from))) throw fail('failed-precondition', 'The scope can only be lowered to something below its current level (' + from + ').');
+    rec.toScope = to; rec.scope = from;
+  } else if (!gate.required) {
+    throw fail('failed-precondition', 'This job does not need an attic acknowledgment.');
+  }
   const ref = db.collection(OVERRIDES).doc();
-  await ref.set({ leadId, companyId, byUid: uid, byName: name || null, reason, scope: gate.scope, at: Date.now(), version: AA.VERSION });
-  return { ok: true, id: ref.id };
+  await ref.set(rec);
+  // The lowering is the one write to the lead's scope that is allowed to go down: server-side, with the event above as its record.
+  if (kind === 'scope_lowered') await db.doc('leads/' + leadId).set({ scope: rec.toScope }, { merge: true });
+  return { ok: true, id: ref.id, expiresAt: rec.expiresAt };
 }
 
 module.exports = { estimateStamp, manifestFor, verifyManifest, OVERRIDES, gated, isAtticDoc, applyAcks, resultFor, decide, recordOverride };
