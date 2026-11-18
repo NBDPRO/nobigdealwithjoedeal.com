@@ -1007,6 +1007,8 @@ window.NBDDocGen = {
                 signers: Array.isArray(data.signers)
                   ? data.signers.map(s => ({ role: s.role, label: s.label, required: !!s.required }))
                   : null,
+                // The estimate an attic form was generated for (flag docAtticAckV1; attic types only, so every other row is unchanged).
+                ...((type === 'attic_acknowledgment' || type === 'attic_not_inspected') && typeof data.estimateId === 'string' && data.estimateId ? { estimateId: data.estimateId } : {}),
                 snapshot: {
                   total: (data.estimate && data.estimate.grandTotal) || data.total || null,
                   address: (data.customer && data.customer.address) || null

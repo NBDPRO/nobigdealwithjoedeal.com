@@ -436,9 +436,23 @@ async function _estimateSet(db, leadId, lead, o) {
   return { list, basis: basis ? { id: basis.id, stamp: estimateStamp(basis.data) } : { id: '', stamp: '' } };
 }
 
-/** The estimate (id and stamp) a form signed NOW covers: the lead's primary estimate (else its only one). A read that fails throws. */
-async function formBasis(db, leadId, lead) {
-  return (await _estimateSet(db, leadId, lead || {}, {})).basis;
+/**
+ * The estimate (id and stamp) a form signed NOW covers. Review 3 (item 6): the estimate the form was generated for (opts.estimateId, written on
+ * the document row by the generator from the rep's choice in the attic panel) when it is one of THIS lead's estimates (its leadId, or the
+ * lead's primary); otherwise the lead's primary estimate (else its only one). The send paths bind to the estimate they send, so a form for a
+ * non-primary estimate satisfies the gate for that estimate and for no other. A read that fails throws.
+ */
+async function formBasis(db, leadId, lead, opts) {
+  const L = lead || {};
+  const want = opts && okId(opts.estimateId) ? opts.estimateId : '';
+  if (want) {
+    const s = await db.doc('estimates/' + want).get();
+    const e = s && s.exists ? (s.data() || {}) : null;
+    if (e && e.deleted !== true && (want === L.primaryEstimateId || (okId(leadId) && e.leadId === leadId))) {
+      return (await _estimateSet(db, leadId, L, { estimate: e, estimateId: want })).basis;
+    }
+  }
+  return (await _estimateSet(db, leadId, L, {})).basis;
 }
 
 /**

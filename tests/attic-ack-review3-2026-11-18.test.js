@@ -318,6 +318,56 @@ const generated = async (docType, extraData) => {
     ok('firestore.rules lists atticGateUnverified as server-owned on create and on update', (src('firestore.rules').match(/'evidenceRefused', 'atticAckResult', 'atticGateUnverified'\]/g) || []).length === 2);
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('6. the form binds to the estimate it was generated for (a non-primary estimate can satisfy the gate)');
+  {
+    const E1 = { userId: 'REP', grandTotal: 14500, rows: [{ code: 'LAB TO1' }] };
+    const E2 = { userId: 'REP', leadId: 'L1', grandTotal: 17250, rows: [{ code: 'LAB TO1' }, { code: 'DECK' }] };
+    const EX = { userId: 'REP', leadId: 'OTHER', grandTotal: 9000, rows: [{ code: 'LAB TO1' }] };
+    const Lg = require(path.join(FN, 'in-person-signing-logic.js'));
+    const SP = 'documents/REP/L1/d-9.html';
+    const world = (rowEstimateId) => kit.makeDb({ 'leads/L1': lead({ primaryEstimateId: 'E1' }), 'estimates/E1': E1, 'estimates/E2': E2, 'estimates/EX': EX, 'companyProfile/CO': {},
+      'leads/L1/documents/d1': Object.assign({ type: 'attic_acknowledgment', status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner' }], htmlPath: SP, userId: 'REP' }, rowEstimateId ? { estimateId: rowEstimateId } : {}) });
+    const signIP = async (db) => { try { await Lg.handleInPersonSignature(db, { uid: 'REP', token: { companyId: 'CO' } }, { leadId: 'L1', docId: 'd1' }, { attic: { on: true, readBytes: async () => Buffer.from(tick(GEN), 'utf8') } }); return null; } catch (e) { return e; } };
+    const resOf = (db) => (db._get('leads/L1/documents/d1') || {}).atticAckResult || {};
+    let db = world('E2');
+    let e = await signIP(db);
+    ok('a form generated for the lead\'s NON-primary estimate E2: the recorded result carries E2 and its stamp', !e && resOf(db).estimateId === 'E2' && resOf(db).estimateStamp === AG.estimateStamp(E2), e && e.message);
+    let d = await AG.decide(db, 'L1', db._get('leads/L1'), { estimateId: 'E2' });
+    ok('...and sending E2 is satisfied by it', d.satisfied === true, JSON.stringify(d.basis));
+    d = await AG.decide(db, 'L1', db._get('leads/L1'), { estimateId: 'E1' });
+    ok('...but sending the primary estimate E1 (also a re-roof) is not', d.satisfied === false && d.basis.id === 'E1');
+    db = world(null);
+    e = await signIP(db);
+    ok('a form with no estimate on its row binds to the primary estimate, as before', !e && resOf(db).estimateId === 'E1');
+    d = await AG.decide(db, 'L1', db._get('leads/L1'), { estimateId: 'E2' });
+    ok('...and does not satisfy the non-primary estimate E2', d.satisfied === false);
+    db = world('EX');
+    e = await signIP(db);
+    ok('a row naming an estimate that belongs to another lead is ignored: the form binds to the primary', !e && resOf(db).estimateId === 'E1');
+    db = world('GHOST');
+    e = await signIP(db);
+    ok('...and one that does not exist too', !e && resOf(db).estimateId === 'E1');
+    // an empty binding never equals a real basis
+    db = world('E2');
+    db._store.set('leads/L1/documents/d1', Object.assign({}, db._get('leads/L1/documents/d1'), { atticAckResult: { version: 'ATTIC_ACK_V1', complete: true, estimateId: '', estimateStamp: '' } }));
+    d = await AG.decide(db, 'L1', db._get('leads/L1'), { estimateId: 'E2' });
+    ok('a result with an empty id and stamp does not satisfy a real basis', d.satisfied === false);
+    // the remote path reads the same row field
+    const GP = SP;
+    const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './doc-evidence', './await-briefly', './signed-price', './attic-gate', './attic-ack', 'crypto'];
+    const stubs = () => ({ './cancel-window': require(path.join(FN, 'cancel-window.js')), './ky-insurance-law': K, './lead-artifact-paths': require(path.join(FN, 'lead-artifact-paths.js')),
+      './esign-logic': ESL, './doc-evidence': DE, './await-briefly': require(path.join(FN, 'await-briefly.js')), './signed-price': require(path.join(FN, 'signed-price.js')), './attic-gate': AG, './attic-ack': AA });
+    const dbr = kit.makeDb({ 'leads/L1': lead({ primaryEstimateId: 'E1' }), 'estimates/E1': E1, 'estimates/E2': E2, 'leads/L1/documents/d1': { name: 'Attic', status: 'sent', type: 'attic_acknowledgment', htmlPath: GP, estimateId: 'E2' },
+      'doc_sign_tokens/TOKBIND00001': { status: 'pending', leadId: 'L1', docId: 'd1', ownerUid: 'REP', mintedBy: 'REP', htmlPath: GP, signerName: 'Dana Whitfield', docType: 'attic_acknowledgment', consentAsked: false } });
+    const Lr = kit.loadHandler('remote-signing.js', dbr, kit.makeStorage({ [GP]: GEN }), stubs(), REAL);
+    const sub = kit.reqRes({ token: 'TOKBIND00001', signedHtml: tick(sign(GEN)) });
+    await Lr.fns.submitSignature(sub.req, sub.res);
+    const rr = (dbr._get('leads/L1/documents/d1') || {}).atticAckResult || {};
+    ok('remote: the signed form carries the estimate its row names (E2)', sub.res.statusCode === 200 && rr.estimateId === 'E2' && rr.estimateStamp === AG.estimateStamp(E2), sub.res.statusCode + ' ' + JSON.stringify(rr));
+    ok('the generator writes estimateId on an attic form row and the panel passes the estimate', /type === 'attic_acknowledgment' \|\| type === 'attic_not_inspected'\) && typeof data\.estimateId/.test(src('docs/pro/js/document-generator.js')) && /estimateId: L\.primaryEstimateId/.test(src('docs/pro/js/attic-panel.js')));
+  }
+
   console.log('\n' + (failed ? 'FAILED ' + failed + ': ' + fails.join(' | ') : 'all ok') + ' (' + passed + ' passed)');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

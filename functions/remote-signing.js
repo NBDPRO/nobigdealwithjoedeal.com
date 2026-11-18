@@ -909,7 +909,7 @@ exports.submitSignature = onRequest(
           signedDocType = typeof p.docType === 'string' ? p.docType : null;
           atticResult = AG.resultFor(signedDocType, applied.html, null);
           // Review 2 (item 4): the form is bound to the estimate it covers (id and stamp), read before the burn; a read that fails refuses.
-          try { const b = await AG.formBasis(db, p.leadId, lead || {}); atticResult.estimateId = b.id; atticResult.estimateStamp = b.stamp; }
+          try { const dm = await db.doc(`leads/${p.leadId}/documents/${p.docId}`).get(); const b = await AG.formBasis(db, p.leadId, lead || {}, { estimateId: dm && dm.exists ? (dm.data() || {}).estimateId : undefined }); atticResult.estimateId = b.id; atticResult.estimateStamp = b.stamp; }
           catch (_) { res.status(503).json({ error: 'Could not record your signature right now. Nothing was used up; please try again shortly.' }); return; }
         }
       }
