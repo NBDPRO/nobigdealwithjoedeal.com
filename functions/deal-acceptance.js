@@ -582,7 +582,9 @@ exports.submitDealAcceptance = onRequest(
       ip = rl.clientIp(req) || null;
       ipSource = ip ? (typeof rl.clientIpInfo === 'function' ? rl.clientIpInfo(req).source : 'unreported') : null;
     } catch (_) { ip = null; ipSource = null; }
-    const evidence = {
+    // The reader's "no usable address" literal is not evidence: null with ipSource 'unknown', as doc-evidence.js does.
+    if (!ip || ip === 'unknown') { ip = null; ipSource = 'unknown'; }
+    const baseEvidence = {
       at: Date.now(),
       ip,
       ipSource,
@@ -620,6 +622,9 @@ exports.submitDealAcceptance = onRequest(
         const snap = await tx.get(tokRef);
         if (!snap.exists) { const e = new Error('nf'); e._http = 404; e._msg = 'Invalid link'; throw e; }
         const t = snap.data();
+        // Built fresh on EVERY attempt (review 2, item 10): a contention retry re-runs this callback, and a field
+        // set on an earlier attempt (priceChangedFrom) must not survive into the one that commits.
+        const evidence = Object.assign({}, baseEvidence);
         if (t.expiresAt && t.expiresAt.toMillis && t.expiresAt.toMillis() < Date.now()) {
           const e = new Error('exp'); e._http = 410; e._msg = 'This deal link has expired.'; throw e;
         }

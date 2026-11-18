@@ -90,7 +90,9 @@ function requestFacts(req) {
     if (typeof rl.clientIpInfo === 'function') { const info = rl.clientIpInfo(req || {}); ip = info.ip || null; ipSource = info.source || null; }
     else { ip = rl.clientIp(req || {}) || null; ipSource = ip ? 'unreported' : null; }
   } catch (_) { ip = null; ipSource = null; }
-  if (ip === 'unknown') { ip = null; ipSource = null; } // clientIp's "no usable address" marker is not evidence
+  // clientIp's "no usable address" marker is not evidence: null, and the source says so (review 2, item 9),
+  // the same on every path (deal-acceptance.js uses this reading too).
+  if (!ip || ip === 'unknown') { ip = null; ipSource = 'unknown'; }
   let ua = null;
   try { ua = String((req && typeof req.get === 'function' && req.get('user-agent')) || '').slice(0, 300) || null; } catch (_) { ua = null; }
   return { ip, ua, ipSource };

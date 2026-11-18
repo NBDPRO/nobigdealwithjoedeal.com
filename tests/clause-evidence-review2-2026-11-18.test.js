@@ -288,6 +288,67 @@ const failDocSets = (db) => {
     ok('8: a token WITH the snapshot is unaffected by a failing flag read (no re-read)', x.get.statusCode === 200 && x.sub.statusCode === 200);
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('9 + 10. unknown IP is null with ipSource "unknown" on every path; deal evidence is fresh per attempt');
+  if (!kit || !DE) ok('harness available', false);
+  else {
+    const noAddr = DE.requestFacts({ headers: {}, get: () => 'UA/1' });
+    ok('9: requestFacts with no usable address: ip null, ipSource "unknown"', noAddr.ip === null && noAddr.ipSource === 'unknown', JSON.stringify(noAddr));
+    const lit = (() => { const real = require(path.join(FN, 'integrations/upstash-ratelimit.js')); return real.clientIp({ headers: {} }); })();
+    ok('9: control: the shared reader\'s "no address" marker really is the literal "unknown" (or empty)', lit === 'unknown' || !lit, String(lit));
+    ok('9: with an address, ipSource is still the reader\'s label', DE.requestFacts({ headers: { 'x-forwarded-for': '6.6.6.6, 203.0.113.5, 35.1.1.1' }, get: () => 'UA/1' }).ipSource !== 'unknown');
+
+    const DEAL_PATH = 'deal_rooms/U1/d1.html';
+    const SIG = 'data:image/png;base64,' + 'A'.repeat(400);
+    const PAGE = '<html><body><p>Deal page</p></body></html>';
+    const REALD = ['./cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', './lead-artifact-paths', './await-briefly', './portal-after-signing', './customer-estimate-rows', 'crypto'];
+    const realSP = require(path.join(FN, 'signed-price.js'));
+    const mkStubs = (sp) => ({
+      './deal-install-date': { fillLeadInstallDate: async () => null },
+      './deal-view-logic': { isPreviewBot: () => false, shouldNotifyView: () => false, viewMessage: () => ({ title: '', body: '' }) },
+      './estimate-send-logic': {}, './thursday-video-gate': { isNbdTenant: () => false, DEAL_ROOM_INJECT: '', DEAL_ROOM_SCRIPT_PATH: '/x.js' },
+      './deal-accepted-tier': { applyAcceptedTier: async () => {}, tierOffered: () => true },
+      './ky-insurance-law': K, './cancel-window': require(path.join(FN, 'cancel-window.js')), './esign-logic': ESL, './doc-evidence': DE,
+      './signed-price': sp || realSP,
+    });
+    const dealDb = () => kit.makeDb({
+      'deal_accept_tokens/TOKDEAL00001': { status: 'pending', dealId: 'd1', ownerUid: 'U1', leadId: 'L1', estimateId: 'E1', htmlPath: DEAL_PATH, tierPrices: { better: 13000 }, pageSha256: kit.sha256(PAGE) },
+      'deal_rooms/d1': { status: 'sent', userId: 'U1' },
+      'leads/L1': { userId: 'U1', address: '9 Elm St, Louisville, KY 40202', jobType: 'insurance' },
+      'estimates/E1': { userId: 'U1', grandTotal: 13000 },
+    });
+    const acceptWith = async (db, sp, ipOpt) => {
+      const L = kit.loadHandler('deal-acceptance.js', db, kit.makeStorage({ [DEAL_PATH]: PAGE }), mkStubs(sp), REALD);
+      const c = kit.reqRes({ token: 'TOKDEAL00001', tier: 'better', signature: SIG, financing: -1, consent: true }, ipOpt || { ip: '198.51.100.20' });
+      await L.fns.submitDealAcceptance(c.req, c.res);
+      return c.res;
+    };
+    let db = dealDb(); let res = await acceptWith(db, null, { ip: 'unknown' });
+    let ev = (db._get('deal_rooms/d1') || {}).acceptedEvidence || {};
+    ok('9: deal room: an unknown IP is stored as null (not the literal "unknown") with ipSource "unknown"', res.statusCode === 200 && ev.ip === null && ev.ipSource === 'unknown', res.statusCode + ' ' + JSON.stringify({ ip: ev.ip, s: ev.ipSource }));
+    db = dealDb(); res = await acceptWith(db, null, { ip: '198.51.100.20' });
+    ev = (db._get('deal_rooms/d1') || {}).acceptedEvidence || {};
+    ok('9: control: a known IP is stored as is', ev.ip === '198.51.100.20' && ev.ipSource === 'unreported');
+
+    // 10: the transaction callback runs twice (a contention retry); only the SECOND attempt's facts may land.
+    let n = 0;
+    const flaky = Object.assign({}, realSP, { checkDealPrice: (o) => { n++; return n === 1 ? { ok: true, price: 13000, changedFrom: 12000 } : { ok: true, price: 13000 }; } });
+    db = dealDb();
+    const real = db.runTransaction;
+    db.runTransaction = async (fn) => {
+      await fn({ get: (r) => r.get(), update: () => {}, set: () => {} });   // attempt 1: its writes are discarded
+      return real(fn);                                                      // attempt 2: commits
+    };
+    res = await acceptWith(db, flaky);
+    ev = (db._get('deal_rooms/d1') || {}).acceptedEvidence || {};
+    ok('10: control: the callback really ran twice', n === 2, 'n=' + n);
+    ok('10: a priceChangedFrom set on the discarded first attempt does not leak into the committed evidence', res.statusCode === 200 && !('priceChangedFrom' in ev), JSON.stringify(ev.priceChangedFrom));
+    n = 0; const always = Object.assign({}, realSP, { checkDealPrice: () => ({ ok: true, price: 13000, changedFrom: 12000 }) });
+    db = dealDb(); res = await acceptWith(db, always);
+    ev = (db._get('deal_rooms/d1') || {}).acceptedEvidence || {};
+    ok('10: control: a price change on the committing attempt is still recorded', ev.priceChangedFrom === 12000);
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join('; ')); process.exit(1); }
 })().catch((e) => { console.error('FATAL', e); process.exit(1); });
