@@ -1175,6 +1175,108 @@ function tenthsText(t) {
   return (t < 0 ? '-' : '') + Math.floor(a / 10) + '.' + (a % 10) + '%';
 }
 
+// ---- Slice 7 (Jo, 2026-11-18): the materials list reads real supplier prices ----
+
+/**
+ * Which library products an estimate line can be, by its catalog sub-category
+ * (and, for underlayment, its code): [category, section] pairs of the product
+ * library. Conservative on purpose: a sub that is not listed is never priced.
+ */
+var PL_MATERIAL_SECTIONS = {
+  'shingles-3tab': [['roofing_shingles', 'Standard']],
+  'shingles-arch': [['roofing_shingles', 'Architectural']],
+  'shingles-impact': [['roofing_shingles', 'Impact-Resistant']],
+  'shingles-designer': [['roofing_shingles', 'Designer']],
+  starter: [['roofing_flashing', 'Starter']],
+  ridge: [['roofing_flashing', 'Ridge']],
+  hip: [['roofing_flashing', 'Ridge']],
+  'drip-edge': [['roofing_flashing', 'Drip Edge']],
+  rake: [['roofing_flashing', 'Drip Edge']],
+  'gutter-apron': [['roofing_flashing', 'Drip Edge']],
+  valley: [['roofing_flashing', 'Valley']],
+  transition: [['roofing_flashing', 'Transition']],
+  decking: [['roofing_decking', 'OSB'], ['roofing_decking', 'Plywood']],
+  fasteners: [['roofing_flashing', 'Fasteners']],
+  gutters: [['gutters', 'Gutters']],
+  downspout: [['gutters', 'Downspouts']],
+  guards: [['gutters', 'Guards']]
+};
+var PL_UNDERLAYMENT_BY_CODE = [[/^RFG (SYN|VB-SYN)/, 'Synthetic'], [/^RFG (IWS|RNB-MEM)/, 'Ice & Water'], [/^RFG (15F|30F)/, 'Felt']];
+
+/** The active library products an estimate line (its code and catalog sub-category) can be. */
+function materialProductsFor(code, sub, products) {
+  var pairs = PL_MATERIAL_SECTIONS[sub] || null, i;
+  if (sub === 'underlayment') {
+    for (i = 0; i < PL_UNDERLAYMENT_BY_CODE.length; i++) if (PL_UNDERLAYMENT_BY_CODE[i][0].test(String(code || ''))) { pairs = [['roofing_underlayment', PL_UNDERLAYMENT_BY_CODE[i][1]]]; break; }
+  }
+  if (!pairs) return [];
+  var out = [];
+  for (i = 0; i < (products || []).length; i++) {
+    var p = products[i];
+    if (!p || !p.id || p.isActive === false) continue;
+    for (var j = 0; j < pairs.length; j++) if (p.category === pairs[j][0] && p.section === pairs[j][1]) { out.push(p); break; }
+  }
+  return out;
+}
+
+/**
+ * One material line at the company's suppliers. line: { qty, unit } (the estimate's
+ * quantity and unit); product: the one library product it is. ctx: { nowMs, accounts,
+ * taxBps }. The store is the supplier whose account names the product's category as
+ * usual (preferredFor), else the cheapest fresh price; only fresh prices count, per
+ * catalog unit, tax added as on Compare suppliers. The quantity is bought in whole
+ * purchase units from the item's confirmed pack size, rounded up.
+ * Answers { state: 'priced', ... } or { state: 'unit' | 'no_price' }.
+ */
+function priceMaterialLine(line, product, offers, ctx) {
+  ctx = ctx || {};
+  if (!line || !product || typeof line.qty !== 'number' || !(line.qty > 0)) return { state: 'no_price' };
+  if (String(line.unit || '').toUpperCase() !== product.unit) return { state: 'unit' };
+  var c = compareProduct(product, offers, { nowMs: ctx.nowMs, accounts: ctx.accounts, taxBps: ctx.taxBps });
+  var fresh = [], i;
+  for (i = 0; i < c.rows.length; i++) if (c.rows[i].fresh && plIsPosInt(c.rows[i].compareMicros)) fresh.push(c.rows[i]);
+  if (!fresh.length) return { state: 'no_price' };
+  var preferred = [];
+  for (i = 0; i < fresh.length; i++) {
+    var acct = plAccountOf(ctx.accounts, fresh[i].supplierId);
+    if (acct && acct.active !== false && (acct.preferredFor || []).indexOf(product.category) !== -1) preferred.push(fresh[i]);
+  }
+  var pool = preferred.length ? preferred : fresh, best = null;
+  for (i = 0; i < pool.length; i++) if (!best || pool[i].compareMicros < best.compareMicros) best = pool[i];
+  var offer = null;
+  for (i = 0; i < (offers || []).length; i++) if (offers[i] && offers[i].id === best.offerId) offer = offers[i];
+  if (!offer || !validPack(offer.pack)) return { state: 'no_price' };
+  var pack = offer.pack;
+  var buyQty = Math.ceil(line.qty * pack.den / pack.num - 1e-9);
+  var total = best.compareMicros * buyQty * pack.num;
+  if (!Number.isSafeInteger(total)) return { state: 'no_price' };
+  return { state: 'priced', productId: product.id, offerId: offer.id, supplierId: offer.supplierId, preferred: preferred.length > 0,
+    buyQty: buyQty, purchaseUnit: pack.purchaseUnit, perPurchaseMicros: Math.round(best.compareMicros * pack.num / pack.den),
+    totalMicros: Math.round(total / pack.den), kind: best.kind, observedAtMs: best.observedAtMs,
+    taxIncluded: best.taxIncluded || typeof ctx.taxBps === 'number' };
+}
+
+/**
+ * Every line of a materials list at the company's suppliers. lines: [{ code, sub,
+ * qty, unit }]; products: the library; offers: the company's items. A line is
+ * priced only when exactly ONE of the products it can be has a supplier item linked
+ * (design section 8, slice 7): with none it is 'not_linked', with more than one it is
+ * 'ambiguous', never a guess. Answers one result per line, in order.
+ */
+function materialsPricing(lines, products, offers, ctx) {
+  var linked = {}, i, out = [];
+  for (i = 0; i < (offers || []).length; i++) if (offers[i] && offers[i].productId && offers[i].active !== false) linked[offers[i].productId] = true;
+  for (i = 0; i < (lines || []).length; i++) {
+    var l = lines[i] || {};
+    var cands = materialProductsFor(l.code, l.sub, products), withItems = [];
+    for (var j = 0; j < cands.length; j++) if (linked[cands[j].id]) withItems.push(cands[j]);
+    if (!withItems.length) { out.push({ state: 'not_linked' }); continue; }
+    if (withItems.length > 1) { out.push({ state: 'ambiguous', count: withItems.length }); continue; }
+    out.push(priceMaterialLine({ qty: l.qty, unit: l.unit }, withItems[0], offers, ctx));
+  }
+  return out;
+}
+
 /** Is the ledger switched on for this person? Only the boolean true turns it on. */
 function flagOn(flagsDefault, flagsMine) {
   var merged = {}, k;
@@ -1201,7 +1303,8 @@ function flagOn(flagsDefault, flagsMine) {
     compareProduct: compareProduct, priceMoveAlert: priceMoveAlert, sanitizeSeenMark: sanitizeSeenMark, supplierAlerts: supplierAlerts, suggestLink: suggestLink,
     microsToCostBookDollars: microsToCostBookDollars, dollarsToMicros: dollarsToMicros, bookMicros: bookMicros, marginFloorTenths: marginFloorTenths,
     marginAfterLabor: marginAfterLabor, approvalSource: approvalSource, proposalLines: proposalLines, costGuardRefusal: costGuardRefusal,
-    changeTenths: changeTenths, tenthsText: tenthsText
+    changeTenths: changeTenths, tenthsText: tenthsText,
+    materialProductsFor: materialProductsFor, priceMaterialLine: priceMaterialLine, materialsPricing: materialsPricing
   };
   root.NBDPriceLogic = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

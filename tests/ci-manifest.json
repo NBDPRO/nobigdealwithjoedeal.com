@@ -782,6 +782,7 @@
     "sms-optout-key.test.js",
     "sms-stop-intent-2026-10-05.test.js",
     "sms-keyword-replies-2026-10-13.test.js",
+    "price-logic-materials-2026-11.test.js",
     "otp-hardening-2026-10-19.test.js",
     "messaging-automations-2026-10-19.test.js",
     "messaging-send-gates-2026-10-19.test.js",
