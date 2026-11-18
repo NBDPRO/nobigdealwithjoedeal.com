@@ -3084,6 +3084,13 @@ service cloud.firestore {
       allow read: if plAdmin(companyId);
       allow write: if false;
     }
+    // Slice 4: per-product extras. applied.<tier> is the last cost approved into the
+    // cost book (priceLedgerSave approveCost / undoCost); every device of the company
+    // reads it to pick the change up. Read like offers; only the server writes.
+    match /priceBook/{companyId}/productLinks/{productId} {
+      allow read: if plMember(companyId);
+      allow write: if false;
+    }
 
     // Job-name memory (hd-import.js, receipt sorter 2026-10-18): which lead a
     // PO/Job name on a Home Depot / Lowe's receipt means, learned from the

@@ -98,7 +98,10 @@
   function resultHtml() {
     const r = S.result;
     return '<div class="prl-empty" role="status"><strong>Saved.</strong> ' + esc(r.written) + ' new prices, ' + esc(r.duplicates) + ' already there' +
-      (r.rejected ? ', ' + esc(r.rejected) + ' refused' : '') + (r.needsUnit ? ', ' + esc(r.needsUnit) + ' need a unit' : '') + '.</div>' +
+      (r.rejected ? ', ' + esc(r.rejected) + ' refused' : '') + '.</div>' +
+      // The server's needsUnit counts rows with no per-unit price yet: a new, unlinked item has
+      // no pack size, so it lands here even when its unit is printed. Say what to do, not "unit".
+      (r.needsUnit ? '<p class="prl-dim">' + esc(r.needsUnit) + ' of them can not be compared yet: link each item to a product and set its pack size.</p>' : '') +
       '<div class="prl-actions"><button type="button" class="btn btn-ghost prl-btn" data-pri-action="close" data-prl-action="openUnlinked">Unlinked items</button>' +
       '<button type="button" class="ui-btn-quiet prl-btn" data-pri-action="another">Import another file</button></div>';
   }

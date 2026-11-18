@@ -224,6 +224,15 @@ threshold, off until set). Details, Jo's nine decisions and what is not done:
 Next: after the deploy Jo loads the SRS and QXO price sheets through the
 import, each only after his OK on its preview.
 
+## Update 2026-11-17 (night): slice 4 built
+
+Slice 4 is built and ships dark: **Update my cost** approves a fresh supplier
+price into the company's cost book one tier at a time, with the margin-floor
+and above-sell confirms, an audit row, Undo, and the change reaching his other
+devices. A product save now writes only the costs it changed. Details and what
+is not done:
+[LIVE-SUPPLIER-PRICING-SLICE-4-2026-11-17](LIVE-SUPPLIER-PRICING-SLICE-4-2026-11-17.md).
+
 ## Waiting on Jo
 
 Outside actions (none blocks slice 1):

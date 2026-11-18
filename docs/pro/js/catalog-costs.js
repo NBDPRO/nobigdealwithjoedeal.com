@@ -416,6 +416,73 @@
   }
 
   /**
+   * Write only what one save changed for one product (2026-11-17, supplier
+   * pricing slice 4, Jo's Q6): `parts` maps 'cost.<tier>' or 'labor' to a value,
+   * or to null for a tier the person cleared. Each becomes its own field path
+   * under costs.<id>, so a device holding an older cost for a tier it did not
+   * touch can no longer write it back over a newer one (an approved supplier
+   * price, or an edit made on another device). Same first-write fallback and
+   * permission handling as writeEntries.
+   */
+  async function writeParts(id, parts) {
+    const key = tenantKey || await resolveKey();
+    const names = Object.keys(parts || {});
+    if (!key || !window.db || !id || !names.length) return false;
+    try {
+      const mod = await fsMod();
+      const { setDoc, updateDoc, doc, deleteField } = mod;
+      const ref = doc(window.db, COLLECTION, key);
+      if (typeof deleteField !== 'function' && names.some(function (n) { return parts[n] === null; })) return null;   // the caller falls back to the whole entry
+      const paths = {};
+      names.forEach(function (n) { paths['costs.' + id + '.' + n] = parts[n] === null ? deleteField() : parts[n]; });
+      let wrote = false;
+      if (typeof updateDoc === 'function') {
+        try { await updateDoc(ref, paths); wrote = true; }
+        catch (e) { if (!/not-found|No document to update/i.test((e && (e.code || e.message)) || '')) throw e; }
+      }
+      if (!wrote) {
+        // No book yet: nothing to clear, so only the values that are set go up.
+        const entry = {};
+        names.forEach(function (n) {
+          if (parts[n] === null) return;
+          if (n === 'labor') entry.labor = parts[n];
+          else { entry.cost = entry.cost || {}; entry.cost[n.slice(5)] = parts[n]; }
+        });
+        const payload = { version: SEED_VERSION, costs: {} };
+        payload.costs[id] = entry;
+        await setDoc(ref, payload, { merge: true });
+      }
+      book = book || {};
+      book.costs = book.costs || {};
+      const local = book.costs[id] = Object.assign({}, book.costs[id] || {});
+      names.forEach(function (n) {
+        if (n === 'labor') { if (parts[n] === null) delete local.labor; else local.labor = parts[n]; return; }
+        local.cost = Object.assign({}, local.cost || {});
+        if (parts[n] === null) delete local.cost[n.slice(5)]; else local.cost[n.slice(5)] = parts[n];
+      });
+      writeCache(key, book);
+      return true;
+    } catch (e) {
+      const msg = (e && (e.code || e.message)) || '';
+      if (/permission/i.test(msg)) console.info('[catalog-costs] cost book is owner/admin-writable; keeping this edit local');
+      else console.warn('[catalog-costs] cost write failed:', msg);
+      return false;
+    }
+  }
+
+  /** The parts of a product's cost half that differ between two saves of it (see writeParts). */
+  function changedParts(product, before) {
+    const now = extractFrom(product) || {}, was = extractFrom(before) || {};
+    const parts = {};
+    TIERS.forEach(function (t) {
+      const a = now.cost ? now.cost[t] : undefined, b = was.cost ? was.cost[t] : undefined;
+      if (a !== b) parts['cost.' + t] = (a === undefined) ? null : a;
+    });
+    if (JSON.stringify(now.labor || null) !== JSON.stringify(was.labor || null)) parts.labor = now.labor || null;
+    return parts;
+  }
+
+  /**
    * ONE-TIME UPGRADE. Before per-tenant cost books, a tenant's costs existed
    * only in this device's localStorage (seeded from the then-public catalog,
    * plus whatever they edited). If the tenant has no book yet, adopt what this
@@ -566,12 +633,43 @@
      * company-wide value — buildCostOverlay derives it as the MODE across the
      * whole catalog — so a single product is never evidence of it.
      */
-    recordProduct: function (product) {
+    recordProduct: function (product, before) {
       const entry = extractFrom(product);
-      if (!product || !product.id || !entry) return Promise.resolve(false);
+      if (!product || !product.id) return Promise.resolve(false);
+      // With the product as it was before this save (product-library.saveProduct
+      // passes it), only what changed is written, one path each (writeParts). A
+      // save that changed no cost and no labor writes nothing.
+      if (before && typeof before === 'object' && before.id === product.id) {
+        const parts = changedParts(product, before);
+        if (!Object.keys(parts).length) return Promise.resolve(false);
+        return writeParts(product.id, parts).then(function (r) {
+          if (r !== null) return r;
+          const whole = {};
+          whole[product.id] = entry || {};
+          return entry ? writeEntries('costs', whole) : false;
+        });
+      }
+      if (!entry) return Promise.resolve(false);
       const entries = {};
       entries[product.id] = entry;
       return writeEntries('costs', entries);
+    },
+
+    /**
+     * A supplier price was approved into the cost book on the server (supplier
+     * pricing slice 4). Mirror that one path into this device's copy of the book
+     * and its cache. No re-read: a forced hydrate would swap the whole book and
+     * re-register job-template items under an estimate open in this session.
+     * `dollars` null means the tier was removed (an undo of a created tier).
+     */
+    noteApproved: function (id, tier, dollars) {
+      if (!id || TIERS.indexOf(tier) === -1 || !book) return false;
+      book.costs = book.costs || {};
+      const entry = book.costs[id] = Object.assign({}, book.costs[id] || {});
+      entry.cost = Object.assign({}, entry.cost || {});
+      if (typeof dollars === 'number' && isFinite(dollars)) entry.cost[tier] = dollars; else delete entry.cost[tier];
+      if (tenantKey) writeCache(tenantKey, book);
+      return true;
     },
 
     /**

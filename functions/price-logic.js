@@ -76,7 +76,7 @@ var PL_UOM_ALIASES = {
   SF: ['SF', 'SQFT', 'SQ FT', 'SQUARE FOOT', 'SQUARE FEET'],
   GAL: ['GAL', 'GALLON', 'GALLONS', 'GA'],
   PAIL: ['PAIL', 'PAILS', 'PL'],
-  TUBE: ['TUBE', 'TUBES', 'TB'],
+  TUBE: ['TUBE', 'TUBES', 'TB', 'TUB', 'TUBS'],
   BAG: ['BAG', 'BAGS', 'BG'],
   CTN: ['CTN', 'CARTON', 'CARTONS'],
   PLT: ['PLT', 'PALLET', 'PALLETS', 'PAL'],
@@ -737,7 +737,7 @@ function plHeaderWords(h) { return String(h == null ? '' : h).toLowerCase().repl
 var PL_COLUMN_WORDS = {
   sku: /^(item|item no|item number|item num|item code|item id|sku|sku no|part|part no|part number|product code|product no|product number|product id|catalog no|catalog number|mfr part|mfr part no|material|material no|material number)$/,
   title: /^(description|desc|item description|product description|product name|product|item name|name|material description)$/,
-  price: /^(unit price|price|net price|net|your price|unit cost|cost|each|price each|net each|sell price|contract price|quote price|account price)$/,
+  price: /^(unit price|price|net price|net|your price|unit cost|cost|each|price each|net each|sell price|contract price|quote price|account price|live price)$/,
   unit: /^(uom|u m|um|unit|units|unit of measure|sell uom|price uom|pricing uom)$/,
   per: /^(per|price per|priced per|pricing unit|price unit|c m)$/,
   qty: /^(qty|quantity|qty ordered|qty shipped|ship qty|order qty|shipped|ordered)$/
@@ -1056,6 +1056,133 @@ function suggestLink(offer, products) {
   return best;
 }
 
+// ---- Slice 4 (Jo, 2026-11-17): approve a supplier price into the cost book ----
+
+/**
+ * Money at the cost book boundary (design 5.1). The cost book holds dollars as
+ * floats; this system writes whole cents only. bookMicros is a price as the cost
+ * book would hold it, so "has it changed" is always asked in whole cents.
+ */
+function microsToCostBookDollars(m) { return Math.round(m / 10000) / 100; }
+function dollarsToMicros(d) { return Math.round(d * 1000000); }
+function bookMicros(m) { return dollarsToMicros(microsToCostBookDollars(m)); }
+function plDollarsToCents(d) { return (typeof d === 'number' && isFinite(d)) ? Math.round(d * 100) : null; }
+function plCentsToDollars(c) { return c / 100; }
+
+/**
+ * The company's margin floor for a cost change, in tenths of a percent, or null
+ * when none is set: the estimate floor (companyProfile.pricing.marginFloor.floorPct,
+ * Jo 2026-11-17). Above 0 and under 95, one decimal, as margin-floor.js reads it.
+ */
+function marginFloorTenths(profile) {
+  var f = profile && profile.pricing && profile.pricing.marginFloor;
+  var v = f ? f.floorPct : null;
+  if (v === null || v === undefined || v === '') return null;
+  var n = Number(v);
+  if (!isFinite(n) || n <= 0 || n >= 95) return null;
+  return Math.round(n * 10);
+}
+
+/** Margin after labor, (sell - cost - labor) / sell, in whole tenths of a percent (rounded down). Null with no sell. */
+function marginAfterLabor(sellCents, costCents, laborCents) {
+  if (!plIsPosInt(sellCents) || typeof costCents !== 'number') return null;
+  return Math.floor((sellCents - costCents - (laborCents || 0)) * 1000 / sellCents);
+}
+
+var PL_APPROVE_KINDS = ['paid', 'quote', 'contract', 'price_sheet', 'portal_read', 'api_account'];
+var PL_APPROVE_PRICE_TYPES = ['net', 'account'];
+
+/**
+ * Can this price row be approved into the cost book? (Jo, 2026-11-17: fresh own
+ * paperwork only.) row: the observation, with observedAtMs and validThroughMs as
+ * numbers. Answers { ok: true } or { ok: false, reason }.
+ */
+function approvalSource(row, nowMs, quoteValidDays) {
+  if (!row) return plBad('no_price');
+  if (row.voided === true) return plBad('changed');
+  if (PL_APPROVE_KINDS.indexOf(row.kind) === -1) return plBad('not_paperwork');
+  if (row.attested !== true) return plBad('not_paperwork');
+  if (PL_APPROVE_PRICE_TYPES.indexOf(row.priceType) === -1) return plBad('price_type');
+  if (row.delivered === true) return plBad('delivered');
+  if (row.compare !== true) return plBad('not_comparable');
+  var flags = row.flags || [];
+  if (flags.indexOf('unit_suspect') !== -1 || flags.indexOf('unit_mismatch') !== -1) return plBad('unit_suspect');
+  if (evidenceLevel(row, nowMs, quoteValidDays) > 2) return plBad('stale');
+  return { ok: true };
+}
+
+/**
+ * The lines a person can approve for one product from one offer's price, one per
+ * tier the item is for. input: {
+ *   product: { id, unit, pricing: { <tier>: { sell } } }  (dollars, as the library holds them)
+ *   offer, row (the observation, its catalogMicros from the offer's current pack),
+ *   book: the catalogCosts document or null, taxBps, floorTenths, nowMs, quoteValidDays }
+ * Answers { blocked, lines: [{ tier, fromCents, toCents, created, blocked,
+ *   guard: { sellCents, laborCents, laborKnown, marginBefore, marginAfter, belowFloor, aboveSell } }] }.
+ * blocked (for every line): no_price, not_paperwork, price_type, delivered,
+ * not_comparable, unit_suspect, stale, needs_pack, unit_changed, needs_tax_rate,
+ * no_cost_book. A line's own: below_one_cent, no_change. A blocked line can not be approved.
+ */
+function proposalLines(input) {
+  input = input || {};
+  var product = input.product || {}, offer = input.offer || {}, row = input.row, book = input.book;
+  var blocked = null;
+  var src = approvalSource(row, input.nowMs, input.quoteValidDays);
+  if (!src.ok) blocked = src.reason;
+  else if (!validPack(offer.pack) || offer.pack.verified !== true) blocked = 'needs_pack';
+  else if (offer.pack.catalogUnit !== product.unit) blocked = 'unit_changed';
+  else if (!plIsPosInt(row.catalogMicros)) blocked = 'needs_pack';
+  else if (typeof input.taxBps !== 'number') blocked = 'needs_tax_rate';
+  var costs = book && book.costs && typeof book.costs === 'object' ? book.costs : null;
+  if (!blocked && (!costs || !Object.keys(costs).length)) blocked = 'no_cost_book';
+  var entry = (costs && costs[product.id] && typeof costs[product.id] === 'object') ? costs[product.id] : null;
+  var laborC = entry && entry.labor ? plDollarsToCents(entry.labor.perUnit) : null;
+  var laborKnown = laborC !== null && laborC > 0;
+  if (laborC === null || laborC < 0) laborC = 0;
+  var toCents = null;
+  if (!blocked) toCents = microsToCents(bookMicros(row.taxIncluded === true ? row.catalogMicros : applyTaxMicros(row.catalogMicros, input.taxBps)));
+  var tiers = (offer.tiers && offer.tiers.length) ? offer.tiers : ['good'], lines = [];
+  for (var i = 0; i < tiers.length; i++) {
+    var t = tiers[i];
+    if (PL_TIERS.indexOf(t) === -1) continue;
+    var fromC = entry && entry.cost ? plDollarsToCents(entry.cost[t]) : null;
+    var tierP = product.pricing && product.pricing[t];
+    var sellC = tierP ? plDollarsToCents(tierP.sell) : null;
+    if (sellC !== null && sellC <= 0) sellC = null;
+    var line = { tier: t, fromCents: fromC, toCents: toCents, created: fromC === null, blocked: blocked,
+      guard: { sellCents: sellC, laborCents: laborC, laborKnown: laborKnown, marginBefore: fromC === null ? null : marginAfterLabor(sellC, fromC, laborC),
+        marginAfter: toCents === null ? null : marginAfterLabor(sellC, toCents, laborC), belowFloor: false, aboveSell: false } };
+    if (!line.blocked && toCents < 1) line.blocked = 'below_one_cent';
+    if (!line.blocked && fromC === toCents) line.blocked = 'no_change';
+    if (!line.blocked && sellC !== null) {
+      line.guard.aboveSell = toCents > sellC;
+      line.guard.belowFloor = typeof input.floorTenths === 'number' && (sellC - toCents - laborC) * 1000 < input.floorTenths * sellC;
+    }
+    lines.push(line);
+  }
+  return { blocked: blocked, lines: lines };
+}
+
+/** Does this line need a confirm the call did not carry? Answers null or 'confirm_floor' / 'confirm_above_sell'. */
+function costGuardRefusal(line, confirm) {
+  confirm = confirm || {};
+  if (line.guard.aboveSell && confirm.confirmAboveSell !== true) return 'confirm_above_sell';
+  if (line.guard.belowFloor && confirm.confirmBelowFloor !== true) return 'confirm_floor';
+  return null;
+}
+
+/** The change from one cost to another in tenths of a percent (rounded), or null with no old cost. */
+function changeTenths(fromCents, toCents) {
+  if (!plIsPosInt(fromCents) || typeof toCents !== 'number') return null;
+  return Math.round((toCents - fromCents) * 1000 / fromCents);
+}
+/** Tenths of a percent as text: 574 -> '57.4%', -25 -> '-2.5%'. */
+function tenthsText(t) {
+  if (typeof t !== 'number' || !isFinite(t)) return '';
+  var a = Math.abs(Math.round(t));
+  return (t < 0 ? '-' : '') + Math.floor(a / 10) + '.' + (a % 10) + '%';
+}
+
 /** Is the ledger switched on for this person? Only the boolean true turns it on. */
 function flagOn(flagsDefault, flagsMine) {
   var merged = {}, k;
@@ -1076,4 +1203,5 @@ module.exports = {
   summarize, flagOn,
   parseCsv, guessColumns, guessHeaderRow, IMPORT_DOC_KINDS, buildImport, applyTaxMicros, removeTaxMicros,
   supplierCompareSettings, quoteExpiryState, compareProduct, priceMoveAlert, sanitizeSeenMark, supplierAlerts, suggestLink,
+  microsToCostBookDollars, dollarsToMicros, bookMicros, marginFloorTenths, marginAfterLabor, approvalSource, proposalLines, costGuardRefusal, changeTenths, tenthsText,
 };

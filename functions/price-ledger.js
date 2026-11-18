@@ -6,7 +6,10 @@
  *   priceLedgerSave    { op, data }   owner / company_admin
  *     ops: upsertSupplierAccount, upsertOffer, linkOffer, verifyPack, archiveOffer,
  *     voidObservation; markSeen (slice 3: the shared "seen" list for on-screen alerts,
- *     priceBook/{companyId}/priceConfig/seen). Answers { ok, id }.
+ *     priceBook/{companyId}/priceConfig/seen); approveCost and undoCost (slice 4: a
+ *     supplier price into the company's cost book, one tier at a time; the only
+ *     callable path that writes catalogCosts, and only costs.<productId>.cost.<tier>).
+ *     Answers { ok, id }, plus `applied` for approveCost and undoCost.
  *   priceLedgerRecord  { rows: [1..500], channel? }   owner / company_admin / manager
  *     Typed prices into the dated, append-only history. A manager's row is stored
  *     as a note (`manual`, unattested) until an owner or company_admin confirms it.
@@ -18,8 +21,9 @@
  *     paperwork kinds only, a quote needs its good-through date. The file is not kept.
  *     Answers { results, written, duplicates, rejected, needsUnit, alertsOpened }.
  *
- * Nothing here changes a cost book, a sell price or an estimate, and nothing calls a
- * vendor: a person types their own price. So there is no kill switch and no plan
+ * Nothing here changes a sell price or an estimate, and nothing calls a vendor.
+ * The cost book changes only through approveCost / undoCost, one tier a person
+ * approved at a time. Otherwise: a person types their own price. So there is no kill switch and no plan
  * gate in this slice; the per-person flag is the allowlist.
  *
  * Who is calling, and for which tenant, is decided by priceCaller and nowhere else.
@@ -73,6 +77,25 @@ const REASONS = {
   needs_unit: 'Set the pack size first.',
   not_found: 'That was not found.',
   bad_alert: 'That alert was not recognised.',
+  // slice 4: approving a supplier price into the cost book
+  changed: 'Something changed since this was shown (a newer price, or the cost was edited). Close it and look again.',
+  no_lines: 'Tick at least one tier to update.',
+  bad_tier: 'That tier is not one this item is set for.',
+  no_price: 'This item has no price to use yet.',
+  not_paperwork: 'Only your own paperwork can update a cost: a receipt, invoice, quote, price sheet or account price an owner or admin entered.',
+  price_type: 'A list or sale price can not update your cost. Use your own net or account price.',
+  delivered: 'A delivered price includes delivery, so it can not update your cost.',
+  not_comparable: 'This price can not be used for cost changes.',
+  unit_suspect: 'This price looks like it was entered in the wrong unit. Check it or void it first.',
+  stale: 'This price is too old to trust. Get a current receipt or quote first.',
+  needs_pack: 'Confirm the pack size first.',
+  unit_changed: 'The product\'s unit changed. Set the pack size again first.',
+  needs_tax_rate: 'Set your purchase sales tax rate first (Company Settings, Supplier Price Compare).',
+  no_cost_book: 'Open the Product Library once on the owner\'s device so your costs are saved, then try again.',
+  below_one_cent: 'That cost rounds to less than one cent.',
+  no_change: 'Your cost book already has this cost.',
+  confirm_floor: 'This takes the margin under your floor. Approve it again to confirm.',
+  confirm_above_sell: 'This cost is above the sell price. Approve it again to confirm.',
 };
 
 async function priceLedgerSave(request) {
@@ -83,10 +106,12 @@ async function priceLedgerSave(request) {
   const out = await Store.saveOps[op](getFirestore(), caller.companyId, data, { uid: caller.uid, role: caller.role }, Date.now());
   if (!out.ok) {
     logger.info('[priceLedgerSave] refused', { op, reason: out.reason });
-    throw new HttpsError(out.reason === 'not_found' ? 'not-found' : 'invalid-argument', REASONS[out.reason] || 'That could not be saved.', { reason: out.reason });
+    const details = { reason: out.reason };
+    if (Array.isArray(out.refused)) details.refused = out.refused;
+    throw new HttpsError(out.reason === 'not_found' ? 'not-found' : (out.reason === 'changed' ? 'aborted' : 'invalid-argument'), REASONS[out.reason] || 'That could not be saved.', details);
   }
-  logger.info('[priceLedgerSave] done', { op });
-  return { ok: true, id: out.id };
+  logger.info('[priceLedgerSave] done', Array.isArray(out.applied) ? { op, lines: out.applied.length } : { op });
+  return Array.isArray(out.applied) ? { ok: true, id: out.id, applied: out.applied } : { ok: true, id: out.id };
 }
 
 async function priceLedgerRecord(request) {
