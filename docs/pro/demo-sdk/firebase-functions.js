@@ -226,6 +226,7 @@ const WOULD = {
   submitInboxReceipt: 'read a receipt into your inbox with AI',
   priceLedgerSave: 'save a store, a supplier item or its pack size',
   priceLedgerRecord: 'record a supplier price in your price history',
+  priceDocRead: 'read a supplier PDF or photo into price lines for you to check',
   renderPdf: 'render the PDF on the server',
   getDocumentPdfUrl: 'render the PDF on the server',
   exportMyData: 'export your company data',

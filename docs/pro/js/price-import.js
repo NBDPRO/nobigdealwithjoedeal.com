@@ -9,8 +9,15 @@
  * channel csv_import, 500 a call (NBDPriceLedger.importRows). An item number the
  * ledger has not seen becomes a new unlinked item (see "Unlinked items").
  *
+ * Slice 9 (2026-11-18): instead of a CSV, a PDF or a photo of the supplier's
+ * document can be read by the reader on the server (NBDPriceLedger.readDocument,
+ * priceDocRead). Its lines fill the same column match and preview; the kind, dates,
+ * tax and document number it read are filled in for the person to check; nothing is
+ * saved until they press Save. The original is kept privately, and every saved row
+ * carries the document's id, so "Remove this document" voids them all.
+ *
  * Rules this file keeps:
- *   - the file is read in the browser and never uploaded or stored: only its rows,
+ *   - a CSV is read in the browser and never uploaded or stored: only its rows,
  *     its name and the document date reach the ledger
  *   - prices are read by digits (NBDPriceLogic.moneyTextToMicros), never guessed;
  *     a row with no unit is saved as stated and counted as needing one
@@ -63,10 +70,27 @@
       '</div>' +
       field('Document number (optional)', '<input class="prl-input" name="docRef" maxlength="80" autocomplete="off" data-pri-change="setup" value="' + esc(f.docRef) + '">', 'Left blank, the file name is used.') +
       field('File (CSV)', '<input class="prl-input" name="file" type="file" accept=".csv,text/csv" data-pri-change="file">', 'An Excel file must be saved as CSV first (File, Save As, CSV). The file stays on this device: only its rows and its name are saved.') +
+      field('Or read a PDF or photo', '<input class="prl-input" name="doc" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" data-pri-change="doc"' + (S.busy ? ' disabled' : '') + '>',
+        'Read on the server by AI: check every line before you save. The original is kept privately for you and your admins.') +
+      (S.reading ? '<div class="prl-dim" role="status">' + esc(S.reading) + '</div>' : '') +
+      (S.readNote ? '<div class="prl-note">' + S.readNote + '</div>' : '') +
       (S.file ? mapHtml() : '') +
       (S.error ? '<div class="prl-error" role="alert">' + esc(S.error) + '</div>' : '') +
       (S.file ? '<div class="prl-actions"><button type="submit" class="btn btn-orange prl-btn">Preview</button></div>' : '') +
       '</form>';
+  }
+
+  /** The documents read so far, each with Open and Remove this document. */
+  function docsHtml() {
+    const docs = (S.docs || []).filter((d) => d && d.state !== 'failed');
+    if (!docs.length) return '';
+    return '<h3 class="prl-h3">Documents read</h3>' + docs.slice(0, 20).map((d) => '<div class="prl-hrow">' +
+      '<div class="prl-hmain">' + esc(d.fileName || 'document') + '</div>' +
+      '<div class="prl-src">' + esc(d.createdAtMs ? new Date(d.createdAtMs).toISOString().slice(0, 10) : '') + ' · ' + esc(d.lineCount || 0) + ' lines read' +
+      (d.read && d.read.docNumber ? ' · ' + esc(d.read.docNumber) : '') + (d.state === 'removed' ? ' · <span class="ui-badge is-danger">Removed</span>' : '') + '</div>' +
+      (d.state === 'read' ? '<div class="prl-actions">' + (d.storagePath ? '<button type="button" class="ui-btn-quiet prl-btn" data-pri-action="openDoc" data-pri-id="' + esc(d.id) + '">Open</button>' : '') +
+        '<button type="button" class="ui-btn-quiet prl-btn" data-pri-action="removeDoc" data-pri-id="' + esc(d.id) + '">Remove this document</button></div>' : '') +
+      '</div>').join('');
   }
 
   function mapHtml() {
@@ -109,7 +133,7 @@
   function paint() {
     const el = document.getElementById('priBody');
     if (!el || !S) return;
-    el.innerHTML = S.loading ? '<div class="prl-empty">Loading…</div>' : S.result ? resultHtml() : S.preview ? previewHtml() : setupHtml();
+    el.innerHTML = S.loading ? '<div class="prl-empty">Loading…</div>' : S.result ? resultHtml() : S.preview ? previewHtml() : setupHtml() + docsHtml();
   }
 
   function fresh(keep) {
@@ -125,14 +149,15 @@
     ov.id = 'priOverlay';
     ov.innerHTML = '<div class="modal prl-modal" role="dialog" aria-modal="true" aria-labelledby="priTitle">' +
       '<div class="prl-head"><h2 class="prl-title" id="priTitle">Import prices</h2><button type="button" class="prl-close" data-pri-action="close" aria-label="Close">✕</button></div>' +
-      '<p class="prl-sub">A supplier\'s quote, price sheet or invoice saved as a CSV file. Internal only.</p><div id="priBody"></div></div>';
+      '<p class="prl-sub">A supplier\'s quote, price sheet or invoice: a CSV file, or a PDF or photo read for you. Internal only.</p><div id="priBody"></div></div>';
     document.body.appendChild(ov);
     paint();
     const closeBtn = ov.querySelector('.prl-close');
     if (closeBtn) closeBtn.focus();
-    const [suppliers, offers] = await Promise.all([PL().suppliers(), PL().allOffers()]);
+    const [suppliers, offers, docs] = await Promise.all([PL().suppliers(), PL().allOffers(), typeof PL().priceDocs === 'function' ? PL().priceDocs() : Promise.resolve([])]);
     if (!S) return;
     S.suppliers = suppliers;
+    S.docs = docs;
     offers.forEach((o) => { S.known[o.id] = true; });
     const first = suppliers.find((a) => a.active !== false);
     if (first) S.f.supplierId = first.supplierId || first.id;
@@ -172,6 +197,42 @@
     reader.readAsText(file);
   }
 
+  /**
+   * A PDF or photo: the reader's lines become the same table a CSV would, with its
+   * columns already matched, and the kind, dates, tax and number it read are filled in
+   * for the person to check. Nothing is saved here.
+   */
+  async function onDoc(input) {
+    const file = input.files && input.files[0];
+    if (!file || S.busy) return;
+    S.busy = true; S.error = ''; S.readNote = ''; S.reading = 'Reading ' + file.name + '… this can take half a minute.'; paint();
+    const r = await PL().readDocument(file, S.f.supplierId);
+    if (!S) return;
+    S.busy = false; S.reading = '';
+    if (!r || !r.ok) { S.error = (r && r.message) || 'That document could not be read.'; S.file = null; paint(); return; }
+    const rd = r.read || {};
+    const perText = (p) => (p === 100 ? 'C' : p === 1000 ? 'M' : '');
+    const table = [['Item number', 'Description', 'Price', 'Unit', 'Per', 'Qty']].concat((rd.lines || []).map((l) => [l.sku || '', l.description || '', l.unitPrice || '', l.unit || '', perText(l.per), l.qty == null ? '' : String(l.qty)]));
+    S.file = { name: file.name, table, docId: r.docId };
+    S.headerRow = 0;
+    S.map = { sku: 0, title: 1, price: 2, unit: 3, per: 4, qty: 5 };
+    const f = S.f;
+    if (KINDS[rd.docKind]) f.docKind = rd.docKind;
+    if (rd.date) f.docDateOn = rd.date;
+    f.validThroughOn = rd.validThrough || f.validThroughOn;
+    f.tax = rd.taxIncluded === true ? 'yes' : (rd.taxIncluded === false ? 'no' : '');
+    if (rd.docNumber) f.docRef = rd.docNumber;
+    S.readNote = '<strong>' + esc(file.name) + '</strong>' + (r.existing ? ' was read before; its lines are below.' : ' was read.') +
+      ' The kind, dates, tax and document number above were filled in from it: check each, then Preview.' +
+      (rd.supplierName ? ' The document names the supplier "' + esc(rd.supplierName) + '"; make sure the supplier above is right.' : '') +
+      ((rd.reasons || []).length ? '<br>The reader noted: ' + rd.reasons.map(esc).join('; ') : '') +
+      (typeof r.spentUsd === 'number' && typeof r.capUsd === 'number' ? '<br>Document reading this month: $' + esc(r.spentUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })) + ' of $' + esc(r.capUsd) + '.' : '');
+    if (!(rd.lines || []).length) S.error = 'No price lines were found on that document.';
+    if (typeof PL().priceDocs === 'function') S.docs = await PL().priceDocs();
+    if (!S) return;
+    paint();
+  }
+
   function preview(form) {
     readSetup(form);
     const f = S.f;
@@ -179,6 +240,7 @@
       supplierId: f.supplierId, docKind: f.docKind, docDateOn: f.docDateOn, validThroughOn: f.validThroughOn || null,
       taxIncluded: f.tax === 'yes' ? true : (f.tax === 'no' ? false : undefined), docRef: f.docRef, fileName: S.file.name,
       locationId: f.locationId || null, headerRow: S.headerRow, map: S.map, knownOfferIds: S.known, nowMs: Date.now(),
+      importId: S.file.docId || null,
     });
     if (!r.ok) { S.error = REASONS[r.reason] || 'Check the details above.'; paint(); return; }
     S.error = ''; S.preview = r; paint();
@@ -188,7 +250,25 @@
     open,
     close,
     back() { S.preview = null; S.progress = ''; paint(); },
-    another() { S.result = null; S.preview = null; S.file = null; S.f = fresh(S.f); paint(); },
+    another() { S.result = null; S.preview = null; S.file = null; S.readNote = ''; S.f = fresh(S.f); paint(); },
+    async openDoc(t) {
+      const d = (S.docs || []).find((x) => x.id === t.dataset.priId);
+      const url = d && await PL().documentUrl(d.storagePath);
+      if (!url) { toast('That document could not be opened.', 'error'); return; }
+      w.open(url, '_blank', 'noopener');
+    },
+    async removeDoc(t) {
+      const id = t.dataset.priId;
+      const ask = w.nbdConfirm || ((m) => Promise.resolve(w.confirm(m)));
+      if (!(await ask('Remove this document? Every price saved from it is voided (kept in the history, crossed out) and the stored file is deleted.')) || !S) return;
+      t.disabled = true;
+      const r = await PL().removeDocument(id);
+      if (!S) return;
+      if (!r.ok) { t.disabled = false; toast(r.message, 'error'); return; }
+      toast('Document removed. ' + (r.voided || 0) + ' prices voided.', 'success');
+      S.docs = await PL().priceDocs();
+      if (S) paint();
+    },
     async save() {
       if (S.busy || !S.preview) return;
       S.busy = true; S.progress = 'Saving…'; paint();
@@ -218,7 +298,8 @@
       const el = ev.target;
       if (!S || !el || !el.dataset || !el.dataset.priChange) return;
       const form = el.closest && el.closest('form');
-      if (el.dataset.priChange === 'file') { if (form) readSetup(form); onFile(el); return; }
+      if (el.dataset.priChange === 'file') { if (form) readSetup(form); S.readNote = ''; onFile(el); return; }
+      if (el.dataset.priChange === 'doc') { if (form) readSetup(form); onDoc(el).catch((e) => console.error('[price-import] read failed:', e)); return; }
       if (el.dataset.priChange === 'header') {
         if (form) readSetup(form);
         const n = Math.floor(Number(el.value));

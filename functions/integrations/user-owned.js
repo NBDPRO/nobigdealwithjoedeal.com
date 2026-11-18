@@ -313,7 +313,8 @@ const OWNER_KEYED_DOCS = [
 const COMPANY_KEYED_TREES = ['priceBook'];
 // The Storage side of the same rule: `<prefix>/{companyId}/…`, erased with the tree.
 // `product-photos` is the supplier price ledger's product and item photos (2026-11-18).
-const COMPANY_KEYED_STORAGE_PREFIXES = ['product-photos'];
+// `price-docs` is the supplier documents read by priceDocRead (2026-11-18): the originals.
+const COMPANY_KEYED_STORAGE_PREFIXES = ['product-photos', 'price-docs'];
 
 // ─── NESTED-LEADS SUBTREE ───────────────────────────────────
 // Vestigial `leads/{uid}/leads/{leadId}` path from an old schema

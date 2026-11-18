@@ -393,6 +393,8 @@ const CASES = [
   // 2026-11-17: the supplier price ledger (priceCaller refuses a viewer before the rate limit and before any read).
   { fn: 'priceLedgerSave', file: 'price-ledger.js', kind: 'call', data: { op: 'archiveOffer', data: { offerId: 'other_testco_TEST-0001' } } },
   { fn: 'priceLedgerRecord', file: 'price-ledger.js', kind: 'call', data: { rows: [] } },
+  // 2026-11-18: the supplier document reader (slice 9): priceCaller refuses a viewer before anything is read or paid.
+  { fn: 'priceDocRead', file: 'price-doc-read.js', kind: 'call', data: { file: 'data:application/pdf;base64,JVBERg==', fileName: 'q.pdf' } },
   { fn: 'resolveAddress', file: 'handlers/geocode.js', kind: 'call', data: { mode: 'forward', address: '123 Main St, Cincinnati OH' } },
 ];
 
@@ -474,7 +476,7 @@ const VERDICTS = {
   getJobWeather: 'role-gated',
   createTeamMember: 'role-gated', deactivateUser: 'role-gated', dictate: 'read-paid',
   exportMyData: 'self', extractReceiptData: 'refused', submitInboxReceipt: 'refused', getAdjusterTacticBoard: 'read',
-  priceLedgerSave: 'refused', priceLedgerRecord: 'refused',
+  priceLedgerSave: 'refused', priceLedgerRecord: 'refused', priceDocRead: 'refused',
   getAdminAnalytics: 'role-gated', getAiTextingStats: 'read', getAiUsageAnalytics: 'role-gated',
   getConnectStatus: 'read', getDocumentHtml: 'read', getDocumentPdfUrl: 'read', getEsignEnvelopeForOwner: 'read',
   getHailHistory: 'read-paid',

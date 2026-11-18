@@ -11,7 +11,8 @@
  *     callable path that writes catalogCosts, and only costs.<productId>.cost.<tier>);
  *     savePhoto (2026-11-18: a product's or an item's photo, re-encoded, in Storage
  *     product-photos/{companyId}/…; 20 an hour per person); setEstimateCodes (2026-11-18:
- *     which estimate codes price from a product on the materials list).
+ *     which estimate codes price from a product on the materials list); removeDocument (slice 9:
+ *     voids a read document's price rows, deletes its stored original).
  *     Answers { ok, id }, plus `applied` for approveCost and undoCost.
  *   priceLedgerRecord  { rows: [1..500], channel? }   owner / company_admin / manager
  *     Typed prices into the dated, append-only history. A manager's row is stored
@@ -105,6 +106,8 @@ const REASONS = {
   photo_too_big: 'That photo is over 3 MB. Choose a smaller one.',
   // estimate codes (2026-11-18)
   bad_codes: 'Check the estimate codes: letters, numbers, spaces and dashes, up to 40 codes.',
+  // supplier documents (slice 9, 2026-11-18)
+  not_removed: 'The document file could not be deleted just now. Its prices are voided; try Remove again.',
 };
 
 async function priceLedgerSave(request) {

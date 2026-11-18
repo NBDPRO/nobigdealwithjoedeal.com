@@ -56,6 +56,7 @@ async function run() {
   await env.withSecurityRulesDisabled(async (c) => {
     await uploadBytes(ref(c.storage(), P()), buf(64), WEBP);
     await uploadBytes(ref(c.storage(), P('co-h')), buf(64), WEBP);
+    await uploadBytes(ref(c.storage(), 'price-docs/co-a/d_1.pdf'), buf(64), { contentType: 'application/pdf' });
   });
 
   const st = (uid, claims) => env.authenticatedContext(uid, claims).storage();
@@ -92,6 +93,16 @@ async function run() {
   await check('a removed former owner (no claims) still reads, as storage.rules documents', 'allow', getBytes(ref(st('co-h', {}), P('co-h'))));
   await check('a former owner demoted to viewer reads nothing', 'deny', getBytes(ref(st('co-h', { role: 'viewer', companyId: 'co-h' }), P('co-h'))));
   await check('the new owner (company_admin claim) reads', 'allow', getBytes(ref(st('newowner', { role: 'company_admin', companyId: 'co-h' }), P('co-h'))));
+
+  // -- supplier documents (slice 9, 2026-11-18): price-docs/{companyId}/{file}, owner and company_admin only
+  const DOCP = 'price-docs/co-a/d_1.pdf';
+  await check('POSITIVE CONTROL: the solo owner reads a supplier document', 'allow', getBytes(ref(owner, DOCP)));
+  await check('a company_admin reads it', 'allow', getBytes(ref(readers['a company_admin'], DOCP)));
+  for (const [label, s] of Object.entries({ 'a manager': readers['a manager'], 'a sales rep': readers['a sales rep'] }).concat(Object.entries(outsiders))) await check(label + ' CANNOT read a supplier document', 'deny', getBytes(ref(s, DOCP)));
+  for (const [label, s] of Object.entries(Object.assign({ 'the solo owner': owner }, readers))) {
+    await check(label + ' CANNOT upload a supplier document', 'deny', uploadBytes(ref(s, 'price-docs/co-a/new.pdf'), buf(10), { contentType: 'application/pdf' }));
+    await check(label + ' CANNOT delete a supplier document', 'deny', deleteObject(ref(s, DOCP)));
+  }
 
   await env.cleanup();
   const bad = results.filter((r) => !r.ok);

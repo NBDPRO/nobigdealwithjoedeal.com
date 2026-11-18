@@ -3108,6 +3108,12 @@ service cloud.firestore {
     // Slice 4: per-product extras. applied.<tier> is the last cost approved into the
     // cost book (priceLedgerSave approveCost / undoCost); every device of the company
     // reads it to pick the change up. Read like offers; only the server writes.
+    // Slice 9 (2026-11-18): supplier documents read by priceDocRead (the read lines,
+    // the file name, where the original is stored). Owner / company_admin only, like audit.
+    match /priceBook/{companyId}/priceDocs/{docId} {
+      allow read: if plAdmin(companyId);
+      allow write: if false;
+    }
     match /priceBook/{companyId}/productLinks/{productId} {
       allow read: if plMember(companyId);
       allow write: if false;

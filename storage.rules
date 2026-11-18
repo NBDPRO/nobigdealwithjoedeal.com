@@ -384,6 +384,16 @@ service firebase.storage {
       allow write: if false;
     }
 
+    // ── SUPPLIER DOCUMENTS (supplier price ledger slice 9, 2026-11-18) ──
+    // price-docs/{companyId}/{docId}.{ext}: the original PDF or photo of a supplier
+    // invoice, quote or price sheet the reader read. Server-written (priceDocRead);
+    // read only by the owner and the company's company_admin, through getBlob, never
+    // a ?token= link. A manager, a rep, a viewer and another company read nothing.
+    match /price-docs/{companyId}/{file} {
+      allow read: if isCompanyAdminOf(companyId);
+      allow write: if false;
+    }
+
     // ── YARD-SIGN PHOTOS ──────────────────────────────
     // Path: yard-signs/{uid}/{ts}_{name} — a photo of each placed yard sign
     // (yard-signs.js, 2026-09-29). Same owner posture and image limits as

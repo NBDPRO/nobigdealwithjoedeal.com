@@ -88,6 +88,8 @@ async function run() {
     await setDoc(doc(db, 'priceBook/co-h/priceAudit/a_1'), DATA.audit);
     await setDoc(doc(db, 'priceBook/co-h/priceConfig/seen'), { marks: {} });
     await setDoc(doc(db, 'priceBook/co-h/productLinks/shingle_001'), { v: 1 });
+    await setDoc(doc(db, BASE + 'priceDocs/d_1'), { v: 1, state: 'read' });
+    await setDoc(doc(db, 'priceBook/co-h/priceDocs/d_1'), { v: 1, state: 'read' });
     for (const p of ['priceAlerts/x', 'priceImports/x', 'priceConfig/main', 'priceConfig/seen', 'productLinks/shingle_001', 'priceNotices/x', 'priceRollups/2026-11', 'leadSkus/lead1']) await setDoc(doc(db, BASE + p), { v: 1 });
     await setDoc(doc(db, 'retail_shelf_cache/x'), { v: 1 });
     await setDoc(doc(db, 'price_check_global/day_2026-11-17'), { v: 1 });
@@ -206,6 +208,19 @@ async function run() {
     await check('12. a signed-out browser can not read a product link', 'deny', getDoc(doc(signedOut, p)));
     await check('12. a removed former owner can not read a product link', 'deny', getDoc(doc(removed, H + 'productLinks/shingle_001')));
     await check('12. a former owner demoted to sales_rep reads a product link', 'allow', getDoc(doc(demoted, H + 'productLinks/shingle_001')));
+  }
+
+  // 13. priceDocs (slice 9, 2026-11-18): read supplier documents. Owner and company_admin only; nobody writes
+  {
+    const p = BASE + 'priceDocs/d_1';
+    for (const w of ['solo owner (uid is the company)', 'company_admin']) await check('13. ' + w + ' reads a read document', 'allow', getDoc(doc(WHO[w], p)));
+    for (const w of ['manager', 'sales_rep', 'viewer', 'member (access code)', 'role-less token with the claim', 'another company']) await check('13. ' + w + ' can not read a read document', 'deny', getDoc(doc(WHO[w], p)));
+    for (const w of Object.keys(WHO)) {
+      await check('13. ' + w + ' can not write a read document', 'deny', setDoc(doc(WHO[w], p), { state: 'removed' }));
+      await check('13. ' + w + ' can not delete a read document', 'deny', deleteDoc(doc(WHO[w], p)));
+    }
+    await check('13. a removed former owner can not read a read document', 'deny', getDoc(doc(removed, H + 'priceDocs/d_1')));
+    await check('13. a former owner kept as company_admin reads it', 'allow', getDoc(doc(kept, H + 'priceDocs/d_1')));
   }
 
   await env.cleanup();
