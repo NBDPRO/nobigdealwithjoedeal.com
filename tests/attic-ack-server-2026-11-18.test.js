@@ -250,6 +250,29 @@ const tickAll = (h, no) => h.replace(/data-nbd-ack="(ack:saw|ack:existing|rec:de
     ok('attic_overrides is write:false', /match \/attic_overrides\/\{id\}[\s\S]{0,400}allow write: if false;/.test(rules));
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('G. client: the panel, the client gate, the warranty line (flag off = nothing)');
+  {
+    const gen = src('docs/pro/js/document-generator.js');
+    ok('generate() runs the client attic gate and the warranty line read', /await this\._atticGate\(type, data\)/.test(gen) && /_atticWarrantyLine\(data\)/.test(gen));
+    ok('the client gate is flag-gated and lenient on unreadable data (the server decides)', /_atticOn\(\)/.test(gen) && /unreadable: the server gate decides/.test(gen));
+    const tpl = src('docs/pro/js/document-generator-templates.js');
+    ok('the warranty certificate prints ONLY d.atticExclusionLine, nothing when absent', /typeof d\.atticExclusionLine === 'string' && d\.atticExclusionLine/.test(tpl));
+    const H = require('./helpers/clause-v1-harness');
+    const env = H.docs({});
+    const W = env.win.NBDDocGen;
+    const cert = W.renderWarrantyCertificate({ homeownerName: 'Jane Smith', address: '1 Oak', warrantyTier: 'better', issueDate: '2026-11-18', leadId: 'L1' });
+    const cert2 = W.renderWarrantyCertificate({ homeownerName: 'Jane Smith', address: '1 Oak', warrantyTier: 'better', issueDate: '2026-11-18', leadId: 'L1', atticExclusionLine: AA.warrantyLine('November 18, 2026') });
+    ok('no line: the certificate has no attic text (flag off, identical)', !/Attic, Ventilation/.test(cert));
+    ok('with the line: WAR-2 attic sentence and the form date print', /Attic, Ventilation &amp; Moisture Acknowledgment/.test(cert2) && /November 18, 2026/.test(cert2));
+    const pn = src('docs/pro/js/attic-panel.js');
+    ok('the panel is CSP-clean: no inline handler, no inline script, delegated listeners', !/\son(click|change|input)\s*=/i.test(pn) && /document\.addEventListener\('click'/.test(pn) && /document\.addEventListener\('change'/.test(pn));
+    ok('photos go through the CRM photo upload; an unpriced line is shown as hidden', /PhotoEngine\.uploadFromFile/.test(pn) && /no price set: hidden/.test(pn));
+    ok('the free later check is a rep task due by atticFreeCheckDays (else contract + 7 days)', /freeCheckDue\(\{ startMs: start/.test(pn) && /'tasks'/.test(pn));
+    ok('the panel loads on the customer page only, and only does anything with the flag on', pn.indexOf('customer(?:') !== -1 && pn.indexOf('function on()') !== -1);
+    ok('customer.html loads it with defer, script-loader carries the logic files', /<script defer src="js\/attic-panel\.js\?v=1"><\/script>/.test(src('docs/pro/customer.html')) && /attic-ack\.js\?v=1/.test(src('docs/pro/js/script-loader.js')));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });
