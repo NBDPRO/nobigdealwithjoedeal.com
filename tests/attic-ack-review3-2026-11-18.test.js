@@ -123,6 +123,40 @@ const generated = async (docType, extraData) => {
     ok('document-generator.js, -templates.js and -library.js read the constants from window.NBDAtticAck', /NBDAtticAck/.test(src('docs/pro/js/document-generator.js')) && /PRINT_RULE_CSS/.test(src('docs/pro/js/document-generator-templates.js')) && /ATTIC_FORM_CSS/.test(src('docs/pro/js/document-generator-library.js')));
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('2. the stored-copy checks are linear (the remote submitSignature endpoint is public)');
+  {
+    const timed = (fn) => { const t0 = Date.now(); let r; try { r = fn(); } catch (e) { r = { threw: e.message }; } return { ms: Date.now() - t0, r }; };
+    const LIMIT = 1500;
+    // 200k repeated 'transform:' inside one <style>
+    let t = timed(() => AG.verifyManifest('attic_acknowledgment', GEN.replace('</head>', '<style>' + 'transform:'.repeat(200000) + '</style></head>')));
+    ok('200k repeated transform: inside one <style>: refused in under ' + LIMIT + ' ms (' + t.ms + ' ms)', t.ms < LIMIT && t.r.ok === false && t.r.reasons.indexOf('style_block') !== -1);
+    t = timed(() => AG.verifyManifest('attic_acknowledgment', GEN.replace('</head>', '<style>' + 'transform:scale(1);'.repeat(100000) + '</style></head>')));
+    ok('100k transform:scale(1) declarations: under ' + LIMIT + ' ms (' + t.ms + ' ms)', t.ms < LIMIT && t.r.ok === false);
+    t = timed(() => AG.verifyManifest('attic_acknowledgment', GEN.replace('</head>', '<style>.a{transform:scale(0)}</style></head>')));
+    ok('transform:scale(0) in a style block is still named css_hidden', t.r.reasons.indexOf('css_hidden') !== -1);
+    t = timed(() => AG.verifyManifest('attic_acknowledgment', GEN.replace('</head>', '<style>.a{transform: rotate(3deg) scale( 0 )}</style></head>')));
+    ok('...scale( 0 ) with spaces too', t.r.reasons.indexOf('css_hidden') !== -1);
+    // 1 MB of white space inside one <input> tag of the stored original
+    const ws = ' '.repeat(1000000);
+    const bigTag = GEN.replace('<input type="checkbox"', '<input type="checkbox"' + ws);
+    ok('the 1 MB-whitespace original is under the cap', bigTag.length < AG.MAX_HTML, String(bigTag.length));
+    t = timed(() => AG.verifyManifest('attic_acknowledgment', bigTag));
+    ok('verifyManifest on 1 MB of white space inside an <input> tag: under ' + LIMIT + ' ms (' + t.ms + ' ms)', t.ms < LIMIT);
+    t = timed(() => AG.applyAcks(bigTag, tick(sign(GEN)), 'attic_acknowledgment'));
+    ok('applyAcks with 1 MB of white space inside an <input> tag of the original: under ' + LIMIT + ' ms (' + t.ms + ' ms)', t.ms < LIMIT, String(t.ms));
+    t = timed(() => AG.applyAcks(GEN, tick(sign(bigTag)), 'attic_acknowledgment'));
+    ok('...and inside the submitted copy: under ' + LIMIT + ' ms (' + t.ms + ' ms)', t.ms < LIMIT, String(t.ms));
+    t = timed(() => AG.resultFor('attic_acknowledgment', tick(sign(bigTag)), null));
+    ok('resultFor on the 1 MB-whitespace signed copy: under ' + LIMIT + ' ms (' + t.ms + ' ms)', t.ms < LIMIT, String(t.ms));
+    // the rewrite still does what it did on an ordinary tag
+    const a = AG.applyAcks(GEN, tick(sign(GEN)), 'attic_acknowledgment');
+    ok('applyAcks still ticks and disables each control', a.complete === true && AA.parseAcks(a.html).length > 0 && (a.html.match(/<input\b[^>]*data-nbd-ack[^>]*>/g) || []).every((x) => / disabled=""/.test(x)));
+    const SC = GEN.replace('<input type="checkbox"', '<input type="checkbox" ').replace(/(<input type="checkbox" [^>]*data-nbd-ack="ack:saw"[^>]*?)>/, '$1  />');
+    const a2 = AG.applyAcks(SC, tick(sign(SC)), 'attic_acknowledgment');
+    ok('a self-closing control keeps its slash and is ticked and disabled', /<input[^>]*data-nbd-ack="ack:saw"[^>]* checked="" disabled="" \/>/.test(a2.html), (/<input[^>]*data-nbd-ack="ack:saw"[^>]*>/.exec(a2.html) || [''])[0].slice(-80));
+  }
+
   console.log('\n' + (failed ? 'FAILED ' + failed + ': ' + fails.join(' | ') : 'all ok') + ' (' + passed + ' passed)');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

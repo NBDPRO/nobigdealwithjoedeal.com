@@ -311,7 +311,13 @@ function applyAcks(originalHtml, signedHtml, docType) {
     const m = /\bdata-nbd-ack\s*=\s*"([^"]{1,80})"/i.exec(tag);
     if (!m) return tag;
     const bare = tag.replace(/\s(checked|disabled)(\s*=\s*"[^"]*")?(?=[\s\/>])/gi, '');
-    return bare.replace(/\s*(\/?)>$/, (_m, slash) => (sub[m[1]] === true ? ' checked=""' : '') + ' disabled=""' + (slash ? ' />' : '>'));
+    // The tag ends in '>' (it was cut at one). Its closing is found by a backward walk (review 3, item 2): the regex this replaces,
+    // /\s*(\/?)>$/, rescanned the rest of the tag from every white-space character, so a tag padded with 1 MB of spaces took minutes.
+    let e = bare.length - 1;                                  // the '>'
+    const slash = e > 0 && bare.charAt(e - 1) === '/';
+    if (slash) e--;
+    while (e > 0 && /\s/.test(bare.charAt(e - 1))) e--;       // white space before the '/' or '>'
+    return bare.slice(0, e) + (sub[m[1]] === true ? ' checked=""' : '') + ' disabled=""' + (slash ? ' />' : '>');
   };
   // Each <input ...> tag is found with indexOf (linear), the same tag boundaries parseAcks uses.
   const out = []; const inRe = /<input\b/gi; let last = 0; let im;
