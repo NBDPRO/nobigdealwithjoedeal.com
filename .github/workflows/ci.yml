@@ -1478,6 +1478,11 @@ jobs:
         run: |
           cd tests
           node ds-phone-fit-2026-11-14.test.js
+      # Coach field size (phone pass 2026-11-18): every field in the open coach, on Daily Success and the Workout app, is 16 px so iOS does not zoom. Same server, same Chromium.
+      - name: Run the coach field-size check
+        run: |
+          cd tests
+          node coach-rpe-select-16px-2026-11-18.test.js
       # The Daily Success quick wins (UX audit 2026-11-09): save on the way out, red failures, safe-area offsets,
       # Today-bar buttons, search lands on the match, scroll kept per view, the two named streaks. Same server, same Chromium.
       - name: Run the Daily Success quick-wins check

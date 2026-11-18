@@ -52,7 +52,7 @@ body.wc-lock { overflow: hidden; }
 .wc-x-sep { color: #8b9bb4; text-align: center; font-size: 12px; }
 .wc-in, .wc-rpe { width: 100%; min-width: 0; height: 44px; box-sizing: border-box; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .15);
   background: rgba(0, 0, 0, .35); color: #fff; font-size: 16px; padding: 0 8px; text-align: center; }
-.wc-rpe { font-size: 14px; padding: 0 2px; }
+.wc-rpe { font-size: 16px; padding: 0 2px; }
 .wc-check { width: 44px; height: 44px; border-radius: 22px; border: 2px solid rgba(255, 255, 255, .25); background: transparent;
   color: #8b9bb4; font-size: 18px; cursor: pointer; }
 .wc-check.on { background: var(--grn, #22c55e); border-color: var(--grn, #22c55e); color: #06210f; }
