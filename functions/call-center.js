@@ -163,13 +163,20 @@ async function runIngest({ db, bucket, live, nowMs, feed }) {
   // A re-upload (Cube ACR "Force backup") is a new Drive id for a call already
   // filed: matched by file name for this owner and day. One read per day, only
   // when that day has a fresh file. A failed read files it (never lose a call).
+  // The phone's own name for the same call (hand upload) differs, so a call is
+  // also matched by start second + number (callKey).
+  const callKey = (startedAtMs, digits) => 't:' + startedAtMs + '|' + (digits || '');
   const namesByDay = new Map();
   async function filedNames(ymd) {
     if (!namesByDay.has(ymd)) {
       const set = new Set();
       try {
         (await db.collection(COLLECTION).where('userId', '==', fd.owner).where('ymd', '==', ymd).get())
-          .forEach((s) => { const n = (s.data() || {}).fileName; if (n) set.add(n); });
+          .forEach((s) => {
+            const d = s.data() || {};
+            if (d.fileName) set.add(d.fileName);
+            if (d.startedAtMs && d.phoneDigits) set.add(callKey(d.startedAtMs, d.phoneDigits));
+          });
       } catch (_) { /* no guard this run */ }
       namesByDay.set(ymd, set);
     }
@@ -200,7 +207,9 @@ async function runIngest({ db, bucket, live, nowMs, feed }) {
       counts.seen++;
       const docRef = refs[i];
       if (have.has(docRef.id)) continue;
-      if ((await filedNames(parsed.ymd)).has(f.name)) { counts.reuploaded = (counts.reuploaded || 0) + 1; continue; }
+      const filed = await filedNames(parsed.ymd);
+      const key = parsed.phoneDigits ? callKey(parsed.startedAtMs, parsed.phoneDigits) : null;
+      if (filed.has(f.name) || (key && filed.has(key))) { counts.reuploaded = (counts.reuploaded || 0) + 1; continue; }
       // Too big to copy is permanent, not a retry: log it and move on, so it
       // never holds its day (and every day after it) open.
       if (Number(f.size) > MAX_BYTES) {
@@ -240,6 +249,7 @@ async function runIngest({ db, bucket, live, nowMs, feed }) {
         const callDoc = L.buildCallDoc({ ownerUid: fd.owner, companyId: fd.nbd ? undefined : fd.companyId, file: f, parsed, match, bucket: bucketName, storedPath: path, nowMs, durationSec });
         await docRef.set(Object.assign({}, callDoc, { createdAt: FieldValue.serverTimestamp() }));
         counts.stored++;
+        filed.add(f.name); if (key) filed.add(key); // its twin later in this run is a re-upload
         // Speed-to-lead auto-text (2026-10-15): dark unless
         // MISSED_CALL_AUTOTEXT_ENABLED === 'true'; consented customers only.
         // 2026-10-19: ALSO needs messaging_controls/automations
