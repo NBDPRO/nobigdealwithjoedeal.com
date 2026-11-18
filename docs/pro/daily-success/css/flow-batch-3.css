@@ -60,6 +60,9 @@
 .nu-today .nu-fl{min-height:44px;padding:0 12px;border-radius:22px;border:1px solid var(--rule,#445);background:transparent;color:inherit;font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
 .nu-today .nu-fl.hit{border-color:#4caf82;color:#4caf82;}
 .nu-today .nu-open{align-self:stretch;}
+.nu-today .nu-blank{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border:1px solid var(--ac);border-radius:8px;background:rgba(255,255,255,.04);}
+.nu-today .nu-blank .nu-line{min-width:0;overflow-wrap:anywhere;}
+.nu-today .nu-blank-btns{display:flex;flex-wrap:wrap;gap:8px;}
 #main > .nu-today{order:-1;}
 
 /* ── section chips under the Today bar (M7) ── */
