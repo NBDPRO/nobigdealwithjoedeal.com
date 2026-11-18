@@ -70,7 +70,7 @@
       '</div>' +
       field('Document number (optional)', '<input class="prl-input" name="docRef" maxlength="80" autocomplete="off" data-pri-change="setup" value="' + esc(f.docRef) + '">', 'Left blank, the file name is used.') +
       field('File (CSV)', '<input class="prl-input" name="file" type="file" accept=".csv,text/csv" data-pri-change="file">', 'An Excel file must be saved as CSV first (File, Save As, CSV). The file stays on this device: only its rows and its name are saved.') +
-      field('Or read a PDF or photo', '<input class="prl-input" name="doc" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" data-pri-change="doc"' + (S.busy ? ' disabled' : '') + '>',
+      field('Or read a PDF or photo', '<input class="prl-input" name="doc" type="file" accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" data-pri-change="doc"' + (S.busy ? ' disabled' : '') + '>',
         'Read on the server by AI: check every line before you save. The original is kept privately for you and your admins.') +
       (S.reading ? '<div class="prl-dim" role="status">' + esc(S.reading) + '</div>' : '') +
       (S.readNote ? '<div class="prl-note">' + S.readNote + '</div>' : '') +

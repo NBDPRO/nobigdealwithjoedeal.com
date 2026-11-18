@@ -139,6 +139,8 @@ function world(o) {
     priceCaller: async () => ({ uid: 'u_owner', companyId: CO, role: 'owner' }),
     isAiDisabled: async () => o.aiOff === true,
     assertAiEntitled: async () => true,
+    isHeicBytes: () => false,
+    heicToJpeg: async (b) => b,
     recordAiSpend: async () => { W.spend++; },
     fetch: async () => {
       W.calls++;
@@ -196,6 +198,24 @@ const meter = () => W.docs[B + 'priceMeter/docs_2026-11'] || {};
     mgr.priceCaller = async () => ({ uid: 'u_mgr', companyId: CO, role: 'manager' });
     const denied = await read(mgr).then(() => null, (e) => e.code);
     ok('the local gate: a manager is refused even if the caller check let one through, nothing paid', denied === 'permission-denied' && W.calls === 0);
+    // 2026-11-18 (Jo): an iPhone HEIC photo is converted to JPEG before it is read.
+    const h = world();
+    h.isHeicBytes = () => false;
+    h.heicToJpeg = async (b) => { W.converted = (W.converted || 0) + 1; return Buffer.from('JPEG-TEST'); };
+    const HEIC = 'data:image/heic;base64,' + Buffer.from('....ftypheic-TEST').toString('base64');
+    const hr = await read(h, { file: HEIC, fileName: 'IMG_1111.HEIC' });
+    const hdoc = W.docs[B + 'priceDocs/' + hr.docId];
+    ok('a HEIC photo is converted, then read and stored as a JPEG', hr.ok && W.converted === 1 && hdoc.mime === 'image/jpeg' && /\.jpg$/.test(hdoc.storagePath) && W.files[hdoc.storagePath].opts.contentType === 'image/jpeg', hdoc);
+    const sniff = world();
+    sniff.isHeicBytes = () => true;
+    sniff.heicToJpeg = async () => { W.converted = 1; return Buffer.from('JPEG-TEST'); };
+    await read(sniff, { file: 'data:image/jpeg;base64,' + Buffer.from('....ftypheic').toString('base64') });
+    ok('a HEIC sent under a JPEG label is spotted by its bytes and converted too', W.converted === 1);
+    const badHeic = world();
+    badHeic.isHeicBytes = () => false;
+    badHeic.heicToJpeg = async () => { throw new Error('decode'); };
+    const br = await read(badHeic, { file: HEIC });
+    ok('a HEIC that will not convert: refused in plain words, nothing reserved or paid', br.reason === 'heic_failed' && W.calls === 0 && !W.docs[B + 'priceMeter/docs_2026-11'] && /iPhone photo/.test(br.message));
     const off = await read(world({ aiOff: true }));
     ok('the AI kill switch: refused, nothing paid', off.reason === 'ai_off' && W.calls === 0);
   }
