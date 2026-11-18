@@ -66,6 +66,31 @@ function loadRegistry(textObj) {
       !/clause-set/.test(readRepo('docs/pro/customer.html')) && !/clause-set/.test(readRepo('docs/pro/dashboard.html')));
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('3. paymentTerms bounds and types (_numOk, server module and its loaded twin)');
+  {
+    const CSS = [require('../functions/clause-set.js'), loadRegistry(require('../functions/clause-set-text.js'))];
+    CSS.forEach((CS, i) => {
+      const tag = i === 0 ? 'server' : 'twin';
+      ok(tag + ': numOk is exported', typeof CS.numOk === 'function');
+      const n = CS.numOk;
+      if (typeof n !== 'function') return;
+      ok(tag + ': in-range numbers pass', n(15, 'lateGraceDays') && n(8, 'lateInterestPct') && n(0, 'cardFeePct') && n(10, 'cardFeePct') && n(12550, 'deckingPerSheetCents') && n(1, 'deckingSheetsBeforeChangeOrder') && n(200, 'deckingSheetsBeforeChangeOrder') && n(7.5, 'lateInterestPct'));
+      const bad = [-1, NaN, Infinity, ' ', '', '0x10', '1e3', '15', true, false, [], [5], {}, null, undefined, 1e9];
+      ok(tag + ': negative, NaN, strings (" ", "0x10", "1e3", "15"), booleans, arrays, objects, null, 1e9 all fail for every field',
+        bad.every((v) => CS.PT_FIELDS.every((k) => n(v, k) === false)), bad.filter((v) => CS.PT_FIELDS.some((k) => n(v, k))).map(String).join(','));
+      ok(tag + ': pct fields 0-100, cardFeePct 0-10', n(100, 'lateInterestPct') && !n(101, 'lateInterestPct') && !n(100.5, 'restockPct') && n(10, 'cardFeePct') && !n(10.01, 'cardFeePct'));
+      ok(tag + ': day fields are integers 0-365', n(365, 'disputeDays') && !n(366, 'disputeDays') && !n(1.5, 'disputeDays') && n(0, 'claimNoticeDays'));
+      ok(tag + ': decking cents integer 0-100000; sheets integer 1-200', n(100000, 'deckingPerSheetCents') && !n(100001, 'deckingPerSheetCents') && !n(10.5, 'deckingPerSheetCents') && !n(0, 'deckingSheetsBeforeChangeOrder') && !n(201, 'deckingSheetsBeforeChangeOrder'));
+      const r = CS.renderV1({ state: 'OH', paymentSource: 'cash', party: CS.partyFor({}, true), facts: {},
+        terms: Object.assign({}, CS.paymentTermsFor({}, true), { lateInterestPct: '1e3', disputeDays: -5, deckingPerSheetCents: 5000 }) });
+      ok(tag + ': an out-of-range or string term is MISSING (the token stays, the send is refused), never printed',
+        r.missing.indexOf('lateInterestPct') !== -1 && r.missing.indexOf('disputeDays') !== -1 && !/1e3|-5 days/.test(JSON.stringify(r.sections)));
+    });
+  }
+
+  // @@SECTIONS@@
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -133,7 +133,20 @@
     'LATE-1': ['lateGraceDays', 'lateInterestPct'], 'LATE-6': ['pauseNoticeDays'], 'MAT-1': ['restockPct'],
     'CO-2': ['deckingPerSheetCents', 'deckingSheetsBeforeChangeOrder'], 'WAR-3': ['claimNoticeDays']
   };
-  function _numOk(v) { return v !== null && v !== undefined && v !== '' && isFinite(Number(v)) && Number(v) >= 0; }
+  // Sanity bounds only (review 2026-11-18, item 3): a real number (never a string, boolean, array or NaN) in a range a
+  // contract could mean. These are NOT the legal ceilings; counsel decides interest caps. [min, max, integerOnly]
+  var PT_BOUNDS = {
+    lateGraceDays: [0, 365, true], lateInterestPct: [0, 100, false], disputeDays: [0, 365, true], finalPaymentDays: [0, 365, true],
+    punchListDays: [0, 365, true], pauseNoticeDays: [0, 365, true], restockPct: [0, 100, false], cardFeePct: [0, 10, false],
+    deckingPerSheetCents: [0, 100000, true], deckingSheetsBeforeChangeOrder: [1, 200, true], atticFreeCheckDays: [0, 365, true],
+    claimNoticeDays: [0, 365, true]
+  };
+  function _numOk(v, field) {
+    var b = Object.prototype.hasOwnProperty.call(PT_BOUNDS, field) ? PT_BOUNDS[field] : null;
+    if (!b || typeof v !== 'number' || !isFinite(v)) return false;
+    if (v < b[0] || v > b[1]) return false;
+    return !b[2] || Math.floor(v) === v;
+  }
 
   /** The tenant's terms: its own fields only, over NBD's defaults for the NBD tenant only. */
   function paymentTermsFor(profileTerms, isNbd) {
@@ -195,7 +208,7 @@
     if (only === 'ky') return v.ky;
     if (only === 'ky_ins') return v.kyIns;
     if (only === 'fin') return v.fin;
-    if (only === 'cardfee') return Number(terms.cardFeePct) > 0 && !v.kyIns;
+    if (only === 'cardfee') return _numOk(terms.cardFeePct, 'cardFeePct') && terms.cardFeePct > 0 && !v.kyIns;
     return false;
   }
   function _money(c) {
@@ -205,7 +218,7 @@
   var ENT_TOKEN = '{{entity}}';
   function _fill(text, terms, facts, party) {
     var s = text.replace(/\{\{cfg(\$?):([A-Za-z]+)\}\}/g, function (m, money, k) {
-      if (!_numOk(terms[k])) return '{{' + k + '}}';
+      if (!_numOk(terms[k], k)) return '{{' + k + '}}';
       return money ? _money(terms[k]) : String(terms[k]);
     });
     var f = facts || {};
@@ -249,7 +262,7 @@
     var refs = [], missing = [], sections = [];
     function note(id, need) {
       (need || []).forEach(function (k) {
-        var bad = k === 'deckingPerSheetCents' ? !_numOk(terms[k]) || Number(terms[k]) <= 0 : !_numOk(terms[k]);
+        var bad = k === 'deckingPerSheetCents' ? !_numOk(terms[k], k) || Number(terms[k]) <= 0 : !_numOk(terms[k], k);
         if (bad && missing.indexOf(k) === -1) missing.push(k);
       });
     }
@@ -306,6 +319,7 @@
     all: all,
     NBD_PAYMENT_TERMS_DEFAULTS: NBD_PAYMENT_TERMS_DEFAULTS,
     PT_FIELDS: PT_FIELDS,
+    numOk: _numOk,
     paymentTermsFor: paymentTermsFor,
     variantOf: variantOf,
     partyFor: partyFor,
