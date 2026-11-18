@@ -354,6 +354,40 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
       y = await go2({}, true);
       ok('7b: a link minted before the snapshot existed falls back to the flag as it stands', y.sub.statusCode === 422 && y.sub.body.needsConsent === true);
       ok('7b: createSignRequest writes consentAsked on the token from the flag it just read', /consentAsked: flagOnAtMint/.test(read('functions/remote-signing.js') || ''));
+      // finding 8: the document-row write after a saved signed copy is retried, and its loss is never silent
+      async function go3(failFirst, failAlways) {
+        const db = kit.makeDb(world(false)); const st = kit.makeStorage({ [GOOD_PATH]: ORIGINAL });
+        let sets = 0;
+        const o0 = db.doc;
+        db.doc = (p) => {
+          const r = o0(p);
+          if (p !== 'leads/L1/documents/d1') return r;
+          const s0 = r.set;
+          r.set = async (patch, o) => {
+            const isMain = patch && (patch.signatureEvidence || patch.status);
+            if (isMain) { sets++; if (failAlways || sets <= failFirst) throw new Error('firestore blip'); }
+            return s0(patch, o);
+          };
+          return r;
+        };
+        const L = kit.loadHandler('remote-signing.js', db, st, {
+          './cancel-window': require(path.join(FN, 'cancel-window.js')), './ky-insurance-law': K, './lead-artifact-paths': require(path.join(FN, 'lead-artifact-paths.js')),
+          './esign-logic': ESL, './doc-evidence': DE, './await-briefly': require(path.join(FN, 'await-briefly.js')), './signed-price': require(path.join(FN, 'signed-price.js')),
+        }, REAL);
+        const g = kit.reqRes({ token: 'TOKEVID00001' }, {});
+        await L.fns.getSignDocument(g.req, g.res);
+        const sub = kit.reqRes({ token: 'TOKEVID00001', signedHtml: signedPage }, {});
+        await L.fns.submitSignature(sub.req, sub.res);
+        return { sub: sub.res, sets, doc: db._get('leads/L1/documents/d1') || {}, tok: db._get('doc_sign_tokens/TOKEVID00001') || {}, notes: db._all('notifications'), logs: L.logs, db };
+      }
+      let w = await go3(0, false);
+      ok('8: control: no failure, the row is stamped signed with its evidence on the first try', w.sets === 1 && w.doc.status === 'signed' && !!w.doc.signatureEvidence && !w.doc.signedStampFailed);
+      w = await go3(2, false);
+      ok('8: two transient failures of the row write are retried and the third lands (status signed + evidence kept)', w.sets === 3 && w.doc.status === 'signed' && w.doc.signatureEvidence && w.doc.signatureEvidence.path === 'remote_link' && !w.doc.signedStampFailed, 'sets=' + w.sets);
+      w = await go3(0, true);
+      ok('8: a row write that keeps failing is tried several times, not once', w.sets >= 3, 'sets=' + w.sets);
+      ok('8: ...and then says so, visibly: flag on the document, on the token, and a bell for the rep', w.doc.signedStampFailed === true && w.tok.docStampFailed === true && w.notes.some((n) => /action needed/i.test(n.title || '') && n.userId === 'U1'));
+      ok('8: ...the homeowner still gets ok (the signed copy is stored) and the link is burned', w.sub.statusCode === 200 && w.sub.body.ok === true && w.tok.status === 'signed');
       const sk = require('./lib/src-kit');
       const box = sk.parseTags(sk.read('docs/pro/sign.html')).$('#spConsent');
       ok('sign page: the consent label ships hidden', !!box && box.attrs.hidden !== undefined);

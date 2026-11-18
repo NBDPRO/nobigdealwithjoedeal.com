@@ -1008,7 +1008,44 @@ exports.submitSignature = onRequest(
     };
     let notified = false;
     if (recordSaved) {
-      try { await docRef.set(docPatch, { merge: true }); } catch (e) { logger.warn('[submitSignature] doc meta stamp failed', { msg: e.message }); }
+      // The signed copy is stored and the link is burned; this row write is what makes the document read
+      // "signed" and carries its evidence. A single failure used to only warn (review 2026-11-18, finding 8):
+      // retried with backoff, and if it still fails it is flagged for the rep, never silent.
+      let stamped = false;
+      const backoffMs = [0, 250, 1000];
+      for (let attempt = 1; attempt <= backoffMs.length && !stamped; attempt++) {
+        if (backoffMs[attempt - 1]) await new Promise((r) => setTimeout(r, backoffMs[attempt - 1]));
+        try { await docRef.set(docPatch, { merge: true }); stamped = true; }
+        catch (e) { logger.warn('[submitSignature] doc meta stamp failed (attempt ' + attempt + ' of ' + backoffMs.length + ')', { msg: e.message }); }
+      }
+      if (!stamped) {
+        logger.error('[submitSignature] signed copy saved but the document row could NOT be stamped — flagged signedStampFailed', ids);
+        note.title = 'Signed, but the document record is incomplete — action needed';
+        note.message = who + 'signed a document remotely and the signed copy is saved, but the document still reads "sent" and its signing record was not written. Open the document, check the signed copy, and mark it signed.';
+        for (let attempt = 1; attempt <= 2 && !notified; attempt++) {
+          try {
+            const b = db.batch();
+            b.set(docRef, { signedStampFailed: true, signedStampFailedAt: FieldValue.serverTimestamp() }, { merge: true });
+            b.set(db.collection('notifications').doc(), note);
+            b.update(tokRef, { docStampFailed: true });
+            await b.commit();
+            notified = true;
+          } catch (e) {
+            logger.error('[submitSignature] stamp-failure flag + rep alert write failed (attempt ' + attempt + ' of 2)', Object.assign({ msg: e.message }, ids));
+          }
+        }
+        if (!notified) {
+          try { await tokRef.update({ docStampFailed: true }); } catch (_) { /* the activity row below is the other channel */ }
+          try {
+            await db.collection(`leads/${info.leadId}/activity`).add({
+              userId: info.ownerUid, type: 'remote_signature_unstamped', label: 'Signed, document record incomplete',
+              message: note.message, docId: info.docId, createdAt: FieldValue.serverTimestamp(),
+            });
+          } catch (e) {
+            logger.error('[submitSignature] activity fallback failed too — the rep has NO signal of the unstamped document', Object.assign({ msg: e.message }, ids));
+          }
+        }
+      }
     } else {
       // The flag and the bell are the rep's only signals: one batch (with the
       // token, so a reload of the link says the same thing), tried twice, then
