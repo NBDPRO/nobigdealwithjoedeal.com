@@ -157,6 +157,66 @@ const generated = async (docType, extraData) => {
     ok('a self-closing control keeps its slash and is ticked and disabled', /<input[^>]*data-nbd-ack="ack:saw"[^>]* checked="" disabled="" \/>/.test(a2.html), (/<input[^>]*data-nbd-ack="ack:saw"[^>]*>/.exec(a2.html) || [''])[0].slice(-80));
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('3. tags, attributes and classes of the form are an allowlist; a control that is not a live tag does not count');
+  {
+    const bad = (name, html, code, type) => { const r = AG.verifyManifest(type || 'attic_acknowledgment', html); ok(name, r.ok === false && r.reasons.indexOf(code) !== -1, JSON.stringify(r.reasons)); };
+    const first = GEN.indexOf('<p class="aa-p">'); const paraEnd = GEN.indexOf('</p>', first) + 4;
+    const para = GEN.slice(first, paraEnd);
+    const wrap = (open, close) => GEN.slice(0, first) + open + para + close + GEN.slice(paraEnd);
+    bad('required wording inside <details> fails', wrap('<details>', '</details>'), 'bad_tag:details');
+    bad('...inside <dialog> fails', wrap('<dialog>', '</dialog>'), 'bad_tag:dialog');
+    bad('...inside <select> fails', wrap('<select>', '</select>'), 'bad_tag:select');
+    bad('...inside <font> fails', wrap('<font color="white">', '</font>'), 'bad_tag:font');
+    bad('...inside <DETAILS> in capitals fails', wrap('<DETAILS>', '</DETAILS>'), 'bad_tag:details');
+    bad('...inside a <div class="no-print"> (hidden in the printed copy) fails', wrap('<div class="no-print">', '</div>'), 'no_print_wording');
+    bad('...inside a <div class="print-btn no-print"> that is a SECOND print button fails', wrap('<div class="print-btn no-print">', '</div>'), 'no_print_wording');
+    bad('...inside a div with the signing controls class (hidden in print) fails', wrap('<div class="nbd-sig-controls">', '</div>'), 'wording:0');
+    bad('...inside a <span class="nbd-sig-state"> fails', wrap('<span class="nbd-sig-state">', '</span>'), 'wording:0');
+    bad('the nbd-sig-controls class on a paragraph fails', GEN.replace('<p class="aa-p">', '<p class="aa-p nbd-sig-controls">'), 'hidden_class');
+    bad('an unknown class on a required paragraph fails', GEN.replace('<p class="aa-p">', '<p class="aa-p evil">'), 'bad_class');
+    bad('an attribute the render does not write (title) fails', GEN.replace('<p class="aa-p">', '<p class="aa-p" title="x">'), 'bad_attr:title');
+    bad('an event handler attribute fails', GEN.replace('<p class="aa-p">', '<p class="aa-p" onclick="x()">'), 'bad_attr:onclick');
+    bad('a data- attribute that is not the server\'s fails', GEN.replace('<p class="aa-p">', '<p class="aa-p" data-x="1">'), 'bad_attr:data-x');
+    bad('an <iframe> fails', GEN.replace('</body>', '<iframe src="https://x.example/"></iframe></body>'), 'bad_tag:iframe');
+    bad('an <a> link fails', GEN.replace('</body>', '<a href="https://x.example/">x</a></body>'), 'bad_tag:a');
+    bad('an inline <script> fails', GEN.replace('</body>', '<script>document.title="x"</script></body>'), 'script');
+    bad('a <script> from another site fails', GEN.replace('</body>', '<script src="https://evil.example/pro/js/signature-widget.js" defer></script></body>'), 'script');
+    bad('a <script src> with a body fails', GEN.replace('</body>', '<script src="/pro/js/signature-widget.js">x()</script></body>'), 'script');
+    ok('the widget script on this site\'s own path (relative, or the site origin, or localhost) is accepted', ['/pro/js/signature-widget.js', 'https://nobigdealwithjoedeal.com/pro/js/signature-widget.js', 'http://localhost:5000/pro/js/signature-widget.js'].every((u) => AG.verifyManifest('attic_acknowledgment', GEN.replace(/<script src="[^"]*"/, '<script src="' + u + '"')).ok === true));
+    bad('a self-closing <title/> swallows the rest of the page and fails', GEN.replace('<h1 class="lib-h1">', '<title/><h1 class="lib-h1">'), 'unterminated');
+    bad('a self-closing <style/> swallows the rest of the page and fails', GEN.replace('<h1 class="lib-h1">', '<style/><h1 class="lib-h1">'), 'unterminated');
+    bad('a self-closing <script/> swallows the rest of the page and fails', GEN.replace('<h1 class="lib-h1">', '<script/><h1 class="lib-h1">'), 'script');
+    bad('a <textarea> around required wording leaves the wording out of the page and fails', wrap('<textarea>', '</textarea>'), 'wording:0');
+    bad('...a <noscript> does too', wrap('<noscript>', '</noscript>'), 'wording:0');
+    // controls that are not live tags
+    const ctl = (id) => new RegExp('<input\\b[^>]*data-nbd-ack="' + id + '"[^>]*>').exec(GEN)[0];
+    const saw = ctl('ack:saw');
+    bad('a required control only inside an HTML comment does not count', GEN.replace(saw, '<!-- ' + saw + ' -->'), 'control_count');
+    bad('...inside a <textarea> does not count', GEN.replace(saw, '<textarea>' + saw + '</textarea>'), 'control_count');
+    bad('...inside a <noscript> does not count', GEN.replace(saw, '<noscript>' + saw + '</noscript>'), 'control_count');
+    bad('...inside a <template> does not count', GEN.replace(saw, '<template>' + saw + '</template>'), 'control_count');
+    bad('...a decoy copy in a comment beside the live control is not accepted either', GEN.replace(saw, saw + '<!-- ' + saw + ' -->'), 'control_count');
+    const sawNi = new RegExp('<input\\b[^>]*data-nbd-ack="ack:saw"[^>]*>').exec(GEN_NI)[0];
+    bad('...and for the not-inspected form', GEN_NI.replace(sawNi, '<!-- ' + sawNi + ' -->'), 'control_count', 'attic_not_inspected');
+    // depth and stray closes are bounded
+    const timed = (fn) => { const t0 = Date.now(); const r = fn(); return { ms: Date.now() - t0, r }; };
+    let t = timed(() => AG.verifyManifest('attic_acknowledgment', GEN.replace('</body>', '<div>'.repeat(5000) + '</body>')));
+    ok('5000 nested <div> is refused as too_deep in ' + t.ms + ' ms', t.r.ok === false && t.r.reasons.indexOf('too_deep') !== -1 && t.ms < 1500);
+    t = timed(() => AG.verifyManifest('attic_acknowledgment', GEN.replace('</body>', '</div>'.repeat(200000) + '</body>')));
+    ok('200k stray </div> in ' + t.ms + ' ms (linear)', t.ms < 1500);
+    t = timed(() => AG.verifyManifest('attic_acknowledgment', GEN.replace('</body>', '<p>'.repeat(300) + '</p>'.repeat(200000) + '</body>')));
+    ok('300 open <p> and 200k </p> in ' + t.ms + ' ms (linear)', t.ms < 1500);
+    // the real forms, signed and ticked, with the extra fixtures any real render may have: photo thumbnails, an affiliate row
+    const withPhotos = await generated('attic_acknowledgment', { atticPhotoUrls: { p1: 'https://firebasestorage.example/o/p1.jpg', p2: 'https://firebasestorage.example/o/p2.jpg' } });
+    ok('a generated form with photo thumbnails is accepted', AG.verifyManifest('attic_acknowledgment', withPhotos).ok === true, JSON.stringify(AG.verifyManifest('attic_acknowledgment', withPhotos).reasons));
+    const sgPh = tick(sign(withPhotos));
+    ok('...and its signed copy', AG.verifyManifest('attic_acknowledgment', sgPh, { signed: true }).ok === true);
+    // a blank signer left unsigned keeps the controls and the widget's own button (in-person, one of two signed)
+    const half = tick(GEN.replace(/<canvas class="nbd-sig-canvas"><\/canvas>/, '<img src="' + PNG + '" alt="Homeowner" class="nbd-sig-img" style="max-width:100%;height:auto;display:block;background:#fff;">').replace('<span class="nbd-sig-state">', '<button type="button" data-nbd-sig-action="use-saved">Use saved</button><span class="nbd-sig-state">'));
+    ok('a copy with one signer still blank (controls and the Use saved button kept) is accepted', AG.verifyManifest('attic_acknowledgment', half, { signed: true }).ok === true, JSON.stringify(AG.verifyManifest('attic_acknowledgment', half, { signed: true }).reasons));
+  }
+
   console.log('\n' + (failed ? 'FAILED ' + failed + ': ' + fails.join(' | ') : 'all ok') + ' (' + passed + ' passed)');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

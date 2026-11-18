@@ -51,33 +51,44 @@ function manifestFor(docType) {
 // real form is about 20 KB; the signed copy carries two signature images, so 2 MB is generous.
 const MAX_HTML = 2 * 1024 * 1024;
 // Elements whose content a reader never sees as page text (or that a script could reveal): their content is not wording.
-const RAW_ELEMENTS = { script: 1, style: 1, template: 1, title: 1, noscript: 1, canvas: 1, object: 1, iframe: 1, audio: 1, video: 1 };
+// Review 3 (item 3): a raw element opens even when written self-closing (<title/>, <style/>, <script/>: HTML ignores the slash), and textarea,
+// xmp, noembed, noframes and plaintext are raw too, so a control or wording inside one is not read as part of the page.
+const RAW_ELEMENTS = { script: 1, style: 1, template: 1, title: 1, noscript: 1, canvas: 1, object: 1, iframe: 1, audio: 1, video: 1, textarea: 1, xmp: 1, noembed: 1, noframes: 1, plaintext: 1 };
+const VOID_ELEMENTS = { area: 1, base: 1, br: 1, col: 1, embed: 1, hr: 1, img: 1, input: 1, link: 1, meta: 1, param: 1, source: 1, track: 1, wbr: 1 };
+// Classes that hide an element's text in the printed or signed copy (see the style allowlist): text inside one is not wording.
+const HIDDEN_CLASSES = { 'no-print': 1, 'nbd-sig-controls': 1, 'nbd-sig-state': 1 };
+const MAX_DEPTH = 400;
+function _classes(v) { return String(v == null ? '' : v).toLowerCase().split(/\s+/).filter(Boolean); }
+function _hiddenClass(attrs) { return _classes(attrs && attrs.class).some((c) => HIDDEN_CLASSES[c] === 1); }
 const ATTR_RE = /([^\s"'<>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
 
 /**
  * One linear pass over the markup -> { text, tags: [{ name, closing, attrs }], styles: [{ body: css text, attrs }], unterminated }.
- * text is the page text only (comments, tags and the content of RAW_ELEMENTS removed). A comment, tag, quote or raw element that
- * never closes swallows the rest of the document, as a browser does: what follows it is not read as wording.
+ * text is the page text only (comments, tags, the content of RAW_ELEMENTS and the text inside an element with a HIDDEN_CLASSES class removed).
+ * A comment, tag, quote or raw element that never closes swallows the rest of the document, as a browser does: what follows it is not read as
+ * wording. An element nested deeper than MAX_DEPTH ends the scan (too_deep).
  */
 function _scan(html) {
   const s = String(html == null ? '' : html);
   const low = s.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));   // same length as s
   const n = s.length;
   const text = []; const tags = []; const styles = [];
-  let unterminated = false;
+  let unterminated = false; let tooDeep = false;
+  const stack = []; const open = {}; let hid = 0;   // open elements, how many of each name, how many carry a hidden class
+  const say = (t) => { if (hid === 0) text.push(t); };
   let i = 0;
   while (i < n) {
     const lt = s.indexOf('<', i);
-    if (lt === -1) { text.push(s.slice(i)); break; }
-    if (lt > i) text.push(s.slice(i, lt));
+    if (lt === -1) { say(s.slice(i)); break; }
+    if (lt > i) say(s.slice(i, lt));
     i = lt;
     if (low.startsWith('<!--', i)) {
       const e = s.indexOf('-->', i + 4);
       if (e === -1) { unterminated = true; break; }
-      text.push(' '); i = e + 3; continue;
+      say(' '); i = e + 3; continue;
     }
     const c = low.charAt(i + 1);
-    if (!((c >= 'a' && c <= 'z') || c === '/' || c === '!' || c === '?')) { text.push('<'); i++; continue; }
+    if (!((c >= 'a' && c <= 'z') || c === '/' || c === '!' || c === '?')) { say('<'); i++; continue; }
     // the tag: up to the first '>' that is not inside a quoted attribute value
     let j = i + 1; let end = -1; let prev = '';
     while (j < n) {
@@ -102,18 +113,27 @@ function _scan(html) {
       tags.push({ name: nm[2], closing: nm[1] === '/', attrs });
     }
     i = end + 1;
-    if (nm && nm[1] === '' && RAW_ELEMENTS[nm[2]] === 1 && raw.charAt(raw.length - 2) !== '/') {
+    if (nm && nm[1] === '' && RAW_ELEMENTS[nm[2]] === 1) {
       const close = low.indexOf('</' + nm[2], i);
       const body = close === -1 ? s.slice(i) : s.slice(i, close);
       if (nm[2] === 'style') styles.push({ body, attrs });
+      tags[tags.length - 1].bodyLength = body.length;
       if (close === -1) { unterminated = true; break; }
       const gt = s.indexOf('>', close);
       if (gt === -1) { unterminated = true; break; }
       tags.push({ name: nm[2], closing: true, attrs: {} });
       i = gt + 1;
+    } else if (nm && VOID_ELEMENTS[nm[2]] !== 1) {
+      if (nm[1] === '') {
+        if (stack.length >= MAX_DEPTH) { tooDeep = true; break; }
+        const h = _hiddenClass(attrs);
+        stack.push({ name: nm[2], h }); open[nm[2]] = (open[nm[2]] || 0) + 1; if (h) hid++;
+      } else if (open[nm[2]] > 0) {   // a closing tag pops to its element (each element is popped once, so this is linear)
+        for (;;) { const t = stack.pop(); open[t.name]--; if (t.h) hid--; if (t.name === nm[2]) break; }
+      }
     }
   }
-  return { text: text.join(''), tags, styles, unterminated };
+  return { text: text.join(''), tags, styles, unterminated, tooDeep };
 }
 
 function _norm(t) {
@@ -132,6 +152,21 @@ const HIDING_CSS_RES = [
   /color:transparent/, /text-indent:-/, /(?<![a-z-])(?:max-)?(?:height|width):(?:0+(?:\.0*)?|\.0+)(?:px|pt|em|rem|ex|%)?(?![0-9.])/, /(?<![a-z-])line-height:(?:0+(?:\.0*)?|\.0+)(?![0-9.])/,
   /clip(?:-path)?:/, /@import/, /(?:left|top|right|bottom|margin-left|margin-top):-[0-9]{3,}/,
 ];
+const ALLOWED_TAGS = {};
+('html head meta title style body div p span strong em b i small sup sub br hr label input table thead tbody tfoot tr td th h1 h2 h3 ul ol li dl dt dd img canvas button script').split(' ').forEach((n) => { ALLOWED_TAGS[n] = 1; });
+const GLOBAL_ATTRS = { class: 1, id: 1, style: 1, lang: 1 };
+const TAG_ATTRS = {
+  img: { src: 1, alt: 1, width: 1, height: 1 }, canvas: { width: 1, height: 1 },
+  input: { type: 1, name: 1, 'data-nbd-ack': 1, 'data-nbd-required': 1, 'aria-label': 1, checked: 1, disabled: 1 },
+  button: { type: 1, 'data-nbd-sig-action': 1, 'data-dgt-action': 1 }, meta: { charset: 1, name: 1, content: 1 }, script: { src: 1, defer: 1 },
+  div: { 'data-nbd-sig': 1, 'data-label': 1, 'data-required': 1, 'data-nbd-sig-finalized': 1, 'data-nbd-sig-signed-at': 1 }, td: { colspan: 1, rowspan: 1 }, th: { colspan: 1, rowspan: 1 },
+};
+// The elements that carry the required wording may have only the classes the server render writes (a class is not a way to hide text
+// once the style blocks are an allowlist, but an unknown class on a paragraph is not the server's form).
+const WORD_CARRIERS = { p: 1, label: 1, strong: 1, em: 1, h1: 1, h2: 1, h3: 1, li: 1, span: 1 };
+const WORD_CLASSES = { 'aa-p': 1, 'aa-note': 1, 'aa-ver': 1, 'aa-row': 1, 'lib-sub': 1, 'lib-h1': 1, 'lib-fine': 1, 'footer-brand': 1, 'nbd-sig-state': 1 };
+// The signing widget's script: no body, and a source on this site's own path.
+const SCRIPT_SRC_RE = /^(?:https?:\/\/(?:[a-z0-9-]{1,63}\.){0,4}(?:nobigdealwithjoedeal\.com|localhost|127\.0\.0\.1)(?::[0-9]{1,5})?)?\/pro\/js\/signature-widget\.js$/i;
 const WORDING_TAGS = { p: 1, label: 1, span: 1, strong: 1, em: 1, td: 1, th: 1, tr: 1, tbody: 1, thead: 1, table: 1, li: 1, ul: 1, ol: 1, h1: 1, h2: 1, h3: 1, input: 1 };
 
 /** The CSS text lower-cased, with comments and white space removed (linear: indexOf, no backtracking regex). */
@@ -225,9 +260,23 @@ function _styleReasons(blocks) {
 function _risks(scan, parsed, opts) {
   const bad = [];
   const add = (c) => { if (bad.indexOf(c) === -1) bad.push(c); };
+  if (scan.tooDeep) add('too_deep');
+  let noPrint = 0;
   scan.tags.forEach((t) => {
+    // Review 3 (item 3): the tags and attributes of the form are an allowlist (what the server render and the signing step write).
+    if (ALLOWED_TAGS[t.name] !== 1) add('bad_tag:' + String(t.name).slice(0, 20));
     if (t.closing) return;
     const a = t.attrs;
+    Object.keys(a).forEach((k) => { if (!(GLOBAL_ATTRS[k] === 1 || (TAG_ATTRS[t.name] && TAG_ATTRS[t.name][k] === 1))) add('bad_attr:' + String(k).slice(0, 30)); });
+    const cls = _classes(a.class);
+    if (cls.indexOf('no-print') !== -1) {   // the print button's own wrapper is the only element that may carry it
+      noPrint++;
+      if (!(t.name === 'div' && cls.slice().sort().join(' ') === 'no-print print-btn' && noPrint === 1)) add('no_print_wording');
+    }
+    if (cls.indexOf('nbd-sig-controls') !== -1 && t.name !== 'div') add('hidden_class');
+    if (cls.indexOf('nbd-sig-state') !== -1 && t.name !== 'span') add('hidden_class');
+    if (WORD_CARRIERS[t.name] === 1 && cls.some((c) => WORD_CLASSES[c] !== 1)) add('bad_class');
+    if (t.name === 'script' && (!(t.bodyLength === 0) || !SCRIPT_SRC_RE.test(String(a.src || '').slice(0, 200)))) add('script');
     if (t.name === 'template') add('template');
     if (Object.prototype.hasOwnProperty.call(a, 'hidden')) add('hidden_attr');
     // The one inline style a signed copy gets is the signature image's own (signature-widget.js and remote-signing.js finalizeBlock write it).
@@ -262,8 +311,11 @@ function verifyManifest(docType, html, opts) {
   while ((mm = MARKER_RE.exec(s))) markers.push(mm);
   if (markers.length !== 1 || markers[0][1] !== AA.VERSION || markers[0][2] !== m.variant) bad.push('marker');
   const parsed = AA.parseAcks(s);
+  const scan = _scan(s);
   const rawCount = (s.match(/data-nbd-ack/gi) || []).length;
-  if (parsed.length !== rawCount || parsed.length > MAX_CONTROLS) bad.push('control_count');
+  // Review 3 (item 3): a control counts only when it is a real tag of the page, not text in a comment, textarea, noscript or template.
+  const liveCount = scan.tags.filter((t) => !t.closing && Object.prototype.hasOwnProperty.call(t.attrs, 'data-nbd-ack')).length;
+  if (parsed.length !== rawCount || parsed.length !== liveCount || parsed.length > MAX_CONTROLS) bad.push('control_count');
   const seen = {};
   parsed.forEach((c) => { if (seen[c.id]) bad.push('duplicate:' + c.id); seen[c.id] = c; });
   const boxes = parsed.filter((c) => c.type === 'checkbox').map((c) => c.id).sort();
@@ -279,7 +331,6 @@ function verifyManifest(docType, html, opts) {
   });
   Object.keys(groups).forEach((g) => { if (!(groups[g].yes && groups[g].no)) bad.push('half_line:' + g); });
   m.must.forEach((g) => { if (!groups[g]) bad.push('missing_line:' + g); });
-  const scan = _scan(s);
   if (scan.unterminated) bad.push('unterminated');
   const text = _norm(scan.text);
   m.paras.forEach((p, i) => { if (text.indexOf(_plain(p)) === -1) bad.push('wording:' + i); });
