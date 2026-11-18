@@ -361,6 +361,54 @@ const ON_OWNER = { _default: {}, CO: { docAtticAckV1: true } };
     ok('the callable passes the lead-aware either-flag check', /atticGateOn/.test(src('functions/attic-override.js')) && /flagOn/.test(src('functions/attic-gate.js')));
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('7. the free later check: one task per lead (deterministic id), never due in the past, days at least 1');
+  {
+    ok('atticFreeCheckDays 0 is treated as unset by the form (a missing number, never a printed 0)', AA.missingTerms({ atticFreeCheckDays: 0 }).join() === 'atticFreeCheckDays' && AA.words('at least 3 days before the start date', { atticFreeCheckDays: 0 }, true).indexOf('{{atticFreeCheckDays}}') !== -1);
+    ok('atticFreeCheckDays 1 is fine', AA.missingTerms({ atticFreeCheckDays: 1 }).length === 0);
+
+    // run the panel's task function against a fake page
+    const code = fs.readFileSync(path.join(ROOT, 'docs/pro/js/attic-panel.js'), 'utf8').replace(/\r\n/g, '\n');
+    const store = new Map();
+    const writes = [];
+    const win = { location: { pathname: '/pro/customer.html' }, _user: { uid: 'REP', email: 'rep@example.test' }, db: {}, serverTimestamp: () => 'TS',
+      doc: (db, ...p) => ({ path: p.join('/') }), collection: (db, ...p) => ({ path: p.join('/') }),
+      setDoc: async (ref, data, opts) => { writes.push(['setDoc', ref.path, data]); store.set(ref.path, Object.assign({}, store.get(ref.path) || {}, data)); },
+      addDoc: async (ref, data) => { writes.push(['addDoc', ref.path, data]); },
+      updateDoc: async (ref, data) => { writes.push(['updateDoc', ref.path, data]); },
+      addEventListener() {}, NBDFlags: { enabled: () => true, onReady() {} }, _leadDoc: { id: 'L1', scheduledDate: '' }, _customerId: 'L1' };
+    win.NBDAtticAck = AA; win.NBDAtticAckText = require(path.join(FN, 'attic-ack-text.js'));
+    const doc0 = { addEventListener() {}, getElementById: () => null, createElement: () => ({ setAttribute() {}, appendChild() {} }), body: { appendChild() {} } };
+    new Function('window', 'document', 'console', code)(win, doc0, console);
+    const T = win.NBDAtticPanel && win.NBDAtticPanel._freeCheckTask;
+    ok('the panel exposes its free-check task for the test', typeof T === 'function');
+    if (typeof T === 'function') {
+      const rec = { status: 'not_inspected', reason: 'declined' };
+      const day = 86400000;
+      const ymd = (ms) => new Date(ms).toISOString().slice(0, 10);
+      await T('L1', rec, { days: 3, startMs: Date.now() + 30 * day, nowMs: Date.now() });
+      const w1 = writes.filter((x) => /tasks/.test(x[1]));
+      ok('the task is written with a SET at the deterministic id attic-check-<leadId>, never an add', w1.length === 1 && w1[0][0] === 'setDoc' && w1[0][1] === 'leads/L1/tasks/attic-check-L1', JSON.stringify(w1.map((x) => x.slice(0, 2))));
+      await T('L1', rec, { days: 3, startMs: Date.now() + 30 * day, nowMs: Date.now() });
+      ok('a second click writes the SAME id again, so it cannot duplicate', writes.filter((x) => /tasks/.test(x[1])).every((x) => x[1] === 'leads/L1/tasks/attic-check-L1') && !writes.some((x) => x[0] === 'addDoc'));
+      writes.length = 0;
+      await T('L1', rec, { days: 3, startMs: Date.now() + 1 * day, nowMs: Date.now() });
+      const soon = writes.filter((x) => /tasks/.test(x[1]))[0];
+      ok('a start date only a day away (3 days before = in the past): due tomorrow at the earliest', !!soon && soon[2].dueDate >= ymd(Date.now() + day) && soon[2].dueDate === ymd(Date.now() + day), soon && soon[2].dueDate);
+      writes.length = 0;
+      await T('L1', rec, { days: 3, startMs: Date.now() - 10 * day, nowMs: Date.now() });
+      const past = writes.filter((x) => /tasks/.test(x[1]))[0];
+      ok('a start date already past: due tomorrow, never in the past', !!past && past[2].dueDate === ymd(Date.now() + day));
+      writes.length = 0;
+      await T('L1', rec, { days: 3, startMs: Date.now() + 30 * day, nowMs: Date.now() });
+      const far = writes.filter((x) => /tasks/.test(x[1]))[0];
+      ok('a start date a month out: due start minus the days', !!far && far[2].dueDate === ymd(Date.now() + 27 * day));
+      writes.length = 0;
+      await T('L1', rec, { days: 0, startMs: Date.now() + 30 * day, nowMs: Date.now() });
+      ok('days of 0 (below the minimum) writes no task with an invented number', writes.filter((x) => /tasks/.test(x[1])).length === 0);
+    }
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -2803,7 +2803,7 @@ service cloud.firestore {
           && ptInt(d.paymentTerms, 'punchListDays', 0, 365) && ptInt(d.paymentTerms, 'pauseNoticeDays', 0, 365)
           && ptNum(d.paymentTerms, 'restockPct', 0, 100) && ptNum(d.paymentTerms, 'cardFeePct', 0, 10)
           && ptInt(d.paymentTerms, 'deckingPerSheetCents', 0, 100000) && ptInt(d.paymentTerms, 'deckingSheetsBeforeChangeOrder', 1, 200)
-          && ptInt(d.paymentTerms, 'atticFreeCheckDays', 0, 365) && ptInt(d.paymentTerms, 'claimNoticeDays', 0, 365));
+          && ptInt(d.paymentTerms, 'atticFreeCheckDays', 1, 365) && ptInt(d.paymentTerms, 'claimNoticeDays', 0, 365));
       }
       // create: a client may NOT seed a docPrefix/seal — those come from the
       // reserveCompanyPrefix callable only (both must be absent/null here).

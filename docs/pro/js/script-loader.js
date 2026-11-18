@@ -241,11 +241,11 @@
       // window.NBDJurisdiction, loaded eagerly by the page). Last in the group (the smoke test reads the head of it for
       // customer-documents.js); the generator reads window.NBDClauseSet at call time. Same group, so both always load together.
       'js/clause-set-text.js?v=3',
-      'js/clause-set.js?v=4',
+      'js/clause-set.js?v=5',
       // 2026-11-18 attic acknowledgment (flag docAtticAckV1): wording, then logic. Same group, loaded together.
       'js/attic-ack-text.js?v=1',
-      'js/attic-ack.js?v=2',
-      'js/attic-panel.js?v=3'
+      'js/attic-ack.js?v=3',
+      'js/attic-panel.js?v=4'
     ],
     // Estimate engine (PR 2c). The revenue-critical builder + its product/
     // catalog data. Only needed when the rep builds an estimate, opens the

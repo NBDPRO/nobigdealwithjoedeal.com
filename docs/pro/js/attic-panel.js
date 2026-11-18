@@ -168,20 +168,31 @@
     return true;
   }
   // Q17, Q71: the free later check is a rep task, due atticFreeCheckDays before the start date (else contract date + 7 days).
-  async function freeCheckTask(rec) {
-    var A = AA();
-    if (!A.wantsFreeCheck(rec) || rec.freeCheckTaskCreated || !w.addDoc || !w.collection) return;
-    var L = lead(), days = terms().atticFreeCheckDays;
-    var start = /^\d{4}-\d{2}-\d{2}$/.test(String(L.scheduledDate || '')) ? Date.parse(L.scheduledDate + 'T12:00:00') : null;
-    var due = A.freeCheckDue({ startMs: start, contractMs: Date.now(), days: typeof days === 'number' ? days : null });
-    if (due == null) return;
+  // Review 2026-11-18 (finding 7): ONE task per lead (a set at attic-check-<leadId>, so a double click cannot duplicate it), never due in
+  // the past (clamped to tomorrow), and only with a real number of days (at least 1). o = { days, startMs, nowMs }.
+  async function freeCheckTaskFor(leadId, rec, o) {
+    var A = AA(), x = o || {};
+    if (!A.wantsFreeCheck(rec) || !w.setDoc || !w.doc || !w.db) return false;
+    var days = x.days;
+    if (!(typeof days === 'number' && isFinite(days) && days >= 1)) return false;
+    var now = typeof x.nowMs === 'number' ? x.nowMs : Date.now(), DAY = 86400000;
+    var due = A.freeCheckDue({ startMs: typeof x.startMs === 'number' ? x.startMs : null, contractMs: now, days: days });
+    if (due == null) return false;
+    if (due < now + DAY) due = now + DAY;
     var ymd = new Date(due).toISOString().slice(0, 10);
     var title = 'Offer the free attic check before the start date';
-    await w.addDoc(w.collection(w.db, 'leads', S.leadId, 'tasks'), {
-      leadId: S.leadId, userId: (w._user && w._user.uid) || null, title: title, text: title, dueDate: ymd, priority: 'normal', done: false,
-      notes: 'The attic was not inspected (' + rec.reason + '). A check is free if asked for at least ' + (days == null ? 'a few' : days) + ' days before the start date.',
+    await w.setDoc(w.doc(w.db, 'leads', leadId, 'tasks', 'attic-check-' + leadId), {
+      leadId: leadId, userId: (w._user && w._user.uid) || null, title: title, text: title, dueDate: ymd, priority: 'normal', done: false,
+      notes: 'The attic was not inspected (' + rec.reason + '). A check is free if asked for at least ' + days + ' days before the start date.',
       source: 'attic-ack', createdAt: w.serverTimestamp ? w.serverTimestamp() : new Date(), createdBy: (w._user && w._user.email) || 'Attic check'
     });
+    return true;
+  }
+  async function freeCheckTask(rec) {
+    if (!AA().wantsFreeCheck(rec) || rec.freeCheckTaskCreated) return;
+    var L = lead();
+    var start = /^\d{4}-\d{2}-\d{2}$/.test(String(L.scheduledDate || '')) ? Date.parse(L.scheduledDate + 'T12:00:00') : null;
+    if (!(await freeCheckTaskFor(S.leadId, rec, { days: terms().atticFreeCheckDays, startMs: start }))) return;
     S.rec.freeCheckTaskCreated = true;
     await w.updateDoc(w.doc(w.db, 'leads', S.leadId), { 'atticCheck.freeCheckTaskCreated': true });
   }
@@ -260,5 +271,5 @@
   if (w.NBDFlags && typeof w.NBDFlags.onReady === 'function') w.NBDFlags.onReady(boot);
   document.addEventListener('DOMContentLoaded', boot);
   w.addEventListener('load', boot);
-  w.NBDAtticPanel = { open: open, _state: function () { return S; } };
+  w.NBDAtticPanel = { open: open, _state: function () { return S; }, _freeCheckTask: freeCheckTaskFor };
 })();

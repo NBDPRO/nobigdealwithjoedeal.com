@@ -117,14 +117,14 @@
   // "at least 3 days" is the packet's own number; it comes from config (atticFreeCheckDays) and a missing one stays a token.
   function days(text, terms) {
     var n = terms && terms.atticFreeCheckDays;
-    var v = (typeof n === 'number' && isFinite(n)) ? String(n) : '{{atticFreeCheckDays}}';
+    var v = (typeof n === 'number' && isFinite(n) && n >= 1) ? String(n) : '{{atticFreeCheckDays}}';
     return String(text).replace(/(at least )3( days before the start date)/, '$1' + v + '$2');
   }
   function words(text, terms, isNbd) { return party(days(text, terms), isNbd); }
   /** The unset Company Profile numbers the acknowledgment prints (blocks the send, like clause-set.js). */
   function missingTerms(terms) {
     var n = terms && terms.atticFreeCheckDays;
-    return (typeof n === 'number' && isFinite(n)) ? [] : ['atticFreeCheckDays'];
+    return (typeof n === 'number' && isFinite(n) && n >= 1) ? [] : ['atticFreeCheckDays'];
   }
 
   // ── Recommendations (Q28): a line with no price is hidden ────────
