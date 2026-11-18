@@ -769,6 +769,7 @@
     "product-library-company-2026-09-29.test.js",
     "catalog-sell-refresh-2026-11-09.test.js",
     "price-ledger-server-2026-11.test.js",
+    "price-import-doc-read-2026-11.test.js",
     "catalog-price-floor-2026-11-09.test.js",
     "builder-rate-units-2026-11-09.test.js",
     "schedule-window-2026-09-29.test.js",
