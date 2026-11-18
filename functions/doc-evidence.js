@@ -1,0 +1,140 @@
+/**
+ * functions/doc-evidence.js — the server's side of the evidence and clause
+ * foundation (Jo, 2026-11-18, template/liability overhaul, phase 1). See
+ * documentation/projects/CLAUSE-EVIDENCE-FOUNDATION-2026-11-18.md.
+ *
+ * What a signed record must carry, on EVERY signing path: the clause-set version
+ * (clause-set.js), a SHA-256 digest of the exact document that was presented, the
+ * consent text shown, the signing time, and the signer's IP and user agent. The
+ * IP and user agent are read here, on the server, from the request — never taken
+ * from a value the client sent.
+ *
+ * No npm packages (db is injected, crypto is built in), so the authed E2E and
+ * the unit tests load it without functions/node_modules.
+ *
+ *   FLAG_NAME      the per-person feature flag docEvidenceFoundation (default OFF):
+ *                  the fail-closed send checks, the in-person evidence write and
+ *                  the remote-link consent checkbox. The stamps the existing
+ *                  server writes already make (clause set, digest) are additive
+ *                  and not gated.
+ *   buildEvidence  one record shape for every path: every key present, null when unknown.
+ *   stampFor       { clauseSetVersion, clauseIds } for a lead (+ estimate).
+ *   serverGaps     the shared contract-gap check (doc-send-checks.js) for a server caller.
+ */
+'use strict';
+
+const crypto = require('crypto');
+const ClauseSet = require('./clause-set');
+const Checks = require('./doc-send-checks');
+
+const FLAG_NAME = 'docEvidenceFoundation';
+const FLAG_DEFAULT = false;
+
+// The platform tenant's legal entity (company-profile.js brand.entityName default,
+// the same string). A tenant key-less record, or the NBD owner's, is NBD's; any
+// other tenant must set its own — never inherited.
+const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
+const NBD_ENTITY_NAME = 'No Big Deal Solutions LLC';
+
+/** Only the boolean true turns the flag on; per-person overrides the default doc. */
+function flagOn(flagsDefault, flagsMine) {
+  const merged = Object.assign({}, flagsDefault || {}, flagsMine || {});
+  return merged[FLAG_NAME] === true;
+}
+
+/**
+ * Is the flag on for this person? feature_flags/_default merged with the
+ * person's own doc. An unreadable flag reads OFF: this ships dark, and a read
+ * failure must never switch new behaviour on.
+ */
+async function flagForUid(db, uid) {
+  try {
+    const flagDocId = String(uid || '');
+    const reads = [db.doc('feature_flags/_default').get()];
+    if (flagDocId) reads.push(db.doc('feature_flags/' + flagDocId).get().catch(() => null));
+    const snaps = await Promise.all(reads);
+    const docs = snaps.map((s) => (s && s.exists ? (s.data() || {}) : {}));
+    return flagOn(docs[0], docs[1]);
+  } catch (_) { return false; }
+}
+
+function sha256Hex(data) {
+  return crypto.createHash('sha256').update(data).digest('hex');
+}
+
+/**
+ * { ip, ua } of an HTTP request, read from the request itself (never the body).
+ * Lazy and guarded: a request with no readable address yields nulls, never a throw.
+ */
+function requestFacts(req) {
+  let ip = null;
+  try { ip = require('./integrations/upstash-ratelimit').clientIp(req || {}) || null; } catch (_) { ip = null; }
+  if (ip === 'unknown') ip = null; // clientIp's "no usable address" marker is not evidence
+  let ua = null;
+  try { ua = String((req && typeof req.get === 'function' && req.get('user-agent')) || '').slice(0, 300) || null; } catch (_) { ua = null; }
+  return { ip, ua };
+}
+
+function _s(v, max) { return typeof v === 'string' && v ? v.slice(0, max) : null; }
+
+/**
+ * One evidence record, the same shape on every path. Every key is always
+ * present: a fact we do not have reads null, never an absent key a reader skips.
+ *   path            'esign_envelope' | 'deal_room' | 'in_person' | 'remote_link'
+ *   documentSha256  digest of the document as presented (the bytes the signer saw)
+ *   signedSha256    digest of the executed record, when there is one
+ *   consent         { agreed: true | false | null, text, at } — null = no consent step on this path
+ */
+function buildEvidence(input) {
+  const i = input || {};
+  const at = Number.isFinite(Number(i.signedAtMs)) ? Number(i.signedAtMs) : Date.now();
+  const c = i.consent || {};
+  return {
+    path: _s(i.path, 40),
+    clauseSetVersion: _s(i.clauseSetVersion, 60),
+    clauseIds: Array.isArray(i.clauseIds) ? i.clauseIds.slice(0, 60).map(String) : [],
+    documentSha256: _s(i.documentSha256, 64),
+    signedSha256: _s(i.signedSha256, 64),
+    consent: {
+      agreed: c.agreed === true ? true : (c.agreed === false ? false : null),
+      text: _s(c.text, 600),
+      at: c.agreed === true ? (Number.isFinite(Number(c.at)) ? Number(c.at) : at) : null,
+    },
+    signedAtMs: at,
+    ip: _s(i.ip, 64),
+    ua: _s(i.ua, 300),
+    recordedByUid: _s(i.recordedByUid, 128),
+  };
+}
+
+/** { clauseSetVersion, clauseIds } for a lead (+ estimate), through the one Kentucky classifier. */
+function stampFor(KyLaw, lead, est) {
+  let j = null;
+  try { j = KyLaw.classifyLead(lead || {}, est || {}); } catch (_) { j = null; }
+  let source = '';
+  // An unreadable state keeps the payment source unknown too: the strict set (fail closed).
+  if (j && j.state) {
+    const jt = typeof KyLaw.normJobType === 'function' ? KyLaw.normJobType((lead || {}).jobType) : '';
+    source = j.insurance ? 'insurance' : (jt === 'finance' ? 'financed' : 'cash');
+  }
+  const d = ClauseSet.describeFor({ state: j ? j.state : '', paymentSource: source });
+  return { clauseSetVersion: d.clauseSetVersion, clauseIds: d.clauses.map((c) => c.ref) };
+}
+
+/** The legal entity a tenant's contracts name: its own, else NBD's for the NBD tenant only. */
+function entityNameFor(profile, tenantKey) {
+  const own = String(((profile || {}).brand || {}).entityName || '').trim();
+  if (own) return own;
+  return (!tenantKey || String(tenantKey) === NBD_OWNER_UID) ? NBD_ENTITY_NAME : '';
+}
+
+/** The shared contract-gap check (doc-send-checks.js) for a server caller. */
+function serverGaps(facts) {
+  return Checks.contractGaps(facts);
+}
+
+module.exports = {
+  FLAG_NAME, FLAG_DEFAULT, NBD_ENTITY_NAME, CLAUSE_SET_VERSION: ClauseSet.CLAUSE_SET_VERSION,
+  flagOn, flagForUid, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
+  describeGaps: Checks.describeGaps,
+};
