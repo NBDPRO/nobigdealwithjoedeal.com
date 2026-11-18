@@ -171,10 +171,15 @@
   // the stored copy, never from anything the browser claims.
   function parseAcks(html) {
     var out = [];
-    var re = /<input\b[^>]*>/gi, m;
+    var re = /<input\b/gi, m;
     var s = String(html == null ? '' : html);
+    // Linear (review 2, item 2): the end of each tag is found with indexOf, and a tag with no '>' ends the scan, so a copy made of
+    // thousands of unclosed '<input' cannot make every start rescan the rest of the document.
     while ((m = re.exec(s))) {
-      var tag = m[0];
+      var gt = s.indexOf('>', m.index);
+      if (gt === -1) break;
+      var tag = s.slice(m.index, gt + 1);
+      re.lastIndex = gt + 1;
       var id = /\bdata-nbd-ack\s*=\s*"([^"]{1,80})"/i.exec(tag);
       if (!id) continue;
       out.push({

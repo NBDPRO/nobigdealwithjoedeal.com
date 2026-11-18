@@ -244,7 +244,7 @@
       'js/clause-set.js?v=5',
       // 2026-11-18 attic acknowledgment (flag docAtticAckV1): wording, then logic. Same group, loaded together.
       'js/attic-ack-text.js?v=1',
-      'js/attic-ack.js?v=3',
+      'js/attic-ack.js?v=4',
       'js/attic-panel.js?v=4'
     ],
     // Estimate engine (PR 2c). The revenue-critical builder + its product/

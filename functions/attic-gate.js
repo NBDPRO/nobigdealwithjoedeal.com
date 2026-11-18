@@ -46,11 +46,82 @@ function manifestFor(docType) {
   return { variant: notInspected ? 'not_inspected' : 'inspected', required, must, lines, paras };
 }
 
-function _plain(s) {
-  return String(s == null ? '' : s).replace(/<!--[\s\S]*?-->/g, ' ').replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]*>/g, '')
+// Review 2 (2026-11-18), item 2: the stored copy is rep-authored (in-person) or a signer's submission, so it is read with one linear
+// pass (indexOf and a character loop, no backtracking regex), and a copy over MAX_HTML is refused before any of it is read. The
+// real form is about 20 KB; the signed copy carries two signature images, so 2 MB is generous.
+const MAX_HTML = 2 * 1024 * 1024;
+// Elements whose content a reader never sees as page text (or that a script could reveal): their content is not wording.
+const RAW_ELEMENTS = { script: 1, style: 1, template: 1, title: 1, noscript: 1, canvas: 1, object: 1, iframe: 1, audio: 1, video: 1 };
+const ATTR_RE = /([^\s"'<>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+
+/**
+ * One linear pass over the markup -> { text, tags: [{ name, closing, attrs }], styles: [css text], unterminated }.
+ * text is the page text only (comments, tags and the content of RAW_ELEMENTS removed). A comment, tag, quote or raw element that
+ * never closes swallows the rest of the document, as a browser does: what follows it is not read as wording.
+ */
+function _scan(html) {
+  const s = String(html == null ? '' : html);
+  const low = s.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));   // same length as s
+  const n = s.length;
+  const text = []; const tags = []; const styles = [];
+  let unterminated = false;
+  let i = 0;
+  while (i < n) {
+    const lt = s.indexOf('<', i);
+    if (lt === -1) { text.push(s.slice(i)); break; }
+    if (lt > i) text.push(s.slice(i, lt));
+    i = lt;
+    if (low.startsWith('<!--', i)) {
+      const e = s.indexOf('-->', i + 4);
+      if (e === -1) { unterminated = true; break; }
+      text.push(' '); i = e + 3; continue;
+    }
+    const c = low.charAt(i + 1);
+    if (!((c >= 'a' && c <= 'z') || c === '/' || c === '!' || c === '?')) { text.push('<'); i++; continue; }
+    // the tag: up to the first '>' that is not inside a quoted attribute value
+    let j = i + 1; let end = -1; let prev = '';
+    while (j < n) {
+      const ch = s.charAt(j);
+      if (ch === '>') { end = j; break; }
+      if ((ch === '"' || ch === "'") && prev === '=') {
+        const q = s.indexOf(ch, j + 1);
+        if (q === -1) break;
+        j = q + 1; prev = ch; continue;
+      }
+      if (ch !== ' ' && ch !== '\t' && ch !== '\n' && ch !== '\r' && ch !== '\f') prev = ch;
+      j++;
+    }
+    if (end === -1) { unterminated = true; break; }
+    const raw = s.slice(i, end + 1);
+    const nm = /^<(\/?)([a-z][a-z0-9:-]*)/.exec(low.slice(i, Math.min(end + 1, i + 40)));
+    const attrs = {};
+    if (nm) {
+      const body = raw.slice(nm[0].length);
+      let a; ATTR_RE.lastIndex = 0;
+      while ((a = ATTR_RE.exec(body))) { const k = a[1].toLowerCase(); if (!Object.prototype.hasOwnProperty.call(attrs, k)) attrs[k] = a[2] != null ? a[2] : (a[3] != null ? a[3] : (a[4] != null ? a[4] : '')); }
+      tags.push({ name: nm[2], closing: nm[1] === '/', attrs });
+    }
+    i = end + 1;
+    if (nm && nm[1] === '' && RAW_ELEMENTS[nm[2]] === 1 && raw.charAt(raw.length - 2) !== '/') {
+      const close = low.indexOf('</' + nm[2], i);
+      const body = close === -1 ? s.slice(i) : s.slice(i, close);
+      if (nm[2] === 'style') styles.push(body);
+      if (close === -1) { unterminated = true; break; }
+      const gt = s.indexOf('>', close);
+      if (gt === -1) { unterminated = true; break; }
+      tags.push({ name: nm[2], closing: true, attrs: {} });
+      i = gt + 1;
+    }
+  }
+  return { text: text.join(''), tags, styles, unterminated };
+}
+
+function _norm(t) {
+  return String(t)
     .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0*39;|&#x27;/g, "'").replace(/&amp;/g, '&')
     .replace(/\*\*/g, '').replace(/\bNBD\b/g, 'Contractor').replace(/at least (\d+|\{\{atticFreeCheckDays\}\}) days/g, 'at least N days').replace(/\s+/g, ' ').trim();
 }
+function _plain(s) { return _norm(_scan(s).text); }
 
 /**
  * Is this stored HTML the attic form the server would have issued for this document type? -> { ok, reasons: [code] }
@@ -62,6 +133,7 @@ function verifyManifest(docType, html) {
   const bad = [];
   if (!m) return { ok: false, reasons: ['doc_type'] };
   const s = String(html == null ? '' : html);
+  if (s.length > MAX_HTML) return { ok: false, reasons: ['too_large'] };
   const markers = []; let mm; MARKER_RE.lastIndex = 0;
   while ((mm = MARKER_RE.exec(s))) markers.push(mm);
   if (markers.length !== 1 || markers[0][1] !== AA.VERSION || markers[0][2] !== m.variant) bad.push('marker');
@@ -83,7 +155,9 @@ function verifyManifest(docType, html) {
   });
   Object.keys(groups).forEach((g) => { if (!(groups[g].yes && groups[g].no)) bad.push('half_line:' + g); });
   m.must.forEach((g) => { if (!groups[g]) bad.push('missing_line:' + g); });
-  const text = _plain(s);
+  const scan = _scan(s);
+  if (scan.unterminated) bad.push('unterminated');
+  const text = _norm(scan.text);
   m.paras.forEach((p, i) => { if (text.indexOf(_plain(p)) === -1) bad.push('wording:' + i); });
   return { ok: bad.length === 0, reasons: bad.slice(0, 12) };
 }
@@ -101,24 +175,37 @@ function typeFromMarker(html) {
  */
 function applyAcks(originalHtml, signedHtml, docType) {
   const orig = String(originalHtml == null ? '' : originalHtml);
+  // The ORIGINAL is rep-authored: it must be the server's own form for this type before any of it is rewritten (size and shape first).
+  const manifest0 = verifyManifest(docType || typeFromMarker(orig), orig);
+  if (!manifest0.ok || String(signedHtml == null ? '' : signedHtml).length > MAX_HTML) {
+    return { html: orig, acks: [], manifestOk: false, manifestReasons: manifest0.ok ? ['too_large'] : manifest0.reasons, complete: false };
+  }
   const sub = {};
   AA.parseAcks(signedHtml).forEach((a) => { sub[a.id] = a.checked === true; });
-  const html = orig.replace(/<input\b[^>]*>/gi, (tag) => {
+  const rewrite = (tag) => {
     const m = /\bdata-nbd-ack\s*=\s*"([^"]{1,80})"/i.exec(tag);
     if (!m) return tag;
     const bare = tag.replace(/\s(checked|disabled)(\s*=\s*"[^"]*")?(?=[\s\/>])/gi, '');
     return bare.replace(/\s*(\/?)>$/, (_m, slash) => (sub[m[1]] === true ? ' checked=""' : '') + ' disabled=""' + (slash ? ' />' : '>'));
-  });
+  };
+  // Each <input ...> tag is found with indexOf (linear), the same tag boundaries parseAcks uses.
+  const out = []; const inRe = /<input\b/gi; let last = 0; let im;
+  while ((im = inRe.exec(orig))) {
+    const gt = orig.indexOf('>', im.index);
+    if (gt === -1) break;
+    out.push(orig.slice(last, im.index), rewrite(orig.slice(im.index, gt + 1)));
+    last = gt + 1; inRe.lastIndex = gt + 1;
+  }
+  out.push(orig.slice(last));
+  const html = out.join('');
   const acks = AA.parseAcks(html);
-  // The ORIGINAL is rep-authored: it must be the server's own form for this type, or nothing counts as complete.
-  const manifest = verifyManifest(docType || typeFromMarker(orig), orig);
-  return { html, acks, manifestOk: manifest.ok, manifestReasons: manifest.reasons, complete: manifest.ok && acks.length > 0 && AA.acksComplete(acks).ok };
+  return { html, acks, manifestOk: true, manifestReasons: [], complete: acks.length > 0 && AA.acksComplete(acks).ok };
 }
 
 /** What a signed attic form records, from the stored signed copy. */
 function resultFor(docType, signedHtml, formDateMs) {
-  const acks = AA.parseAcks(signedHtml);
   const manifest = verifyManifest(docType, signedHtml);
+  const acks = manifest.reasons.indexOf('too_large') === -1 ? AA.parseAcks(signedHtml) : [];
   return {
     version: AA.VERSION,
     notInspected: String(docType) === 'attic_not_inspected',
@@ -294,4 +381,6 @@ async function recordOverride(db, auth, data, fail, deps) {
   return { ok: true, id: ref.id, expiresAt: rec.expiresAt };
 }
 
-module.exports = { estimateStamp, manifestFor, verifyManifest, OVERRIDES, gated, isAtticDoc, applyAcks, resultFor, decide, recordOverride };
+const TOO_LARGE_MSG = 'This attic acknowledgment is too large to verify. Open the customer, create a fresh copy of the form and try again.';
+
+module.exports = { estimateStamp, manifestFor, verifyManifest, OVERRIDES, MAX_HTML, TOO_LARGE_MSG, gated, isAtticDoc, applyAcks, resultFor, decide, recordOverride };

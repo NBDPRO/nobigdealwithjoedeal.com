@@ -897,7 +897,7 @@ exports.submitSignature = onRequest(
           const mf = AG.verifyManifest(typeof p.docType === 'string' ? p.docType : '', originalHtml);
           if (!mf.ok) {
             logger.error('[submitSignature] attic form does not match the server manifest - refusing', { token: token.slice(0, 6), leadId: p.leadId || null, docId: p.docId || null, reasons: mf.reasons });
-            res.status(422).json({ error: 'This acknowledgment could not be verified. Please contact your rep for a corrected copy.' });
+            res.status(422).json({ error: mf.reasons.indexOf('too_large') !== -1 ? AG.TOO_LARGE_MSG : 'This acknowledgment could not be verified. Please contact your rep for a corrected copy.' });
             return;
           }
           const applied = AG.applyAcks(rebuilt.html, signedHtml, typeof p.docType === 'string' ? p.docType : '');
