@@ -329,6 +329,20 @@ async function atticFlagForGate(db, uid, HttpsError) {
   catch (_) { throw new HttpsError('unavailable', FLAG_UNREADABLE_MSG); }
 }
 
+/**
+ * Review 2026-11-18, finding 3: the attic gate is ON when the acting user's flag OR the tenant owner's flag (the lead's
+ * companyId, an owner's own uid) is on, so a rep without the flag cannot sign a re-roof freely under an owner who has it.
+ * Both reads are strict: a read that fails is a retryable refusal, never "off".
+ */
+async function atticGateOn(db, uid, lead, HttpsError) {
+  try {
+    if (await flagForUid(db, uid, { strict: true, flag: ATTIC_FLAG_NAME })) return true;
+    const co = lead && typeof lead.companyId === 'string' ? lead.companyId : '';
+    if (co && co !== String(uid || '') && /^[A-Za-z0-9_-]{1,128}$/.test(co)) return await flagForUid(db, co, { strict: true, flag: ATTIC_FLAG_NAME });
+    return false;
+  } catch (_) { throw new HttpsError('unavailable', FLAG_UNREADABLE_MSG); }
+}
+
 /** The legal entity a tenant's contracts name: its own, else NBD's for the NBD tenant only. */
 function entityNameFor(profile, tenantKey) {
   const own = String(((profile || {}).brand || {}).entityName || '').trim();
@@ -380,7 +394,7 @@ function estimateCents(est) {
 function clauseFlagForUid(db, uid) { return flagForUid(db, uid, { flag: CLAUSE_FLAG_NAME }); }
 
 module.exports = {
-  CLAUSE_FLAG_NAME, clauseFlagForUid, ATTIC_FLAG_NAME, atticFlagForGate,
+  CLAUSE_FLAG_NAME, clauseFlagForUid, ATTIC_FLAG_NAME, atticFlagForGate, atticGateOn,
   FLAG_NAME, FLAG_DEFAULT, NBD_ENTITY_NAME, CLAUSE_SET_VERSION: ClauseSet.CLAUSE_SET_VERSION,
   NBD_OWNER_UID_FOR_TESTS: NBD_OWNER_UID, clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, buildClauseSetFor, clauseFlagForGate, printedByRef, expectedV1Refs, pdfByRef, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
   serverContractGaps, estimateCents, isContractClass: Checks.isContractClass,

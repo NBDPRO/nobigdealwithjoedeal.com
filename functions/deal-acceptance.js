@@ -303,12 +303,17 @@ exports.createDealAcceptToken = onCall(
     // Phase 3 (flag docAtticAckV1, strict read; Q72): the deal page is how a Kentucky insurance contract is accepted, so a
     // re-roof link is not minted until the signed attic form (or a recorded owner override) exists. A deal with no lead
     // cannot be checked and is not gated (reported in the doc note). A read that fails refuses, never passes.
-    if (leadId && await DE.atticFlagForGate(db, uid, HttpsError)) {
+    if (leadId) {
       const AG = require('./attic-gate');
-      let dec;
-      try { const ls = await db.doc(`leads/${leadId}`).get(); dec = await AG.decide(db, leadId, ls.exists ? (ls.data() || {}) : {}); }
+      let atticLead = {};
+      try { const ls = await db.doc(`leads/${leadId}`).get(); atticLead = ls.exists ? (ls.data() || {}) : {}; }
       catch (_) { throw new HttpsError('unavailable', 'Could not check the attic acknowledgment just now. Nothing was sent. Try again in a moment.'); }
-      if (!dec.satisfied) throw new HttpsError('failed-precondition', dec.message);
+      if (await DE.atticGateOn(db, uid, atticLead, HttpsError)) {
+        let dec;
+        try { dec = await AG.decide(db, leadId, atticLead); }
+        catch (_) { throw new HttpsError('unavailable', 'Could not check the attic acknowledgment just now. Nothing was sent. Try again in a moment.'); }
+        if (!dec.satisfied) throw new HttpsError('failed-precondition', dec.message);
+      }
     }
     // Flag docClauseSetV1 (default off): the clause set this deal page carries. The token keeps what was minted.
     const clauseOn = await DE.clauseFlagForGate(db, uid, HttpsError);

@@ -544,7 +544,7 @@ exports.createSignRequest = onCall(
 
     // Phase 3 (flag docAtticAckV1, read strictly: a read error refuses): a re-roof contract does not go out for
     // signature until the signed attic form (or the signed not-inspected page, or a recorded owner override) exists.
-    if (AG.gated(docMeta.type) && await DE.atticFlagForGate(db, uid, HttpsError)) {
+    if (AG.gated(docMeta.type) && await DE.atticGateOn(db, uid, lead, HttpsError)) {
       let dec;
       try { dec = await AG.decide(db, leadId, lead); }
       catch (e) {

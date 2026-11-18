@@ -685,7 +685,7 @@ exports.sendEstimateEnvelope = onCall(
     // address, homeowner name, mailing address or legal entity name goes out on a contract.
     const DE = require('./doc-evidence');
     // Phase 3 (flag docAtticAckV1, strict read): a re-roof contract is not sent for e-signature without the signed attic form.
-    if (await DE.atticFlagForGate(db, uid, HttpsError)) {
+    if (await DE.atticGateOn(db, uid, lead, HttpsError)) {
       const AG = require('./attic-gate');
       let dec;
       try { dec = await AG.decide(db, leadId, lead); } catch (_) { throw new HttpsError('unavailable', 'Could not check the attic acknowledgment just now. Nothing was sent. Try again in a moment.'); }

@@ -162,7 +162,7 @@ const tickAll = (h, no) => h.replace(/data-nbd-ack="(ack:saw|ack:existing|rec:de
     r = await mint(world({ docAtticAckV1: true }), (db) => { const o = db.collection; db.collection = (c) => (/documents$/.test(c) ? { where: () => ({ get: async () => { throw new Error('down'); } }) } : o(c)); });
     ok('an unreadable document list refuses (fail closed), never lets the contract through', !!r.e && r.e.code === 'unavailable' && tokens(r.db) === 0, r.e && r.e.code);
   }
-  ok('the e-sign envelope runs the same gate under the strict flag read', src('functions/esign-envelope.js').indexOf('atticFlagForGate') !== -1 && src('functions/esign-envelope.js').indexOf('AG.decide(db, leadId, lead)') !== -1);
+  ok('the e-sign envelope runs the same gate under the strict flag read', src('functions/esign-envelope.js').indexOf('atticGateOn') !== -1 && src('functions/esign-envelope.js').indexOf('AG.decide(db, leadId, lead)') !== -1);
 
   // ═══════════════════════════════════════════════════════
   section('D. the owner/admin override (Q18)');

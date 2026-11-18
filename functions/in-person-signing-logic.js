@@ -210,7 +210,8 @@ async function handleInPersonSignature(db, auth, data, deps) {
   // a contract-class document is refused when a re-roof has no signed attic form. Like the gap check above, the
   // rep's browser already wrote the row as signed, so a refusal marks it (evidenceRefused is server-owned).
   const attic = deps && deps.attic;
-  if (attic && attic.on === true) {
+  // The flag is read here, after the lead is loaded (the acting user's OR the tenant owner's; a failed read throws a retryable refusal).
+  if (attic && (attic.on === true || (typeof attic.flagOn === 'function' && await attic.flagOn(lead)))) {
     const AG = require('./attic-gate');
     const refuse = async (message) => {
       try { await db.doc('leads/' + leadId + '/documents/' + docId).set({ evidenceRefused: { reasons: [{ code: 'atticAck', message }], at: Date.now() } }, { merge: true }); } catch (_) { /* the refusal is the signal */ }
