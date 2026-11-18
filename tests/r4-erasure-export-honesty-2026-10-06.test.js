@@ -157,7 +157,7 @@ async function post(L) {
     const r2 = await post(L);
     ok('...the retry deletes the price ledger tree and confirms', r2.code === 200 && events.includes('delete:priceBook/u1') && docs['account_erasures/u1'].confirmed === true, events.filter((e) => /priceBook/.test(e)).join(' > '));
     // 2026-11-18: the ledger's product photos (Storage product-photos/{companyId}/) go with it.
-    ok('...and the product photos of that company are deleted from Storage', events.includes('storage-delete:product-photos/u1/'), events.filter((e) => /storage-delete/.test(e)).join(' > '));
+    ok('...and the product photos and supplier documents of that company are deleted from Storage', events.includes('storage-delete:product-photos/u1/') && events.includes('storage-delete:price-docs/u1/'), events.filter((e) => /storage-delete/.test(e)).join(' > '));
     L.done();
   }
   {

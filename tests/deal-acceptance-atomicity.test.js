@@ -148,7 +148,7 @@ console.log('\nSOURCE CONTRACT — the real file actually has the shape this mir
   ok('the burn transaction exists', txStart >= 0);
   // Window bounded by txEnd below; 1800 was outgrown by the 2026-09-28
   // DONE_STATUSES guard (deal-room-sibling-links-2026-09-28.test.js).
-  const txBody = txStart >= 0 ? src.slice(txStart, txStart + 4000) : '';
+  const txBody = txStart >= 0 ? src.slice(txStart, txStart + 5200) : '';
   const txEnd = txBody.indexOf('\n      });');
   const insideTx = txEnd >= 0 ? txBody.slice(0, txEnd) : txBody;
   // 2026-09-16: the write moved from tx.set(db.doc(`deal_rooms/...`), {...}, {merge:true})

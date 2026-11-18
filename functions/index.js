@@ -1174,6 +1174,9 @@ exports.onInboxReceiptDropped = receiptInbox.onInboxReceiptDropped;
 const priceLedger = require('./price-ledger');
 exports.priceLedgerSave = priceLedger.priceLedgerSave;
 exports.priceLedgerRecord = priceLedger.priceLedgerRecord;
+// Slice 9 (2026-11-18): read a supplier's PDF or photo into draft price lines for the
+// Import prices screen. Saves no price; capped per company per month; dark behind the flag.
+exports.priceDocRead = require('./price-doc-read').priceDocRead;
 
 // Server-side plan-usage tracking (Audit A follow-up, Batch 3 of the
 // audit-driven rollups). Closes the KNOWN GAP where client-side

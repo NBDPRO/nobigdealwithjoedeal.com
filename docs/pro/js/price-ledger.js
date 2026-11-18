@@ -381,6 +381,45 @@
       return blobUrls[path];
     } catch (e) { warn('photo', e); return null; }
   }
+  // ── Slice 9 (2026-11-18): read a supplier's PDF or photo ──────────────
+  const DOC_MAX = 7 * 1024 * 1024;
+  /**
+   * Send a supplier document to the reader (priceDocRead). Owner and company admins.
+   * Answers the reader's draft lines ({ ok, docId, read, spentUsd, capUsd }) or
+   * { ok: false, message }. Nothing is saved as a price here.
+   */
+  async function readDocument(file, supplierId) {
+    if (!enabled() || !canSave()) return { ok: false, message: 'Only the owner or an admin can read a document.' };
+    if (!file || !/^(application\/pdf|image\/(png|jpeg|jpg|webp|gif))$/.test(file.type || '')) return { ok: false, message: 'Choose a PDF, or a JPG, PNG or WebP photo.' };
+    if (file.size > DOC_MAX) return { ok: false, message: 'That file is over 7 MB. Choose a smaller one, or split the PDF.' };
+    let dataUrl;
+    try { dataUrl = await readAsDataUrl(file); } catch (e) { warn('readDocFile', e); return { ok: false, message: 'That file could not be read.' }; }
+    try {
+      const fn = await callable('priceDocRead');
+      const res = await fn({ file: dataUrl, fileName: file.name, supplierId: supplierId || null });
+      return (res && res.data) || { ok: false, message: 'That did not go through. Try again.' };
+    } catch (e) { warn('readDocument', e); return refusal(e); }
+  }
+  /** The documents the reader has read for this company, newest first (owner and company admins; rules). */
+  async function priceDocs() {
+    if (!ready() || !w.limit) return [];
+    try {
+      const snap = await w.getDocs(w.query(w.collection(w.db, BASE, companyKey(), 'priceDocs'), w.limit(50)));
+      return snap.docs.map((d) => { const r = withId(d); r.createdAtMs = ms(r.createdAt); return r; }).sort((a, b) => b.createdAtMs - a.createdAtMs);
+    } catch (e) { warn('priceDocs', e); return []; }
+  }
+  const removeDocument = (docId) => save('removeDocument', { docId });
+  /** A blob: URL for a stored supplier document (never a download link), or null. */
+  async function documentUrl(path) {
+    if (typeof path !== 'string' || path.indexOf('price-docs/') !== 0 || !w.storage) return null;
+    if (blobUrls[path]) return blobUrls[path];
+    try {
+      const st = await import(STORAGE_SDK);
+      blobUrls[path] = URL.createObjectURL(await st.getBlob(st.ref(w.storage, path)));
+      return blobUrls[path];
+    } catch (e) { warn('document', e); return null; }
+  }
+
   /** Fill every <img data-prl-photo="<path>"> under root that has no picture yet. */
   async function paintPhotos(root) {
     const imgs = Array.prototype.slice.call((root || document).querySelectorAll('img[data-prl-photo]:not([src])'));
@@ -435,5 +474,6 @@
     saveAccount, saveOffer, linkOffer, verifyPack, archiveOffer, voidObservation, record, recordHdReceipts, importRows, markSeen,
     approveCost, undoCost, productLinks, syncApplied, observation,
     savePhoto, removePhoto, photoUrl, paintPhotos, cardPhotos,
+    readDocument, priceDocs, removeDocument, documentUrl,
   };
 })();

@@ -137,7 +137,7 @@ function deriveObservation(clean, offer, account, ctx) {
     observedOn: clean.observedOn, observedAt: Timestamp.fromMillis(observedAtMs),
     validThroughOn: clean.validThroughOn, validThroughMs,
     levelAtWrite: L.evidenceLevel({ kind, observedAtMs, validThroughMs }, ctx.nowMs, quoteDays),
-    doc: { type: clean.doc.type, ref: clean.doc.ref, importId: null, expenseId: null, storagePath: null, leadId: null },
+    doc: { type: clean.doc.type, ref: clean.doc.ref, importId: clean.doc.importId || null, expenseId: null, storagePath: null, leadId: null },
     source: { channel, adapter: null, actor: { type: migration ? 'script' : 'user', uid: ctx.actor.uid, role, fn: ctx.actor.fn || null } },
     attested: trusted, compare: true, flags, supersedes: null,
     voided: false, voidedBy: null, voidedAtMs: null, voidReason: null,
@@ -755,6 +755,41 @@ const saveOps = {
     await ref.set({ productId, codeRatios: s.value, updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid }, { mergeFields: RATIO_LINK_FIELDS });
     await writeAudit(db, companyId, { type: 'code_ratio_set', targetType: 'product', targetId: productId, detail: { code, ratio: data.clear === true ? null : s.value[code], before }, actor: caller });
     return { ok: true, id: productId };
+  },
+
+  /**
+   * Slice 9 (2026-11-18): "Remove this document". Voids every price row saved from a
+   * document the reader read (their doc.importId), deletes the stored original and
+   * marks the document removed, in that order; logged. Voided rows stay in the
+   * history, crossed out. data: { docId }.
+   */
+  async removeDocument(db, companyId, data, caller, nowMs) {
+    assertCompany(companyId);
+    data = data || {};
+    if (typeof data.docId !== 'string' || !/^d_[0-9a-f]{32}$/.test(data.docId)) return bad('not_found');
+    const ref = db.doc(base(companyId) + '/priceDocs/' + data.docId);
+    const snap = await ref.get();
+    if (!snap.exists) return bad('not_found');
+    const d = snap.data() || {};
+    const rows = await obsCol(db, companyId).where('doc.importId', '==', data.docId).limit(2000).get();
+    const touched = new Set();
+    let voided = 0;
+    await inPool(rows.docs, WRITE_PARALLEL, async (r) => {
+      const cur = r.data() || {};
+      if (cur.voided === true) return;
+      await r.ref.update({ voided: true, voidedBy: caller.uid, voidedAtMs: nowMs, voidReason: 'Document removed' });
+      voided++;
+      if (cur.offerId) touched.add(cur.offerId);
+    });
+    await inPool([...touched], RECOMPUTE_PARALLEL, (offerId) => recomputeLatest(db, companyId, offerId, nowMs));
+    const path = typeof d.storagePath === 'string' && d.storagePath.indexOf('price-docs/' + companyId + '/') === 0 ? d.storagePath : null;
+    if (path) {
+      try { await require('firebase-admin/storage').getStorage().bucket().file(path).delete({ ignoreNotFound: true }); }
+      catch (e) { return bad('not_removed'); }
+    }
+    await ref.update({ state: 'removed', removedAtMs: nowMs, removedBy: caller.uid, storagePath: null });
+    await writeAudit(db, companyId, { type: 'document_removed', targetType: 'document', targetId: data.docId, detail: { voided }, actor: caller });
+    return { ok: true, id: data.docId, voided };
   },
 
   async voidObservation(db, companyId, data, caller, nowMs) {

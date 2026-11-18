@@ -3460,6 +3460,15 @@
     var _jur = legalJurisdiction();
     if (_jur) mergedData.jurisdiction = _jur;
 
+    // Fail-closed send check (flag docEvidenceFoundation, default OFF): the same check
+    // NBDDocGen.generate() runs, asked here first so a contract with a blank price,
+    // address, name, mailing address, entity name, start or completion keeps this modal
+    // open with the list of what is missing instead of closing it on a refusal.
+    if (window.NBDDocGen && typeof window.NBDDocGen._docSendGate === 'function'
+        && !window.NBDDocGen._docSendGate(state.type, mergedData, '')) {
+      return;
+    }
+
     // Attach signers chosen in the modal. The document generator
     // checks for data.signers and emits interactive canvas blocks
     // when present (bypassing the server-render path so the canvases

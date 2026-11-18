@@ -6383,8 +6383,9 @@
     };
     const scTax = scPct('cp_pricing_supplierCompare_taxPct', 0, 25);
     const scAlert = scPct('cp_pricing_supplierCompare_alertPct', 0.1, 100);
-    if (scTax !== null || scAlert !== null || scNow) {
-      out.pricing = Object.assign({}, out.pricing, { supplierCompare: { purchaseTaxPct: scTax, alertPct: scAlert } });
+    const scCap = scPct('cp_pricing_supplierCompare_docCap', 1, 50); // slice 9: blank = $10
+    if (scTax !== null || scAlert !== null || scCap !== null || scNow) {
+      out.pricing = Object.assign({}, out.pricing, { supplierCompare: { purchaseTaxPct: scTax, alertPct: scAlert, docReadCapUsd: scCap } });
     }
 
     // FIX 1 — drop every field still equal to its NBD default (see helper).
@@ -6525,6 +6526,8 @@
     if (scTaxEl) scTaxEl.value = sc.purchaseTaxPct != null ? sc.purchaseTaxPct : '';
     const scAlertEl = document.getElementById('cp_pricing_supplierCompare_alertPct');
     if (scAlertEl) scAlertEl.value = sc.alertPct != null ? sc.alertPct : '';
+    const scCapEl = document.getElementById('cp_pricing_supplierCompare_docCap');
+    if (scCapEl) scCapEl.value = sc.docReadCapUsd != null ? sc.docReadCapUsd : '';
 
     // ── Brand Identity sub-panel (gauntlet Batch 3) ─────────────────
     // Fill from the RAW (un-merged) tenant override so a field the tenant never

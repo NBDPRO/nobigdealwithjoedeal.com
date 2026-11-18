@@ -552,7 +552,8 @@ function sanitizeObservation(row, ctx) {
     uomRaw: plText(row.uomRaw != null ? row.uomRaw : row.statedUnit, 20), qty: qty, extCents: ext,
     priceType: row.priceType, taxIncluded: row.taxIncluded, delivered: typeof row.delivered === 'boolean' ? row.delivered : null,
     locationId: loc, observedOn: row.observedOn, validThroughOn: through,
-    doc: { type: PL_DOC_TYPES.indexOf(doc.type) !== -1 ? doc.type : 'none', ref: plText(doc.ref, 80) },
+    doc: { type: PL_DOC_TYPES.indexOf(doc.type) !== -1 ? doc.type : 'none', ref: plText(doc.ref, 80),
+      importId: (ctx.channel === 'csv_import' && typeof doc.importId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(doc.importId)) ? doc.importId : null },
     note: plText(row.note, 200), storeNumber: storeNumber, offer: stub
   } };
 }
@@ -790,6 +791,8 @@ function plCell(row, i) { return (i == null || i < 0 || !row || i >= row.length)
  * counted as needing one; nothing is guessed. Only the file's name is kept.
  */
 function buildImport(table, opts) {
+  // A document read by the reader (slice 9): its id rides on every row, so the rows can be found and voided with it.
+  var importId = (opts && typeof opts.importId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(opts.importId)) ? opts.importId : null;
   opts = opts || {};
   var dk = Object.prototype.hasOwnProperty.call(IMPORT_DOC_KINDS, opts.docKind) ? IMPORT_DOC_KINDS[opts.docKind] : null;
   if (!plOkSupplierId(opts.supplierId)) return plBad('bad_supplier');
@@ -834,7 +837,7 @@ function buildImport(table, opts) {
     rows.push({
       offerId: offerId, kind: dk.kind, priceMicros: line.priceMicros, per: per, statedUnit: unit, uomRaw: line.uomRaw, qty: qty,
       priceType: dk.priceType, taxIncluded: opts.taxIncluded, observedOn: opts.docDateOn, validThroughOn: through, locationId: loc,
-      doc: { type: dk.docType, ref: ref }, note: note,
+      doc: { type: dk.docType, ref: ref, importId: importId }, note: note,
       offer: { supplierId: opts.supplierId, sku: line.sku, title: line.title || line.sku }
     });
   }

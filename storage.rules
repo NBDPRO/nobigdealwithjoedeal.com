@@ -228,12 +228,17 @@ service firebase.storage {
     // share-link upload was storage/unauthorized and the Copy/Text/Email
     // link actions always failed (NEW-D13). Deal rooms only ever store
     // HTML pages, so gate on isHtmlOnly() like documents/.
+    // Review 2 (2026-11-18), item 11: <dealId>.minted-<ms>.html is the server's archive copy of the page as
+    // minted (createDealAcceptToken, admin SDK, which bypasses these rules). It is evidence of what the
+    // homeowner was sent, so no client creates, overwrites or deletes one; the owner still reads it.
     match /deal_rooms/{uid}/{allPaths=**} {
       allow read: if isOwner(uid) || isAdmin();
       allow write: if ownerWrites(uid)
         && request.resource.size < 5 * 1024 * 1024
-        && isHtmlOnly();
-      allow delete: if ownerWrites(uid) || isAdmin();
+        && isHtmlOnly()
+        && !request.resource.name.matches('.*[.]minted-[0-9]+[.]html');
+      allow delete: if (ownerWrites(uid) || isAdmin())
+        && !(resource != null && resource.name.matches('.*[.]minted-[0-9]+[.]html'));
     }
 
     // ── SHARED GALLERIES ──────────────────────────────
@@ -376,6 +381,16 @@ service firebase.storage {
     match /product-photos/{companyId}/{ownerId}/{file} {
       allow read: if isCompanyMember(companyId)
         && !(request.auth.token.get('role', '') in ['viewer', 'member']);
+      allow write: if false;
+    }
+
+    // ── SUPPLIER DOCUMENTS (supplier price ledger slice 9, 2026-11-18) ──
+    // price-docs/{companyId}/{docId}.{ext}: the original PDF or photo of a supplier
+    // invoice, quote or price sheet the reader read. Server-written (priceDocRead);
+    // read only by the owner and the company's company_admin, through getBlob, never
+    // a ?token= link. A manager, a rep, a viewer and another company read nothing.
+    match /price-docs/{companyId}/{file} {
+      allow read: if isCompanyAdminOf(companyId);
       allow write: if false;
     }
 
