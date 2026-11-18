@@ -243,12 +243,14 @@ exports.createDealAcceptToken = onCall(
     // checkDealPrice). Only the deal owner's own estimate counts.
     let estimateId = null;
     let estimateFingerprint = null;
+    let dealEstimate = null;   // the deal's own estimate (the deal owner's), for the attic gate when there is no lead
     if (typeof deal.estimateId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(deal.estimateId)) {
       try {
         const es = await db.doc(`estimates/${deal.estimateId}`).get();
         const est = es.exists ? (es.data() || {}) : null;
         if (est && est.deleted !== true && est.userId === deal.userId) {
           estimateId = deal.estimateId;
+          dealEstimate = est;
           estimateFingerprint = require('./customer-estimate-rows').pricedFingerprint(est);
         }
       } catch (e) { logger.warn('[createDealAcceptToken] estimate read failed', { msg: e && e.message }); }
@@ -300,6 +302,35 @@ exports.createDealAcceptToken = onCall(
     // no link is minted; a flag or page that cannot be read fails closed. Flag off: unchanged. The
     // acceptance (submit) is unchanged.
     const DE = require('./doc-evidence');
+    // Phase 3 (flag docAtticAckV1, strict read; Q72): the deal page is how a Kentucky insurance contract is accepted, so a
+    // re-roof link is not minted until the signed attic form (or a recorded owner override) exists. A deal with no resolvable lead
+    // is gated from its own estimate and refused when it has neither (finding 4, below). A read that fails refuses, never passes.
+    {
+      const AG = require('./attic-gate');
+      let atticLead = {};
+      if (leadId) {
+        try { const ls = await db.doc(`leads/${leadId}`).get(); atticLead = ls.exists ? (ls.data() || {}) : {}; }
+        catch (_) { throw new HttpsError('unavailable', 'Could not check the attic acknowledgment just now. Nothing was sent. Try again in a moment.'); }
+      }
+      // Review 2026-11-18 (finding 4): deal_rooms.leadId is client-written, so a deal with no resolvable lead is NOT ungated. The
+      // tenant owner's flag is read from the minting owner's company; the scope comes from the deal's own estimate; and a deal
+      // that resolves neither a lead nor an estimate is refused (fail closed) while the flag is on.
+      if (await DE.atticGateOn(db, uid, leadId ? atticLead : { companyId: ownerCompanyId }, HttpsError)) {
+        // Review 2 (2026-11-18), item 1: deal.leadId and deal.estimateId are written by the rep. A leadId that resolves to no lead in this
+        // tenant (it was dropped above) would leave the gate to read only the rep's chosen estimate, and an estimate that is not the
+        // lead's own would let a re-roof be classified from a different job. Under the flag both are refused, never dropped.
+        if (deal.leadId != null && deal.leadId !== '' && !leadId) {
+          throw new HttpsError('failed-precondition', 'This deal is linked to a customer that could not be found, so the attic acknowledgment cannot be checked. Link the deal to the customer, then send it. Nothing was sent.');
+        }
+        if (leadId && estimateId && estimateId !== atticLead.primaryEstimateId && !(dealEstimate && dealEstimate.leadId === leadId)) {
+          throw new HttpsError('failed-precondition', 'This deal\'s estimate is not one of this customer\'s estimates, so the attic acknowledgment cannot be checked. Use the customer\'s own estimate, then send it. Nothing was sent.');
+        }
+        let dec;
+        try { dec = await AG.decide(db, leadId || '', atticLead, { estimate: dealEstimate || undefined, estimateId: estimateId || undefined, requireResolved: !leadId }); }
+        catch (_) { throw new HttpsError('unavailable', 'Could not check the attic acknowledgment just now. Nothing was sent. Try again in a moment.'); }
+        if (!dec.satisfied) throw new HttpsError('failed-precondition', dec.message);
+      }
+    }
     // Flag docClauseSetV1 (default off): the clause set this deal page carries. The token keeps what was minted.
     const clauseOn = await DE.clauseFlagForGate(db, uid, HttpsError);
     let clauseSetV1 = null;

@@ -170,7 +170,9 @@
     var fin = await finalize();
     if (!fin || !fin.ok) {
       submitBtn.disabled = false; submitBtn.textContent = orig;
-      if (fin && Array.isArray(fin.missing) && fin.missing.length) {
+      if (fin && fin.missingAcks) {
+        _spNotify('Tick every box and choose Yes or No on every line before submitting.', 'warning');
+      } else if (fin && Array.isArray(fin.missing) && fin.missing.length) {
         _spNotify('Add your signature before submitting.', 'warning');
       } else if (fin && fin.noFields) {
         // This document carries no signature field at all. Saying "try
