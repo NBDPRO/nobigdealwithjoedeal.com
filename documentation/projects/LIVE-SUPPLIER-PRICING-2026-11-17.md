@@ -233,6 +233,48 @@ devices. A product save now writes only the costs it changed. Details and what
 is not done:
 [LIVE-SUPPLIER-PRICING-SLICE-4-2026-11-17](LIVE-SUPPLIER-PRICING-SLICE-4-2026-11-17.md).
 
+## Where it stands, 2026-11-18 (handoff: start here)
+
+Everything through slice 4 is merged and deployed (deploys green at 00:20 and
+00:45 UTC, 2026-11-18): slice 1 #3130, slice 2 #3144, slice 3 #3157, import
+fixes #3158, slice 4 plan #3159, slice 4 #3160. All dark behind
+`supplierPricing`, which is on for Jo alone.
+
+Data in Jo's live ledger (loaded 2026-11-17 with his OK on each preview; counts
+only here, the files stay in his private money folder):
+
+- Supplier accounts: SRS (rep Peyton Van Horn; branches Florence, the usual
+  one, and Ft Thomas) and QXO (rep Jay Kirby; branch Cincinnati 291). Delivery
+  fee set to the middle of the range Jo gave; minimum order and account number
+  blank. There is no screen to edit terms yet.
+- SRS: two quotes, 62 items, before tax, good through 2026-11-22 (so they turn
+  "expired" in a few days). QXO: two quotes for one item, before tax, good
+  through 2026-12-29.
+- Jo's old price book (122 items) and his Home Depot receipts are in as
+  unlinked offers too.
+
+Jo's next steps, in order (no code needed):
+
+1. Company Settings: Supplier Price Compare tax rate and alert threshold (his
+   numbers are in the slice 2 plan's table), and check the estimate margin
+   floor.
+2. Unlinked items: link each item to a product (a suggestion is shown where one
+   fits), then set and confirm each pack size on the product's Stores & prices.
+   Until then nothing compares, alerts or can be approved.
+3. Then Compare suppliers and "Update my cost" have something to work on.
+
+Small loose ends a later session can pick up:
+
+- One SRS line (zip screws, unit printed as TUB) was saved before the TUB fix
+  and stays without a unit; re-entering that one price fixes it.
+- Supplier account terms (delivery fee, minimum order) have no edit screen.
+- The import screens and Compare suppliers were driven in Jo's real browser on
+  desktop; not yet checked on his iPhone.
+
+Next slice: 5 (live check, dry) waits on the supplier API access only Jo can
+request (the list below). When Jo asks for more work here, start from this
+section, the slice 3 and slice 4 notes, and the design's section 8.
+
 ## Waiting on Jo
 
 Outside actions (none blocks slice 1):
