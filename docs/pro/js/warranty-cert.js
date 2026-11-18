@@ -480,7 +480,7 @@ async function generateWarrantyCertPDF() {
     ${isPreferred||isElite ? '<div class="feature"><div class="feature-dot"></div>Transferable to new owner on sale</div>' : ''}
     ${isElite ? '<div class="feature"><div class="feature-dot"></div>Annual courtesy inspection included</div>' : ''}
     ${isElite ? '<div class="feature"><div class="feature-dot"></div>Fully transferable — follows the property</div>' : ''}
-    <div class="feature"><div class="feature-dot"></div>${isNbd ? 'Backed personally by Joe Deal' : ('Backed by ' + escCert(_b.legalName))}</div>
+    <div class="feature"><div class="feature-dot"></div>${isNbd ? 'Backed by No Big Deal Home Solutions' : ('Backed by ' + escCert(_b.legalName))}</div>
     <div class="feature"><div class="feature-dot"></div>${isNbd ? 'Recorded on file at NBD Home Solutions' : ('Recorded on file at ' + escCert(_b.legalName))}</div>
   </div>
 

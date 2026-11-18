@@ -945,7 +945,7 @@
           id: 'condition', title: 'Roof Condition Notes', collapsed: false,
           fields: [
             { key: 'overallDescription', label: 'Overall Assessment', type: 'textarea', rows: 3, required: true,
-              source: 'literal:The roof shows signs of wear consistent with age. Several areas require attention to prevent further damage.',
+              source: 'literal:',
               persist: PERSIST.DOCUMENT },
             { key: 'roofCondition', label: 'Roof Notes', type: 'textarea', rows: 2,
               source: 'literal:', persist: PERSIST.DOCUMENT },
@@ -1013,7 +1013,7 @@
           id: 'damage', title: 'Damage & Scope', collapsed: false,
           fields: [
             { key: 'damageNotes', label: 'Damage Description', type: 'textarea', rows: 3, required: true,
-              source: 'literal:Evidence of wind/impact damage to shingles including lifted edges, puncture marks, and missing shingles.',
+              source: 'literal:',
               persist: PERSIST.DOCUMENT },
             { key: 'scopeItems', label: 'Scope of Restoration', type: 'scope-list',
               source: 'computed.scopeItems', persist: PERSIST.DOCUMENT },
@@ -1066,6 +1066,21 @@
               source: 'literal:', persist: PERSIST.DOCUMENT,
               placeholder: 'Why are these items needed? Reference code, manufacturer spec, photos, etc.' }
           ]
+        },
+        {
+          id: 'docs', title: 'Supporting Documentation Included', collapsed: false,
+          fields: [
+            { key: 'docPhotos', label: 'Photographs of additional damage', type: 'checkbox', checkboxLabel: 'Attached',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'docRevisedScope', label: 'Revised scope of work', type: 'checkbox', checkboxLabel: 'Attached',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'docManufacturerSpecs', label: 'Manufacturer specifications', type: 'checkbox', checkboxLabel: 'Attached',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'docCodeCompliance', label: 'Code compliance documentation', type: 'checkbox', checkboxLabel: 'Attached',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'docThirdParty', label: 'Third-party assessment', type: 'checkbox', checkboxLabel: 'Attached',
+              source: 'literal:', persist: PERSIST.DOCUMENT }
+          ]
         }
       ]
     },
@@ -1112,6 +1127,25 @@
             { key: 'qualitySignoff', label: 'Quality Sign-off Note', type: 'textarea', rows: 2,
               source: 'literal:Work completed to specification. Final walkthrough passed.',
               persist: PERSIST.DOCUMENT }
+          ]
+        },
+        {
+          id: 'checklist', title: 'Completion Checklist', collapsed: false,
+          fields: [
+            { key: 'chkMaterials', label: 'All materials installed per manufacturer specifications', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkFlashing', label: 'Flashing and waterproofing completed at all penetrations', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkVentilation', label: 'Ventilation system installed and verified', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkCleanup', label: 'Property cleaned and all debris removed', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkNailSweep', label: 'Magnetic nail sweep of entire property completed', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkQualityInspection', label: 'Final quality inspection completed by crew lead', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkWalkthrough', label: 'Homeowner walkthrough and approval obtained', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT }
           ]
         },
         {
@@ -1646,8 +1680,11 @@
             { key: 'headline', label: 'Headline', type: 'text',
               source: 'literal:Free Roof Inspection — No Obligation', persist: PERSIST.DOCUMENT },
             { key: 'services', label: 'Services', type: 'textarea', rows: 2,
-              source: 'literal:Storm damage repair • Insurance claims • Roof replacement • Gutters',
-              persist: PERSIST.DOCUMENT }
+              source: 'literal:Storm damage repair • Roof replacement • Gutters',
+              persist: PERSIST.DOCUMENT },
+            { key: 'nearbyJobAddress', label: 'Nearby job address (optional)', type: 'text',
+              source: 'literal:', persist: PERSIST.DOCUMENT,
+              help: 'Only fill this in if a crew really is working on a job nearby. Left blank, the "crew working nearby" line does not print.' }
           ])
         }
       ]
@@ -1667,8 +1704,6 @@
               source: 'literal:', persist: PERSIST.DOCUMENT, placeholder: 'e.g., West Chester, OH' },
             { key: 'neighborhoodName', label: 'Neighborhood Name', type: 'text',
               source: 'literal:', persist: PERSIST.DOCUMENT, placeholder: 'Defaults to Affected Area' },
-            { key: 'projectAddress', label: 'Nearby Project Address', type: 'text',
-              source: 'lead.address', persist: PERSIST.DOCUMENT, placeholder: 'e.g., 123 Maple St' },
             { key: 'ctaText', label: 'Call to Action', type: 'text',
               source: 'literal:Schedule your free storm damage inspection today', persist: PERSIST.DOCUMENT }
           ]

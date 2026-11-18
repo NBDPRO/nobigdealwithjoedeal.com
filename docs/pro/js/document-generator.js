@@ -434,9 +434,9 @@ window.NBDDocGen = {
                                { role: 'homeowner', label: 'Homeowner',                       required: true },
                                { role: 'rep',       label: 'Authorized NBD Representative',   required: true },
                              ] },
-    // 2026-09-15 (Paperwork Filing) — a permit is filed with a jurisdiction,
-    // not signed by the homeowner in-app, so deliberately no defaultSigners.
-    permit:                { name: 'Permit Application',              template: 'renderPermitApplication' },
+    // 'permit' (Permit Application) was unregistered 2026-11-17: no renderer
+    // ever existed, so it printed the generic key-and-value page. Old saved
+    // docs of that type still open through LEGACY_DOCUMENT_TYPES below.
     supplement_request:    { name: 'Supplement Request',              template: 'renderSupplementRequest' },
     scope_of_work:         { name: 'Scope of Work',                   template: 'renderScopeOfWork',
                              defaultSigners: [
@@ -469,6 +469,14 @@ window.NBDDocGen = {
     door_hanger:           { name: 'Door Hanger',                     template: 'renderDoorHanger' },
     neighborhood_mailer:   { name: 'Neighborhood Mailer',             template: 'renderNeighborhoodMailer' },
     testimonial_sheet:     { name: 'Testimonial Sheet',               template: 'renderTestimonialSheet' }
+  },
+
+  // Types that are no longer offered in the picker (not in DOCUMENT_TYPES) but
+  // may still sit in a customer's saved documents. getHTML() and
+  // renderGenericDoc() read this so an old doc of the type opens instead of
+  // returning null.
+  LEGACY_DOCUMENT_TYPES: {
+    permit: { name: 'Permit Application', template: 'renderGenericDoc' }
   },
 
   // 2026-09-15 (Paperwork Filing) — auto-derives a lead's *FiledAt gate field
@@ -1412,6 +1420,10 @@ window.NBDDocGen = {
     let template = this[this.DOCUMENT_TYPES[type]?.template];
     if (!template && this.DOCUMENT_TYPES[type]) {
       template = this.renderGenericDoc; // fallback
+    }
+    if (!template && this.LEGACY_DOCUMENT_TYPES[type]) {
+      template = this.renderGenericDoc; // unregistered type, old saved doc
+      data = Object.assign({}, data, { _documentType: type });
     }
     if (!template) {
       console.error(`Unknown document type: ${type}`);
@@ -3066,9 +3078,6 @@ window.NBDDocGen = {
             <!-- NEXT STEPS -->
             <div class="section" style="background-color: ${this._resolveCompany().colors.lightGray}; border-left: 3px solid ${this._resolveCompany().colors.primary}; padding: 0.15in;">
               <div class="section-title">Next Steps</div>
-              <div class="summary-text">
-                Based on this assessment, we recommend immediate attention to the roof and gutters to prevent further water damage. Contact us to schedule a free estimate and discuss financing options for recommended repairs.
-              </div>
               <div style="margin-top: 0.1in; font-weight: bold; color: ${this._resolveCompany().colors.primary};">
                 ${this._resolveCompany().phone} | ${this._resolveCompany().email}
               </div>
@@ -3080,7 +3089,7 @@ window.NBDDocGen = {
               ${this.renderSignatureBlock(
                 (Array.isArray(data.signers) && data.signers.length)
                   ? data.signers
-                  : ['Certified NBD Inspector']
+                  : ['Inspector']
               )}
             </div>
           </div>
@@ -3221,7 +3230,7 @@ window.NBDDocGen = {
               <div style="font-size: 9px; margin: 0.1in 0;">
                 I certify that I have personally inspected the subject property and that the damages, measurements, and repair estimates contained in this report are accurate to the best of my knowledge and belief.
               </div>
-              ${this.renderSignatureBlock(['Certified NBD Damage Assessor'])}
+              ${this.renderSignatureBlock(['Damage Assessor'])}
             </div>
           </div>
 
@@ -3252,7 +3261,7 @@ window.NBDDocGen = {
   // ═══════════════════════════════════════════════════════════
   renderGenericDoc(data = {}) {
     const type = data._documentType || 'document';
-    const typeName = this.DOCUMENT_TYPES[type]?.name || type.replace(/_/g, ' ');
+    const typeName = this.DOCUMENT_TYPES[type]?.name || this.LEGACY_DOCUMENT_TYPES[type]?.name || type.replace(/_/g, ' ');
     const d = { ...data };
     const name = d.homeownerName || d.customerName || '';
     const addr = d.address || '';
@@ -3339,10 +3348,6 @@ ${name || addr ? `<h2>Customer Information</h2>
 ${fieldRows ? '<h2>Details</h2><table>' + fieldRows + '</table>' : ''}
 ${desc ? '<h2>Description</h2><div class="desc">' + this._escHtml(desc) + '</div>' : ''}
 ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:12px;color:#666;">Total:</span> <span style="font-family:\'Barlow Condensed\',sans-serif;font-size:32px;font-weight:800;color:var(--orange,#bd5728);">' + (String(price).startsWith('$') ? price : '$' + price) + '</span></div>' : ''}
-<div class="sig-block">
-  <div><div class="sig-line">Homeowner Signature</div><div style="margin-top:16px;"><div class="sig-line">Date</div></div></div>
-  <div><div class="sig-line">Contractor Signature</div><div style="margin-top:16px;"><div class="sig-line">Date</div></div></div>
-</div>
 <div class="footer"><span>${[c.name, c.phone, c.website].filter(Boolean).map((x) => this._escHtml(x)).join(' · ')}</span></div>
 </body></html>`;
   },
@@ -3911,8 +3916,7 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
       claim_guide: [],
       door_hanger: [],
       neighborhood_mailer: [
-        { name: 'neighborhoodName', label: 'Neighborhood Name', required: true },
-        { name: 'projectAddress', label: 'Nearby Project Address', required: false }
+        { name: 'neighborhoodName', label: 'Neighborhood Name', required: true }
       ],
       testimonial_sheet: [],
       thank_you: [

@@ -141,8 +141,8 @@
       // Supplier price history (2026-11-17, flag supplierPricing): hd-import.js
       // sends each receipt line to it as well. Same files and keys as the
       // estimates bundle; they do nothing while the flag is off.
-      'js/price-logic.js?v=3',
-      'js/price-ledger.js?v=3',
+      'js/price-logic.js?v=5',
+      'js/price-ledger.js?v=4',
       // Receipt import search / filter + type-ahead job picker (2026-10-19): inert until the receiptSorterQueue flag is on.
       'css/receipt-review.css?v=1', 'js/receipt-filter-logic.js?v=1', 'js/receipt-review-ui.js?v=1',
       // Receipt sorter queue (2026-10-18): inert until the receiptSorterQueue flag is on.
@@ -221,10 +221,10 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=24',
-      'js/document-generator-templates.js?v=19',
+      'js/document-generator.js?v=25',
+      'js/document-generator-templates.js?v=20',
       'js/document-generator-library.js?v=5', // 2026-10-04 template library; needs -templates' _tpl
-      'js/doc-preflight.js?v=16',
+      'js/doc-preflight.js?v=17',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
@@ -274,21 +274,21 @@
       'js/nbd-logo-asset.js?v=3',
       'js/product-data.js?v=6',
       'js/roofivent-catalog.js?v=2',
-      'js/catalog-costs.js?v=4',
-      'js/product-library.js?v=20',
+      'js/catalog-costs.js?v=5',
+      'js/product-library.js?v=21',
       // Price book viewer (2026-10-02): the Product Library's "Price book"
       // button. Same file the expenses bundle loads for the HD import.
       'css/price-book.css?v=1',
       'js/price-book.js?v=2',
       // Supplier price ledger (2026-11-17, flag supplierPricing): the
       // "Stores & prices" sheet on each product card. Dark unless the flag is on.
-      'js/price-logic.js?v=3',
-      'css/price-ledger.css?v=2',
-      'js/price-ledger.js?v=3',
-      'js/price-offers-ui.js?v=3',
+      'js/price-logic.js?v=5',
+      'css/price-ledger.css?v=3',
+      'js/price-ledger.js?v=4',
+      'js/price-offers-ui.js?v=4',
       // Slice 3: Import prices and Compare suppliers (owner / company admins).
-      'js/price-import.js?v=1',
-      'js/price-compare-ui.js?v=1',
+      'js/price-import.js?v=2',
+      'js/price-compare-ui.js?v=2',
       'js/estimate-labor-catalog.js?v=2',
       'js/estimate-builder-v2.js?v=15',
       'js/estimate-catalog-xactimate.js?v=4',
@@ -403,7 +403,7 @@
     ],
     // Warranty cert wizard — opened from the Docs view only.
     warranty: [
-      'js/warranty-cert.js?v=10'
+      'js/warranty-cert.js?v=11'
     ],
     // Theme engine cluster (2026-08-07). The 189-theme engine (162 KB) + its
     // four cosmetic companions were eager on every boot; they are a Settings/

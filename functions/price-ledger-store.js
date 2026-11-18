@@ -43,6 +43,16 @@ const auditCol = (db, companyId) => db.collection(base(companyId) + '/priceAudit
 const meterRef = (db, companyId, dayKey) => db.doc(base(companyId) + '/priceMeter/rows_' + dayKey);
 const seenRef = (db, companyId) => db.doc(base(companyId) + '/priceConfig/seen');
 const SEEN_MAX = 2000;
+// Slice 4: the one product's link doc, and the three company docs an approval reads.
+const linkRef = (db, companyId, productId) => db.doc(base(companyId) + '/productLinks/' + productId);
+const costBookRef = (db, companyId) => db.doc('catalogCosts/' + companyId);
+const libraryRef = (db, companyId) => db.doc('productLibrary/' + companyId);
+const profileRef = (db, companyId) => db.doc('companyProfile/' + companyId);
+const PRODUCT_ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
+// The fields an approval or an undo owns on a productLinks doc; anything else there (a later slice's photo) is kept.
+const LINK_FIELDS = ['productId', 'preferredOfferId', 'applied', 'updatedAt', 'updatedBy'];
+let SEED = null;
+const seed = () => (SEED || (SEED = require('./product-seed-public.json')));
 
 const utcDay = (ms) => new Date(ms).toISOString().slice(0, 10);
 const dateMs = (ymd) => Date.UTC(Number(ymd.slice(0, 4)), Number(ymd.slice(5, 7)) - 1, Number(ymd.slice(8, 10)));
@@ -314,6 +324,24 @@ const bad = (reason) => ({ ok: false, reason });
 const samePack = (a, b) => !!a && !!b && a.status === b.status && a.purchaseUnit === b.purchaseUnit && a.catalogUnit === b.catalogUnit && a.num === b.num && a.den === b.den;
 const stamp = (caller) => ({ updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid });
 
+/**
+ * A product's unit and sells, as the approval guards need them: the company's own
+ * library row when it holds one (a product it added or edited), else the published
+ * catalog's (functions/product-seed-public.json). A product the company deleted is
+ * not found. Pure apart from the seed file.
+ */
+function productOf(productId, library) {
+  const lib = library || {};
+  if (Array.isArray(lib.deleted) && lib.deleted.indexOf(productId) !== -1) return null;
+  const own = lib.items && lib.items[productId];
+  if (own && typeof own === 'object') return { id: productId, unit: own.unit || null, pricing: own.pricing || {} };
+  const pub = seed()[productId];
+  if (!pub) return null;
+  const pricing = {};
+  ['good', 'better', 'best'].forEach((t) => { pricing[t] = { sell: pub.sell ? pub.sell[t] : null }; });
+  return { id: productId, unit: pub.unit, pricing };
+}
+
 async function readOffer(db, companyId, offerId) {
   if (typeof offerId !== 'string' || !ID_RE.test(offerId)) return null;
   const snap = await offerRef(db, companyId, offerId).get();
@@ -386,12 +414,22 @@ const saveOps = {
       productId = data.productId;
     }
     const patch = { productId };
+    // Slice 4 (Jo's Q3): which tiers of the product this item is bought for, ticked on the link form.
+    if (data.tiers != null) {
+      if (!Array.isArray(data.tiers) || !data.tiers.length || data.tiers.length > 3) return bad('bad_tiers');
+      const tiers = [];
+      for (const t of data.tiers) {
+        if (['good', 'better', 'best'].indexOf(t) === -1) return bad('bad_tiers');
+        if (tiers.indexOf(t) === -1) tiers.push(t);
+      }
+      patch.tiers = tiers;
+    }
     if (data.match != null) {
       if (['exact', 'equivalent', 'comparable'].indexOf(data.match) === -1) return bad('bad_match');
       patch.match = data.match;
     }
     await snap.ref.update(Object.assign(patch, stamp(caller)));
-    await writeAudit(db, companyId, { type: productId ? 'link' : 'unlink', targetType: 'offer', targetId: snap.id, detail: { productId, match: patch.match || null }, actor: caller });
+    await writeAudit(db, companyId, { type: productId ? 'link' : 'unlink', targetType: 'offer', targetId: snap.id, detail: { productId, match: patch.match || null, tiers: patch.tiers || null }, actor: caller });
     return { ok: true, id: snap.id };
   },
 
@@ -448,6 +486,150 @@ const saveOps = {
     return { ok: true, id: s.value.alertId };
   },
 
+  /**
+   * Slice 4: approve one supplier price into the company's cost book, line by line
+   * (one line per tier the item is for). data: { productId, offerId, obsId,
+   * lines: [{ tier, fromCents, toCents }] (what the person saw), confirmBelowFloor,
+   * confirmAboveSell, note }. In one transaction the server rebuilds every line from
+   * the stored price, the cost book, the product and the company's settings, and
+   * writes only if each asked line still matches and its guards pass: all the lines
+   * or none. It writes `catalogCosts.costs.<productId>.cost.<tier>` and nothing else in
+   * that document, one audit row, and productLinks/{productId}.applied.<tier> (what
+   * tells the company's other devices). Never a sell, never labor, never another map.
+   */
+  async approveCost(db, companyId, data, caller, nowMs) {
+    assertCompany(companyId);
+    data = data || {};
+    const productId = data.productId;
+    if (typeof productId !== 'string' || !PRODUCT_ID_RE.test(productId)) return bad('bad_product');
+    if (typeof data.offerId !== 'string' || !ID_RE.test(data.offerId) || typeof data.obsId !== 'string' || !ID_RE.test(data.obsId)) return bad('changed');
+    const asked = Array.isArray(data.lines) ? data.lines : [];
+    if (asked.length < 1 || asked.length > 3) return bad('no_lines');
+    const tiersAsked = new Set();
+    for (const a of asked) {
+      if (!a || ['good', 'better', 'best'].indexOf(a.tier) === -1 || tiersAsked.has(a.tier)) return bad('no_lines');
+      if (!(a.fromCents === null || Number.isSafeInteger(a.fromCents)) || !Number.isSafeInteger(a.toCents)) return bad('changed');
+      tiersAsked.add(a.tier);
+    }
+    const note = String(data.note == null ? '' : data.note).replace(/\s+/g, ' ').trim().slice(0, 200);
+    const confirm = { confirmBelowFloor: data.confirmBelowFloor === true, confirmAboveSell: data.confirmAboveSell === true };
+
+    return db.runTransaction(async (tx) => {
+      const offerSnap = await tx.get(offerRef(db, companyId, data.offerId));
+      const obsSnap = await tx.get(obsCol(db, companyId).doc(data.obsId));
+      const bookSnap = await tx.get(costBookRef(db, companyId));
+      const libSnap = await tx.get(libraryRef(db, companyId));
+      const profSnap = await tx.get(profileRef(db, companyId));
+      const linkSnap = await tx.get(linkRef(db, companyId, productId));
+      if (!offerSnap.exists || !obsSnap.exists) return bad('changed');
+      const offer = offerSnap.data() || {};
+      if (offer.productId !== productId || offer.active === false) return bad('changed');
+      const point = offer.latest && offer.latest.bestComparable;
+      if (!point || point.obsId !== data.obsId) return bad('changed');
+      const acctSnap = await tx.get(accountRef(db, companyId, offer.supplierId));
+      const product = productOf(productId, libSnap.exists ? (libSnap.data() || {}) : null);
+      if (!product) return bad('bad_product');
+      const obs = rowOf(obsSnap);
+      // The per-unit price comes from the offer's summary: it is re-derived from the
+      // CURRENT pack, which the row's own snapshot may predate.
+      const row = Object.assign({}, obs, { catalogMicros: point.catalogMicros, validThroughMs: typeof obs.validThroughMs === 'number' ? obs.validThroughMs : null });
+      const profile = profSnap.exists ? (profSnap.data() || {}) : {};
+      const terms = acctSnap.exists ? ((acctSnap.data() || {}).terms || null) : null;
+      const book = bookSnap.exists ? (bookSnap.data() || {}) : null;
+      const built = L.proposalLines({
+        product, offer, row, book, nowMs,
+        taxBps: L.supplierCompareSettings(profile).taxBps, floorTenths: L.marginFloorTenths(profile),
+        quoteValidDays: terms && terms.quoteValidDays,
+      });
+      const refused = [], accepted = [];
+      for (const a of asked) {
+        const line = built.lines.find((l) => l.tier === a.tier);
+        let reason = null;
+        if (!line) reason = 'bad_tier';
+        else if (line.blocked) reason = line.blocked;
+        else if (line.fromCents !== a.fromCents || line.toCents !== a.toCents) reason = 'changed';
+        else reason = L.costGuardRefusal(line, confirm);
+        if (reason) refused.push({ tier: a.tier, reason }); else accepted.push(line);
+      }
+      if (refused.length) return { ok: false, reason: refused[0].reason, refused };
+
+      const dollarsOf = (cents) => L.microsToCostBookDollars(L.centsToMicros(cents));
+      const audit = auditCol(db, companyId).doc();
+      const patch = {}, applied = {}, out = [];
+      accepted.forEach((l) => {
+        const dollars = dollarsOf(l.toCents);
+        const fromDollars = l.fromCents === null ? null : dollarsOf(l.fromCents);
+        patch['costs.' + productId + '.cost.' + l.tier] = dollars;
+        applied[l.tier] = { atMs: nowMs, dollars, fromDollars, created: l.created, auditId: audit.id, offerId: data.offerId, obsObservedAtMs: obs.observedAtMs, undo: false };
+        out.push({ tier: l.tier, dollars, fromDollars, created: l.created });
+      });
+      tx.update(bookSnap.ref || costBookRef(db, companyId), patch);
+      tx.set(audit, {
+        v: 1, type: 'cost_change_applied', targetType: 'product', targetId: productId,
+        detail: {
+          offerId: data.offerId, obsId: data.obsId, supplierId: offer.supplierId || null,
+          patch: out.map((o) => ({ path: 'costs.' + productId + '.cost.' + o.tier, fromDollars: o.fromDollars, toDollars: o.dollars, created: o.created })),
+          guard: accepted.map((l) => ({ tier: l.tier, belowFloor: l.guard.belowFloor, aboveSell: l.guard.aboveSell, marginBefore: l.guard.marginBefore, marginAfter: l.guard.marginAfter, laborKnown: l.guard.laborKnown })),
+          confirmBelowFloor: confirm.confirmBelowFloor, confirmAboveSell: confirm.confirmAboveSell, note,
+        },
+        actor: { uid: caller.uid, role: caller.role },
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      const prior = (linkSnap.exists && (linkSnap.data() || {}).applied) || {};
+      tx.set(linkSnap.ref || linkRef(db, companyId, productId), {
+        productId, preferredOfferId: data.offerId, applied: Object.assign({}, prior, applied),
+        updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid,
+      }, { mergeFields: LINK_FIELDS });
+      return { ok: true, id: audit.id, applied: out };
+    });
+  },
+
+  /**
+   * Slice 4: undo the last approved change on one tier (Jo, 2026-11-17). Allowed only
+   * while that approval is still the last one and the cost book still holds its value;
+   * otherwise `changed` and nothing is written. Puts the old cost back by the same
+   * field path (or removes the tier the approval created). It does not ask about the
+   * floor: it restores what was there before. Logged as cost_change_undone.
+   */
+  async undoCost(db, companyId, data, caller, nowMs) {
+    assertCompany(companyId);
+    data = data || {};
+    const productId = data.productId, tier = data.tier;
+    if (typeof productId !== 'string' || !PRODUCT_ID_RE.test(productId)) return bad('bad_product');
+    if (['good', 'better', 'best'].indexOf(tier) === -1 || typeof data.auditId !== 'string' || !ID_RE.test(data.auditId)) return bad('changed');
+    return db.runTransaction(async (tx) => {
+      const lref = linkRef(db, companyId, productId);
+      const linkSnap = await tx.get(lref);
+      const bookSnap = await tx.get(costBookRef(db, companyId));
+      const a = linkSnap.exists && ((linkSnap.data() || {}).applied || {})[tier];
+      if (!a || a.undo === true || a.auditId !== data.auditId || !bookSnap.exists) return bad('changed');
+      const entry = (((bookSnap.data() || {}).costs || {})[productId]) || null;
+      const cur = entry && entry.cost ? entry.cost[tier] : undefined;
+      const centsOf = (d) => L.microsToCents(L.dollarsToMicros(d));
+      if (typeof cur !== 'number' || typeof a.dollars !== 'number' || centsOf(cur) !== centsOf(a.dollars)) return bad('changed');
+      const path = 'costs.' + productId + '.cost.' + tier;
+      const back = a.created === true || typeof a.fromDollars !== 'number' ? null : a.fromDollars;
+      const patch = {};
+      patch[path] = back === null ? FieldValue.delete() : back;
+      tx.update(bookSnap.ref || costBookRef(db, companyId), patch);
+      const audit = auditCol(db, companyId).doc();
+      tx.set(audit, {
+        v: 1, type: 'cost_change_undone', targetType: 'product', targetId: productId,
+        detail: { undoes: data.auditId, path, fromDollars: cur, toDollars: back, removed: back === null },
+        actor: { uid: caller.uid, role: caller.role },
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      const ld = linkSnap.data() || {};
+      const appliedNext = Object.assign({}, ld.applied || {});
+      appliedNext[tier] = { atMs: nowMs, dollars: back, fromDollars: cur, created: false, auditId: audit.id, undoes: data.auditId, undo: true };
+      tx.set(lref, {
+        productId, preferredOfferId: ld.preferredOfferId || null, applied: appliedNext,
+        updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid,
+      }, { mergeFields: LINK_FIELDS });
+      return { ok: true, id: audit.id, applied: [{ tier, dollars: back, fromDollars: cur, undo: true }] };
+    });
+  },
+
   async voidObservation(db, companyId, data, caller, nowMs) {
     assertCompany(companyId);
     data = data || {};
@@ -468,5 +650,5 @@ const saveOps = {
 module.exports = {
   appendObservations, recomputeLatest, writeAudit, saveOps,
   DAILY_ROW_CAP, MAX_ROWS_PER_CALL,
-  _internal: { deriveObservation, createObservation, rowOf },
+  _internal: { deriveObservation, createObservation, rowOf, productOf },
 };

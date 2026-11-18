@@ -479,8 +479,10 @@ const WIRING = [
     data: { services: 'WIREsvc1, WIREsvc2', serviceArea: 'WIREarea', testimonialsNote: 'WIREtestnote' },
     present: ['WIREarea', 'WIREtestnote', 'WIREsvc1'], absent: [] },
   { label: 'neighborhood_mailer', method: 'renderNeighborhoodMailer',
+    // 2026-11-17: the past customer's street address is no longer printed
+    // (honesty removal), so projectAddress is no longer part of the contract.
     data: { affectedArea: 'WIREaffected', ctaText: 'WIREcta', neighborhoodName: 'WIREhood', projectAddress: 'WIREaddr' },
-    present: ['WIREhood', 'WIREcta', 'WIREaddr'], absent: ['[Your Neighborhood]', '[Nearby Project Address]'] },
+    present: ['WIREhood', 'WIREcta'], absent: ['[Your Neighborhood]', '[Nearby Project Address]', 'WIREaddr'] },
   { label: 'before_after_report', method: 'renderBeforeAfterReport',
     data: { projectType: 'WIREbatype', duration: 'WIREduration', highlights: 'WIREhl one\nWIREhl two' },
     present: ['WIREbatype', 'WIREduration', 'WIREhl one', 'WIREhl two'], absent: ['Full roof system replacement with premium'] },

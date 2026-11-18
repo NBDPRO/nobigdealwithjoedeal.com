@@ -217,6 +217,20 @@ async function waitFor(page, fn, arg, ms) {
       await page.locator('[data-action="generateCustomerDoc"][data-doc-type="' + type + '"]').evaluate((el) => el.click());
       await page.waitForSelector('.dpf-card', { timeout: 20000 });
       const missing = await page.evaluate(() => [...document.querySelectorAll('.dpf-card .missing')].map((w) => w.getAttribute('data-field-wrap')));
+      // A field the pre-flight now leaves EMPTY on purpose (the honesty-removals
+      // change: no pre-filled assessment or damage notes) is typed by the rep,
+      // as in real use. 'missing' above is read BEFORE this, so the contract's
+      // 'nothing to type' assertion still holds.
+      await page.evaluate(() => {
+        document.querySelectorAll('.dpf-card .missing').forEach((w) => {
+          const el = w.querySelector('textarea, input:not([type=checkbox]):not([type=hidden]), select');
+          if (!el) return;
+          if (el.tagName === 'SELECT') { if (el.options.length > 1) el.selectedIndex = 1; }
+          else el.value = 'Sample entry for the demo walk.';
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+      });
       await page.evaluate(() => { const s = document.getElementById('nbdv-iframe'); if (s) s.srcdoc = ''; });
       await page.locator('.dpf-card button', { hasText: /Generate/i }).last().click();
       await page.waitForSelector('#nbd-doc-viewer-overlay.open', { timeout: 20000 });

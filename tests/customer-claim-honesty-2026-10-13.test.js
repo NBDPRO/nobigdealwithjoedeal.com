@@ -101,7 +101,7 @@ console.log('CLAIM HONESTY 2026-10-13 — (2) Testimonial Sheet never invents qu
     /No customer reviews have been added to this sheet yet/.test(empty));
   ok('empty sheet shows no invented star rating or "Would Recommend" stat',
     !/Would Recommend/.test(empty) && !/★/.test(empty));
-  ok('positive control: a rep-entered quote still renders', /WIREquote/.test(withRep) && /Would Recommend/.test(withRep));
+  ok('positive control: a rep-entered quote still renders', /WIREquote/.test(withRep) && !/Would Recommend/.test(withRep)); // 2026-11-17: the computed stats were removed
   const oaks = loadEnv({ legalName: 'Oaks Roofing & Construction', colors: {}, contact: {} }).NBDDocGen
     .renderTestimonialSheet(Object.assign({}, BASE));
   ok('a tenant with no quotes also gets the prompt, no quotes', !/Satisfied Homeowner/.test(oaks) && /No customer reviews have been added/.test(oaks));

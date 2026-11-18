@@ -79,9 +79,11 @@ function loadDocGen() {
 {
   const dg = loadDocGen();
   ok('NBDDocGen loaded', !!dg);
-  ok('DOCUMENT_TYPES.permit registered', !!(dg.DOCUMENT_TYPES && dg.DOCUMENT_TYPES.permit));
-  ok('permit has NO defaultSigners (no in-app signer — filed with a jurisdiction, not signed here)',
-    dg.DOCUMENT_TYPES.permit && dg.DOCUMENT_TYPES.permit.defaultSigners === undefined);
+  // 2026-11-17: no real permit renderer ever existed; the type is unregistered
+  // from the picker (honesty removal) and kept only as a legacy guard.
+  ok('DOCUMENT_TYPES.permit is no longer registered (unregistered 2026-11-17)', !!(dg.DOCUMENT_TYPES && !dg.DOCUMENT_TYPES.permit));
+  ok('permit survives only as a legacy guard (old saved docs still open)', !!(dg.LEGACY_DOCUMENT_TYPES && dg.LEGACY_DOCUMENT_TYPES.permit)
+    && dg.LEGACY_DOCUMENT_TYPES.permit.defaultSigners === undefined);
   eq('FILED_FIELD_BY_DOC_TYPE.contract', dg.FILED_FIELD_BY_DOC_TYPE.contract, 'contractFiledAt');
   // The AOB (and the Direction to Pay briefly after it) is retired, 2026-09-27:
   // no document stamps aobFiledAt any more; the field stays, unused.
