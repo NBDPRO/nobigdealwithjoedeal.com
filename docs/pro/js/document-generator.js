@@ -188,7 +188,8 @@ window.NBDDocGen = {
    */
   _docSendGate(type, data, html) {
     const C = (typeof window !== 'undefined') && window.NBDDocSendChecks;
-    if (!this._docEvidenceOn() || (data && data._isBlankPreview)) return true;
+    // Either flag turns the check on: a contract that prints the clause set v1 is refused while a clause number is unset.
+    if ((!this._docEvidenceOn() && !this._clauseV1On()) || (data && data._isBlankPreview)) return true;
     if (!C) {
       // Flag ON but the checks module did not load (review 2026-11-18): do NOT let a contract through
       // unchecked. The server runs the same check, but a clear message here beats a late refusal.
@@ -216,6 +217,7 @@ window.NBDDocGen = {
       entityName: brand.entityName,
       startDate: set('startDate'), estimatedCompletion: set('estimatedCompletion'),
       text: html || '',
+      clauseConfigMissing: this._clauseV1On() && window.NBDClauseSet.PT_FIELDS.filter((f) => String(html || '').indexOf('{{' + f + '}}') !== -1),
     });
     if (!gaps.length) return true;
     const msg = C.describeGaps(gaps);
@@ -309,6 +311,78 @@ window.NBDDocGen = {
       '<strong>Mailing Address:</strong> ' + (addr ? this._escHtml(addr) : '<em>(not set — add it in Company Profile)</em>') + '<br/>' +
       (fax ? '<strong>Fax:</strong> ' + this._escHtml(fax) + '<br/>' : '');
     return out;
+  },
+
+  /**
+   * Feature flag docClauseSetV1 (default OFF, per person): print the clause set v1 (clause-set.js) on
+   * the contract. Off, or the registry did not load: false, and the contract renders exactly as before.
+   */
+  _clauseV1On() {
+    return !!(typeof window !== 'undefined' && window.NBDFlags && typeof window.NBDFlags.enabled === 'function'
+      && window.NBDFlags.enabled('docClauseSetV1') && window.NBDClauseSet && typeof window.NBDClauseSet.renderV1 === 'function');
+  },
+
+  /** Clause text to HTML: escaped, with the packet's **bold** lead-ins. */
+  _clauseHtml(text) {
+    return this._escHtml(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  },
+
+  _clauseItemsHtml(items) {
+    return (items || []).filter(function (i) { return !i.byRef; }).map((i) => i.paragraphs.map((p) =>
+      '<div class="nbd-clause" data-clause="' + i.id + '" style="margin: 0.05in 0; font-size: 9px;"><span style="color:#888;font-size:7px;">' +
+      i.id + '</span> ' + this._clauseHtml(p) + '</div>').join('')).join('');
+  },
+
+  _clauseSectionHtml(title, inner) {
+    return inner ? '<div class="section"><div class="section-title">' + this._escHtml(title) + '</div>' + inner + '</div>' : '';
+  },
+
+  /**
+   * The clause set v1 for a contract, as HTML slots the template drops in. Which clauses print follows
+   * the property state and payment source (clause-set.js renderV1; unknown = strict Kentucky insurance).
+   * Statutory text stays the shipped module's: the Payment section and the KY lien sentence are the
+   * blocks the contract already prints (stat), unchanged.
+   */
+  _clauseSetV1(data, merged, cp, stat) {
+    const CS = window.NBDClauseSet;
+    const g = this._nbdGate();
+    const j = stat.j || {};
+    const J = window.NBDJurisdiction;
+    const lead = window._leadDoc || {};
+    const jt = J && typeof J.normJobType === 'function' ? J.normJobType(merged.jobType || lead.jobType) : '';
+    const state = j.state || '';
+    const source = state ? (j.insurance ? 'insurance' : (jt === 'finance' ? 'financed' : 'cash')) : '';
+    const party = CS.partyFor(g.brand || {}, g.isNbd);
+    const r = CS.renderV1({
+      state: state, paymentSource: source, party: party,
+      terms: CS.paymentTermsFor(cp && cp.paymentTerms, g.isNbd),
+      facts: { ownerNames: '{{homeownerName}}', propertyAddress: '{{address}}', date: '{{date}}', companyPhone: merged.contractorPhone || '' },
+      hasWarranty: this._jobWarrantyText(merged) !== ''
+    });
+    const by = {};
+    r.sections.forEach((s) => { by[s.title] = s; });
+    const html = (t) => (by[t] ? this._clauseItemsHtml(by[t].items) : '');
+    const sec = (t) => this._clauseSectionHtml(t, html(t));
+    let liens = html("Mechanic's Liens");
+    if (stat.lien) {
+      // Kentucky insurance: the shipped lien sentence (LIEN-3) exactly as the contract printed it, then LIEN-4 and 5.
+      liens = '<div style="margin: 0.1in 0; font-size: 10px;">' + this._escHtml(stat.lien) + '</div>' + liens;
+    }
+    return {
+      refs: r.refs, missing: r.missing, party: party, set: r, variant: r.variant,
+      // The marker lists every clause this document printed; the server reads it back for the signing evidence.
+      partyHtml: '<!-- nbd:clause-set ' + CS.CLAUSE_SET_VERSION + ' ' + r.refs.join(',') + ' -->' + (r.party ? '<div class="section"><div class="section-title">Parties</div><div class="nbd-clause" data-clause="PARTY-1" style="margin: 0.1in 0; font-size: 10px;">' +
+        this._clauseHtml(r.party.paragraphs[0]) + '</div></div>' : ''),
+      terms: '<div class="nbd-clauses">' + html('Terms of Payment') + '</div>',
+      slotChange: sec('Warranty Terms') + sec('Change Orders and Hidden Conditions') + sec('Schedule, Access and Permits') + sec('Materials, Special Orders and Restocking'),
+      slotInsAndLiens: sec('Insurance Jobs') + this._clauseSectionHtml("Mechanic's Liens", liens),
+      slotDispute: sec('Subcontractors') + sec('Dispute Resolution and General Terms') + sec('E-Signature, Contact and Photos'),
+      signers: (list) => list.map((s) => {
+        const lbl = s && typeof s === 'object' ? (s.label || s.role) : s;
+        if (lbl !== 'Contractor - NBD Home Solutions' && lbl !== this._contractorSignerLabel()) return s;
+        return s && typeof s === 'object' ? Object.assign({}, s, { label: party.signerLabel }) : party.signerLabel;
+      })
+    };
   },
 
   /**
@@ -2877,6 +2951,9 @@ window.NBDDocGen = {
     const stat = this._statutoryBlocks(Object.assign({}, data, merged), cp);
     const _J = window.NBDJurisdiction;
     const paymentMethodsText = _J ? _J.stripAssignmentSentences(cp.paymentMethodsNoCash) : cp.paymentMethodsNoCash;
+    // Clause set v1 (flag docClauseSetV1, default off): null when off, and every slot below prints the original markup.
+    const v1 = this._clauseV1On() ? this._clauseSetV1(data, merged, cp, stat) : null;
+    this._lastClauseSet = v1 ? { refs: v1.refs, missing: v1.missing, variant: v1.variant } : null;
 
     const contractHTML = `
       <!DOCTYPE html>
@@ -2899,11 +2976,11 @@ window.NBDDocGen = {
           <div class="document-title">Roofing Contract</div>
 
           <div class="document-content" style="font-size: 10px; line-height: 1.5;">
-            <!-- PARTIES -->
+            <!-- PARTIES -->${v1 ? v1.partyHtml : ''}
             <div class="section">
               <div class="section-title">Parties to Agreement</div>
               <div style="margin: 0.1in 0;">
-                <strong>Contractor:</strong> ${merged.contractorName}<br/>
+                <strong>Contractor:</strong> ${v1 ? this._escHtml(v1.party.nameLine) : merged.contractorName}<br/>
                 ${stat.partiesExtra}<strong>Phone:</strong> ${merged.contractorPhone}<br/>
                 <strong>Email:</strong> ${this._resolveCompany().email}
               </div>
@@ -2936,9 +3013,9 @@ window.NBDDocGen = {
               <div style="margin: 0.1in 0;">
                 {{paymentSchedule}}
               </div>
-              <div style="margin: 0.1in 0; margin-top: 0.08in; font-size: 9px;">
+              ${v1 ? v1.terms : `<div style="margin: 0.1in 0; margin-top: 0.08in; font-size: 9px;">
                 ${this._escClause(paymentMethodsText)}
-              </div>
+              </div>`}
             </div>
 
             ${this._jobWarrantyText(merged) === '' ? '' : `<!-- WARRANTY -->
@@ -2947,29 +3024,29 @@ window.NBDDocGen = {
               ${this.renderWarrantyFor(merged)}
             </div>`}
 
-            <!-- CHANGE ORDERS -->
+            ${v1 ? v1.slotChange : `<!-- CHANGE ORDERS -->
             <div class="section">
               <div class="section-title">Change Orders & Scope Modifications</div>
               <div style="margin: 0.1in 0; font-size: 9px;">
                 ${this._escClause(cp.changeOrderClause)}
               </div>
-            </div>
+            </div>`}
 
-            <!-- CANCELLATION CLAUSE -->
+            ${v1 ? '' : `<!-- CANCELLATION CLAUSE -->
             <div class="section">
               <div class="section-title">Cancellation & Rescission Rights</div>
               <div style="margin: 0.1in 0; font-size: 9px;">
                 ${this._escClause(cp.cancellationContractClause)}
               </div>
-            </div>
+            </div>`}
 
-            <!-- DISPUTE RESOLUTION -->
+            ${v1 ? v1.slotDispute : `<!-- DISPUTE RESOLUTION -->
             <div class="section">
               <div class="section-title">Dispute Resolution</div>
               <div style="margin: 0.1in 0; font-size: 9px;">
                 ${this._escClause(cp.disputeResolutionClause)}
               </div>
-            </div>
+            </div>`}
 
             ${stat.paymentClause ? `<!-- PAYMENT (every contract; ky-insurance-law.js PAYMENT_CLAUSE) -->
             <div class="section">
@@ -2979,21 +3056,21 @@ window.NBDDocGen = {
               </div>
             </div>` : ''}
 
-            ${stat.lien ? `<!-- MECHANIC'S LIENS — KRS 367.628(2)(g) -->
+            ${v1 ? v1.slotInsAndLiens : (stat.lien ? `<!-- MECHANIC'S LIENS — KRS 367.628(2)(g) -->
             <div class="section">
               <div class="section-title">Mechanic's Liens</div>
               <div style="margin: 0.1in 0; font-size: 10px;">
                 ${this._escHtml(stat.lien)}
               </div>
-            </div>` : ''}
+            </div>` : '')}
 
-            <!-- ENTIRE AGREEMENT -->
+            ${v1 ? '' : `<!-- ENTIRE AGREEMENT -->
             <div class="section">
               <div class="section-title">Entire Agreement</div>
               <div style="margin: 0.1in 0; font-size: 9px;">
                 ${this._escClause(cp.entireAgreementClause)}
               </div>
-            </div>
+            </div>`}
 
             ${stat.notices ? `<!-- KRS 367.624(3) NOTICES — before the signature block -->
             <div class="section">
@@ -3006,10 +3083,11 @@ window.NBDDocGen = {
               <div class="section-title">Contract Execution</div>
               ${stat.ftcStatement}
               <div style="margin-top: 0.15in;">
-                ${this.renderSignatureBlock(
-                  (Array.isArray(data.signers) && data.signers.length)
+                ${this.renderSignatureBlock(v1
+                  ? v1.signers((Array.isArray(data.signers) && data.signers.length) ? data.signers : ['Homeowner', this._contractorSignerLabel()])
+                  : ((Array.isArray(data.signers) && data.signers.length)
                     ? data.signers
-                    : ['Homeowner', this._contractorSignerLabel()]
+                    : ['Homeowner', this._contractorSignerLabel()])
                 )}
               </div>
             </div>

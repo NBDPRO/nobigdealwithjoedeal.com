@@ -553,7 +553,7 @@ exports.createSignRequest = onCall(
       priceSnapshot,
       ...(isContract && !priceSnapshot ? { priceSnapshotMissing: true, priceLockReason } : {}),
       // Evidence parity (2026-11-18): the clause set this document was sent under.
-      ...DE.stampFor(KyLaw, lead, {}),
+      ...DE.stampFor(KyLaw, lead, {}, { html: gateHtml }),
       status: 'pending',
       mintedAt: FieldValue.serverTimestamp(),
       expiresAt,

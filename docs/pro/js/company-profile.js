@@ -136,6 +136,18 @@
 
     latePaymentChargeText: '1.5% monthly finance charge',
 
+    /* ── PAYMENT TERMS (clause set v1, 2026-11-18, flag docClauseSetV1) ──
+       The numbers the contract clauses print. Identical to clause-set.js
+       NBD_PAYMENT_TERMS_DEFAULTS (a test pins it). A tenant other than NBD gets
+       them blank (_resolveLegal) and the send gate refuses until it sets its own.
+       cardFeePct 0 = no card fee is promised anywhere (the fee mechanism is phase 4);
+       deckingPerSheetCents null = not priced yet, the contract cannot be sent. */
+    paymentTerms: {
+      lateGraceDays: 15, lateInterestPct: 8, disputeDays: 10, finalPaymentDays: 7, punchListDays: 3,
+      pauseNoticeDays: 5, restockPct: 15, cardFeePct: 0, deckingPerSheetCents: null,
+      deckingSheetsBeforeChangeOrder: 10, atticFreeCheckDays: 3, claimNoticeDays: 30
+    },
+
     /* ── FINANCING ─────────────────────────────────────────────── */
     financePartner: 'Acorn Finance',
     // apr 0 = "rate set by the lender" sentinel (see renderFinancingOptions in
@@ -937,6 +949,12 @@
         if (R && typeof R.policyText === 'function') out[k] = R.policyText();
       }
     });
+    // Payment terms: NBD's numbers are NBD's. A tenant keeps only the fields it changed from them.
+    if (out.paymentTerms && typeof out.paymentTerms === 'object') {
+      const pt = {};
+      Object.keys(D.paymentTerms).forEach(function (k) { pt[k] = out.paymentTerms[k] !== D.paymentTerms[k] ? out.paymentTerms[k] : null; });
+      out.paymentTerms = pt;
+    }
     return out;
   }
   const _NBD_ONLY_MARKETING = ['financePartner', 'services', 'valueProps', 'tagline'];

@@ -159,6 +159,7 @@
    *   entityName      the contractor's legal entity name
    *   startDate, estimatedCompletion   (type 'contract' only)
    *   text            the rendered document (HTML or text), scanned for placeholders
+   *   clauseConfigMissing  Company Profile payment-term fields the printed clauses need and lack (clause set v1)
    * }
    * -> [{ code, message }]  ([] = clear to send)
    */
@@ -180,8 +181,15 @@
       if (_blank(x.startDate)) gap('startDate', 'The start date is blank.');
       if (_blank(x.estimatedCompletion)) gap('estimatedCompletion', 'The estimated completion is blank.');
     }
+    // Clause set v1 (flag docClauseSetV1): a printed clause needs a Company Profile number that is not set.
+    (Array.isArray(x.clauseConfigMissing) ? x.clauseConfigMissing : []).forEach(function (field) {
+      gap('clauseConfig', 'Set ' + field + ' in Company Profile.');
+    });
     if (tooLarge(x.text)) gap('tooLarge', 'The document is too large to check (over 2 MB). Shorten it or remove embedded images, then try again.');
+    var cfgMissing = Array.isArray(x.clauseConfigMissing) ? x.clauseConfigMissing : [];
     placeholdersIn(x.text).forEach(function (tok) {
+      // an unset clause number is already reported by name above
+      if (cfgMissing.indexOf(tok.slice(2, -2)) !== -1) return;
       gap('placeholder', 'The document still has a placeholder: ' + tok);
     });
     return out;

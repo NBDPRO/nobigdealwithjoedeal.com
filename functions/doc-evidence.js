@@ -135,8 +135,26 @@ function buildEvidence(input) {
   };
 }
 
+/**
+ * The v1 clause refs a document printed: opts.refs (the server built the document) or the
+ * <!-- nbd:clause-set VERSION ref,ref --> marker in opts.html. null when there are none.
+ */
+function v1RefsFrom(opts) {
+  const o = opts || {};
+  let version = o.version || ClauseSet.CLAUSE_SET_VERSION;
+  let raw = Array.isArray(o.refs) ? o.refs : null;
+  if (!raw && typeof o.html === 'string') {
+    const m = /<!-- nbd:clause-set (CS-[0-9.-]+) ([A-Za-z0-9_,-]{1,2000}) -->/.exec(o.html);
+    if (m) { version = m[1]; raw = m[2].split(','); }
+  }
+  if (!raw) return null;
+  const known = ClauseSet.V1_IDS;
+  const refs = raw.filter((r) => { const m = /^([A-Z]+-\d+)_V\d+$/.exec(String(r)); return m && known.indexOf(m[1]) !== -1; });
+  return refs.length && version === ClauseSet.CLAUSE_SET_VERSION ? { version, refs } : null;
+}
+
 /** { clauseSetVersion, clauseIds } for a lead (+ estimate), through the one Kentucky classifier. */
-function stampFor(KyLaw, lead, est) {
+function stampFor(KyLaw, lead, est, opts) {
   let j = null;
   try { j = KyLaw.classifyLead(lead || {}, est || {}); } catch (_) { j = null; }
   let source = '';
@@ -146,7 +164,12 @@ function stampFor(KyLaw, lead, est) {
     source = j.insurance ? 'insurance' : (jt === 'finance' ? 'financed' : 'cash');
   }
   const d = ClauseSet.describeFor({ state: j ? j.state : '', paymentSource: source });
-  return { clauseSetVersion: d.clauseSetVersion, clauseIds: d.clauses.map((c) => c.ref) };
+  const out = { clauseSetVersion: d.clauseSetVersion, clauseIds: d.clauses.map((c) => c.ref) };
+  // A document that printed the clause set v1 says so (marker) or the caller passes the refs it built;
+  // only refs the registry knows are recorded, so a forged marker cannot add an unknown id.
+  const v1 = v1RefsFrom(opts);
+  if (v1) { out.clauseSetVersion = v1.version; v1.refs.forEach((r) => { if (out.clauseIds.indexOf(r) === -1) out.clauseIds.push(r); }); }
+  return out;
 }
 
 /** The legal entity a tenant's contracts name: its own, else NBD's for the NBD tenant only. */
@@ -201,7 +224,7 @@ function clauseFlagForUid(db, uid) { return flagForUid(db, uid, { flag: CLAUSE_F
 module.exports = {
   CLAUSE_FLAG_NAME, clauseFlagForUid,
   FLAG_NAME, FLAG_DEFAULT, NBD_ENTITY_NAME, CLAUSE_SET_VERSION: ClauseSet.CLAUSE_SET_VERSION,
-  flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
+  v1RefsFrom, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
   serverContractGaps, estimateCents, isContractClass: Checks.isContractClass,
   describeGaps: Checks.describeGaps,
 };
