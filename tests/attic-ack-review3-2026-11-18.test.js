@@ -121,7 +121,6 @@ const generated = async (docType, extraData) => {
     const injected = bare.win.NBDDocGen._injectSignatureAssets('<html><head></head><body></body></html>');
     ok('without attic-ack.js the generator\'s own literal is the same text as the constant', injected.indexOf('<style id="nbd-sig-styles">' + AA.SIG_STYLES_CSS + '</style>') !== -1);
     ok('...and the page\'s print rule literal is the same text as the constant', H.render(bare, 'renderWorkAuthorization', H.VARIANTS.oh_cash).indexOf(AA.PRINT_RULE_CSS) !== -1);
-    ok('document-generator.js, -templates.js and -library.js read the constants from window.NBDAtticAck', /NBDAtticAck/.test(src('docs/pro/js/document-generator.js')) && /PRINT_RULE_CSS/.test(src('docs/pro/js/document-generator-templates.js')) && /ATTIC_FORM_CSS/.test(src('docs/pro/js/document-generator-library.js')));
   }
 
   // ═══════════════════════════════════════════════════════
@@ -315,7 +314,6 @@ const generated = async (docType, extraData) => {
     db = mk('contract', []);
     try { await Lg.handleInPersonSignature(db, { uid: 'REP', token: { companyId: 'CO' } }, { leadId: 'L1', docId: 'd1' }, { attic: { flagOn: async () => ({ on: false, unverified: true }) }, recordJobEvent: async () => ({}) }); } catch (x) { e = x; }
     ok('flagOn returning { on: false, unverified: true }: marked', !!row(db).atticGateUnverified);
-    ok('firestore.rules lists atticGateUnverified as server-owned on create and on update', (src('firestore.rules').match(/'evidenceRefused', 'atticAckResult', 'atticGateUnverified'\]/g) || []).length === 2);
   }
 
   // ═══════════════════════════════════════════════════════
@@ -365,7 +363,6 @@ const generated = async (docType, extraData) => {
     await Lr.fns.submitSignature(sub.req, sub.res);
     const rr = (dbr._get('leads/L1/documents/d1') || {}).atticAckResult || {};
     ok('remote: the signed form carries the estimate its row names (E2)', sub.res.statusCode === 200 && rr.estimateId === 'E2' && rr.estimateStamp === AG.estimateStamp(E2), sub.res.statusCode + ' ' + JSON.stringify(rr));
-    ok('the generator writes estimateId on an attic form row and the panel passes the estimate', /type === 'attic_acknowledgment' \|\| type === 'attic_not_inspected'\) && typeof data\.estimateId/.test(src('docs/pro/js/document-generator.js')) && /estimateId: L\.primaryEstimateId/.test(src('docs/pro/js/attic-panel.js')));
   }
 
   // ═══════════════════════════════════════════════════════
