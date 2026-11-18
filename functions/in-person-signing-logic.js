@@ -120,12 +120,13 @@ async function recordEvidence(db, ctx, evidence) {
       && htmlPath.split('/')[2] === leadId && /^[A-Za-z0-9._-]+\.html$/.test(htmlPath.split('/')[3])) {
     try { const buf = await evidence.readBytes(htmlPath, READ_CAP_BYTES); if (buf) { signedSha256 = DE.sha256Hex(buf); signedHtml = buf.toString('utf8'); } } catch (_) { signedSha256 = null; }
   }
-  const stamp = DE.stampFor(require('./ky-insurance-law'), lead, {}, { html: signedHtml });
+  // The marker in the stored copy is a hint only: the refs are recomputed, and the clause flag must have been on (item 4).
+  const stamp = DE.stampFor(require('./ky-insurance-law'), lead, {}, { html: signedHtml, v1: evidence.clauseFlag === true });
   // Time is the SERVER's clock at this call. The row's signedAt is written by the rep's own browser,
   // so it is kept only as a client-reported value (review 2026-11-18, finding 3).
   const clientSignedAt = docMeta.signedAt && typeof docMeta.signedAt.toMillis === 'function' ? docMeta.signedAt.toMillis() : null;
   const record = DE.buildEvidence({
-    path: 'in_person', clauseSetVersion: stamp.clauseSetVersion, clauseIds: stamp.clauseIds,
+    path: 'in_person', clauseSetVersion: stamp.clauseSetVersion, clauseIds: stamp.clauseIds, clauseRefsMismatch: stamp.clauseRefsMismatch === true,
     // The bytes read here are the signed copy the rep's device saved over the original: they are NOT
     // "the document the homeowner was shown", so documentSha256 stays null on this path.
     documentSha256: null, signedSha256,

@@ -259,6 +259,140 @@ function loadRegistry(textObj) {
     ok('client: "$&" in a name prints as typed (no replacement-pattern expansion)', dollar.indexOf('A $&amp; B') !== -1);
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('1. cancellation wording and by-reference clauses: what prints, and evidence lists only what printed');
+  {
+    const DE = require('../functions/doc-evidence.js');
+    const KyLaw = require('../functions/ky-insurance-law.js');
+    const CS = require('../functions/clause-set.js');
+    const CHK = require('../functions/doc-send-checks.js');
+    const env = H.docs({ flags: { docClauseSetV1: true } });
+    const J = env.win.NBDJurisdiction;
+    const vis = (h) => CHK.visibleText(h);
+    const byRefIds = ['INS-1', 'INS-3', 'INS-4', 'LIEN-3', 'PAY-2', 'WAR-4', 'CANC-1'];
+    const norm = (s) => String(s).replace(/\*\*/g, '').replace(/\s+/g, ' ').trim();
+    Object.keys(H.VARIANTS).forEach((k) => {
+      const v = H.VARIANTS[k];
+      const html = H.render(env, 'renderContract', v);
+      const t = vis(html);
+      const ky = /^ky|^unknown/.test(k);
+      const ins = /insurance/.test(k);
+      ok(k + ': v1 contract carries the Notice of Right to Cancel packet with both FTC forms', J.hasCancelPacket(html) && /Notice of Right to Cancel/.test(t));
+      ok(k + ': ...the right-to-cancel wording (three business days, no penalty) and the refund sentence', /cancel it within three business days without any penalty or obligation/.test(t) && /anything you paid is returned within 10 business days/.test(t));
+      ok(k + ': ...the FTC cooling-off statement beside the signatures', t.indexOf(norm(KyLaw.FTC_STATEMENT)) !== -1 || /429\.1|cooling/i.test(t));
+      if (ky) ok(k + ': ...the KRS 367.430 buyer\'s right to cancel text', t.indexOf(norm(KyLaw.KY_HSSA_TEXT)) !== -1);
+      if (ky && ins) ok(k + ': ...and the KRS 367.624 notices and the second (insurance) cancellation form', t.indexOf(norm(KyLaw.KY_NOTICE_CANCEL)) !== -1 && /data-nbd-noc="ky"/.test(html));
+      ok(k + ': the legacy "Cancellation & Rescission Rights" section is replaced, never stacked', !/Cancellation (&|&amp;) Rescission/.test(html));
+      // evidence: every ref the generator records is printed text
+      const refs = env.win.NBDDocGen._lastClauseSet.refs;
+      const printed = DE.printedByRef(KyLaw, html);
+      byRefIds.forEach((id) => { if (refs.indexOf(id + '_V1') !== -1 && id !== 'PAY-2' && id !== 'WAR-4') ok(k + ': recorded by-reference ' + id + ' really printed in the contract', printed[id] === true); });
+      ok(k + ': CANC-1 is recorded and its text printed', refs.indexOf('CANC-1_V1') !== -1 && printed['CANC-1'] === true);
+      ok(k + ': a by-reference clause that did NOT print is not recorded (KY-only ids stay off Ohio / cash paper)',
+        (ky && ins) || (['INS-3_V1', 'INS-4_V1', 'LIEN-3_V1'].every((r) => refs.indexOf(r) === -1)));
+      // every own-text clause paragraph recorded is in the document
+      const r = CS.renderV1({ state: ky ? (/unknown/.test(k) ? '' : 'KY') : 'OH', paymentSource: /unknown/.test(k) ? '' : (/financed/.test(k) ? 'financed' : (ins ? 'insurance' : 'cash')), terms: CS.paymentTermsFor(env.win._legal().paymentTerms, true),
+        party: CS.partyFor({}, true), facts: { ownerNames: '{{homeownerName}}', propertyAddress: '{{address}}', date: '{{date}}', companyPhone: '' } });
+      const missingTxt = [];
+      r.sections.forEach((s) => s.items.filter((i) => !i.byRef).forEach((i) => i.paragraphs.forEach((p) => { if (t.indexOf(norm(p).slice(0, 70)) === -1) missingTxt.push(i.id); })));
+      ok(k + ': every recorded own-text clause paragraph is in the printed contract', missingTxt.length === 0, missingTxt.join(','));
+    });
+    // The server e-sign PDF: capture every string it draws
+    const pdfLib = require(path.join(H.ROOT, 'functions/node_modules/pdf-lib'));
+    const drawn = [];
+    const proto = pdfLib.PDFPage.prototype; const orig = proto.drawText;
+    proto.drawText = function (t, o) { drawn.push(String(t)); return orig.call(this, t, o); };
+    const pdfFor = async (state, extra) => { drawn.length = 0; const res = await H.esignPdf(state, extra); return { res, text: drawn.join(' ').replace(/\s+/g, ' ') }; };
+    for (const st of ['OH', 'KY']) {
+      const lead = { address: st === 'KY' ? H.KY_ADDR : H.OH_ADDR, jobType: 'cash', companyId: 'tenantX' };
+      const ctx = DE.clauseContextFor(KyLaw, lead, {});
+      const cs = DE.buildClauseSet(KyLaw, lead, {}, { brand: { entityName: 'Acme LLC' } }, 'tenantX', { ownerNames: 'Jane Smith', propertyAddress: 'x', date: 'November 18, 2026' }, { 'PAY-2': true, 'INS-1': true, 'CANC-1': true });
+      const { res, text } = await pdfFor(st, { clauseSet: cs });
+      ok('PDF ' + st + ': prints the NOTICE OF CANCELLATION twice with the cancel line', (text.match(/NOTICE OF CANCELLATION/g) || []).length === 2 && text.indexOf(norm(KyLaw.CANCEL_LINE).slice(0, 40)) !== -1);
+      ok('PDF ' + st + ': prints the FTC cooling-off statement', text.indexOf(norm(KyLaw.FTC_STATEMENT).slice(0, 60)) !== -1);
+      if (st === 'KY') ok('PDF KY: prints the KRS 367.430 text', text.indexOf(norm(KyLaw.KY_HSSA_TEXT).slice(0, 60)) !== -1);
+      ok('PDF ' + st + ': the recorded refs name CANC-1 and only by-reference blocks it printed', res.clauseRefs.indexOf('CANC-1_V1') !== -1 && ['INS-3_V1', 'INS-4_V1', 'LIEN-3_V1', 'WAR-4_V1'].every((r) => res.clauseRefs.indexOf(r) === -1), res.clauseRefs.join(','));
+      const t0 = norm(text);
+      const missing = [];
+      cs.sections.forEach((s) => s.items.filter((i) => !i.byRef).forEach((i) => i.paragraphs.forEach((p) => { if (t0.indexOf(norm(p).slice(0, 40)) === -1) missing.push(i.id); })));
+      ok('PDF ' + st + ': every recorded own-text clause paragraph is drawn', missing.length === 0, missing.join(','));
+      void ctx;
+    }
+    proto.drawText = orig;
+    {
+      const lead = { address: H.OH_ADDR, jobType: 'cash', companyId: 'tenantX' };
+      const mk = (plan) => DE.buildClauseSet(KyLaw, lead, {}, { brand: { entityName: 'Acme LLC' } }, 'tenantX', { ownerNames: 'J', propertyAddress: 'x', date: 'd' }, DE.pdfByRef(plan));
+      ok('PDF refs: PAY-2 is recorded only when the PDF prints a deposit plan', mk(true).refs.indexOf('PAY-2_V1') !== -1 && mk(false).refs.indexOf('PAY-2_V1') === -1);
+      ok('PDF refs: WAR-4 (the package warranty section) is never recorded, the PDF does not print it', mk(true).refs.indexOf('WAR-4_V1') === -1);
+      const ky = (printed) => DE.buildClauseSet(KyLaw, { address: H.KY_ADDR, jobType: 'insurance', companyId: 'tenantX' }, {}, { brand: { entityName: 'Acme LLC' } }, 'tenantX', {}, printed);
+      const dealNoPacket = ky(DE.printedByRef(KyLaw, '<html><body>a stored page with no cancellation packet and no notices</body></html>'));
+      ok('deal page: a stored page that carries none of the statutory blocks records none of them (no CANC-1, INS-1, INS-3, INS-4, LIEN-3)',
+        ['CANC-1_V1', 'INS-1_V1', 'INS-3_V1', 'INS-4_V1', 'LIEN-3_V1'].every((r) => dealNoPacket.refs.indexOf(r) === -1), dealNoPacket.refs.join(','));
+      const full = H.render(env, 'renderContract', H.VARIANTS.ky_insurance);
+      const dealFull = ky(DE.printedByRef(KyLaw, full));
+      ok('deal page: a stored page that carries them records them', ['CANC-1_V1', 'INS-1_V1', 'INS-3_V1', 'INS-4_V1', 'LIEN-3_V1'].every((r) => dealFull.refs.indexOf(r) !== -1), dealFull.refs.join(','));
+      ok('the callers pass what they printed (esign envelope: pdfByRef; deal page: printedByRef of the stored page; client: its own blocks)',
+        /DE\.pdfByRef\(/.test(readRepo('functions/esign-envelope.js')) && /DE\.printedByRef\(KyLaw, pbuf/.test(readRepo('functions/deal-acceptance.js'))
+        && /printed: printed/.test(readRepo('docs/pro/js/document-generator.js')));
+      // a contract with no warranty tier: WAR-4 is not recorded
+      const noWar = H.render(env, 'renderContract', H.VARIANTS.oh_cash, { warrantyTier: 'none' });
+      void noWar;
+    }
+    // the evidence helper
+    const page ='<p>' + KyLaw.PAYMENT_CLAUSE + '</p>';
+    const pr = DE.printedByRef(KyLaw, page);
+    ok('printedByRef: reads INS-1 from the page text and not the others', pr['INS-1'] === true && pr['CANC-1'] === false && pr['INS-3'] === false && pr['LIEN-3'] === false && pr['INS-4'] === false);
+    ok('printedByRef: reads the lien sentence and the packet', DE.printedByRef(KyLaw, '<div>' + KyLaw.KY_LIEN_CLAUSE + '</div>')['LIEN-3'] === true
+      && DE.printedByRef(KyLaw, J.cancelPacketHtml({ transactionDate: '2026-09-28', state: 'OH', sellerName: 'A' }))['CANC-1'] === true);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  section('4. a forged clause-set marker cannot claim clauses that never printed');
+  {
+    const DE = require('../functions/doc-evidence.js');
+    const KyLaw = require('../functions/ky-insurance-law.js');
+    const CS = require('../functions/clause-set.js');
+    const VER = CS.CLAUSE_SET_VERSION;
+    const mk = (refs, ver) => '<html><body><!-- nbd:clause-set ' + (ver || VER) + ' ' + refs.join(',') + ' -->contract</body></html>';
+    const cash = { address: H.OH_ADDR, jobType: 'cash', companyId: 'T1', userId: 'T1' };
+    const kyIns = ['INS-3_V1', 'INS-4_V1', 'LIEN-3_V1', 'INS-2_V1', 'INS-1_V1'];
+    let s = DE.stampFor(KyLaw, cash, {}, { html: mk(kyIns.concat(['PAY-4_V1'])), v1: true });
+    ok('forged marker on a cash lead claiming KY-insurance ids: none recorded, mismatch flagged', s.clauseRefsMismatch === true && kyIns.concat(['PAY-4_V1']).every((r) => s.clauseIds.indexOf(r) === -1), JSON.stringify(s));
+    s = DE.stampFor(KyLaw, cash, {}, { html: mk(['PAY-4_V99']), v1: true });
+    ok('a _V99 ref is not recorded', s.clauseRefsMismatch === true && s.clauseIds.indexOf('PAY-4_V99') === -1);
+    // the genuine marker for this lead, from the real generator
+    const env = H.docs({ flags: { docClauseSetV1: true } });
+    let genuine = 0, mism = 0;
+    Object.keys(H.VARIANTS).forEach((k) => {
+      const v = H.VARIANTS[k];
+      const html = H.render(env, 'renderContract', v);
+      const lead = Object.assign({ companyId: 'T1', userId: 'T1' }, { address: v.address, jobType: v.jobType });
+      const st = DE.stampFor(KyLaw, lead, {}, { html, v1: true });
+      const marker = (/<!-- nbd:clause-set (\S+) ([^ ]+) -->/.exec(html) || [])[2] || '';
+      const refs = marker.split(',').filter(Boolean);
+      const okRec = !st.clauseRefsMismatch && refs.length > 20 && refs.every((r) => st.clauseIds.indexOf(r) !== -1);
+      if (okRec) genuine++; else { mism++; console.log('   ' + k + ' mismatch ' + JSON.stringify(st.clauseRefsMismatch) + ' missing ' + refs.filter((r) => st.clauseIds.indexOf(r) === -1).join(',')); }
+    });
+    ok('the generator\'s own marker is accepted for all six variants (no false mismatch)', genuine === 6 && mism === 0, genuine + '/' + mism);
+    const kyHtml = H.render(env, 'renderContract', H.VARIANTS.ky_insurance);
+    s = DE.stampFor(KyLaw, cash, {}, { html: kyHtml, v1: true });
+    ok('a genuine KY-insurance marker bound to an Ohio cash lead is a mismatch (wrong variant)', s.clauseRefsMismatch === true && s.clauseIds.indexOf('INS-3_V1') === -1);
+    const offHtml = H.render(env, 'renderContract', H.VARIANTS.oh_cash);
+    s = DE.stampFor(KyLaw, cash, {}, { html: offHtml, v1: false });
+    ok('flag OFF: a marker is a forgery (nothing recorded, mismatch flagged)', s.clauseRefsMismatch === true && s.clauseIds.indexOf('PAY-4_V1') === -1);
+    s = DE.stampFor(KyLaw, cash, {}, { html: '<html>legacy</html>', v1: true });
+    ok('no marker: no v1 refs and no mismatch (a legacy document)', !s.clauseRefsMismatch && s.clauseIds.indexOf('PAY-4_V1') === -1);
+    s = DE.stampFor(KyLaw, cash, {}, { html: mk(['PAY-4_V1'], 'CS-1999-01-01.1'), v1: true });
+    ok('a marker with another clause-set version is a mismatch', s.clauseRefsMismatch === true);
+    s = DE.stampFor(KyLaw, cash, {}, { refs: ['PAY-4_V1', 'LIEN-3_V1', 'ZZZ-9_V1'] });
+    ok('server-built refs: only refs the registry would print for this lead are kept', s.clauseIds.indexOf('PAY-4_V1') !== -1 && s.clauseIds.indexOf('LIEN-3_V1') === -1 && s.clauseIds.indexOf('ZZZ-9_V1') === -1);
+    // the callers pass the flag and carry the mismatch
+    const rs = readRepo('functions/remote-signing.js'), ip = readRepo('functions/in-person-signing-logic.js');
+    ok('remote link and in-person pass the clause flag to stampFor and keep clauseRefsMismatch', /v1: clauseFlagOnAtMint/.test(rs) && /clauseRefsMismatch/.test(rs) && /clauseRefsMismatch/.test(ip) && /v1: /.test(ip));
+    const ev = DE.buildEvidence({ path: 'in_person', clauseRefsMismatch: true });
+    ok('buildEvidence always carries clauseRefsMismatch (false by default)', ev.clauseRefsMismatch === true && DE.buildEvidence({}).clauseRefsMismatch === false);
+  }
+
   // @@SECTIONS@@
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

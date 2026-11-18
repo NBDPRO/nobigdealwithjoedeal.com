@@ -556,7 +556,7 @@ exports.createSignRequest = onCall(
       priceSnapshot,
       ...(isContract && !priceSnapshot ? { priceSnapshotMissing: true, priceLockReason } : {}),
       // Evidence parity (2026-11-18): the clause set this document was sent under.
-      ...DE.stampFor(KyLaw, lead, {}, { html: gateHtml }),
+      ...DE.stampFor(KyLaw, lead, {}, { html: gateHtml, v1: clauseFlagOnAtMint === true }),
       status: 'pending',
       mintedAt: FieldValue.serverTimestamp(),
       expiresAt,
@@ -908,11 +908,13 @@ exports.submitSignature = onRequest(
         tx.update(tokRef, { status: 'signed', signedAt: FieldValue.serverTimestamp(),
           evidenceFacts: Object.assign({}, evidenceFacts, {
             clauseSetVersion: t.clauseSetVersion || null, clauseIds: Array.isArray(t.clauseIds) ? t.clauseIds : [],
+            clauseRefsMismatch: t.clauseRefsMismatch === true,
           }),
         });
         return { leadId: t.leadId, docId: t.docId, ownerUid: t.ownerUid, htmlPath: t.htmlPath, signerName: t.signerName || '',
           docType: t.docType || null,
           clauseSetVersion: t.clauseSetVersion || null, clauseIds: Array.isArray(t.clauseIds) ? t.clauseIds : [],
+          clauseRefsMismatch: t.clauseRefsMismatch === true,
           priceSnapshot: (t.priceSnapshot && typeof t.priceSnapshot === 'object') ? t.priceSnapshot : null,
           priceSnapshotMissing: t.priceSnapshotMissing === true, priceLockReason: t.priceLockReason || null };
       });
@@ -1020,7 +1022,7 @@ exports.submitSignature = onRequest(
       // the server's own copy of the text.
       signatureEvidence: DE.buildEvidence({
         path: 'remote_link',
-        clauseSetVersion: info.clauseSetVersion, clauseIds: info.clauseIds,
+        clauseSetVersion: info.clauseSetVersion, clauseIds: info.clauseIds, clauseRefsMismatch: info.clauseRefsMismatch === true,
         documentSha256: originalHtml ? sha(originalHtml) : null,
         signedSha256: recordSaved ? sha(recordHtml) : null,
         consent: consentAsked ? { agreed: true, text: ESL.CONSENT_TEXT, at: signedAtNow.getTime() } : { agreed: null },

@@ -75,6 +75,7 @@ exports.recordInPersonSignature = onCall(
       const clauseFlag = await DE.clauseFlagForGate(db, uid, HttpsError);
       const evidence = (evidenceFlag || clauseFlag) ? Object.assign({
         enabled: true,
+        clauseFlag,
         readBytes: async (p, max) => {
           const f = getStorage().bucket().file(p);
           if (max) {

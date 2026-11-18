@@ -313,7 +313,7 @@ exports.createDealAcceptToken = onCall(
       if (clauseOn) {
         cs = DE.buildClauseSetFor(HttpsError, KyLaw, leadData, {}, profile, ownerCompanyId, {
           ownerNames: dealOwner, propertyAddress: dealAddress, date: KyLaw.formatDay(KyLaw.todayIn(KyLaw.resolveTimeZone(profile))),
-        });
+        }, DE.printedByRef(KyLaw, pbuf.toString('utf8'))); // by-reference clauses are listed only when the stored page carries them
         clauseSetV1 = { version: cs.clauseSetVersion, refs: cs.refs.slice(), html: DE.clauseSetHtml(cs), variant: cs.variant };
       }
       const gaps = DE.serverContractGaps({

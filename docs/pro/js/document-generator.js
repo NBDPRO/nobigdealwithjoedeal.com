@@ -374,8 +374,17 @@ window.NBDDocGen = {
     const state = j.state || '';
     const source = state ? (j.insurance ? 'insurance' : (jt === 'finance' ? 'financed' : 'cash')) : '';
     const party = CS.partyFor(g.brand || {}, g.isNbd);
+    // Review 2026-11-18, item 1: a by-reference clause is recorded only when its block is in this document. The cancel
+    // packet is how a v1 contract carries CANC-1; with no packet the contract is not built.
+    if (!stat.cancelPacket) throw new Error('The cancellation notice did not load. Reload the page and try again.');
+    const printed = {
+      'PAY-2': String(merged.paymentSchedule == null ? '' : merged.paymentSchedule).trim() !== '',
+      'WAR-4': this._jobWarrantyText(merged) !== '',
+      'INS-1': !!stat.paymentClause, 'INS-3': !!stat.notices, 'INS-4': !!(stat.cancelPacket && j.kyInsurance),
+      'LIEN-3': !!stat.lien, 'CANC-1': !!stat.cancelPacket
+    };
     const r = CS.renderV1({
-      state: state, paymentSource: source, party: party,
+      state: state, paymentSource: source, party: party, printed: printed,
       terms: CS.paymentTermsFor(cp && cp.paymentTerms, g.isNbd),
       facts: { ownerNames: '{{homeownerName}}', propertyAddress: '{{address}}', date: '{{date}}', companyPhone: merged.contractorPhone || '' },
       hasWarranty: this._jobWarrantyText(merged) !== ''

@@ -119,6 +119,8 @@ function buildEvidence(input) {
     path: _s(i.path, 40),
     clauseSetVersion: _s(i.clauseSetVersion, 60),
     clauseIds: Array.isArray(i.clauseIds) ? i.clauseIds.slice(0, 60).map(String) : [],
+    // true when the stored document's clause-set marker did not match the refs the server recomputed (review 2026-11-18, item 4).
+    clauseRefsMismatch: i.clauseRefsMismatch === true,
     documentSha256: _s(i.documentSha256, 64),
     signedSha256: _s(i.signedSha256, 64),
     consent: {
@@ -137,24 +139,58 @@ function buildEvidence(input) {
 }
 
 /**
- * The v1 clause refs a document printed: opts.refs (the server built the document) or the
- * <!-- nbd:clause-set VERSION ref,ref --> marker in opts.html. null when there are none.
+ * Which by-reference clauses (statutory blocks the registry does not retype) a document's TEXT actually carries
+ * (review 2026-11-18, item 1). PAY-2 and WAR-4 are the template's own sections and cannot be read back from text: the
+ * caller that built the document attests them. -> { 'CANC-1': bool, 'INS-1': bool, 'INS-3': bool, 'INS-4': bool, 'LIEN-3': bool, 'PAY-2': false, 'WAR-4': false }
  */
-function v1RefsFrom(opts) {
-  const o = opts || {};
-  let version = o.version || ClauseSet.CLAUSE_SET_VERSION;
-  let raw = Array.isArray(o.refs) ? o.refs : null;
-  if (!raw && typeof o.html === 'string') {
-    const m = /<!-- nbd:clause-set (CS-[0-9.-]+) ([A-Za-z0-9_,-]{1,2000}) -->/.exec(o.html);
-    if (m) { version = m[1]; raw = m[2].split(','); }
-  }
-  if (!raw) return null;
-  const known = ClauseSet.V1_IDS;
-  const refs = raw.filter((r) => { const m = /^([A-Z]+-\d+)_V\d+$/.exec(String(r)); return m && known.indexOf(m[1]) !== -1; });
-  return refs.length && version === ClauseSet.CLAUSE_SET_VERSION ? { version, refs } : null;
+function printedByRef(KyLaw, html) {
+  const raw = html == null ? '' : String(html);
+  const text = Checks.visibleText(raw).replace(/\s+/g, ' ');
+  const has = (s) => typeof s === 'string' && s.trim() !== '' && text.indexOf(s.replace(/\s+/g, ' ').trim()) !== -1;
+  return {
+    'CANC-1': !!(KyLaw && typeof KyLaw.hasCancelPacket === 'function' && KyLaw.hasCancelPacket(raw)),
+    'INS-1': has(KyLaw && KyLaw.PAYMENT_CLAUSE),
+    'INS-3': has(KyLaw && KyLaw.KY_NOTICE_CANCEL) && has(KyLaw && KyLaw.KY_NOTICE_NO_ASSIGNMENT),
+    'INS-4': /data-nbd-noc="ky"/.test(raw),
+    'LIEN-3': has(KyLaw && KyLaw.KY_LIEN_CLAUSE),
+    'PAY-2': false,
+    'WAR-4': false,
+  };
 }
 
-/** { clauseSetVersion, clauseIds } for a lead (+ estimate), through the one Kentucky classifier. */
+// Refs a document may carry or omit without that being a disagreement: the template's own payment schedule and
+// warranty section (a contract with no warranty tier prints no WAR-4).
+const OPTIONAL_REFS = ['PAY-2_V1', 'WAR-4_V1'];
+
+/**
+ * The v1 refs a document of this lead's kind can carry, recomputed on the server from the lead (state, payment
+ * source) and the registry's CURRENT wording versions; never read from the document. By-reference blocks are
+ * included only when printed (html given: read from the text; html null: all, for a server-built document).
+ */
+function expectedV1Refs(KyLaw, lead, est, html) {
+  const ctx = clauseContextFor(KyLaw, lead, est);
+  const byRef = html == null
+    ? { 'INS-1': true, 'INS-3': true, 'INS-4': true, 'LIEN-3': true, 'CANC-1': true }
+    : printedByRef(KyLaw, html);
+  const r = ClauseSet.renderV1({
+    state: ctx.state, paymentSource: ctx.paymentSource,
+    terms: ClauseSet.paymentTermsFor({}, true), party: ClauseSet.partyFor({}, true), facts: {},
+    printed: Object.assign({}, byRef, { 'PAY-2': true, 'WAR-4': true }),
+  });
+  return r.refs;
+}
+
+const _core = (list) => list.filter((x) => OPTIONAL_REFS.indexOf(x) === -1).slice().sort().join(',');
+
+/**
+ * { clauseSetVersion, clauseIds [, clauseRefsMismatch: true] } for a lead (+ estimate), through the one Kentucky classifier.
+ * opts.refs: refs a SERVER-built document reports (e-sign PDF, deal page); only refs the registry would print for this
+ *   lead are kept.
+ * opts.html + opts.v1: a stored document from the rep's browser. Its marker comment is only a HINT (a rep can write
+ *   anything into stored HTML): the refs are recomputed here from the lead and the document text, the marker must agree
+ *   with them, the version must be the registry's current one, and the clause flag must have been on (opts.v1 === true).
+ *   Anything else records the legacy statutory refs only and sets clauseRefsMismatch.
+ */
 function stampFor(KyLaw, lead, est, opts) {
   let j = null;
   try { j = KyLaw.classifyLead(lead || {}, est || {}); } catch (_) { j = null; }
@@ -166,10 +202,24 @@ function stampFor(KyLaw, lead, est, opts) {
   }
   const d = ClauseSet.describeFor({ state: j ? j.state : '', paymentSource: source });
   const out = { clauseSetVersion: d.clauseSetVersion, clauseIds: d.clauses.map((c) => c.ref) };
-  // A document that printed the clause set v1 says so (marker) or the caller passes the refs it built;
-  // only refs the registry knows are recorded, so a forged marker cannot add an unknown id.
-  const v1 = v1RefsFrom(opts);
-  if (v1) { out.clauseSetVersion = v1.version; v1.refs.forEach((r) => { if (out.clauseIds.indexOf(r) === -1) out.clauseIds.push(r); }); }
+  const o = opts || {};
+  const add = (refs) => refs.forEach((r) => { if (out.clauseIds.indexOf(r) === -1) out.clauseIds.push(r); });
+  if (Array.isArray(o.refs)) {
+    let exp = [];
+    try { exp = expectedV1Refs(KyLaw, lead, est, null); } catch (_) { exp = []; }
+    const keep = o.refs.map(String).filter((r) => exp.indexOf(r) !== -1);
+    if (keep.length) add(keep);
+  } else if (typeof o.html === 'string') {
+    const m = /<!-- nbd:clause-set (CS-[0-9.-]+) ([A-Za-z0-9_,-]{1,2000}) -->/.exec(o.html);
+    if (m) {
+      let exp = null;
+      try { exp = expectedV1Refs(KyLaw, lead, est, o.html); } catch (_) { exp = null; }
+      const claimed = m[2].split(',');
+      const same = !!exp && o.v1 === true && m[1] === ClauseSet.CLAUSE_SET_VERSION
+        && claimed.every((r) => exp.indexOf(r) !== -1) && _core(claimed) === _core(exp);
+      if (same) add(claimed); else out.clauseRefsMismatch = true;
+    }
+  }
   return out;
 }
 
@@ -220,6 +270,11 @@ function safeFacts(facts) {
     out[k] = typeof v === 'string' ? ClauseSet.plain(v) : (Array.isArray(v) ? v.map((x) => (typeof x === 'string' ? ClauseSet.plain(x) : x)) : v);
   });
   return out;
+}
+
+/** The by-reference blocks the server e-sign estimate PDF actually prints: the Payment clause, the FTC cancellation forms and, when the estimate has a deposit plan, its schedule. */
+function pdfByRef(hasDepositPlan) {
+  return { 'PAY-2': !!hasDepositPlan, 'INS-1': true, 'CANC-1': true, 'WAR-4': false, 'INS-3': false, 'INS-4': false, 'LIEN-3': false };
 }
 
 /** buildClauseSet for a callable: a refusal becomes a failed-precondition HttpsError (HttpsError is passed in). */
@@ -319,7 +374,7 @@ function clauseFlagForUid(db, uid) { return flagForUid(db, uid, { flag: CLAUSE_F
 module.exports = {
   CLAUSE_FLAG_NAME, clauseFlagForUid,
   FLAG_NAME, FLAG_DEFAULT, NBD_ENTITY_NAME, CLAUSE_SET_VERSION: ClauseSet.CLAUSE_SET_VERSION,
-  NBD_OWNER_UID_FOR_TESTS: NBD_OWNER_UID, clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, buildClauseSetFor, clauseFlagForGate, v1RefsFrom, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
+  NBD_OWNER_UID_FOR_TESTS: NBD_OWNER_UID, clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, buildClauseSetFor, clauseFlagForGate, printedByRef, expectedV1Refs, pdfByRef, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
   serverContractGaps, estimateCents, isContractClass: Checks.isContractClass,
   describeGaps: Checks.describeGaps,
 };

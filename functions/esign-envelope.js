@@ -692,7 +692,7 @@ exports.sendEstimateEnvelope = onCall(
     const clauseSet = clauseOn ? DE.buildClauseSetFor(HttpsError, KyLaw, lead, est, profile, lead.companyId || lead.userId, {
       ownerNames: signers.map((s) => s.name).join(' and '), propertyAddress: address,
       date: KyLaw.formatDay(KyLaw.todayIn(timeZone)),
-    }) : null;
+    }, DE.pdfByRef(!!safeDepositPlan(est))) : null;
     if (checkSend) {
       const gaps = DE.serverGaps({
         type: 'estimate_esign', priceCents: Math.round(price * 100), address,
