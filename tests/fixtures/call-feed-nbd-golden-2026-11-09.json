@@ -610,6 +610,16 @@
         "alt": "media",
         "supportsAllDrives": true
       }
+    },
+    {
+      "url": "https://www.googleapis.com/drive/v3/files",
+      "params": {
+        "q": "'nbdroot' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed = false",
+        "fields": "nextPageToken, files(id, name, size, mimeType, createdTime)",
+        "pageSize": 200,
+        "supportsAllDrives": true,
+        "includeItemsFromAllDrives": true
+      }
     }
   ],
   "model": [

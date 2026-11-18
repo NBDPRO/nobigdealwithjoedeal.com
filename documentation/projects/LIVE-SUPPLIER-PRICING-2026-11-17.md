@@ -275,6 +275,23 @@ Next slice: 5 (live check, dry) waits on the supplier API access only Jo can
 request (the list below). When Jo asks for more work here, start from this
 section, the slice 3 and slice 4 notes, and the design's section 8.
 
+## Update 2026-11-18: Jo's next-step decisions, product photos built
+
+Jo, 2026-11-18, in chat (each the recommended answer):
+
+- **Product photos:** the owner and company admins add them (take a photo or pick
+  a file) on a product's Stores & prices sheet and on each supplier item; they
+  show on the product card and the sheet, inside the CRM only. **Built**, ships
+  dark: [LIVE-SUPPLIER-PRICING-PHOTOS-2026-11-18](LIVE-SUPPLIER-PRICING-PHOTOS-2026-11-18.md).
+- **Slice 5 (Check today's price) waits** until a store-price service is chosen
+  and keyed. Not built.
+- **Slice 7 (materials list with real prices):** supplier prices on the list are
+  seen by the owner, company admins and managers only (reps still see the
+  quantities and where to buy); each line uses the supplier set as usual for that
+  kind of product, else the cheapest fresh price, with the quantity from the
+  item's confirmed pack size; the company's own suppliers replace the two
+  hard-coded store names; no price shows "No price yet". Next to build.
+
 ## Waiting on Jo
 
 Outside actions (none blocks slice 1):

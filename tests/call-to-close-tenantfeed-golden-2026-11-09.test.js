@@ -32,6 +32,11 @@
  * other write (shifted by one), Drive request, Storage call, model prompt and
  * push is unchanged, and the multi-tenant run still equals NBD's own pass.
  *
+ * Regenerated 2026-11-18 with Jo's OK for the loose-recordings fix (Cube ACR
+ * started uploading into the top "Cube ACR" folder, not day folders). One
+ * Drive request appended: a list of the top folder's non-folder files. Every
+ * write, Storage call, model prompt and push is byte-identical.
+ *
  * It runs twice: once as before (no multi-tenant env), once with
  * CALL_CENTER_MULTI_TENANT_ENABLED=true and an enabled tenant config sitting
  * in Firestore; NBD's own pass must write exactly the same either way.

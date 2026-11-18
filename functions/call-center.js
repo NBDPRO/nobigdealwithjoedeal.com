@@ -162,21 +162,26 @@ async function runIngest({ db, bucket, live, nowMs, feed }) {
   let budget = MAX_FILES_PER_RUN;
 
   // One day folder: file what's new; true when every recording in it is done.
-  async function fileDay(day) {
-    const files = await listAll("'" + day.id + "' in parents and trashed = false", 'id, name, size, mimeType, createdTime');
+  // loose = the top folder itself (2026-11-18: Cube ACR started uploading
+  // there instead of into day folders): its subfolders are not files, and its
+  // recordings are held to the history floor by the date in their name.
+  async function fileDay(day, loose) {
+    const files = await listAll("'" + day.id + "' in parents" + (loose ? " and mimeType != '" + FOLDER_MIME + "'" : '') + ' and trashed = false', 'id, name, size, mimeType, createdTime');
     files.sort((a, b) => String(a.name).localeCompare(String(b.name)));
     let finishedDay = true;
-    // One batched read per day folder for "already filed?".
+    // Batched reads for "already filed?" (the top folder keeps growing, so in chunks).
     // Sidecars (.json, Cube ACR's per-call metadata) by name: duration only.
     const sidecars = new Map(files.filter((f) => /\.json$/i.test(f.name || '')).map((f) => [f.name, f]));
     const refs = files.map((f) => db.collection(COLLECTION).doc(L.callDocId(f.id)));
     const have = new Set();
-    if (refs.length) (await db.getAll(...refs)).forEach((s) => { if (s.exists) have.add(s.id); });
+    for (let i = 0; i < refs.length; i += 300) (await db.getAll(...refs.slice(i, i + 300))).forEach((s) => { if (s.exists) have.add(s.id); });
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
+      if (loose && f.mimeType === FOLDER_MIME) continue;
       if (sidecars.has(f.name)) continue; // read alongside its recording
       const parsed = L.parseCubeAcrName(f.name);
       if (!parsed) { counts.skipped++; continue; }
+      if (loose && parsed.ymd < floor) continue;
       counts.seen++;
       const docRef = refs[i];
       if (have.has(docRef.id)) continue;
@@ -249,6 +254,8 @@ async function runIngest({ db, bucket, live, nowMs, feed }) {
   const recentFrom = L.daysBefore(etYmd(nowMs), RECENT_DAYS - 1);
   const done = new Map();
   for (const day of scan.filter((d) => d.ymd >= recentFrom).reverse()) done.set(day.ymd, await fileDay(day));
+  // Recordings loose in the top folder: re-listed every run; they never move the cursor.
+  await fileDay({ id: root }, true);
   for (const day of scan.filter((d) => d.ymd < recentFrom)) {
     const fin = await fileDay(day);
     done.set(day.ymd, fin);
