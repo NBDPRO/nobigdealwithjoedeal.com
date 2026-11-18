@@ -96,7 +96,9 @@ async function contractGapsFor(db, ctx, evidence) {
  */
 async function recordEvidence(db, ctx, evidence) {
   const { leadId, docId, lead, docMeta, uid, data } = ctx;
-  if (docMeta.signatureEvidence || docMeta.signedRemotely === true) return null;
+  // Fast path only: the transaction below is the authority. signedRemotely is NOT consulted: it is a
+  // client-writable field, so a rep could set it to skip the record (review 2026-11-18, finding 4).
+  if (docMeta.signatureEvidence) return null;
   const DE = require('./doc-evidence');
   const htmlPath = typeof docMeta.htmlPath === 'string' ? docMeta.htmlPath : '';
   let signedSha256 = null;
@@ -106,19 +108,37 @@ async function recordEvidence(db, ctx, evidence) {
     try { const buf = await evidence.readBytes(htmlPath); if (buf) signedSha256 = DE.sha256Hex(buf); } catch (_) { signedSha256 = null; }
   }
   const stamp = DE.stampFor(require('./ky-insurance-law'), lead, {});
-  const at = docMeta.signedAt && typeof docMeta.signedAt.toMillis === 'function' ? docMeta.signedAt.toMillis() : Date.now();
+  // Time is the SERVER's clock at this call. The row's signedAt is written by the rep's own browser,
+  // so it is kept only as a client-reported value (review 2026-11-18, finding 3).
+  const clientSignedAt = docMeta.signedAt && typeof docMeta.signedAt.toMillis === 'function' ? docMeta.signedAt.toMillis() : null;
   const record = DE.buildEvidence({
     path: 'in_person', clauseSetVersion: stamp.clauseSetVersion, clauseIds: stamp.clauseIds,
-    documentSha256: signedSha256, signedSha256,
+    // The bytes read here are the signed copy the rep's device saved over the original: they are NOT
+    // "the document the homeowner was shown", so documentSha256 stays null on this path.
+    documentSha256: null, signedSha256,
     // No consent step on the rep's phone today (phase 2): recorded as "not asked", never as agreed.
     consent: { agreed: null },
-    signedAtMs: at, ip: evidence.ip, ua: evidence.ua, recordedByUid: uid,
+    signedAtMs: Date.now(), ip: evidence.ip, ua: evidence.ua, recordedByUid: uid,
   });
+  record.signedCopySha256 = signedSha256;
+  record.signedAtClientReported = clientSignedAt;
+  // What this record proves: the rep's signed-in device made the call, at this server time, from this
+  // address. It does not prove that a homeowner signed, or that the homeowner saw this document.
+  record.attests = 'rep_device_and_time_only';
   // The pre-signing digest is the CLIENT's own report (the unsigned original is overwritten in
   // place by the signed copy); the server's digest above is the authority.
   record.presentedSha256ClientReported = /^[a-f0-9]{64}$/.test(String(data.presentedSha256 || '')) ? data.presentedSha256 : null;
-  await db.doc('leads/' + leadId + '/documents/' + docId).set({ signatureEvidence: record }, { merge: true });
-  return record;
+  // Write-once, transactionally (finding 4): the write happens only if signatureEvidence is still
+  // absent when the transaction reads the row, so two concurrent calls cannot both write.
+  const ref = db.doc('leads/' + leadId + '/documents/' + docId);
+  const wrote = await db.runTransaction(async (t) => {
+    const snap = await t.get(ref);
+    const cur = snap && snap.exists ? (snap.data() || {}) : null;
+    if (!cur || cur.signatureEvidence) return false;
+    t.set(ref, { signatureEvidence: record }, { merge: true });
+    return true;
+  });
+  return wrote ? record : null;
 }
 
 /**

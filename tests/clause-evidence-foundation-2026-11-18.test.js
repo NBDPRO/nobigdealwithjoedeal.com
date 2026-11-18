@@ -392,8 +392,8 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
       let ev = (db._get('leads/L1/documents/d1') || {}).signatureEvidence || {};
       ok('in-person: the card still moves (unchanged)', out.ok === true && out.moved === true && spine.includes('contract_signed'));
       ok('in-person: evidence written by the server: path, clause-set version, refs', ev.path === 'in_person' && !!CS && ev.clauseSetVersion === CS.CLAUSE_SET_VERSION && ev.clauseIds.length === 2);
-      ok('in-person: server digest of the signed copy as stored', ev.signedSha256 === kit.sha256(HTML) && ev.documentSha256 === ev.signedSha256);
-      ok('in-person: IP and UA are the request\'s; time is the document\'s server timestamp; who recorded it', ev.ip === '198.51.100.30' && /RepPhone/.test(ev.ua) && ev.signedAtMs === 1766000000000 && ev.recordedByUid === 'U1');
+      ok('in-person: server digest of the signed copy as stored, labelled signedCopySha256 (documentSha256 is not claimed)', ev.signedCopySha256 === kit.sha256(HTML) && ev.signedSha256 === ev.signedCopySha256 && ev.documentSha256 === null);
+      ok('in-person: IP and UA are the request\'s; who recorded it', ev.ip === '198.51.100.30' && /RepPhone/.test(ev.ua) && ev.recordedByUid === 'U1');
       ok('in-person: no consent step today = recorded as not asked (null), never agreed', ev.consent && ev.consent.agreed === null && ev.consent.text === null);
       ok('in-person: the client\'s pre-signing digest is kept but labelled client-reported', ev.presentedSha256ClientReported === 'a'.repeat(64));
       await call(db, { presentedSha256: 'b'.repeat(64) }, deps({ ip: '6.6.6.6' }));
@@ -404,8 +404,8 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
       ok('in-person: any signed document type gets evidence; a non-contract never moves the card', o2.skipped === 'not_a_contract' && !!(db._get('leads/L1/documents/d1') || {}).signatureEvidence);
       db = mk(); await call(db, {}, { recordJobEvent: deps().recordJobEvent });
       ok('flag OFF (no evidence dep): nothing is written, as before', !(db._get('leads/L1/documents/d1') || {}).signatureEvidence);
-      db = mk({ signedRemotely: true }); await call(db, {}, deps());
-      ok('a remotely signed document keeps the evidence that path wrote (none overwritten)', !(db._get('leads/L1/documents/d1') || {}).signatureEvidence);
+      db = mk({ signedRemotely: true, signatureEvidence: { path: 'remote_link', ip: '9.9.9.9' } }); await call(db, {}, deps());
+      ok('a remotely signed document keeps the evidence that path wrote (none overwritten)', (db._get('leads/L1/documents/d1') || {}).signatureEvidence.path === 'remote_link' && db._get('leads/L1/documents/d1').signatureEvidence.ip === '9.9.9.9');
       db = mk({ type: 'work_report', htmlPath: 'documents/OTHER/L-OTHER/x.html' }); await call(db, {}, deps({ readBytes: async () => { throw new Error('must not read a foreign path'); } }));
       ev = (db._get('leads/L1/documents/d1') || {}).signatureEvidence || {};
       ok('a path outside this lead is never read (digest null, evidence still written)', ev.signedSha256 === null && ev.path === 'in_person');
@@ -603,6 +603,68 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
       const dg = read('docs/pro/js/document-generator.js') || '';
       const gateSrc = (dg.match(/_docSendGate\(type, data, html\) \{[\s\S]*?\n  \},/) || [''])[0];
       ok('2 browser: with the flag ON and the checks module missing the gate BLOCKS (the module-missing branch returns false)', /if \(!C\)[\s\S]{0,900}return false/.test(gateSrc) && /reload/i.test(gateSrc), gateSrc.slice(0, 200));
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  section('R3. findings 3 and 4: in-person evidence says what it proves, and is written once, transactionally');
+  {
+    const L = tryReq(path.join(FN, 'in-person-signing-logic.js'));
+    if (!L || !DE || !kit) ok('R3 harness available', false);
+    else {
+      const HTML = '<html><body>SIGNED COPY</body></html>';
+      const PROFILE = { brand: { legalName: 'Acme Roofing LLC', entityName: 'Acme Roofing LLC', contact: { mailingAddress: '1 Main St, Cincinnati, OH 45202' } } };
+      const mk = (docExtra, serialize) => {
+        const db = kit.makeDb({
+          'leads/L1': { userId: 'U1', companyId: 'U1', firstName: 'Dana', lastName: 'Whitfield', address: '12 Oak St, Cincinnati, OH 45202', jobType: 'cash', primaryEstimateId: 'E1' },
+          'estimates/E1': { grandTotal: 14500 }, 'companyProfile/U1': PROFILE,
+          'leads/L1/documents/d1': Object.assign({ type: 'completion_cert', status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner' }], htmlPath: 'documents/U1/L1/d-1.html' }, docExtra || {}),
+        });
+        db.evidenceWrites = [];
+        const origDoc = db.doc;
+        db.doc = (p) => {
+          const r = origDoc(p); const set0 = r.set;
+          r.set = async (patch, o) => { if (patch && patch.signatureEvidence) db.evidenceWrites.push(patch.signatureEvidence); return set0(patch, o); };
+          return r;
+        };
+        if (serialize) {
+          // Firestore re-runs a transaction whose read changed under it; model that with one-at-a-time transactions.
+          let chain = Promise.resolve();
+          const origTx = db.runTransaction;
+          db.runTransaction = (fn) => { const run = chain.then(() => origTx(fn)); chain = run.catch(() => {}); return run; };
+        }
+        return db;
+      };
+      const dp = (o) => ({ recordJobEvent: async () => ({ moved: true }), evidence: Object.assign({ enabled: true, ip: '198.51.100.30', ua: 'RepPhone', readBytes: async () => Buffer.from(HTML) }, o || {}) });
+      const call = (db, d, o) => L.handleInPersonSignature(db, { uid: 'U1', token: {} }, Object.assign({ leadId: 'L1', docId: 'd1' }, d || {}), dp(o));
+
+      // finding 3
+      let db = mk(); const t0 = Date.now();
+      await call(db, { presentedSha256: 'a'.repeat(64) });
+      const t1 = Date.now();
+      const ev = (db._get('leads/L1/documents/d1') || {}).signatureEvidence || {};
+      ok('3: the digest of the stored signed copy is signedCopySha256', ev.signedCopySha256 === kit.sha256(HTML));
+      ok('3: documentSha256 is NOT claimed on the in-person path (it was the signed copy, not the presented document)', ev.documentSha256 === null);
+      ok('3: the client\'s presentedSha256 stays, labelled client-reported', ev.presentedSha256ClientReported === 'a'.repeat(64));
+      ok('3: the evidence time is SERVER time, not the row\'s client-set signedAt', ev.signedAtMs >= t0 && ev.signedAtMs <= t1 && ev.signedAtMs !== 1766000000000, String(ev.signedAtMs));
+      ok('3: the row\'s own signedAt is kept, but labelled client-reported', ev.signedAtClientReported === 1766000000000);
+      ok('3: the record states what it attests', ev.attests === 'rep_device_and_time_only');
+
+      // finding 4
+      db = mk({}, true);
+      const results = await Promise.all([call(db, {}, { ip: '1.1.1.1' }), call(db, {}, { ip: '2.2.2.2' })]);
+      const fin = (db._get('leads/L1/documents/d1') || {}).signatureEvidence || {};
+      ok('4: two concurrent calls write the evidence exactly once', db.evidenceWrites.length === 1, 'writes=' + db.evidenceWrites.length);
+      ok('4: ...the winner\'s record stands (not a blend, not the loser\'s)', ['1.1.1.1', '2.2.2.2'].includes(fin.ip) && db.evidenceWrites[0] && db.evidenceWrites[0].ip === fin.ip);
+      ok('4: ...and both calls still succeed (the card move is unaffected)', results.every((r) => r && r.ok === true));
+      db = mk({ signedRemotely: true }, true);
+      await call(db, {});
+      ok('4: a client-set signedRemotely:true no longer skips the evidence (it is client-writable)', ((db._get('leads/L1/documents/d1') || {}).signatureEvidence || {}).path === 'in_person');
+      db = mk({ signedRemotely: true, signatureEvidence: { path: 'remote_link', ip: '9.9.9.9' } }, true);
+      await call(db, {});
+      ok('4: evidence a signing path wrote is never replaced (the precondition is "absent", not a client flag)', db._get('leads/L1/documents/d1').signatureEvidence.ip === '9.9.9.9' && db.evidenceWrites.length === 0);
+      const src = read('functions/in-person-signing-logic.js') || '';
+      ok('4: recordEvidence uses a transaction that reads signatureEvidence before writing', /runTransaction/.test(src) && !/signedRemotely === true\) return null/.test(src));
     }
   }
 
