@@ -201,6 +201,7 @@ const ON_OWNER = { _default: {}, CO: { docAtticAckV1: true } };
     let db = mkIP({ type: 'attic_acknowledgment' });
     let r = await runIP(db, tick(INSP));
     ok('in-person: the real form, fully ticked: the server result is written', !!r.v && (db._get('leads/L1/documents/d1') || {}).atticAckResult && db._get('leads/L1/documents/d1').atticAckResult.complete === true, r.e && r.e.message);
+    ok('in-person: the result says what it proves - the rep device and time only, not that the homeowner signed', ((db._get('leads/L1/documents/d1') || {}).atticAckResult || {}).attests === 'rep_device_and_time_only');
     db = mkIP({ type: 'attic_acknowledgment' });
     r = await runIP(db, HAND.replace('data-nbd-ack="ack:saw"', 'data-nbd-ack="ack:saw" checked=""'));
     ok('in-person: a rep\'s hand-written HTML with its one control ticked: refused, marked, NO atticAckResult', !!r.e && r.e.code === 'failed-precondition' && !(db._get('leads/L1/documents/d1') || {}).atticAckResult && !!(db._get('leads/L1/documents/d1') || {}).evidenceRefused);

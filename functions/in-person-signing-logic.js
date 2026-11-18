@@ -224,6 +224,9 @@ async function handleInPersonSignature(db, auth, data, deps) {
       if (!buf) throw new RefusalError('unavailable', 'Could not read the signed attic form. Try again in a moment.');
       const result = AG.resultFor(docMeta.type, Buffer.from(buf).toString('utf8'), Date.now());
       if (!result.complete) await refuse('Every box on the attic form must be ticked and every line answered Yes or No before it counts as signed.');
+      // What this proves (review 2026-11-18): the rep's signed-in device made the call, at this server time, over a copy of the form that
+      // matches the server's manifest. It does not prove the homeowner ticked or signed it (the same limit as the evidence record's attests).
+      result.attests = 'rep_device_and_time_only';
       await db.doc('leads/' + leadId + '/documents/' + docId).set({ atticAckResult: result }, { merge: true });
     } else if (AG.gated(docMeta.type)) {
       let dec;
