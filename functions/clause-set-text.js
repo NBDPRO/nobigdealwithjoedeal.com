@@ -174,6 +174,7 @@
       "version": 1,
       "title": "Contract controls over invoice",
       "prints": "all",
+      "invoiceLine": "Late-payment terms are in your signed contract.",
       "parts": [
         {
           "text": "Invoices, reminders and payment links are for convenience. They refer to this contract and do not change it. The late-payment and cost terms that apply to your job are the ones in this contract."
