@@ -485,7 +485,8 @@
   }
 
   async function openProduct(productId) {
-    if (!PL() || !PL().enabled() || !LG()) return;
+    // A sales_rep reads no supplier price (rules, Jo 2026-11-18): the sheet is for the owner, admins and managers.
+    if (!PL() || !PL().enabled() || !PL().canRecord() || !LG()) return;
     close();
     const product = productOf(productId);
     S = { productId, product, suppliers: [], offers: [], history: {}, form: null, cost: null, link: null, busy: false, error: '', loading: true, lastFocus: document.activeElement };
@@ -504,7 +505,7 @@
   }
   /** The list of items no product is linked to yet (the Product Library's "Unlinked items" button). */
   async function openUnlinked() {
-    if (!PL() || !PL().enabled() || !LG()) return;
+    if (!PL() || !PL().enabled() || !PL().canRecord() || !LG()) return;
     close();
     S = { mode: 'unlinked', productId: null, product: null, suppliers: [], offers: [], history: {}, form: null, busy: false, error: '', loading: true, lastFocus: document.activeElement };
     const ov = document.createElement('div');
