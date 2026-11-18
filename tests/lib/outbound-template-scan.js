@@ -70,6 +70,7 @@ const TEMPLATE_FILES = Object.freeze([
   'docs/pro/js/document-generator-templates.js',
   'docs/pro/js/document-generator-library.js',
   'docs/pro/js/clause-set-text.js',  // the clause set v1 wording (2026-11-18, phase 2)
+  'docs/pro/js/attic-ack-text.js',   // the attic acknowledgment wording (2026-11-18, phase 3)
   'docs/pro/js/nbd-comms.js',
 ]);
 
