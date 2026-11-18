@@ -60,8 +60,8 @@ function loadRegistry(textObj) {
     const loader = readRepo('docs/pro/js/script-loader.js');
     const bundle = loader.slice(loader.indexOf('docgen: ['), loader.indexOf('estimate engine', loader.indexOf('docgen: [')) > 0 ? loader.indexOf('// Estimate engine (PR 2c)') : loader.length);
     const a = bundle.indexOf('js/clause-set-text.js'), b = bundle.indexOf('js/clause-set.js'), c = bundle.indexOf('js/document-generator.js');
-    ok('the wording file and the registry load in the same loader group (docgen), wording first, before the generator',
-      a > 0 && b > a && c > b);
+    ok('the wording file and the registry load in the same loader group (docgen), wording first (the generator reads the registry at call time)',
+      a > 0 && b > a && c > 0);
     ok('no page loads either file outside the loader group',
       !/clause-set/.test(readRepo('docs/pro/customer.html')) && !/clause-set/.test(readRepo('docs/pro/dashboard.html')));
   }

@@ -221,10 +221,6 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      // 2026-11-18 clause set v1 (flag docClauseSetV1): the wording, then the registry (reads window.NBDJurisdiction,
-      // loaded eagerly by the page). The generator reads window.NBDClauseSet at call time.
-      'js/clause-set-text.js?v=1',
-      'js/clause-set.js?v=2',
       'js/document-generator.js?v=28',
       'js/document-generator-templates.js?v=20',
       'js/document-generator-library.js?v=5', // 2026-10-04 template library; needs -templates' _tpl
@@ -240,7 +236,12 @@
       'js/customer-signed-doc-upload.js?v=3',
       // 2026-11-18: the fail-closed contract check (flag docEvidenceFoundation); the generator
       // reads window.NBDDocSendChecks at call time, so load order does not matter.
-      'js/doc-send-checks.js?v=2'
+      'js/doc-send-checks.js?v=2',
+      // 2026-11-18 clause set v1 (flag docClauseSetV1): the wording, then the registry (reads window.NBDClauseText and
+      // window.NBDJurisdiction, loaded eagerly by the page). Last in the group (the smoke test reads the head of it for
+      // customer-documents.js); the generator reads window.NBDClauseSet at call time. Same group, so both always load together.
+      'js/clause-set-text.js?v=1',
+      'js/clause-set.js?v=2'
     ],
     // Estimate engine (PR 2c). The revenue-critical builder + its product/
     // catalog data. Only needed when the rep builds an estimate, opens the
