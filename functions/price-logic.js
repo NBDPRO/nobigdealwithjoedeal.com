@@ -1276,7 +1276,7 @@ function priceMaterialLine(line, product, offers, ctx) {
  * products claim it), 'not_linked' (the product has no supplier item yet), 'unit',
  * 'no_price', 'priced'. Answers one result per line, in order.
  */
-function materialsPricing(lines, products, offers, ctx, codeMap) {
+function materialsPricing(lines, products, offers, ctx, codeMap, ratios) {
   var linked = {}, byId = {}, i, out = [];
   for (i = 0; i < (offers || []).length; i++) if (offers[i] && offers[i].productId && offers[i].active !== false) linked[offers[i].productId] = true;
   for (i = 0; i < (products || []).length; i++) if (products[i] && products[i].id && products[i].isActive !== false) byId[products[i].id] = products[i];
@@ -1288,7 +1288,13 @@ function materialsPricing(lines, products, offers, ctx, codeMap) {
     var p = byId[map[code]];
     if (!p) { out.push({ state: 'code_unlinked' }); continue; }
     if (!linked[p.id]) { out.push({ state: 'not_linked', productId: p.id }); continue; }
-    out.push(priceMaterialLine({ qty: l.qty, unit: l.unit }, p, offers, ctx));
+    // A code saved with a ratio (1 product unit = num/den estimate units) is priced in the
+    // product's unit; without one, a line in another unit stays 'unit'.
+    var rt = ratios && ratios[code], qty = l.qty, unit = l.unit;
+    if (rt && String(unit || '').toUpperCase() !== p.unit && plIsPosInt(rt.num) && plIsPosInt(rt.den) && typeof qty === 'number') { qty = qty * rt.den / rt.num; unit = p.unit; }
+    var res = priceMaterialLine({ qty: qty, unit: unit }, p, offers, ctx);
+    if (unit !== l.unit && rt) res.ratio = { num: rt.num, den: rt.den };
+    out.push(res);
   }
   return out;
 }
@@ -1371,6 +1377,84 @@ function lineCodeMap(links) {
   return out;
 }
 
+// ---- Code ratios (Jo, 2026-11-18): an estimate code in another unit than its product ----
+
+var PL_RATIO_NUM_MAX = 1000000, PL_RATIO_DEN_MAX = 10000;
+
+/**
+ * "How many estimate units one product unit is", typed as a decimal with up to
+ * four places ("10", "33.3", "0.5"), as an exact fraction { num, den } in lowest
+ * terms, by digits (never a float parse). Null for anything else or zero.
+ */
+function parseRatioText(text) {
+  var t = String(text == null ? '' : text).replace(/^\s+|\s+$/g, '');
+  var m = /^(\d{1,6})(?:\.(\d{1,4}))?$/.exec(t);
+  if (!m) return null;
+  var frac = m[2] || '', den = 1, k;
+  for (k = 0; k < frac.length; k++) den = den * 10;
+  var num = Number(m[1] + frac);
+  if (!plIsPosInt(num) || num > PL_RATIO_NUM_MAX || den > PL_RATIO_DEN_MAX) return null;
+  var g = plGcd(num, den);
+  return { num: num / g, den: den / g };
+}
+/** A fraction as short decimal text: { num: 333, den: 10 } -> '33.3'. */
+function ratioText(r) {
+  if (!r || !plIsPosInt(r.num) || !plIsPosInt(r.den)) return '';
+  var whole = Math.floor(r.num / r.den), rest = r.num % r.den;
+  if (!rest) return String(whole);
+  var s = String(whole) + '.', i = 0;
+  while (rest && i < 4) { rest = rest * 10; s += String(Math.floor(rest / r.den)); rest = rest % r.den; i++; }
+  return s;
+}
+
+/** One product's code ratios as saved: { code: { num, den } }, at most 40, each a valid fraction. */
+function sanitizeCodeRatios(map) {
+  if (map == null) return { ok: true, value: {} };
+  if (typeof map !== 'object' || Array.isArray(map)) return plBad('bad_ratio');
+  var out = {}, n = 0;
+  for (var code in map) {
+    if (!Object.prototype.hasOwnProperty.call(map, code)) continue;
+    var r = map[code];
+    if (!PL_CODE_RE.test(code) || !r || !plIsPosInt(r.num) || !plIsPosInt(r.den) || r.num > PL_RATIO_NUM_MAX || r.den > PL_RATIO_DEN_MAX) return plBad('bad_ratio');
+    if (++n > PL_CODES_MAX) return plBad('bad_ratio');
+    var g = plGcd(r.num, r.den);
+    out[code] = { num: r.num / g, den: r.den / g };
+  }
+  return { ok: true, value: out };
+}
+
+var PL_RATIO_UNIT_WORDS = { LF: ['LF', 'FT', 'FEET', 'FOOT'], SF: ['SF', 'SQ FT'], SQ: ['SQ', 'SQUARES', 'SQUARE'], EA: ['EA', 'EACH', 'PIECES', 'PIECE', 'PCS', 'CLIPS', 'CAPS', 'NAILS'] };
+/**
+ * A suggested ratio for a product priced per one unit and an estimate line in
+ * another, read from the product's coverage: sqPerRoll for a roll against squares,
+ * else a number printed right before the estimate unit in coverage.perUnit ("105 LF
+ * per bundle", "32 SF per sheet", "100 pieces per box", "~2 SQ"). Only a suggestion:
+ * nothing is used until a person saves it. Null when nothing fits.
+ */
+function suggestCodeRatio(product, estimateUnit) {
+  var u = String(estimateUnit || '').toUpperCase(), cov = product && product.coverage;
+  if (!product || !u || u === product.unit || !cov) return null;
+  if (product.unit === 'RL' && u === 'SQ' && typeof cov.sqPerRoll === 'number' && cov.sqPerRoll > 0) return parseRatioText(String(cov.sqPerRoll));
+  var text = String(typeof cov === 'string' ? cov : (cov.perUnit || '')).toUpperCase();
+  var words = PL_RATIO_UNIT_WORDS[u] || [u];
+  for (var i = 0; i < words.length; i++) {
+    var m = new RegExp('(\\d+(?:\\.\\d+)?)\\s*' + words[i].replace(/ /g, '\\s*') + '\\b').exec(text);
+    if (m) return parseRatioText(m[1]);
+  }
+  return null;
+}
+
+/** Every estimate code's ratio, from the product that holds it: { code: { num, den } }. */
+function lineCodeRatios(links) {
+  var out = {};
+  for (var i = 0; i < (links || []).length; i++) {
+    var l = links[i], r = l && l.codeRatios;
+    if (!r || typeof r !== 'object') continue;
+    for (var code in r) if (Object.prototype.hasOwnProperty.call(r, code) && r[code] && plIsPosInt(r[code].num) && plIsPosInt(r[code].den)) out[code] = { num: r[code].num, den: r[code].den, productId: l.id };
+  }
+  return out;
+}
+
 /** Is the ledger switched on for this person? Only the boolean true turns it on. */
 function flagOn(flagsDefault, flagsMine) {
   var merged = {}, k;
@@ -1394,4 +1478,5 @@ module.exports = {
   microsToCostBookDollars, dollarsToMicros, bookMicros, marginFloorTenths, marginAfterLabor, approvalSource, proposalLines, costGuardRefusal, changeTenths, tenthsText,
   materialProductsFor, priceMaterialLine, materialsPricing,
   PL_LINE_STARTER, sanitizeEstimateCodes, productEstimateCodes, lineCodeMap,
+  parseRatioText, ratioText, sanitizeCodeRatios, suggestCodeRatio, lineCodeRatios,
 };

@@ -43,6 +43,23 @@ H-clips and cap nails (each or per square against per box). As decided, those li
 say "priced in another unit" until fixed. Fixing one needs a ratio per code (for
 example 1 roll = 10 squares): a new decision for Jo, asked after this PR.
 
+## Update 2026-11-18: code ratios built (Jo: "Yes, add ratios")
+
+A code whose estimate unit is not its product's now prices once a ratio is saved:
+"1 roll = 10 squares". On the Estimate codes box each such code shows a box, "1
+<product unit> is how many <estimate unit>?", pre-filled from the product's
+coverage when it says (all 15 starter codes in another unit get a suggestion: 10, 2
+and 4 squares a roll, 105, 120, 33.3 and 25 ft a bundle, 32 sq ft a sheet, 100 and 250
+pieces a box, 2 squares a box of cap nails). Nothing converts until the owner or an
+admin saves it; a saved ratio shows as "1 Bundle = 25 LF" with Change and Remove
+ratio. Saved on productLinks/{productId}.codeRatios through the setCodeRatio save op
+(audited); typed as a decimal and kept as an exact fraction. The materials list
+divides the estimate quantity by the ratio, then buys whole units from the item's
+pack size (23.4 squares at 10 a roll is 3 rolls). Logic: parseRatioText, ratioText,
+sanitizeCodeRatios, suggestCodeRatio, lineCodeRatios, and a ratios argument to
+materialsPricing (price-logic.js SHARED). Tests: price-logic-materials (54),
+price-ledger-photos (32). Checked in a local harness at 375 px.
+
 ## Tests
 
 - `tests/price-logic-materials-2026-11.test.js` (42): the starter list is real

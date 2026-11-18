@@ -273,8 +273,8 @@
       const otherUnit = unitOf(c) && p.unit && unitOf(c) !== p.unit;
       return '<li class="prl-code"><span class="prl-code-id">' + esc(c) + '</span> ' + esc(nameOf(c)) +
         (conflict ? ' <span class="ui-badge is-warn">Another product has this code</span>' : '') +
-        (otherUnit ? ' <span class="ui-badge is-info">Estimate per ' + esc(unitOf(c)) + ', priced per ' + esc(p.unit) + '</span>' : '') +
-        (admin ? ' <button type="button" class="ui-btn-quiet prl-btn" data-prl-action="removeCode" data-prl-id="' + esc(c) + '" aria-label="' + esc('Remove ' + c) + '">Remove</button>' : '') + '</li>';
+        (otherUnit ? ratioHtml(c, unitOf(c), p, admin) : '') +
+        (admin ? ' <button type="button" class="ui-btn-quiet prl-btn" data-prl-action="removeCode" data-prl-id="' + esc(c) + '" aria-label="' + esc('Remove the code ' + c) + '">Remove code</button>' : '') + '</li>';
     }).join('');
     let add = '';
     if (admin) {
@@ -292,6 +292,29 @@
       '<div class="prl-hint">' + (set ? 'Your list for this product.' : 'The starter list.') + ' A materials-list line prices from this product only when its estimate code is here.</div>' +
       (mine.length ? '<ul class="prl-codes">' + chips + '</ul>' : '<div class="prl-dim">No estimate code is linked to this product.</div>') +
       add + '</div>';
+  }
+
+  /**
+   * A code whose estimate unit is not the product's (2026-11-18, Jo): the saved ratio
+   * ("1 bundle = 25 LF"), or a box to type one, pre-filled from the product's coverage
+   * when it says. Nothing is priced in the other unit until a ratio is saved.
+   */
+  function ratioHtml(code, estUnit, p, admin) {
+    const saved = S.link && S.link.codeRatios && S.link.codeRatios[code];
+    const pUnit = catalogUnitLabel(p.unit), eUnit = String(estUnit || '');
+    if (saved && S.ratioEdit !== code) {
+      return ' <span class="ui-badge is-success">1 ' + esc(pUnit) + ' = ' + esc(LG().ratioText(saved)) + ' ' + esc(eUnit) + '</span>' +
+        (admin ? ' <button type="button" class="ui-btn-quiet prl-btn" data-prl-action="editRatio" data-prl-id="' + esc(code) + '">Change</button>' +
+          ' <button type="button" class="ui-btn-quiet prl-btn" data-prl-action="removeRatio" data-prl-id="' + esc(code) + '">Remove ratio</button>' : '');
+    }
+    const note = ' <span class="ui-badge is-info">Estimate per ' + esc(eUnit) + ', priced per ' + esc(p.unit) + '</span>';
+    if (!admin) return note + ' <span class="prl-dim">Not priced until an owner or admin sets how many ' + esc(eUnit) + ' one ' + esc(pUnit) + ' is.</span>';
+    const sug = saved || LG().suggestCodeRatio(p, eUnit);
+    return note + '<form class="prl-form" data-prl-form="ratio" data-prl-code="' + esc(code) + '" novalidate>' +
+      field('1 ' + pUnit + ' is how many ' + eUnit + '?', '<input class="prl-input" name="ratio" inputmode="decimal" autocomplete="off" value="' + esc(sug ? LG().ratioText(sug) : '') + '" placeholder="10">',
+        sug && !saved ? 'Suggested from the product\'s coverage: check it against your supplier before you save.' : 'Lines with this code are priced in ' + pUnit + ' once you save this.') +
+      '<div class="prl-actions"><button type="submit" class="btn btn-ghost prl-btn"' + (S.busy ? ' disabled' : '') + '>Save ratio</button>' +
+      (S.ratioEdit === code ? '<button type="button" class="ui-btn-quiet prl-btn" data-prl-action="cancelRatio">Cancel</button>' : '') + '</div></form>';
   }
 
   /** Above the items: a tier whose cost is above its sell (Q5), and the last approved change per tier with Undo (Q8). */
@@ -636,6 +659,16 @@
       toast('Code removed.', 'success');
       await reload();
     },
+    editRatio(code) { S.ratioEdit = code; paint(); },
+    cancelRatio() { S.ratioEdit = null; paint(); },
+    async removeRatio(code) {
+      if (!S || !S.productId) return;
+      const r = await PL().setCodeRatio(S.productId, code, null);
+      if (!S) return;
+      if (!r.ok) { toast(r.message, 'error'); return; }
+      toast('Ratio removed. Lines with that code are not priced until a new one is saved.', 'success');
+      await reload();
+    },
     async resetCodes() {
       if (!S || !S.productId) return;
       const ask = w.nbdConfirm || ((m) => Promise.resolve(w.confirm(m)));
@@ -695,7 +728,13 @@
     const fail = (msg) => { S.error = msg; S.busy = false; paint(); };
     S.busy = true; S.error = '';
     let r;
-    if (kind === 'codes') {
+    if (kind === 'ratio') {
+      const code = form.dataset.prlCode;
+      const ratio = LG().parseRatioText(fd.get('ratio'));
+      if (!code || !ratio) return fail('Type how many, as a number like 10 or 33.3.');
+      r = await PL().setCodeRatio(S.productId, code, ratio);
+      if (r && r.ok) { r.message = 'Ratio saved.'; S.ratioEdit = null; }
+    } else if (kind === 'codes') {
       const code = String(fd.get('code') || '').replace(/\s+/g, ' ').trim().toUpperCase();
       if (!code) return fail('Type an estimate code.');
       const next = LG().productEstimateCodes(S.productId, S.links || []).concat([code]);

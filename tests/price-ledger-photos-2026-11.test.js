@@ -161,6 +161,22 @@ const audits = () => Object.keys(W.docs).filter((p) => p.indexOf(B + 'priceAudit
     ok('a product nobody has is refused', (await codes({ productId: 'no_such_product', codes: [] })).reason === 'bad_product');
   }
 
+  console.log('\nCode ratios on productLinks (2026-11-18)');
+  {
+    world();
+    const ratio = (data) => Store.saveOps.setCodeRatio(DB, CO, data, CALLER, 1700000000000);
+    const r = await ratio({ productId: 'shingle_001', code: ' rfg 240-gaf-hdz ', num: 20, den: 2 });
+    const link = W.docs[B + 'productLinks/shingle_001'];
+    ok('a ratio is saved on the link, code cleaned, fraction reduced; the approval markers are kept', r.ok && link.codeRatios['RFG 240-GAF-HDZ'].num === 10 && link.codeRatios['RFG 240-GAF-HDZ'].den === 1 && link.applied.good.dollars === 11.11, link);
+    await ratio({ productId: 'shingle_001', code: 'RFG 3T20', num: 3, den: 1 });
+    ok('a second code adds to the map', Object.keys(W.docs[B + 'productLinks/shingle_001'].codeRatios).length === 2);
+    const c = await ratio({ productId: 'shingle_001', code: 'RFG 240-GAF-HDZ', clear: true });
+    ok('clear removes one code\'s ratio only', c.ok && !('RFG 240-GAF-HDZ' in W.docs[B + 'productLinks/shingle_001'].codeRatios) && W.docs[B + 'productLinks/shingle_001'].codeRatios['RFG 3T20'].num === 3);
+    ok('audited as code_ratio_set', audits().filter((a) => a.type === 'code_ratio_set').length === 3);
+    const before = JSON.stringify(W.docs);
+    ok('a zero or broken ratio is refused, nothing written', (await ratio({ productId: 'shingle_001', code: 'RFG 15F', num: 0, den: 1 })).reason === 'bad_ratio' && (await ratio({ productId: 'shingle_001', code: '<x>', num: 1, den: 1 })).reason === 'bad_ratio' && JSON.stringify(W.docs) === before);
+  }
+
   console.log('\nPhotos stay inside the CRM');
   {
     const fs = require('fs');
