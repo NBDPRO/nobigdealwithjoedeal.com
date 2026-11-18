@@ -53,6 +53,8 @@ const PRODUCT_ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
 const LINK_FIELDS = ['productId', 'preferredOfferId', 'applied', 'updatedAt', 'updatedBy'];
 // Product photos (2026-11-18): the fields a photo save owns on a productLinks doc, the size cap and the long edge.
 const PHOTO_LINK_FIELDS = ['productId', 'photo', 'updatedAt', 'updatedBy'];
+// The fields an estimate-codes save owns on a productLinks doc (2026-11-18).
+const CODE_LINK_FIELDS = ['productId', 'estimateCodes', 'estimateCodesSet', 'updatedAt', 'updatedBy'];
 const PHOTO_MAX_BYTES = 3 * 1024 * 1024;
 const PHOTO_EDGE = 640;
 /** The bytes of a data: URL for a raster image (PNG, JPEG, WebP, GIF), or null. */
@@ -694,6 +696,35 @@ const saveOps = {
     }
     await writeAudit(db, companyId, { type: photo ? 'photo_saved' : 'photo_removed', targetType: target, targetId: id, detail: { w: photo ? photo.w : null, h: photo ? photo.h : null }, actor: caller });
     return { ok: true, id };
+  },
+
+  /**
+   * Exact estimate-line links (2026-11-18): set one product's estimate codes, the
+   * codes whose lines it prices on the materials list. data: { productId, codes: [...] }
+   * replaces the starter codes for that product; { productId, reset: true } goes back
+   * to the starter list. Stored on productLinks/{productId} (estimateCodes,
+   * estimateCodesSet), never on the product row. A code another product also claims
+   * is saved, and stays unlinked on the list until one of them lets it go.
+   */
+  async setEstimateCodes(db, companyId, data, caller) {
+    assertCompany(companyId);
+    data = data || {};
+    const productId = data.productId;
+    if (typeof productId !== 'string' || !PRODUCT_ID_RE.test(productId)) return bad('bad_product');
+    const lib = await libraryRef(db, companyId).get();
+    if (!productOf(productId, lib.exists ? (lib.data() || {}) : null)) return bad('bad_product');
+    let codes = [];
+    if (data.reset !== true) {
+      const s = L.sanitizeEstimateCodes(data.codes);
+      if (!s.ok) return bad(s.reason);
+      codes = s.value;
+    }
+    const ref = linkRef(db, companyId, productId);
+    const prev = await ref.get();
+    const before = prev.exists && (prev.data() || {}).estimateCodesSet === true ? ((prev.data() || {}).estimateCodes || []) : null;
+    await ref.set({ productId, estimateCodes: codes, estimateCodesSet: data.reset !== true, updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid }, { mergeFields: CODE_LINK_FIELDS });
+    await writeAudit(db, companyId, { type: 'estimate_codes_set', targetType: 'product', targetId: productId, detail: { codes: data.reset === true ? null : codes, before }, actor: caller });
+    return { ok: true, id: productId };
   },
 
   async voidObservation(db, companyId, data, caller, nowMs) {

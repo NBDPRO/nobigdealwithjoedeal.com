@@ -145,6 +145,22 @@ const audits = () => Object.keys(W.docs).filter((p) => p.indexOf(B + 'priceAudit
     ok('a product the company deleted: bad_product', (await save({ target: 'product', id: 'shingle_001', image: PNG })).reason === 'bad_product');
   }
 
+  console.log('\nEstimate codes on productLinks (2026-11-18, same doc as the photo)');
+  {
+    world();
+    const codes = (data) => Store.saveOps.setEstimateCodes(DB, CO, data, CALLER, 1700000000000);
+    const r = await codes({ productId: 'shingle_001', codes: [' rfg 240-gaf-hdz', 'RFG 240-GAF-UHD'] });
+    const link = W.docs[B + 'productLinks/shingle_001'];
+    ok('a product\'s codes are saved on its link doc, cleaned, and marked as the company\'s own list', r.ok && link.estimateCodes.join('|') === 'RFG 240-GAF-HDZ|RFG 240-GAF-UHD' && link.estimateCodesSet === true, link);
+    ok('the approval markers and photo on that doc are kept', link.applied && link.applied.good && link.applied.good.dollars === 11.11);
+    ok('an audit row estimate_codes_set', audits().some((a) => a.type === 'estimate_codes_set' && a.targetId === 'shingle_001'));
+    const back = await codes({ productId: 'shingle_001', reset: true });
+    ok('reset goes back to the starter list (estimateCodesSet false, no codes)', back.ok && W.docs[B + 'productLinks/shingle_001'].estimateCodesSet === false && W.docs[B + 'productLinks/shingle_001'].estimateCodes.length === 0);
+    const before = JSON.stringify(W.docs);
+    ok('a bad code list is refused, nothing written', (await codes({ productId: 'shingle_001', codes: ['<b>x</b>'] })).reason === 'bad_codes' && JSON.stringify(W.docs) === before);
+    ok('a product nobody has is refused', (await codes({ productId: 'no_such_product', codes: [] })).reason === 'bad_product');
+  }
+
   console.log('\nPhotos stay inside the CRM');
   {
     const fs = require('fs');

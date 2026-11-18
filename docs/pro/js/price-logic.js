@@ -1257,23 +1257,106 @@ function priceMaterialLine(line, product, offers, ctx) {
 }
 
 /**
- * Every line of a materials list at the company's suppliers. lines: [{ code, sub,
- * qty, unit }]; products: the library; offers: the company's items. A line is
- * priced only when exactly ONE of the products it can be has a supplier item linked
- * (design section 8, slice 7): with none it is 'not_linked', with more than one it is
- * 'ambiguous', never a guess. Answers one result per line, in order.
+ * Every line of a materials list at the company's suppliers. lines: [{ code, qty,
+ * unit }]; products: the library; offers: the company's items; codeMap: lineCodeMap
+ * of the company's product links. A line is priced only from the ONE product its
+ * estimate code is linked to (Jo, 2026-11-18): it never borrows another product's
+ * price. States: 'code_unlinked' (no product has the code), 'code_conflict' (two
+ * products claim it), 'not_linked' (the product has no supplier item yet), 'unit',
+ * 'no_price', 'priced'. Answers one result per line, in order.
  */
-function materialsPricing(lines, products, offers, ctx) {
-  var linked = {}, i, out = [];
+function materialsPricing(lines, products, offers, ctx, codeMap) {
+  var linked = {}, byId = {}, i, out = [];
   for (i = 0; i < (offers || []).length; i++) if (offers[i] && offers[i].productId && offers[i].active !== false) linked[offers[i].productId] = true;
+  for (i = 0; i < (products || []).length; i++) if (products[i] && products[i].id && products[i].isActive !== false) byId[products[i].id] = products[i];
+  var map = codeMap || {};
   for (i = 0; i < (lines || []).length; i++) {
-    var l = lines[i] || {};
-    var cands = materialProductsFor(l.code, l.sub, products), withItems = [];
-    for (var j = 0; j < cands.length; j++) if (linked[cands[j].id]) withItems.push(cands[j]);
-    if (!withItems.length) { out.push({ state: 'not_linked' }); continue; }
-    if (withItems.length > 1) { out.push({ state: 'ambiguous', count: withItems.length }); continue; }
-    out.push(priceMaterialLine({ qty: l.qty, unit: l.unit }, withItems[0], offers, ctx));
+    var l = lines[i] || {}, code = String(l.code || '').toUpperCase();
+    if (!Object.prototype.hasOwnProperty.call(map, code)) { out.push({ state: 'code_unlinked' }); continue; }
+    if (map[code] === null) { out.push({ state: 'code_conflict' }); continue; }
+    var p = byId[map[code]];
+    if (!p) { out.push({ state: 'code_unlinked' }); continue; }
+    if (!linked[p.id]) { out.push({ state: 'not_linked', productId: p.id }); continue; }
+    out.push(priceMaterialLine({ qty: l.qty, unit: l.unit }, p, offers, ctx));
   }
+  return out;
+}
+
+// ---- Exact estimate-line links (Jo, 2026-11-18): an estimate code points at one product ----
+
+/**
+ * The starter list: estimate codes that clearly name exactly one published
+ * catalog product (codes and product ids only, both public; no price). A company
+ * changes a product's codes on its Stores & prices sheet (productLinks/{id}
+ * .estimateCodes); its list then replaces the starter codes for that product.
+ * Left out on purpose because more than one product fits: RFG SYN, RFG NAIL-C,
+ * RFG RIDG, RFG SKY-STD, RFG PWR, RFG SOLAR, RFG TURB, ridge vents, GTR GG-MESH.
+ */
+var PL_LINE_STARTER = {
+  'RFG 240-GAF-HDZ': 'shingle_001', 'RFG 240-GAF-HD': 'shingle_002', 'RFG 240-OC-DUR': 'shingle_003', 'RFG 240-OC-TRU': 'shingle_004',
+  'RFG 240-CT-LM': 'shingle_005', 'RFG 240-CT-LMP': 'shingle_006', 'RFG CAM2-GAF': 'shingle_007', 'RFG BK-OC': 'shingle_008',
+  'RFG 240-IKO': 'shingle_009', 'RFG 3T20': 'shingle_010', 'RFG 3T25': 'shingle_010', 'RFG 240-TAMKO-HERITAGE': 'shingle_011',
+  'RFG 240-TAMKO-TITAN': 'shingle_012', 'RFG 240-TAMKO-SFFLEX': 'shingle_013', 'RFG 240-TAMKO-HAIL': 'shingle_014',
+  'RFG SYN-TAMKO': 'under_007', 'RFG IWS-TAMKO': 'under_008', 'RFG 15F': 'under_005', 'RFG IWS': 'under_006',
+  'RFG STRT-TAMKO': 'flash_010', 'RFG STRT': 'flash_008', 'RFG RIDG-TAMKO': 'flash_009', 'RFG RIDG-ARC': 'flash_007', 'RFG HIPC': 'flash_007',
+  'RFG DRPE-AL': 'flash_003', 'RFG VLY-W': 'flash_004', 'RFG STPF-AL': 'flash_001', 'RFG CHIM-STD': 'acc_001', 'RFG CHIM-SAD': 'chim_004',
+  'RFG PIPE-STD': 'flash_002', 'RFG PIPE-LD': 'flash_016', 'RFG BOX-STD': 'vent_002', 'RFG SFT-C': 'vent_005', 'RFG SFT-I': 'acc_007',
+  'RFG OSB716': 'rdeck_001', 'RFG PLY12': 'rdeck_002', 'RFG PLY58': 'rdeck_003', 'RFG CLIPS': 'rdeck_004', 'RFG NAIL-CAP': 'acc_027',
+  'GTR 5K-AL': 'gutter_001', 'GTR 6K-AL': 'gutter_002', 'GTR HR-CU': 'gutter_003', 'GTR DSP23-AL': 'gutter_005', 'GTR DSP34-AL': 'gutter_006',
+  'GTR GG-MIC': 'gut_001'
+};
+var PL_CODE_RE = /^[A-Z0-9][A-Z0-9 .\/-]{1,39}$/;
+var PL_CODES_MAX = 40;
+
+/** A product's estimate codes as a person typed them: trimmed, upper case, unique, at most 40. */
+function sanitizeEstimateCodes(list) {
+  if (!Array.isArray(list) || list.length > PL_CODES_MAX) return plBad('bad_codes');
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    var c = String(list[i] == null ? '' : list[i]).replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '').toUpperCase();
+    if (!PL_CODE_RE.test(c)) return plBad('bad_codes');
+    if (out.indexOf(c) === -1) out.push(c);
+  }
+  return { ok: true, value: out };
+}
+
+/**
+ * One product's estimate codes: the company's own list when it set one on the
+ * product (links: the productLinks docs, each { id, estimateCodes, estimateCodesSet }),
+ * else the starter codes for that product.
+ */
+function productEstimateCodes(productId, links) {
+  var i;
+  for (i = 0; i < (links || []).length; i++) {
+    var l = links[i];
+    if (l && l.id === productId && l.estimateCodesSet === true && Array.isArray(l.estimateCodes)) return l.estimateCodes.slice();
+  }
+  var out = [];
+  for (var code in PL_LINE_STARTER) if (Object.prototype.hasOwnProperty.call(PL_LINE_STARTER, code) && PL_LINE_STARTER[code] === productId) out.push(code);
+  return out;
+}
+
+/**
+ * Every estimate code to its one product: { code: productId }, or { code: null }
+ * when two products claim the code (that code is unlinked until a person fixes it,
+ * never a guess). The starter list, with each product's own list replacing its
+ * starter codes.
+ */
+function lineCodeMap(links) {
+  var owned = {}, claims = {}, i, k, code, pid;
+  for (i = 0; i < (links || []).length; i++) {
+    var l = links[i];
+    if (l && l.id && l.estimateCodesSet === true && Array.isArray(l.estimateCodes)) owned[l.id] = l.estimateCodes;
+  }
+  var add = function (c, p) { if (!claims[c]) claims[c] = []; if (claims[c].indexOf(p) === -1) claims[c].push(p); };
+  for (code in PL_LINE_STARTER) {
+    if (!Object.prototype.hasOwnProperty.call(PL_LINE_STARTER, code)) continue;
+    pid = PL_LINE_STARTER[code];
+    if (!Object.prototype.hasOwnProperty.call(owned, pid)) add(code, pid);
+  }
+  for (pid in owned) if (Object.prototype.hasOwnProperty.call(owned, pid)) for (k = 0; k < owned[pid].length; k++) add(owned[pid][k], pid);
+  var out = {};
+  for (code in claims) if (Object.prototype.hasOwnProperty.call(claims, code)) out[code] = claims[code].length === 1 ? claims[code][0] : null;
   return out;
 }
 
@@ -1304,7 +1387,8 @@ function flagOn(flagsDefault, flagsMine) {
     microsToCostBookDollars: microsToCostBookDollars, dollarsToMicros: dollarsToMicros, bookMicros: bookMicros, marginFloorTenths: marginFloorTenths,
     marginAfterLabor: marginAfterLabor, approvalSource: approvalSource, proposalLines: proposalLines, costGuardRefusal: costGuardRefusal,
     changeTenths: changeTenths, tenthsText: tenthsText,
-    materialProductsFor: materialProductsFor, priceMaterialLine: priceMaterialLine, materialsPricing: materialsPricing
+    materialProductsFor: materialProductsFor, priceMaterialLine: priceMaterialLine, materialsPricing: materialsPricing,
+    PL_LINE_STARTER: PL_LINE_STARTER, sanitizeEstimateCodes: sanitizeEstimateCodes, productEstimateCodes: productEstimateCodes, lineCodeMap: lineCodeMap
   };
   root.NBDPriceLogic = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

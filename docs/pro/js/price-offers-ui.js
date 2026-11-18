@@ -251,6 +251,49 @@
       '</div>';
   }
 
+  /**
+   * Estimate codes (2026-11-18, Jo): the estimate line codes that price from this
+   * product on the materials list. The starter list until the owner or an admin
+   * changes it here; a code another product also claims is flagged, and that line
+   * stays unpriced until one of them lets it go. A manager sees the list only.
+   */
+  function codesBlock() {
+    const p = S.product;
+    if (!p || !S.productId) return '';
+    const links = S.links || [];
+    const mine = LG().productEstimateCodes(S.productId, links);
+    const map = LG().lineCodeMap(links);
+    const set = !!(S.link && S.link.estimateCodesSet === true);
+    const admin = PL().canSave();
+    const cat = w.NBD_XACT_CATALOG;
+    const nameOf = (code) => { const it = cat && typeof cat.find === 'function' ? cat.find(code) : null; return it ? it.name : ''; };
+    const unitOf = (code) => { const it = cat && typeof cat.find === 'function' ? cat.find(code) : null; return it ? String(it.unit || '').toUpperCase() : ''; };
+    const chips = mine.map((c) => {
+      const conflict = map[c] === null;
+      const otherUnit = unitOf(c) && p.unit && unitOf(c) !== p.unit;
+      return '<li class="prl-code"><span class="prl-code-id">' + esc(c) + '</span> ' + esc(nameOf(c)) +
+        (conflict ? ' <span class="ui-badge is-warn">Another product has this code</span>' : '') +
+        (otherUnit ? ' <span class="ui-badge is-info">Estimate per ' + esc(unitOf(c)) + ', priced per ' + esc(p.unit) + '</span>' : '') +
+        (admin ? ' <button type="button" class="ui-btn-quiet prl-btn" data-prl-action="removeCode" data-prl-id="' + esc(c) + '" aria-label="' + esc('Remove ' + c) + '">Remove</button>' : '') + '</li>';
+    }).join('');
+    let add = '';
+    if (admin) {
+      const items = (cat && Array.isArray(cat.items)) ? cat.items : [];
+      const sugg = items.filter((it) => it && it.code && mine.indexOf(it.code) === -1 && LG().materialProductsFor(it.code, it.sub, [p]).length)
+        .map((it) => opt(it.code, it.code + ' · ' + it.name + (map[it.code] ? ' (now on another product)' : ''))).join('');
+      add = '<form class="prl-form" data-prl-form="codes" novalidate>' +
+        field('Add an estimate code', '<input class="prl-input" name="code" maxlength="40" autocomplete="off" list="prlCodeList" placeholder="RFG 240-GAF-HDZ">' +
+          (sugg ? '<datalist id="prlCodeList">' + sugg + '</datalist>' : ''), 'Lines on an estimate with this code price from this product on the materials list.') +
+        '<div class="prl-actions"><button type="submit" class="btn btn-ghost prl-btn"' + (S.busy ? ' disabled' : '') + '>Add code</button>' +
+        (set ? '<button type="button" class="ui-btn-quiet prl-btn" data-prl-action="resetCodes">Use the starter list</button>' : '') + '</div>' +
+        (S.error && !S.form ? '<div class="prl-error" role="alert">' + esc(S.error) + '</div>' : '') + '</form>';
+    }
+    return '<div class="prc-block"><div class="prc-main">Estimate codes</div>' +
+      '<div class="prl-hint">' + (set ? 'Your list for this product.' : 'The starter list.') + ' A materials-list line prices from this product only when its estimate code is here.</div>' +
+      (mine.length ? '<ul class="prl-codes">' + chips + '</ul>' : '<div class="prl-dim">No estimate code is linked to this product.</div>') +
+      add + '</div>';
+  }
+
   /** Above the items: a tier whose cost is above its sell (Q5), and the last approved change per tier with Undo (Q8). */
   function costNotesHtml() {
     const p = S.product, out = [];
@@ -416,6 +459,7 @@
     return '<div class="prl-actions">' + top.join('') + '</div>' +
       (S.form && !S.form.offerId ? formHtml() : '') +
       photoBlock('product', S.productId, S.link && S.link.photo, (S.product && S.product.name) || 'this product') +
+      codesBlock() +
       costNotesHtml() +
       (w.NBDPriceCompareUI ? w.NBDPriceCompareUI.productBlock(S.product, offers, S.suppliers) : '') +
       empty + offers.map(offerCard).join('');
@@ -434,7 +478,8 @@
       (S.mode !== 'unlinked' && typeof PL().productLinks === 'function') ? PL().productLinks() : Promise.resolve([])]);
     if (!S) return;
     S.suppliers = suppliers; S.offers = offers; S.loading = false;
-    S.link = (links || []).find((l) => l && l.id === S.productId) || null;
+    S.links = links || [];
+    S.link = S.links.find((l) => l && l.id === S.productId) || null;
     if (S.productId) S.product = productOf(S.productId) || S.product;
     paint();
   }
@@ -580,6 +625,27 @@
       toast('Pack size confirmed.', 'success');
       await reload();
     },
+    async removeCode(code) {
+      if (!S || !S.productId || S.busy) return;
+      const next = LG().productEstimateCodes(S.productId, S.links || []).filter((c) => c !== code);
+      S.busy = true;
+      const r = await PL().setEstimateCodes(S.productId, next);
+      if (!S) return;
+      S.busy = false;
+      if (!r.ok) { toast(r.message, 'error'); return; }
+      toast('Code removed.', 'success');
+      await reload();
+    },
+    async resetCodes() {
+      if (!S || !S.productId) return;
+      const ask = w.nbdConfirm || ((m) => Promise.resolve(w.confirm(m)));
+      if (!(await ask('Go back to the starter list of estimate codes for this product?')) || !S) return;
+      const r = await PL().resetEstimateCodes(S.productId);
+      if (!S) return;
+      if (!r.ok) { toast(r.message, 'error'); return; }
+      toast('Back to the starter list.', 'success');
+      await reload();
+    },
     async removePhoto(id, el) {
       const target = el && el.dataset.prlTarget;
       if (target !== 'product' && target !== 'offer') return;
@@ -629,7 +695,15 @@
     const fail = (msg) => { S.error = msg; S.busy = false; paint(); };
     S.busy = true; S.error = '';
     let r;
-    if (kind === 'supplier') {
+    if (kind === 'codes') {
+      const code = String(fd.get('code') || '').replace(/\s+/g, ' ').trim().toUpperCase();
+      if (!code) return fail('Type an estimate code.');
+      const next = LG().productEstimateCodes(S.productId, S.links || []).concat([code]);
+      const chk = LG().sanitizeEstimateCodes(next);
+      if (!chk.ok) return fail('Check the code: letters, numbers, spaces and dashes.');
+      r = await PL().setEstimateCodes(S.productId, chk.value);
+      if (r && r.ok) r.message = 'Code added.';
+    } else if (kind === 'supplier') {
       let supplierId = fd.get('supplierId'), label = String(fd.get('label') || '').trim();
       const data = { active: true };
       if (supplierId === 'custom') {
