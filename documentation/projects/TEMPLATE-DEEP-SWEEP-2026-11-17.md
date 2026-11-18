@@ -431,6 +431,17 @@ section (c) states them correctly.
 | Q36 | Jo (2026-11-17): restocking is **15% of the returned standard materials plus actual reverse delivery**, replacing the actual-cost-only draft in 3.3(c). Guards: only after the cancellation window; only returnable standard stock; special-order items still owed at full actual cost; shown in the signed contract; never more than 15%; attorney to confirm a flat percentage is not a penalty (Q36 for counsel). |
 | Q37 | Jo: hidden decking about **$100 per sheet** (his estimate). Proposed structure: one flat retail price per 4x8 sheet, like-for-like, up to 10 sheets; beyond 10 sheets, a written change order. Jo to confirm the number against his actual material and labor cost. |
 | Q38 | Jo: register the "No Big Deal Home Solutions" assumed name ASAP (Kentucky Secretary of State, then the county clerk step). Jo files it himself. |
+| Q39 | Removal-only fixes widened to the 15 items in Part 5 (inspection, supplement, material delivery, financing, completion, mailer, door hanger, intro, testimonial, generic fallback, permit). |
+| Q40 | Neighborhood mailer and door hanger paused until fixed (the fixes shipped in PR 3161). |
+| Q41 | Build order: removal-only fixes first, then the clause foundation, then clauses behind a flag. |
+| Q42 | Permit Application removed from the document picker. |
+| Q43 | Shared understanding confirmed; build may start. |
+| Q45 | Restocking = the lesser of 15% or the supplier's actual restocking charge, plus actual reverse delivery. |
+| Q46 | Card-fee (credit only, none on Kentucky insurance jobs, capped at the processor's actual cost, noticed to the processor, shown before the pay button) and late-interest (8% simple after 15 days) choices kept. |
+| Q47 | Phase 1 (evidence and clause foundation) started 2026-11-18. |
+
+**Status:** Phase 0 (removal-only fixes) merged as PR 3161 on 2026-11-18, all 24 checks passing. Phase 1 is in progress on `feat/clause-evidence-foundation`.
+
 
 ---
 
