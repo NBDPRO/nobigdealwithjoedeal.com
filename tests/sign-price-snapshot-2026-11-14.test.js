@@ -146,7 +146,7 @@ function makeStorage(files) {
 // tests/contract-cancel-forms.test.js); its job-spine hand-off is the REAL
 // spine on the same fake Firestore.
 const REAL = ['./ky-insurance-law', './cancel-window', './cancel-notice-pdf', './job-spine-logic', './lead-artifact-paths', './esign-logic', './doc-evidence',
-  './await-briefly', './customer-estimate-rows', './signed-price', 'crypto'];
+  './await-briefly', './customer-estimate-rows', './signed-price', './attic-ack', './attic-gate', 'crypto'];
 function loadRemoteSigning(db, storage, spy) {
   const file = path.join(FN, 'remote-signing.js');
   class HttpsError extends Error { constructor(code, msg) { super(msg); this.code = code; } }

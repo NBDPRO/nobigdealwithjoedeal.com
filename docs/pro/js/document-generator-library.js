@@ -71,6 +71,9 @@
     lien_waiver:          { name: 'Lien Waiver',                       template: 'renderLienWaiver',          defaultSigners: [REP] },
     right_to_cancel:      { name: 'Notice of Right to Cancel',         template: 'renderRightToCancel',       defaultSigners: [HOMEOWNER] },
     material_selection:   { name: 'Material & Color Selection',        template: 'renderMaterialSelection',   defaultSigners: [HOMEOWNER, REP] },
+    // Phase 3 (flag docAtticAckV1): the acknowledgment and its not-inspected second page, one renderer.
+    attic_acknowledgment: { name: 'Attic, Ventilation & Moisture Acknowledgment', template: 'renderAtticAcknowledgment', defaultSigners: [HOMEOWNER, REP] },
+    attic_not_inspected:  { name: 'Attic Not Inspected Acknowledgment', template: 'renderAtticAcknowledgment', defaultSigners: [HOMEOWNER, REP] },
     proposal_options:     { name: 'Good-Better-Best Options',          template: 'renderProposalOptions' },
     insurance_next_steps: { name: 'Insurance Job: Scope & Next Steps', template: 'renderInsuranceNextSteps' }
   });
@@ -561,6 +564,122 @@
     );
   };
 
+  // ═════════════════════════════════════════════════════════════════
+  // ATTIC, VENTILATION & MOISTURE ACKNOWLEDGMENT (phase 3, flag docAtticAckV1)
+  // The wording is attic-ack-text.js (the attorney packet's ATTIC-1 to ATTIC-5, copied by script). The rep's attic
+  // record (data.atticCheck) fills the slots. The homeowner's per-line Yes/No and each acknowledgment are REQUIRED
+  // tick controls (data-nbd-ack), recorded with the signature: the signing paths here only support signature
+  // canvases, so "initials" are implemented as recorded ticks + signature (documented deviation).
+  // ═════════════════════════════════════════════════════════════════
+  var ATTIC_CSS = '<style>.aa-p{font-size:13px;line-height:1.55;margin:0 0 9px;}.aa-ver{text-align:right;font-size:9px;color:#888;margin:0 0 6px;}' +
+    '.aa-row{display:flex;gap:9px;align-items:flex-start;font-size:13px;line-height:1.5;margin:0 0 9px;}.aa-row input{margin-top:3px;flex:0 0 auto;width:18px;height:18px;}' +
+    '.aa-sel{font-size:13px;line-height:1.5;margin:0 0 6px;}.aa-thumbs img{max-height:90px;max-width:130px;margin:4px 6px 0 0;border:1px solid #ccc;}' +
+    '.aa-note{font-size:11px;color:#555;margin:0 0 10px;}.aa-opt{text-align:center;width:60px;}.aa-opt input{width:18px;height:18px;}</style>';
+
+  function aaMd(s) { return esc(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>'); }
+
+  function atticMoney(cents) { return '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+  function atticLongDate(v) {
+    var s = String(v || '').trim();
+    if (!s) return '';
+    return T.longDate ? (T.longDate(s) || s) : s;
+  }
+
+  DG.renderAtticAcknowledgment = function (data) {
+    T.refresh();
+    var B = T.brand();
+    var co = companyName(B);
+    var AA = window.NBDAtticAck;
+    if (!AA || !AA.TEXT) throw new Error('The attic acknowledgment wording did not load. Reload the page and try again.');
+    var X = AA.TEXT;
+    var d = Object.assign({ homeownerName: '[Homeowner Name]', address: '[Property Address]' }, data);
+    var rec = d.atticCheck && typeof d.atticCheck === 'object' ? d.atticCheck : {};
+    var g = (typeof DG._nbdGate === 'function') ? DG._nbdGate() : { isNbd: true };
+    var CS = window.NBDClauseSet;
+    var cp = d.companyProfile || {};
+    var terms = CS && CS.paymentTermsFor ? CS.paymentTermsFor(cp.paymentTerms, g.isNbd) : { atticFreeCheckDays: g.isNbd ? 3 : null };
+    var prices = (window.NBD_ESTIMATE_CONFIG && window.NBD_ESTIMATE_CONFIG.atticRecommendationPrices) || {};
+    var W = function (s) { return AA.words(s, terms, g.isNbd); };
+    var notInspected = rec.status === 'not_inspected';
+    var urls = d.atticPhotoUrls && typeof d.atticPhotoUrls === 'object' ? d.atticPhotoUrls : {};
+    var photoRow = function (kind) {
+      var ps = (Array.isArray(rec.photos) ? rec.photos : []).filter(function (p) { return p && p.kind === kind; });
+      if (!ps.length) return '';
+      return '<div class="aa-thumbs">' + ps.map(function (p) {
+        return urls[p.id] ? '<img src="' + esc(urls[p.id]) + '" alt="Attic photo">' : '<span class="lib-fine">Photo on file (' + esc(p.id) + ')</span> ';
+      }).join('') + '</div>';
+    };
+    var tick = function (id, text, required) {
+      return '<label class="aa-row"><input type="checkbox" data-nbd-ack="' + esc(id) + '"' + (required ? ' data-nbd-required="1"' : '') + '><span>' + aaMd(W(text)) + '</span></label>';
+    };
+    var mark = function (on) { return on ? '[x]' : '[ ]'; };
+    var parts = [];
+    parts.push(ATTIC_CSS + T.letterhead() +
+      '<h1 class="lib-h1">Attic, Ventilation &amp; Moisture Acknowledgment</h1>' +
+      '<p class="lib-sub">' + esc(d.homeownerName) + ' &middot; ' + esc(d.address) + '</p>' +
+      '<p class="aa-ver">' + esc(X.VERSION) + (d.formDate ? ' &middot; ' + esc(atticLongDate(d.formDate)) : '') + '</p>' +
+      '<!-- nbd:attic-ack ' + esc(X.VERSION) + ' ' + (notInspected ? 'not_inspected' : 'inspected') + ' -->');
+    // ATTIC-1
+    parts.push('<div class="section">' + X.WHY.map(function (p) { return '<p class="aa-p">' + aaMd(W(p)) + '</p>'; }).join('') + '</div>');
+    if (!notInspected) {
+      var on = atticLongDate(rec.inspectedOn) || '______';
+      var line = X.INSPECTED.replace('{{date}}', on).replace(/\{\{access point:[^}]*\}\}/, String(rec.accessPoint || '______'));
+      parts.push('<div class="section"><p class="aa-p">' + mark(true) + ' ' + aaMd(W(line)) + '</p><p class="aa-p">' + mark(false) + ' ' + aaMd(W(X.NOT_INSPECTED)) + '</p></div>');
+      // ATTIC-2: what we saw (the rep's record, with photos)
+      var cond = rec.conditions || {};
+      parts.push('<div class="section"><p class="aa-p">' + aaMd(W(X.SAW_INTRO)) + '</p>' + X.CONDITIONS.map(function (t, i) {
+        var k = AA.CONDITION_KEYS[i];
+        var txt = t;
+        if (k === 'other') txt = 'Other: ' + (rec.conditionOther ? rec.conditionOther : '______') + '. Notes: ' + (rec.notes ? rec.notes : '______');
+        return '<p class="aa-p">' + mark(cond[k] === true) + ' ' + (k === 'other' ? esc(txt) : aaMd(W(txt))) + '</p>' + (cond[k] === true ? photoRow('cond:' + k) : '');
+      }).join('') + (photoRow('overview') ? '<p class="aa-note">Overview photos</p>' + photoRow('overview') : '') + '</div>');
+      // Ventilation numbers (approximate)
+      var v = rec.vent || {};
+      var slots = [v.floorSqFt, v.neededArea, v.neededIntake, v.neededExhaust, v.nowIntake, v.nowExhaust, v.manufacturer];
+      var si = 0;
+      var nums = X.NUMBERS.replace(/\{\{[^}]*\}\}/g, function () { var x = slots[si++]; return x == null || x === '' ? '______' : String(x); });
+      ['1/300', '1/150', 'code'].forEach(function (r) {
+        var label = r === 'code' ? "[ ] code official's requirement" : '[ ] ' + r;
+        nums = nums.replace(label, label.replace('[ ]', mark(v.rule === r)));
+      });
+      parts.push('<div class="section"><p class="aa-p">' + aaMd(W(nums)) + '</p></div>');
+    } else {
+      // ATTIC-5: the second page, attic NOT inspected
+      var rl = AA.REASON_LINE[rec.reason];
+      parts.push('<div class="section"><p class="aa-p">' + aaMd(W(X.NOT_INSPECTED)) + '</p>' +
+        X.REASONS.map(function (t, i) {
+          var chosen = rl === i;
+          var txt = t;
+          if (i === 1) txt = t.replace('[ ] yours', (chosen && rec.reason === 'scheduling_homeowner' ? '[x]' : '[ ]') + ' yours').replace("[ ] NBD's", (chosen && rec.reason === 'scheduling_nbd' ? '[x]' : '[ ]') + " NBD's");
+          if (i === 5) txt = 'Other: ' + (rec.reasonText ? rec.reasonText : '______');
+          return '<p class="aa-p">' + mark(chosen) + ' ' + (i === 5 ? esc(txt) : aaMd(W(txt))) + '</p>';
+        }).join('') + (rec.notes ? '<p class="aa-p">Note: ' + esc(rec.notes) + '</p>' : '') + photoRow('access') + '</div>');
+    }
+    // Recommendations (ATTIC-2): priced lines only; each line has a Yes and a No
+    var lines = AA.recommendationLines(rec, terms, prices);
+    parts.push('<div class="section"><p class="aa-p">' + aaMd(W(X.RECS_INTRO)) + '</p><table class="lib-table"><thead><tr><th>Recommendation</th><th>Price</th><th class="aa-opt">Yes</th><th class="aa-opt">No</th></tr></thead><tbody>' +
+      lines.map(function (l) {
+        var nm = 'aa-rec-' + l.id;
+        return '<tr><td>' + esc(l.label) + '</td><td>' + (l.priceCents == null ? 'none' : esc(atticMoney(l.priceCents))) + '</td>' +
+          '<td class="aa-opt"><input type="radio" name="' + nm + '" data-nbd-ack="rec:' + esc(l.id) + ':yes" aria-label="Yes, add it"></td>' +
+          '<td class="aa-opt"><input type="radio" name="' + nm + '" data-nbd-ack="rec:' + esc(l.id) + ':no" aria-label="No, leave it out"></td></tr>';
+      }).join('') + '</tbody></table></div>');
+    // ATTIC-5 statements, then ATTIC-3 acknowledgments
+    var ACK_IDS = ['saw', 'declined', 'existing', 'not_inspection', 'moisture', 'tearoff'];
+    var STMT_IDS = ['not_checked', 'offered', 'unseen', 'no_change'];
+    if (notInspected) {
+      parts.push('<div class="section"><p class="aa-p">' + aaMd(X.STATEMENTS_HEAD) + '</p>' + X.STATEMENTS.map(function (t, i) { return tick('ack:stmt_' + STMT_IDS[i], t, true); }).join('') + '</div>');
+    }
+    parts.push('<div class="section"><p class="aa-note">Tick each box and each Yes or No. Your ticks are saved with your signature.</p>' +
+      X.ACKS.map(function (t, i) { return tick('ack:' + ACK_IDS[i], t, true); }).join('') + '</div>');
+    // ATTIC-4: the savings sentence (always prints, not editable per job), then the signatures
+    parts.push('<div class="section"><p class="aa-p">' + aaMd(W(X.SAVINGS)) + '</p></div>');
+    parts.push(T.sigBlock(['Homeowner', repLabel(B) + ' — ' + co], d));
+    parts.push(T.affiliateRow() + T.footer('Attic, Ventilation & Moisture Acknowledgment'));
+    return T.page('Attic, Ventilation & Moisture Acknowledgment', parts.join(''));
+  };
+
   // Brand refresh is done inside each renderer (T.refresh()), so these are
   // tenant-aware without the templates file's wrapping loop.
   if (DG.FORM_FIELDS) {
@@ -568,6 +687,8 @@
       lien_waiver: ['homeownerName', 'address', 'waiverKind', 'payerType', 'payerName', 'amount', 'throughDate', 'checkNumber'],
       right_to_cancel: ['homeownerName', 'address', 'contractDate'],
       material_selection: ['homeownerName', 'address', 'shingleLine', 'shingleColor', 'dripEdge', 'ventilation', 'gutters', 'gutterColor'],
+      attic_acknowledgment: ['homeownerName', 'address'],
+      attic_not_inspected: ['homeownerName', 'address'],
       proposal_options: ['homeownerName', 'address'],
       insurance_next_steps: ['homeownerName', 'address', 'scopeOfWork']
     });

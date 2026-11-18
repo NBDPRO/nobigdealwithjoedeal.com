@@ -278,10 +278,38 @@
     };
   }
 
+  // Tick controls (the attic acknowledgment, phase 3): <input data-nbd-ack="id" [data-nbd-required="1"]>. A required
+  // checkbox must be ticked and every Yes/No line (radios sharing an id up to ":yes"/":no") needs one answer.
+  function ackMissing() {
+    var els = document.querySelectorAll('input[data-nbd-ack]');
+    var groups = {}, miss = 0;
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i], id = el.getAttribute('data-nbd-ack') || '';
+      if (el.type === 'radio') {
+        var g = id.replace(/:(yes|no)$/, '');
+        groups[g] = groups[g] || el.checked;
+      } else if (el.getAttribute('data-nbd-required') === '1' && !el.checked) miss++;
+    }
+    Object.keys(groups).forEach(function (g) { if (!groups[g]) miss++; });
+    return miss;
+  }
+  // innerHTML does not carry a control's live state: write it into the markup so the saved copy shows what was ticked.
+  function syncAcks() {
+    var els = document.querySelectorAll('input[data-nbd-ack]');
+    for (var i = 0; i < els.length; i++) {
+      if (els[i].checked) els[i].setAttribute('checked', ''); else els[i].removeAttribute('checked');
+      els[i].setAttribute('disabled', '');
+    }
+  }
+
   function finalize() {
     var status = getStatus();
     if (status.hasUnsigned) {
       return { ok: false, missing: status.required };
+    }
+    var ackLeft = ackMissing();
+    if (ackLeft) {
+      return { ok: false, missingAcks: ackLeft, missing: ['every tick box and a Yes or No on every line'] };
     }
     // A document with NO signature blocks used to finalize successfully:
     // getStatus() reported hasUnsigned:false over an empty pad list, so
@@ -342,6 +370,7 @@
     // Firebase Storage. documentElement covers <head> + <body> in one
     // string. Prepend the doctype so the saved HTML still parses
     // correctly when reopened.
+    syncAcks();
     var html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
     // The touch sheet is display chrome, not document: cut its exact
     // serialisation back out so the record matches what was sent.

@@ -235,6 +235,8 @@ service cloud.firestore {
         'referralCodeInvalid', 'referralRewardJobCount', 'referralRewardPaidAt',
         // Roof Care Plan mirror (functions/care-plan.js) — server-written only.
         'carePlan',
+        // The attic gate's re-roof floor (functions/attic-gate.js, admin SDK).
+        'atticScopeFloor',
         // Intake provenance (functions/integrations/calcom.js, lead-bridge.js,
         // thumbtack.js — admin SDK). lead-alert.js decides whether to page
         // someone from these, so a client must not be able to assert them
@@ -695,10 +697,10 @@ service cloud.firestore {
     // not stamped" warning) and evidenceRefused (the in-person evidence gate refused the row) are
     // server-owned the same way, so a rep cannot clear or forge them on a not-yet-signed row.
     function documentEvidenceCreateOk() {
-      return !request.resource.data.keys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused']);
+      return !request.resource.data.keys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused', 'atticAckResult']);
     }
     function documentEvidenceUpdateOk() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused']);
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused', 'atticAckResult']);
     }
     function signedDocumentUpdateOk(leadId) {
       let keys = request.resource.data.diff(resource.data).affectedKeys();
@@ -839,6 +841,19 @@ service cloud.firestore {
             && d.get('archivedBy', null) == null);
     }
 
+    // Attic acknowledgment (docAtticAckV1, review 2026-11-18, finding 1): a lead's scope (reroof, repair, siding, gutters,
+    // other) may be RAISED by the client but never lowered, and a re-roof is never turned into something the gate ignores. The
+    // server reads the highest of this field, the estimates in play and its own atticScopeFloor (server-owned, never written
+    // here). Lowering goes through the owner/admin callable recordAtticOverride (kind scope_lowered, with a reason).
+    function atticScopeRank(s) {
+      return s == 'reroof' ? 3 : (s == 'repair' ? 2 : (s in ['siding', 'gutters'] ? 1 : 0));
+    }
+    function atticScopeNotLowered() {
+      return didNotChange(['scope'])
+        || (request.resource.data.get('scope', '') is string
+            && atticScopeRank(request.resource.data.get('scope', '')) >= atticScopeRank(resource.data.get('scope', '')));
+    }
+
     // CREATE (2026-11-14 review): a lead may not be born hidden by someone who
     // could not hide it by an update. Live markers (absent, or false / null)
     // are fine for anyone who may create (the CSV import writes deleted:false);
@@ -948,6 +963,9 @@ service cloud.firestore {
           // (functions/care-plan.js webhook). It drives the member badge, the
           // 10% repair discount and storm priority, so only the server sets it.
           && didNotChange(['carePlan'])
+          // The server's re-roof floor and the scope that cannot be lowered (attic acknowledgment, review 2026-11-18).
+          && didNotChange(['atticScopeFloor'])
+          && atticScopeNotLowered()
           // stripeCustomerId outranks email/phone/address in the Stripe ledger's match and is billed by
           // mintCrmStripeInvoice, so a rep setting it could pull another customer's payments onto their
           // lead. Server-only: the ledger and CRM Stripe invoices (admin SDK) — 2026-11-14.
@@ -2785,7 +2803,7 @@ service cloud.firestore {
           && ptInt(d.paymentTerms, 'punchListDays', 0, 365) && ptInt(d.paymentTerms, 'pauseNoticeDays', 0, 365)
           && ptNum(d.paymentTerms, 'restockPct', 0, 100) && ptNum(d.paymentTerms, 'cardFeePct', 0, 10)
           && ptInt(d.paymentTerms, 'deckingPerSheetCents', 0, 100000) && ptInt(d.paymentTerms, 'deckingSheetsBeforeChangeOrder', 1, 200)
-          && ptInt(d.paymentTerms, 'atticFreeCheckDays', 0, 365) && ptInt(d.paymentTerms, 'claimNoticeDays', 0, 365));
+          && ptInt(d.paymentTerms, 'atticFreeCheckDays', 1, 365) && ptInt(d.paymentTerms, 'claimNoticeDays', 0, 365));
       }
       // create: a client may NOT seed a docPrefix/seal — those come from the
       // reserveCompanyPrefix callable only (both must be absent/null here).
@@ -4649,6 +4667,15 @@ service cloud.firestore {
     // touches this collection — same lockdown as doc_sign_tokens.
     match /deal_accept_tokens/{token} {
       allow read, write: if false;
+    }
+
+    // Phase 3 (docAtticAckV1, 2026-11-18): the owner/admin "proceed without a signed attic page" event (Q18). Written by
+    // recordAtticOverride only (admin SDK): name, uid, time, reason. A rep cannot forge it; the tenant's own people can read it.
+    match /attic_overrides/{id} {
+      allow read: if isAuth() && (isAdmin()
+        || (resource.data.companyId == myCompanyId() && isCompanyReader())
+        || resource.data.byUid == request.auth.uid);
+      allow write: if false;
     }
 
     // Inspection report sharing. createReportShareToken mints these; the
