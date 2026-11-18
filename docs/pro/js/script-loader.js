@@ -221,7 +221,7 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=28',
+      'js/document-generator.js?v=29',
       'js/document-generator-templates.js?v=21',
       'js/document-generator-library.js?v=5', // 2026-10-04 template library; needs -templates' _tpl
       'js/doc-preflight.js?v=18',
