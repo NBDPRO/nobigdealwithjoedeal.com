@@ -590,6 +590,7 @@
     "call-center-logic-2026-10-01.test.js",
     "call-center-ingest-2026-10-01.test.js",
     "call-center-loose-recordings-2026-11-18.test.js",
+    "call-center-paren-numbers-2026-11-18.test.js",
     "call-center-new-old-day-folders-2026-11-18.test.js",
     "call-center-raw-phone-names-2026-11-18.test.js",
     "estimates-render-guard-2026-11-07.test.js",

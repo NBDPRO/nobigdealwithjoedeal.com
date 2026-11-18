@@ -37,8 +37,9 @@ const DIRECTION = { '↗': 'outbound', '↙': 'inbound' };
 // The number is either "(+1 812-…)" / "(1 877-…)" after a label, or a bare
 // "+1 800-…" when the caller isn't a saved contact.
 const NAME_RE = /^(\d{4}-\d{2}-\d{2}) (\d{2})-(\d{2})-(\d{2}) \(([^)]*)\)\s*(.*?)\s*([↗↙])?\.(m4a|mp3|amr|ogg|wav|aac|3gp|opus)$/i;
-const TRAILING_NUMBER_RE = /^(.*?)\s*\(\s*(\+?[\d][\d\s\-().]{6,})\)$/;
-const BARE_NUMBER_RE = /^\+?[\d][\d\s\-().]{6,}$/;
+// A number may start with "(" (US format "(513) 732-7290", 2026-11-18).
+const TRAILING_NUMBER_RE = /^(.*?)\s*\(\s*(\+?[\d(][\d\s\-().]{6,})\)$/;
+const BARE_NUMBER_RE = /^\+?[\d(][\d\s\-().]{6,}$/;
 const RAW_NAME_RE = /^phone_(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})_(_?)(\d{7,15})\.(m4a|mp3|amr|ogg|wav|aac|3gp|opus)$/i;
 
 // Jo's own contact-name tags. Kept as tags, stripped from the display name.
