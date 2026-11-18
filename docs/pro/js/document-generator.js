@@ -329,7 +329,7 @@ window.NBDDocGen = {
 
   _clauseItemsHtml(items) {
     return (items || []).filter(function (i) { return !i.byRef; }).map((i) => i.paragraphs.map((p) =>
-      '<div class="nbd-clause" data-clause="' + i.id + '" style="margin: 0.05in 0; font-size: 9px;"><span style="color:#888;font-size:7px;">' +
+      '<div class="nbd-clause" data-clause="' + i.id + '"><span class="nbd-clause-id">' +
       i.id + '</span> ' + this._clauseHtml(p) + '</div>').join('')).join('');
   },
 
@@ -366,12 +366,13 @@ window.NBDDocGen = {
     let liens = html("Mechanic's Liens");
     if (stat.lien) {
       // Kentucky insurance: the shipped lien sentence (LIEN-3) exactly as the contract printed it, then LIEN-4 and 5.
-      liens = '<div style="margin: 0.1in 0; font-size: 10px;">' + this._escHtml(stat.lien) + '</div>' + liens;
+      liens = '<div class="nbd-clause-lead">' + this._escHtml(stat.lien) + '</div>' + liens;
     }
     return {
       refs: r.refs, missing: r.missing, party: party, set: r, variant: r.variant,
+      css: '<style>.nbd-clause{margin:.05in 0;font-size:9px}.nbd-clause-id{color:#888;font-size:7px}.nbd-clause-lead{margin:.1in 0;font-size:10px}</style>',
       // The marker lists every clause this document printed; the server reads it back for the signing evidence.
-      partyHtml: '<!-- nbd:clause-set ' + CS.CLAUSE_SET_VERSION + ' ' + r.refs.join(',') + ' -->' + (r.party ? '<div class="section"><div class="section-title">Parties</div><div class="nbd-clause" data-clause="PARTY-1" style="margin: 0.1in 0; font-size: 10px;">' +
+      partyHtml: '<!-- nbd:clause-set ' + CS.CLAUSE_SET_VERSION + ' ' + r.refs.join(',') + ' -->' + (r.party ? '<div class="section"><div class="section-title">Parties</div><div class="nbd-clause nbd-clause-lead" data-clause="PARTY-1">' +
         this._clauseHtml(r.party.paragraphs[0]) + '</div></div>' : ''),
       terms: '<div class="nbd-clauses">' + html('Terms of Payment') + '</div>',
       slotChange: sec('Warranty Terms') + sec('Change Orders and Hidden Conditions') + sec('Schedule, Access and Permits') + sec('Materials, Special Orders and Restocking'),
@@ -2963,7 +2964,7 @@ window.NBDDocGen = {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>${this._docTitleCompany()} - Roofing Contract</title>
         ${this.getSharedCSS()}
-        ${stat.css}
+        ${stat.css}${v1 ? v1.css : ''}
       </head>
       <body>
         <div class="print-button-container">

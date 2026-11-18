@@ -444,7 +444,7 @@
       "prints": "all",
       "parts": [
         {
-          "text": "NBD may contact you by phone, text and email about this job (scheduling, access, invoices). Message and data rates may apply. Reply STOP to stop texts."
+          "text": "NBD may contact you by phone, text and email about this job (scheduling, access, invoices). Message and data rates may apply. Reply STOP to opt out."
         }
       ]
     },

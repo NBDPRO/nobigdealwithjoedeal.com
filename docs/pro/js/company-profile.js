@@ -136,12 +136,8 @@
 
     latePaymentChargeText: '1.5% monthly finance charge',
 
-    /* ── PAYMENT TERMS (clause set v1, 2026-11-18, flag docClauseSetV1) ──
-       The numbers the contract clauses print. Identical to clause-set.js
-       NBD_PAYMENT_TERMS_DEFAULTS (a test pins it). A tenant other than NBD gets
-       them blank (_resolveLegal) and the send gate refuses until it sets its own.
-       cardFeePct 0 = no card fee is promised anywhere (the fee mechanism is phase 4);
-       deckingPerSheetCents null = not priced yet, the contract cannot be sent. */
+    /* PAYMENT TERMS (clause set v1, flag docClauseSetV1): the numbers the clauses print; equals
+       clause-set.js NBD_PAYMENT_TERMS_DEFAULTS. Other tenants get them blank (_resolveLegal). */
     paymentTerms: {
       lateGraceDays: 15, lateInterestPct: 8, disputeDays: 10, finalPaymentDays: 7, punchListDays: 3,
       pauseNoticeDays: 5, restockPct: 15, cardFeePct: 0, deckingPerSheetCents: null,

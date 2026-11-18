@@ -66,7 +66,9 @@ function section(name) { console.log('\n' + name); }
     };
     const norm = (t) => t.replace(/\*\*/g, '').replace(/^\*[^*]+:\* /, '').replace(/\s+/g, ' ').trim();
     const DEFAULTS = Object.assign({}, CS.NBD_PAYMENT_TERMS_DEFAULTS, { cardFeePct: 3 });
-    const fill = (t) => t.replace(/\{\{cfg\$:deckingPerSheetCents\}\}/, '{{decking price per 4 ft by 8 ft sheet, from your estimate}}')
+    // The one deliberate difference from the packet: ESIGN-2 prints the carrier-approved opt-out wording the repo
+    // enforces everywhere (tests/one-stop-line-2026-10-16.test.js); the packet says "stop texts".
+    const fill = (t) => t.replace('Reply STOP to opt out.', 'Reply STOP to stop texts.').replace(/\{\{cfg\$:deckingPerSheetCents\}\}/, '{{decking price per 4 ft by 8 ft sheet, from your estimate}}')
       .replace(/\{\{cfg:([A-Za-z]+)\}\}/g, (m, k) => String(DEFAULTS[k]));
     // Packet paragraphs the registry deliberately does not carry, with the reason.
     const NOT_PRINTED = { 'PARTY-1': [1], 'WAR-2': [1], 'DISP-6': [1] };
