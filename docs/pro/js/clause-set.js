@@ -253,6 +253,15 @@
   }
 
   /**
+   * The one-line pointer an invoice or Payment Agreement prints under flag docClauseSetV1 instead of its own late
+   * charge wording (packet LATE-4: "The invoice then says only ..."). '' when the wording did not load.
+   */
+  function lateInvoiceLine() {
+    var c = T['LATE-4'];
+    return c && typeof c.invoiceLine === 'string' ? c.invoiceLine : '';
+  }
+
+  /**
    * The v1 set for one document. opts = { state, paymentSource, terms (paymentTermsFor), facts, party, hasWarranty }
    * -> { clauseSetVersion, variant, failClosed, refs: ['PAY-4_V1', ...], missing: [field], sections:
    *      [{ title, items: [{ id, ref, byRef, paragraphs: [text] }] }], sectionOf: {id: title} }
@@ -324,6 +333,7 @@
     REGISTRY: REGISTRY,
     describeFor: describeFor,
     textFor: textFor,
+    lateInvoiceLine: lateInvoiceLine,
     all: all,
     NBD_PAYMENT_TERMS_DEFAULTS: NBD_PAYMENT_TERMS_DEFAULTS,
     PT_FIELDS: PT_FIELDS,

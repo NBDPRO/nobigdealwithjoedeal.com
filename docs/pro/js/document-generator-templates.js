@@ -515,6 +515,13 @@
   }
   // The company profile a renderer should read: the caller's explicit copy,
   // else the tenant-resolved one (_legal), else the raw merged profile.
+  // The LATE-4 invoice pointer when flag docClauseSetV1 is on and the registry loaded, else '' (today's wording prints).
+  function lateContractLine() {
+    try {
+      if (!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('docClauseSetV1'))) return '';
+      return (window.NBDClauseSet && typeof window.NBDClauseSet.lateInvoiceLine === 'function' && window.NBDClauseSet.lateInvoiceLine()) || '';
+    } catch (_) { return ''; }
+  }
   function tenantCp(d) {
     if (d && d.companyProfile) return d.companyProfile;
     if (typeof window !== 'undefined' && typeof window._legal === 'function') {
@@ -1158,6 +1165,8 @@
     const _cpInv = tenantCp(data);
     const _invFinancePartner = _cpInv.financePartner || defaultFinancePartner();
     const _invLateText = _cpInv.latePaymentChargeText || '1.5% monthly finance charge';
+    // Flag docClauseSetV1: the invoice only points at the contract (packet LATE-4). '' = flag off or wording not loaded.
+    const _invLateLine = lateContractLine();
     // The ONE invoice due-date rule (deposit-rule.js INVOICE_DUE_DAYS — Jo
     // 2026-10-05: 7 days everywhere). This said "Due upon receipt".
     const _invDr = window.NBDDepositRule;
@@ -1288,8 +1297,8 @@
         <div style="background:#fff8f5;padding:16px;border-radius:8px;border:1px solid #f0d0c0;">
           <div style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Late Payment</div>
           <div style="font-size:13px;line-height:1.8;color:#555;">
-            Payment is due within ${_invDueDays} days of the invoice date (Net ${_invDueDays}) unless otherwise agreed in writing. Accounts past 30 days may be
-            subject to a ${esc(_invLateText)}.
+            Payment is due within ${_invDueDays} days of the invoice date (Net ${_invDueDays}) unless otherwise agreed in writing. ${_invLateLine ? esc(_invLateLine) : `Accounts past 30 days may be
+            subject to a ${esc(_invLateText)}.`}
           </div>
         </div>
       </div>
@@ -2645,6 +2654,7 @@
       projectDescription:'' }, data);
     const cp = tenantCp(d);
     const latePaymentText = cp.latePaymentChargeText || '1.5% monthly finance charge';
+    const _paLateLine = lateContractLine();
     const financePartner = cp.financePartner || defaultFinancePartner();
 
     const total = parseFloat(d.totalAmount)||0;
@@ -2715,10 +2725,10 @@
       <div class="section">
         <div class="section-title">Terms and Conditions</div>
         <ol style="font-size:13px;line-height:2;padding-left:24px;color:#444;">
-          <li>All payments are due as specified above. Late payments may be subject to a ${esc(latePaymentText)}.</li>
+          <li>All payments are due as specified above. ${_paLateLine ? esc(_paLateLine) : 'Late payments may be subject to a ' + esc(latePaymentText) + '.'}</li>
           <li>Checks should be made payable to <strong>${C.name}</strong>.</li>
           ${zelleTo() ? `<li>For Zelle payments, send to <strong>${esc(zelleTo())}</strong>.</li>` : ''}
-          <li>Credit card payments are accepted via secure link provided by ${C.name}. A convenience fee may apply.</li>
+          <li>Credit card payments are accepted via secure link provided by ${C.name}.${_paLateLine ? '' : ' A convenience fee may apply.'}</li>
           ${financePartner ? `<li>Financing is available through ${esc(financePartner)}, subject to credit approval and separate terms.</li>` : ''}
           <li>Work will not commence until the deposit payment has been received and verified.</li>
           <li>Final payment is due upon completion of the project and successful final walkthrough.</li>
