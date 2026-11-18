@@ -273,6 +273,43 @@ const tickAll = (h, no) => h.replace(/data-nbd-ack="(ack:saw|ack:existing|rec:de
     ok('customer.html loads it with defer, script-loader carries the logic files', /<script defer src="js\/attic-panel\.js\?v=1"><\/script>/.test(src('docs/pro/customer.html')) && /attic-ack\.js\?v=1/.test(src('docs/pro/js/script-loader.js')));
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('H. the deal page (the Kentucky insurance acceptance path, Q72): the mint is gated');
+  {
+    const CS = require(path.join(FN, 'clause-set.js'));
+    const DEAL_PATH = 'deal_rooms/U1/deal0001.html';
+    const REALD = ['./cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', './lead-artifact-paths', './await-briefly', './portal-after-signing', './signed-price', './customer-estimate-rows', './doc-send-checks', './attic-gate', './attic-ack', 'crypto'];
+    const stubsD = () => ({
+      './deal-install-date': { fillLeadInstallDate: async () => null },
+      './deal-view-logic': { isPreviewBot: () => false, shouldNotifyView: () => false, viewMessage: () => ({ title: '', body: '' }) },
+      './estimate-send-logic': {}, './thursday-video-gate': { isNbdTenant: () => false, DEAL_ROOM_INJECT: '', DEAL_ROOM_SCRIPT_PATH: '/x.js' },
+      './deal-accepted-tier': { applyAcceptedTier: async () => {} },
+      './ky-insurance-law': K, './cancel-window': require(path.join(FN, 'cancel-window.js')), './esign-logic': ESL, './doc-evidence': DE,
+    });
+    const PAGE = '<html><head></head><body><p>Your roof.</p><div class="section-title">Sign &amp; Schedule</div><div class="sign-section">sign</div></body></html>';
+    const mintDeal = async (flags, o) => {
+      const x = o || {};
+      const s = {
+        'deal_rooms/deal0001': { status: 'sent', userId: 'U1', leadId: 'L1', customerName: 'Dana Whitfield', tiers: { better: { price: 13000 } } },
+        'leads/L1': { userId: 'U1', companyId: 'U1', address: '12 Oak St, Covington, KY 41011', jobType: 'insurance', primaryEstimateId: 'E1' },
+        'estimates/E1': { grandTotal: 13000, rows: [{ code: 'LAB TO1' }] },
+        'companyProfile/U1': { paymentTerms: Object.assign({}, CS.NBD_PAYMENT_TERMS_DEFAULTS, { deckingPerSheetCents: 10000 }) },
+      };
+      if (flags) s['feature_flags/_default'] = flags;
+      if (x.signed) s['leads/L1/documents/a0'] = SIGNED;
+      const db = kit.makeDb(s);
+      const L = kit.loadHandler('deal-acceptance.js', db, kit.makeStorage({ [DEAL_PATH]: PAGE }), stubsD(), REALD);
+      try { return { v: await L.fns.createDealAcceptToken({ auth: { uid: 'U1', token: {} }, data: { dealId: 'deal0001' } }), db }; } catch (e) { return { e, db }; }
+    };
+    let r = await mintDeal({ docAtticAckV1: true });
+    ok('flag on, a re-roof deal with no attic form: no link is minted, plain message', !!r.e && r.e.code === 'failed-precondition' && /Attic, Ventilation/.test(r.e.message) && r.db._all('deal_accept_tokens').length === 0, r.e && r.e.message);
+    r = await mintDeal({ docAtticAckV1: true }, { signed: true });
+    ok('flag on, with the signed form: the link is minted', !!r.v && !!r.v.token, r.e && r.e.message);
+    r = await mintDeal(null);
+    ok('FLAG OFF: the deal link mints exactly as before', !!r.v && !!r.v.token, r.e && r.e.message);
+    ok('the gate also covers a deal with no lead? No: reported, not gated', /A deal with no lead/.test(src('functions/deal-acceptance.js')));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });
