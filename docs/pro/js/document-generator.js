@@ -189,6 +189,14 @@ window.NBDDocGen = {
   _docSendGate(type, data, html) {
     const C = (typeof window !== 'undefined') && window.NBDDocSendChecks;
     // Either flag turns the check on: a contract that prints the clause set v1 is refused while a clause number is unset.
+    // Flag docClauseSetV1 on but the clause wording (or the cancel packet module) did not load: refuse a contract-class
+    // document with a clear message. The render fell back to the full legacy text; nothing goes out unchecked.
+    if (this._clauseV1Wanted() && !this._clauseV1On() && !(data && data._isBlankPreview)
+        && ['contract', 'proposal', 'work_authorization', 'estimate_esign'].indexOf(type) !== -1) {
+      const m = 'The clause wording did not load. Reload the page and try again. Nothing was sent.';
+      if (typeof showToast === 'function') showToast(m, 'error'); else console.error(m);
+      return false;
+    }
     if ((!this._docEvidenceOn() && !this._clauseV1On()) || (data && data._isBlankPreview)) return true;
     if (!C) {
       // Flag ON but the checks module did not load (review 2026-11-18): do NOT let a contract through
@@ -317,9 +325,19 @@ window.NBDDocGen = {
    * Feature flag docClauseSetV1 (default OFF, per person): print the clause set v1 (clause-set.js) on
    * the contract. Off, or the registry did not load: false, and the contract renders exactly as before.
    */
-  _clauseV1On() {
+  _clauseV1Wanted() {
     return !!(typeof window !== 'undefined' && window.NBDFlags && typeof window.NBDFlags.enabled === 'function'
-      && window.NBDFlags.enabled('docClauseSetV1') && window.NBDClauseSet && typeof window.NBDClauseSet.renderV1 === 'function');
+      && window.NBDFlags.enabled('docClauseSetV1'));
+  },
+
+  // On only when the registry AND its wording AND the cancel packet module are all there (review 2026-11-18,
+  // items 1 and 5): a half-loaded set would drop legacy sections and print nothing in their place.
+  _clauseV1On() {
+    if (!this._clauseV1Wanted()) return false;
+    const T = window.NBDClauseText;
+    return !!(window.NBDClauseSet && typeof window.NBDClauseSet.renderV1 === 'function'
+      && T && T.CLAUSES && Object.keys(T.CLAUSES).length
+      && window.NBDJurisdiction && typeof window.NBDJurisdiction.cancelPacketHtml === 'function');
   },
 
   /** Clause text to HTML: escaped, with the packet's **bold** lead-ins. */

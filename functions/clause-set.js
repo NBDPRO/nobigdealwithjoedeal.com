@@ -239,6 +239,9 @@
    *      [{ title, items: [{ id, ref, byRef, paragraphs: [text] }] }], sectionOf: {id: title} }
    */
   function renderV1(opts) {
+    // Fail closed (review 2026-11-18, item 5): with no wording table the set would silently print nothing and the
+    // legacy sections it replaces would be gone. A caller must never get an empty set back.
+    if (!T || !Object.keys(T).length) throw new Error('clause wording did not load');
     var o = opts || {};
     var v = variantOf(o);
     var terms = o.terms || {};
