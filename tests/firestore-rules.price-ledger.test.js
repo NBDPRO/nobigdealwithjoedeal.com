@@ -165,7 +165,8 @@ async function run() {
   }
 
   // 8. the legacy priceBook/{companyId} doc behaves as before
-  await check('8. a sales rep still reads the legacy price book doc', 'allow', getDoc(doc(WHO.sales_rep, 'priceBook/co-a')));
+  await check('8. a sales rep can not read the legacy price book doc (2026-11-18, Jo)', 'deny', getDoc(doc(WHO.sales_rep, 'priceBook/co-a')));
+  await check('8. a manager still reads it', 'allow', getDoc(doc(WHO.manager, 'priceBook/co-a')));
   await check('8. a viewer still reads the legacy price book doc', 'allow', getDoc(doc(WHO.viewer, 'priceBook/co-a')));
   await check('8. another company still can not read it', 'deny', getDoc(doc(WHO['another company'], 'priceBook/co-a')));
   await check('8. the owner still writes it', 'allow', setDoc(doc(WHO['solo owner (uid is the company)'], 'priceBook/co-a'), { items: {} }, { merge: true }));

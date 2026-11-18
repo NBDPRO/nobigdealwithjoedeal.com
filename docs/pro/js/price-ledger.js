@@ -390,10 +390,14 @@
    */
   async function readDocument(file, supplierId) {
     if (!enabled() || !canSave()) return { ok: false, message: 'Only the owner or an admin can read a document.' };
-    if (!file || !/^(application\/pdf|image\/(png|jpeg|jpg|webp|gif))$/.test(file.type || '')) return { ok: false, message: 'Choose a PDF, or a JPG, PNG or WebP photo.' };
+    // An iPhone photo (HEIC / HEIF) is accepted too (2026-11-18): many browsers report no
+    // type for it, so its name decides, and the server converts it to JPEG before reading.
+    const heic = !!file && (/^image\/(heic|heif)$/.test(file.type || '') || /\.(heic|heif)$/i.test(file.name || ''));
+    if (!file || (!heic && !/^(application\/pdf|image\/(png|jpeg|jpg|webp|gif))$/.test(file.type || ''))) return { ok: false, message: 'Choose a PDF, or a JPG, PNG, WebP or iPhone (HEIC) photo.' };
     if (file.size > DOC_MAX) return { ok: false, message: 'That file is over 7 MB. Choose a smaller one, or split the PDF.' };
     let dataUrl;
     try { dataUrl = await readAsDataUrl(file); } catch (e) { warn('readDocFile', e); return { ok: false, message: 'That file could not be read.' }; }
+    if (heic) dataUrl = dataUrl.replace(/^data:[^;,]*(;base64,)/, 'data:image/heic$1');
     try {
       const fn = await callable('priceDocRead');
       const res = await fn({ file: dataUrl, fileName: file.name, supplierId: supplierId || null });

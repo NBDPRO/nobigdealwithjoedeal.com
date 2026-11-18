@@ -142,7 +142,7 @@
       // sends each receipt line to it as well. Same files and keys as the
       // estimates bundle; they do nothing while the flag is off.
       'js/price-logic.js?v=9',
-      'js/price-ledger.js?v=8',
+      'js/price-ledger.js?v=9',
       // Receipt import search / filter + type-ahead job picker (2026-10-19): inert until the receiptSorterQueue flag is on.
       'css/receipt-review.css?v=1', 'js/receipt-filter-logic.js?v=1', 'js/receipt-review-ui.js?v=1',
       // Receipt sorter queue (2026-10-18): inert until the receiptSorterQueue flag is on.
@@ -283,7 +283,7 @@
       'js/product-data.js?v=6',
       'js/roofivent-catalog.js?v=2',
       'js/catalog-costs.js?v=5',
-      'js/product-library.js?v=23',
+      'js/product-library.js?v=24',
       // Price book viewer (2026-10-02): the Product Library's "Price book"
       // button. Same file the expenses bundle loads for the HD import.
       'css/price-book.css?v=1',
@@ -292,10 +292,10 @@
       // "Stores & prices" sheet on each product card. Dark unless the flag is on.
       'js/price-logic.js?v=9',
       'css/price-ledger.css?v=5',
-      'js/price-ledger.js?v=8',
+      'js/price-ledger.js?v=9',
       'js/price-offers-ui.js?v=8',
       // Slice 3: Import prices and Compare suppliers (owner / company admins).
-      'js/price-import.js?v=3',
+      'js/price-import.js?v=4',
       'js/price-compare-ui.js?v=2',
       'js/estimate-labor-catalog.js?v=2',
       'js/estimate-builder-v2.js?v=15',

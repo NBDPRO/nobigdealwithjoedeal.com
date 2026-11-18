@@ -3060,10 +3060,12 @@ service cloud.firestore {
     // The company's price book (price-book.js, 2026-10-02): what it actually
     // paid per store SKU, learned from receipts (Home Depot import) and later
     // manual entries. COST data, so the same tenant scoping and the same
-    // owner / company_admin write split as catalogCosts — a sales_rep reads
-    // it (the materials list shows last-paid prices) but cannot rewrite it.
+    // owner / company_admin write split as catalogCosts. A sales_rep reads
+    // NOTHING here since 2026-11-18 (Jo: reps never read a supplier price; the
+    // supplier price ledger's offers went owner / admin / manager the same day).
     match /priceBook/{companyId} {
-      allow read: if isAuth() && (companyId == myCompanyId() || ownsTenantByUid(companyId));
+      allow read: if isAuth() && (companyId == myCompanyId() || ownsTenantByUid(companyId))
+        && request.auth.token.get('role', '') != 'sales_rep';
       allow write: if isAdmin()
         || (ownsTenantByUid(companyId) && notViewer())
         || (isCompanyAdmin() && companyId == myCompanyId());
