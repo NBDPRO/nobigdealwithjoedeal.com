@@ -252,7 +252,7 @@ const tickAll = (h, no) => h.replace(/<input\b[^>]*>/gi, (tag) => {
   section('F. the firestore rules carry the new server-owned field and collection');
   {
     const rules = src('firestore.rules');
-    ok('atticAckResult is server-owned on documents (create and update)', rules.split("'evidenceRefused', 'atticAckResult']").length - 1 === 2);
+    ok('atticAckResult is server-owned on documents (create and update)', rules.split("'evidenceRefused', 'atticAckResult', 'atticGateUnverified']").length - 1 === 2);
   }
 
   // ═══════════════════════════════════════════════════════

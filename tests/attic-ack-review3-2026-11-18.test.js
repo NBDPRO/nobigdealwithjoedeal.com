@@ -271,6 +271,53 @@ const generated = async (docType, extraData) => {
     }
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('5. in-person: an attic flag that cannot be read is recorded (atticGateUnverified), the signing itself is unchanged');
+  {
+    const REALI = ['./in-person-signing-logic', './doc-evidence', './ky-insurance-law', './attic-gate', './attic-ack', './await-briefly', 'crypto'];
+    const mk = (type, unreadable, flags) => {
+      const s = { 'leads/L1': lead({ primaryEstimateId: 'E1' }), 'estimates/E1': REROOF,
+        'leads/L1/documents/d1': { type, status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner' }], htmlPath: 'documents/REP/L1/d-9.html', userId: 'REP' } };
+      Object.entries(flags || {}).forEach(([id, v]) => { s['feature_flags/' + id] = v; });
+      const db = kit.makeDb(s);
+      const realDoc = db.doc;
+      db.doc = (p) => (unreadable.indexOf(p) !== -1 ? { get: async () => { throw new Error('unavailable ' + p); } } : realDoc(p));
+      return db;
+    };
+    const call = async (db) => {
+      const L = kit.loadHandler('in-person-signing.js', db, kit.makeStorage({}), { './job-spine': { recordJobEvent: async () => ({ moved: false }) } }, REALI);
+      try { return { v: await L.fns.recordInPersonSignature({ auth: { uid: 'REP', token: { companyId: 'CO' } }, data: { leadId: 'L1', docId: 'd1' }, rawRequest: { headers: {}, ip: '203.0.113.9' } }) }; } catch (e) { return { e }; }
+    };
+    const row = (db) => db._get('leads/L1/documents/d1') || {};
+    const acts = (db) => db._all('leads/L1/activity').map((x) => (x.data ? x.data() : x)).filter((x) => x && x.type === 'attic_gate_unverified');
+    let db = mk('contract', ['feature_flags/CO']);
+    let r = await call(db);
+    ok('contract, the owner\'s attic flag unreadable: the signing is still recorded (flag-off behaviour unchanged)', !!r.v && r.v.ok === true, r.e && r.e.code + ' ' + r.e.message);
+    ok('...and the row carries a server-written atticGateUnverified', !!row(db).atticGateUnverified && row(db).atticGateUnverified.reason === 'attic_flag_unreadable' && typeof row(db).atticGateUnverified.at === 'number', JSON.stringify(row(db).atticGateUnverified));
+    ok('...and the owner gets one activity note', acts(db).length === 1 && acts(db)[0].docId === 'd1' && acts(db)[0].userId === 'REP', JSON.stringify(acts(db)));
+    db = mk('contract', []);
+    r = await call(db);
+    ok('control: the flag readable and off: no mark and no note', !!r.v && !row(db).atticGateUnverified && acts(db).length === 0);
+    db = mk('contract', [], { _default: {}, CO: { docAtticAckV1: true } });
+    r = await call(db);
+    ok('control: the flag readable and ON: the gate still refuses a re-roof contract with no attic form, and nothing is marked unverified', !!r.e && r.e.code === 'failed-precondition' && !row(db).atticGateUnverified && acts(db).length === 0, r.e && r.e.code);
+    db = mk('photo_report', ['feature_flags/CO']);
+    r = await call(db);
+    ok('a document the gate does not apply to is not marked', !!r.v && !row(db).atticGateUnverified && acts(db).length === 0);
+    db = mk('attic_acknowledgment', ['feature_flags/CO']);
+    r = await call(db);
+    ok('an attic form signed in person with the flag unreadable is marked too (nothing could be read back)', !!row(db).atticGateUnverified && acts(db).length === 1, JSON.stringify(row(db)).slice(0, 120));
+    // the logic contract: a plain true/false from flagOn still works (older callers)
+    const Lg = require(path.join(FN, 'in-person-signing-logic.js'));
+    db = mk('contract', []);
+    let e; try { await Lg.handleInPersonSignature(db, { uid: 'REP', token: { companyId: 'CO' } }, { leadId: 'L1', docId: 'd1' }, { attic: { flagOn: async () => false }, recordJobEvent: async () => ({}) }); } catch (x) { e = x; }
+    ok('flagOn returning plain false: unchanged, no mark', !e && !row(db).atticGateUnverified);
+    db = mk('contract', []);
+    try { await Lg.handleInPersonSignature(db, { uid: 'REP', token: { companyId: 'CO' } }, { leadId: 'L1', docId: 'd1' }, { attic: { flagOn: async () => ({ on: false, unverified: true }) }, recordJobEvent: async () => ({}) }); } catch (x) { e = x; }
+    ok('flagOn returning { on: false, unverified: true }: marked', !!row(db).atticGateUnverified);
+    ok('firestore.rules lists atticGateUnverified as server-owned on create and on update', (src('firestore.rules').match(/'evidenceRefused', 'atticAckResult', 'atticGateUnverified'\]/g) || []).length === 2);
+  }
+
   console.log('\n' + (failed ? 'FAILED ' + failed + ': ' + fails.join(' | ') : 'all ok') + ' (' + passed + ' passed)');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
