@@ -448,6 +448,38 @@ function loadRegistry(textObj) {
     ok('rules: clients cannot write the token (see firestore-rules.clause-set-v1-review-2026-11-18.test.js)', /match \/deal_accept_tokens\/\{token\} \{\s*allow read, write: if false;/.test(readRepo('firestore.rules')));
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('10. NBD is ready once deckingPerSheetCents is set (and refused with its name until then)');
+  {
+    const DE = require('../functions/doc-evidence.js');
+    const KyLaw = require('../functions/ky-insurance-law.js');
+    const NBD_UID = DE.NBD_OWNER_UID_FOR_TESTS;
+    const lead = { address: H.OH_ADDR, jobType: 'cash', companyId: NBD_UID, userId: NBD_UID };
+    // server: NBD profile with every default (nothing written) except the decking price
+    const ready = DE.buildClauseSet(KyLaw, lead, {}, { paymentTerms: { deckingPerSheetCents: 10000 } }, NBD_UID, { ownerNames: 'Jane Smith', propertyAddress: H.OH_ADDR, date: 'November 18, 2026' });
+    ok('server: NBD, all defaults but deckingPerSheetCents set: missing is []', Array.isArray(ready.missing) && ready.missing.length === 0, JSON.stringify(ready.missing));
+    const gapsReady = DE.serverContractGaps({ type: 'proposal', html: DE.clauseSetHtml(ready), lead, profile: { brand: { entityName: 'No Big Deal Solutions LLC', contact: { mailingAddress: '1 Main St' } } }, tenantKey: NBD_UID, KyLaw, priceCents: 1850000, clauseConfigMissing: ready.missing });
+    ok('server: ...and the gap check passes (no clause-number gap)', !gapsReady.some((g) => g.code === 'clauseConfig' || /deckingPerSheetCents|\{\{/.test(g.message)), JSON.stringify(gapsReady));
+    const notReady = DE.buildClauseSet(KyLaw, lead, {}, { paymentTerms: { deckingPerSheetCents: null } }, NBD_UID, {});
+    ok('server: deckingPerSheetCents null: missing is exactly [deckingPerSheetCents]', JSON.stringify(notReady.missing) === JSON.stringify(['deckingPerSheetCents']), JSON.stringify(notReady.missing));
+    const gapsNot = DE.serverContractGaps({ type: 'proposal', html: DE.clauseSetHtml(notReady), lead, profile: {}, tenantKey: NBD_UID, KyLaw, priceCents: 1850000, clauseConfigMissing: notReady.missing });
+    ok('server: ...and the send is refused with "Set deckingPerSheetCents in Company Profile."', gapsNot.some((g) => /Set deckingPerSheetCents in Company Profile\./.test(g.message)));
+    // client: NBD brand (the harness default), flag on
+    const env = H.docs({ flags: { docClauseSetV1: true } });
+    // The generator reads the profile the form hands it (data.companyProfile): NBD's defaults with only the decking price set.
+    const withDecking = { companyProfile: H.profileFor(env.win, H.BIZ_ADDR, { paymentTerms: Object.assign({}, env.win.NBD_COMPANY_PROFILE_DEFAULTS.paymentTerms, { deckingPerSheetCents: 10000 }) }) };
+    const v = H.VARIANTS.oh_cash;
+    const html = H.render(env, 'renderContract', v, withDecking);
+    ok('client: NBD, defaults but deckingPerSheetCents set: the v1 set renders and nothing is missing', env.win.NBDDocGen._lastClauseSet && env.win.NBDDocGen._lastClauseSet.missing.length === 0 && /nbd:clause-set/.test(html) && !/\{\{deckingPerSheetCents\}\}/.test(html) && /\$100\.00 per sheet/.test(html));
+    const before = env.toasts.length;
+    ok('client: ...and the send gate lets it through', env.win.NBDDocGen._docSendGate('contract', H.contractData(env.win, v, withDecking), html) === true, JSON.stringify(env.toasts.slice(before)));
+    const env2 = H.docs({ flags: { docClauseSetV1: true } });
+    const html2 = H.render(env2, 'renderContract', v);
+    const b2 = env2.toasts.length;
+    const sent2 = env2.win.NBDDocGen._docSendGate('contract', H.contractData(env2.win, v), html2);
+    ok('client: deckingPerSheetCents null (the shipped default): refused with the field name', sent2 === false && env2.toasts.slice(b2).some((x) => /Set deckingPerSheetCents in Company Profile/.test(x.m)), JSON.stringify(env2.toasts.slice(b2)));
+  }
+
   // @@SECTIONS@@
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
