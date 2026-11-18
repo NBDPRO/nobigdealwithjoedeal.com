@@ -691,11 +691,14 @@ service cloud.firestore {
     // document digest and the consent shown. submitSignature and recordInPersonSignature
     // (admin SDK) write it; no client creates a row carrying it or changes or removes it
     // later, so the rep, an interested party to the contract, cannot forge or rewrite it.
+    // Review 2 (2026-11-18): signedStampFailed / signedStampFailedAt (the "signed but the row was
+    // not stamped" warning) and evidenceRefused (the in-person evidence gate refused the row) are
+    // server-owned the same way, so a rep cannot clear or forge them on a not-yet-signed row.
     function documentEvidenceCreateOk() {
-      return !('signatureEvidence' in request.resource.data);
+      return !request.resource.data.keys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused']);
     }
     function documentEvidenceUpdateOk() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['signatureEvidence']);
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused']);
     }
     function signedDocumentUpdateOk(leadId) {
       let keys = request.resource.data.diff(resource.data).affectedKeys();
