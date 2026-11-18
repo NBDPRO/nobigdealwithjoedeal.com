@@ -123,12 +123,69 @@ function _norm(t) {
 }
 function _plain(s) { return _norm(_scan(s).text); }
 
+// Review 2 (2026-11-18), item 3: wording that is in the markup but not on the page. The form the server issues has no template element,
+// no hidden attribute, and no inline style except a margin; its own CSS hides nothing but the print button. Anything else fails.
+const SAFE_STYLE_RE = /^(?:\s*margin(?:-(?:top|bottom|left|right))?\s*:\s*[0-9.]+(?:px|em|rem|pt)?\s*;?)+\s*$/i;
+const SIG_IMG_STYLE = 'max-width:100%;height:auto;display:block;background:#fff;';
+const BENIGN_CSS ='.no-print { display:none!important; }';
+const HIDING_CSS_RES = [
+  /display:none/, /visibility:(?:hidden|collapse)/, /content-visibility:hidden/, /font-size:(?:0+(?:\.0*)?|\.0+)(?:px|pt|em|rem|ex|%)?(?![0-9.])/, /opacity:(?:0+(?:\.0*)?|\.0+)(?![0-9.])/,
+  /color:transparent/, /text-indent:-/, /(?<![a-z-])(?:max-)?(?:height|width):(?:0+(?:\.0*)?|\.0+)(?:px|pt|em|rem|ex|%)?(?![0-9.])/, /(?<![a-z-])line-height:(?:0+(?:\.0*)?|\.0+)(?![0-9.])/,
+  /clip(?:-path)?:/, /transform:[^;}]*scale\(0/, /@import/, /(?:left|top|right|bottom|margin-left|margin-top):-[0-9]{3,}/,
+];
+const WORDING_TAGS = { p: 1, label: 1, span: 1, strong: 1, em: 1, td: 1, th: 1, tr: 1, tbody: 1, thead: 1, table: 1, li: 1, ul: 1, ol: 1, h1: 1, h2: 1, h3: 1, input: 1 };
+
+/** The CSS of the page's own style blocks, lower-cased, with comments and white space removed and the print button's one rule taken out. */
+function _cssFlat(blocks) {
+  return blocks.map((b) => {
+    const t = String(b).toLowerCase(); let out = ''; let i = 0;
+    for (;;) {   // /* */ comments, linear
+      const a = t.indexOf('/*', i);
+      if (a === -1) { out += t.slice(i); break; }
+      out += t.slice(i, a); const e = t.indexOf('*/', a + 2);
+      if (e === -1) break;
+      i = e + 2;
+    }
+    return out.split(BENIGN_CSS).join('').replace(/\s+/g, '').replace(/!important/g, '');
+  }).join('\n');
+}
+
+/**
+ * Reasons the markup can show something other than what the text says (hidden wording, pre-ticked boxes). signed: the copy is a SIGNED one,
+ * where ticks are expected. Original copies (the remote path's, and every stored form before it is signed) carry no tick at all.
+ */
+function _risks(scan, parsed, opts) {
+  const bad = [];
+  const add = (c) => { if (bad.indexOf(c) === -1) bad.push(c); };
+  scan.tags.forEach((t) => {
+    if (t.closing) return;
+    const a = t.attrs;
+    if (t.name === 'template') add('template');
+    if (Object.prototype.hasOwnProperty.call(a, 'hidden')) add('hidden_attr');
+    // The one inline style a signed copy gets is the signature image's own (signature-widget.js and remote-signing.js finalizeBlock write it).
+    const sigImg = t.name === 'img' && /(?:^|\s)nbd-sig-img(?:\s|$)/.test(a.class || '') && String(a.style || '').replace(/\s+/g, '').toLowerCase() === SIG_IMG_STYLE;
+    if (Object.prototype.hasOwnProperty.call(a, 'style') && !sigImg && !SAFE_STYLE_RE.test(a.style)) add('inline_style');
+    if (t.name === 'link' && /stylesheet/i.test(a.rel || '')) add('css_hidden');
+    if (WORDING_TAGS[t.name] === 1 && /(?:^|\s)no-print(?:\s|$)/i.test(a.class || '')) add('no_print_wording');
+    if (Object.prototype.hasOwnProperty.call(a, 'data-nbd-ack')) {
+      const ty = String(a.type == null ? '' : a.type).trim().toLowerCase();
+      if (t.name !== 'input' || (ty !== 'checkbox' && ty !== 'radio')) add('control_type');
+      if (opts.signed !== true && Object.prototype.hasOwnProperty.call(a, 'checked')) add('preticked');
+    }
+  });
+  if (opts.signed !== true && parsed.some((c) => c.checked === true)) add('preticked');
+  const css = _cssFlat(scan.styles);
+  if (HIDING_CSS_RES.some((re) => re.test(css))) add('css_hidden');
+  return bad;
+}
+
 /**
  * Is this stored HTML the attic form the server would have issued for this document type? -> { ok, reasons: [code] }
  * Same controls (ids, types, required flags), the variant marker for the type, and the packet's paragraphs. Ticks are not part of
  * it (a signed copy has them). Anything else - an extra, missing or non-required control, a stripped flag, hand-written HTML - fails.
  */
-function verifyManifest(docType, html) {
+function verifyManifest(docType, html, opts) {
+  const o = opts || {};
   const m = manifestFor(docType);
   const bad = [];
   if (!m) return { ok: false, reasons: ['doc_type'] };
@@ -159,6 +216,7 @@ function verifyManifest(docType, html) {
   if (scan.unterminated) bad.push('unterminated');
   const text = _norm(scan.text);
   m.paras.forEach((p, i) => { if (text.indexOf(_plain(p)) === -1) bad.push('wording:' + i); });
+  _risks(scan, parsed, o).forEach((c) => bad.push(c));
   return { ok: bad.length === 0, reasons: bad.slice(0, 12) };
 }
 
@@ -204,7 +262,7 @@ function applyAcks(originalHtml, signedHtml, docType) {
 
 /** What a signed attic form records, from the stored signed copy. */
 function resultFor(docType, signedHtml, formDateMs) {
-  const manifest = verifyManifest(docType, signedHtml);
+  const manifest = verifyManifest(docType, signedHtml, { signed: true });
   const acks = manifest.reasons.indexOf('too_large') === -1 ? AA.parseAcks(signedHtml) : [];
   return {
     version: AA.VERSION,

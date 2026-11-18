@@ -151,6 +151,97 @@ const FORM_NI = renderForm(true);
     ok('the two copies of attic-ack.js are still identical', src('functions/attic-ack.js') === src('docs/pro/js/attic-ack.js'));
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('3. wording that is in the markup but not on the page, and pre-ticked boxes, fail the manifest');
+  {
+    const V = (html, t) => AG.verifyManifest(t || 'attic_acknowledgment', html);
+    const bad = (name, html, code, t) => { const r = V(html, t); ok(name, r.ok === false && (!code || r.reasons.some((x) => x === code || x.indexOf(code) === 0)), JSON.stringify(r.reasons)); };
+    const P = '<p class="aa-p">';
+    const first = FORM.indexOf(P);
+    ok('control: the real inspected form passes', V(FORM).ok === true, JSON.stringify(V(FORM).reasons));
+    ok('control: the real not-inspected page passes', V(FORM_NI, 'attic_not_inspected').ok === true, JSON.stringify(V(FORM_NI, 'attic_not_inspected').reasons));
+    ok('control: the same form with its own print-button CSS rule and margin style is what passes (one inline style, margin only)', /style="margin-top:36px;"/.test(FORM) && /\.no-print \{ display:none!important; \}/.test(FORM));
+    const hideP = (attrs) => FORM.slice(0, first) + '<p class="aa-p" ' + attrs + '>' + FORM.slice(first + P.length);
+    bad('a required paragraph with style="display:none" fails', hideP('style="display:none"'), 'inline_style');
+    bad('...with style="display: none !important" fails', hideP('style="display: none !important"'), 'inline_style');
+    bad('...with style="visibility:hidden" fails', hideP('style="visibility:hidden"'), 'inline_style');
+    bad('...with style="font-size:0" fails', hideP('style="font-size:0"'), 'inline_style');
+    bad('...with style="font-size:0px;line-height:0" fails', hideP('style="font-size:0px;line-height:0"'), 'inline_style');
+    bad('...with style="color:#fff" fails (any inline style that is not a margin)', hideP('style="color:#fff"'), 'inline_style');
+    bad('...with style="opacity:0" fails', hideP('style="opacity:0"'), 'inline_style');
+    bad('...with a single-quoted style fails', hideP("style='display:none'"), 'inline_style');
+    bad('...with an unquoted style fails', hideP('style=display:none'), 'inline_style');
+    bad('...with the style attribute in capitals fails', hideP('STYLE="DISPLAY:NONE"'), 'inline_style');
+    bad('...with the hidden attribute fails', hideP('hidden'), 'hidden_attr');
+    bad('...with hidden="until-found" fails', hideP('hidden="until-found"'), 'hidden_attr');
+    bad('...with the HIDDEN attribute in capitals fails', hideP('HIDDEN'), 'hidden_attr');
+    bad('...with the no-print class (hidden in the printed copy) fails', FORM.slice(0, first) + '<p class="aa-p no-print">' + FORM.slice(first + P.length), 'no_print_wording');
+    const paraEnd = FORM.indexOf('</p>', first) + 4;
+    const para = FORM.slice(first, paraEnd);
+    bad('the paragraph inside a <template> fails', FORM.slice(0, first) + '<template>' + para + '</template>' + FORM.slice(paraEnd), 'template');
+    bad('the paragraph inside a <TEMPLATE> in capitals fails', FORM.slice(0, first) + '<TEMPLATE>' + para + '</TEMPLATE>' + FORM.slice(paraEnd), 'template');
+    bad('the paragraph only in a comment fails (wording missing)', FORM.slice(0, first) + '<!--' + para + '-->' + FORM.slice(paraEnd), 'wording');
+    bad('the paragraph only in an attribute fails (wording missing)', FORM.slice(0, first) + '<span title="' + para.replace(/"/g, '&quot;') + '"></span>' + FORM.slice(paraEnd), 'wording');
+    bad('the paragraph only in the page <title> fails (wording missing)', FORM.slice(0, first) + FORM.slice(paraEnd).replace('</title>', '</title>') + '', 'wording');
+    bad('the paragraph only inside a <noscript> fails (wording missing)', FORM.slice(0, first) + '<noscript>' + para + '</noscript>' + FORM.slice(paraEnd), 'wording');
+    bad('the paragraph only inside a <canvas> fallback fails (wording missing)', FORM.slice(0, first) + '<canvas>' + para + '</canvas>' + FORM.slice(paraEnd), 'wording');
+    // the paragraph is real on the page but a quoted attribute swallows it for a reader that stops at the first >
+    bad('a quoted > in an attribute does not let wording slip through (the tag is read as a browser does)', FORM.slice(0, first) + '<span title=">">' + '</span>' + FORM.slice(paraEnd), 'wording');
+    // CSS
+    const css = (rule) => FORM.replace('</head>', '<style>' + rule + '</style></head>');
+    bad('a <style> rule .aa-p{display:none} fails', css('.aa-p{display:none}'), 'css_hidden');
+    bad('...visibility:hidden in a style block fails', css('.aa-row{visibility:hidden}'), 'css_hidden');
+    bad('...font-size:0 in a style block fails', css('.aa-p{font-size:0}'), 'css_hidden');
+    bad('...font-size:0px in a style block fails', css('.aa-p{ font-size : 0px }'), 'css_hidden');
+    bad('...in a print-only rule fails (the PDF is printed)', css('@media print{.aa-p{display:none!important}}'), 'css_hidden');
+    bad('...opacity:0 in a style block fails', css('.aa-p{opacity:0}'), 'css_hidden');
+    bad('...color:transparent in a style block fails', css('.aa-p{color:transparent}'), 'css_hidden');
+    bad('...text-indent:-9999px in a style block fails', css('.aa-p{text-indent:-9999px}'), 'css_hidden');
+    bad('...height:0 in a style block fails', css('.aa-p{height:0;overflow:hidden}'), 'css_hidden');
+    bad('...a comment inside the rule does not hide it from the check', css('.aa-p{display:/**/none}'), 'css_hidden');
+    bad('...an @import fails', css('@import url(x.css);'), 'css_hidden');
+    bad('...an external stylesheet link fails', FORM.replace('</head>', '<link rel="stylesheet" href="https://x.example/h.css"></head>'), 'css_hidden');
+    // controls
+    const ctl = FORM.indexOf('<input type="checkbox"');
+    const ctlEnd = FORM.indexOf('>', ctl);
+    const tag = FORM.slice(ctl, ctlEnd + 1);
+    bad('a control with style="opacity:0" fails', FORM.replace(tag, tag.replace('<input ', '<input style="opacity:0" ')), 'inline_style');
+    bad('a control with the hidden attribute fails', FORM.replace(tag, tag.replace('<input ', '<input hidden ')), 'hidden_attr');
+    bad('a control that is type="hidden" fails', FORM.replace(tag, tag.replace('type="checkbox"', 'type="hidden"')), 'control_type');
+    bad('a control that is not an input fails', FORM.replace(tag, tag.replace('<input ', '<button ')), 'control_type');
+    // pre-ticked: the stored ORIGINAL carries no checked on any control
+    bad('a pre-ticked checkbox in the original fails', FORM.replace(tag, tag.replace(/>$/, ' checked="">')), 'preticked');
+    bad('a pre-ticked checkbox written as bare `checked` fails', FORM.replace(tag, tag.replace(/>$/, ' checked>')), 'preticked');
+    bad('a pre-ticked checkbox written as CHECKED fails', FORM.replace(tag, tag.replace(/>$/, ' CHECKED>')), 'preticked');
+    const rad = FORM.slice(FORM.indexOf('<input type="radio"'));
+    const radTag = rad.slice(0, rad.indexOf('>') + 1);
+    bad('a pre-ticked radio in the original fails', FORM.replace(radTag, radTag.replace(/>$/, ' checked="">')), 'preticked');
+    bad('every box pre-ticked in the original fails', FORM.replace(/<input\b[^>]*>/gi, (t) => t.replace(/>$/, ' checked="">')), 'preticked');
+    // applyAcks: a pre-ticked original is never complete, even when the signer ticks nothing else
+    const pre = FORM.replace(/<input\b[^>]*>/gi, (t) => (/type="radio"/.test(t) && !/:yes"/.test(t) ? t : t.replace(/>$/, ' checked="">')));
+    const aPre = AG.applyAcks(pre, pre, 'attic_acknowledgment');
+    ok('applyAcks: a fully pre-ticked original is not complete', aPre.complete === false && aPre.manifestOk === false && aPre.manifestReasons.indexOf('preticked') !== -1, JSON.stringify(aPre.manifestReasons));
+    const one = FORM.replace(tag, tag.replace(/>$/, ' checked="">'));
+    const submitted = FORM.replace(/<input\b[^>]*>/gi, (t) => (/type="radio"/.test(t) && !/:yes"/.test(t) ? t : t.replace(/>$/, ' checked="">')));
+    ok('applyAcks: ONE pre-ticked box in the original is refused even though the submission ticks everything', AG.applyAcks(one, submitted, 'attic_acknowledgment').complete === false);
+    ok('applyAcks: the clean original with the same submission is complete (control)', AG.applyAcks(FORM, submitted, 'attic_acknowledgment').complete === true);
+    // a signed copy keeps its ticks and its signature image
+    const signedCopy = AG.applyAcks(FORM, submitted, 'attic_acknowledgment').html;
+    ok('a signed copy (ticks, disabled) passes as signed', AG.verifyManifest('attic_acknowledgment', signedCopy, { signed: true }).ok === true);
+    ok('...and is not accepted as an original (it is ticked)', AG.verifyManifest('attic_acknowledgment', signedCopy).ok === false);
+    const sigImg = '<img src="data:image/png;base64,AAAA" alt="Homeowner" class="nbd-sig-img" style="max-width:100%;height:auto;display:block;background:#fff;">';
+    ok('the signature image\'s own inline style is allowed in a signed copy', AG.verifyManifest('attic_acknowledgment', signedCopy.replace('</body>', sigImg + '</body>'), { signed: true }).ok === true);
+    ok('...but not on any other element', AG.verifyManifest('attic_acknowledgment', signedCopy.replace('</body>', sigImg.replace('<img ', '<img hidden ').replace('class="nbd-sig-img"', 'class="x"') + '</body>'), { signed: true }).ok === false);
+    ok('resultFor on the pre-ticked original is never complete', AG.resultFor('attic_acknowledgment', pre.replace('<input', '<input style="display:none"'), null).complete === false);
+    // hiding on a signed copy is refused as well
+    bad('a signed copy with a hidden required paragraph fails too', signedCopy.replace(P, '<p class="aa-p" style="display:none">'), 'inline_style');
+    ok('a signed copy with a hidden required paragraph is not complete in resultFor', AG.resultFor('attic_acknowledgment', signedCopy.replace(P, '<p class="aa-p" hidden>'), null).complete === false);
+    // an unterminated comment, tag or style swallows the rest as a browser does
+    bad('an unterminated comment before the wording fails', FORM.slice(0, first) + '<!-- ' + FORM.slice(first), 'unterminated');
+    bad('an unterminated <style> before the wording fails', FORM.slice(0, first) + '<style>.x{} ' + FORM.slice(first), 'unterminated');
+    bad('an unterminated tag at the end of the document fails', FORM + '<p title="x ', 'unterminated');
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

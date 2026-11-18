@@ -158,7 +158,8 @@ const ON_OWNER = { _default: {}, CO: { docAtticAckV1: true } };
     const V = (type, html) => AG.verifyManifest(type, html);
     ok('the real inspected form passes the manifest as attic_acknowledgment', V('attic_acknowledgment', INSP).ok, JSON.stringify(V('attic_acknowledgment', INSP).reasons));
     ok('the real not-inspected page passes as attic_not_inspected', V('attic_not_inspected', NI).ok, JSON.stringify(V('attic_not_inspected', NI).reasons));
-    ok('a signed (ticked) copy of the real form still passes (ticks are not part of the manifest)', V('attic_acknowledgment', tick(INSP)).ok);
+    // Review 2 (item 3): ticks are part of a SIGNED copy only; the ORIGINAL (the default read) must carry none.
+    ok('a signed (ticked) copy of the real form still passes (ticks are not part of the manifest for a signed copy)', AG.verifyManifest('attic_acknowledgment', tick(INSP), { signed: true }).ok);
     ok('wrong doc type: the inspected form as attic_not_inspected is refused', !V('attic_not_inspected', INSP).ok);
     ok('wrong doc type: the not-inspected page as attic_acknowledgment is refused', !V('attic_acknowledgment', NI).ok);
     ok('a type that is not an attic form is refused', !V('contract', INSP).ok);
