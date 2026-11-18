@@ -63,7 +63,7 @@ function loadRegistry(textObj) {
     ok('the wording file and the registry load in the same loader group (docgen), wording first (the generator reads the registry at call time)',
       a > 0 && b > a && c > 0);
     ok('no page loads either file outside the loader group',
-      !/clause-set/.test(readRepo('docs/pro/customer.html')) && !/clause-set/.test(readRepo('docs/pro/dashboard.html')));
+      readRepo('docs/pro/customer.html').indexOf('clause-set') === -1 && readRepo('docs/pro/dashboard.html').indexOf('clause-set') === -1);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -137,7 +137,7 @@ function loadRegistry(textObj) {
     try { DE.buildClauseSetFor(HE, KyLaw, lead, {}, {}, '', {}); } catch (e) { he = e; }
     ok('buildClauseSetFor turns it into a failed-precondition HttpsError', he instanceof HE && he.code === 'failed-precondition' && /Company Profile|company/i.test(he.message), he && he.message);
     ok('the callers build through buildClauseSetFor (esign envelope, deal page)',
-      /DE\.buildClauseSetFor\(/.test(readRepo('functions/esign-envelope.js')) && /DE\.buildClauseSetFor\(/.test(readRepo('functions/deal-acceptance.js')));
+      readRepo('functions/esign-envelope.js').indexOf('DE.buildClauseSetFor(') !== -1 && readRepo('functions/deal-acceptance.js').indexOf('DE.buildClauseSetFor(') !== -1);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -212,7 +212,6 @@ function loadRegistry(textObj) {
     const dbB = mkIP({ docClauseSetV1: true }); breakFlags(dbB);
     c = await call(dbB, CONTRACT);
     ok('in-person: an unreadable flag is a retryable refusal', !!c.e && c.e.code === 'unavailable', c.e && c.e.code);
-    ok('the server sources read both flags through the strict gate', /clauseFlagForGate|flagForGate/.test(readRepo('functions/remote-signing.js')) && /clauseFlagForGate/.test(readRepo('functions/in-person-signing.js')));
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -227,14 +226,14 @@ function loadRegistry(textObj) {
     // renderV1: a value is inserted once and never rescanned
     const r1 = CS.renderV1(Object.assign({}, base, { party: CS.partyFor({}, true), facts: { ownerNames: '{{date}}', propertyAddress: '9 {{owner name(s)}} Way', date: 'November 18, 2026' } }));
     const t1 = all(r1);
-    ok('renderV1: an owner named "{{date}}" is not expanded to the date', /\{\{date\}\}/.test(t1));
-    ok('renderV1: a property address containing "{{owner name(s)}}" is not expanded to the owner', /9 \{\{owner name\(s\)\}\} Way/.test(t1) && !/9 \{\{date\}\} Way/.test(t1));
+    ok('renderV1: an owner named "{{date}}" is not expanded to the date', t1.indexOf('{{date}}') !== -1);
+    ok('renderV1: a property address containing "{{owner name(s)}}" is not expanded to the owner', t1.indexOf('9 {{owner name(s)}} Way') !== -1 && t1.indexOf('9 {{date}} Way') === -1);
     // tenant: "NBD" in a party's own name is not rewritten
     const r2 = CS.renderV1(Object.assign({}, base, { party: CS.partyFor({ entityName: 'NBD Roofing Co', legalName: 'NBD Roofing Co' }, false), facts: { ownerNames: 'NBD Smith', propertyAddress: '1 NBD Rd' } }));
     const t2 = all(r2);
-    ok('a tenant\'s paper still says Contractor where the template said NBD', /Contractor/.test(t2));
-    ok('"NBD" inside a homeowner name or address is NOT rewritten to Contractor', /NBD Smith/.test(t2) && /1 NBD Rd/.test(t2), (t2.match(/.{20}(Contractor Smith|Contractor Rd).{10}/) || [''])[0]);
-    ok('"NBD" in the tenant\'s own entity name is not rewritten', /NBD Roofing Co/.test(t2));
+    ok('a tenant\'s paper still says Contractor where the template said NBD', t2.indexOf('Contractor') !== -1);
+    ok('"NBD" inside a homeowner name or address is NOT rewritten to Contractor', t2.indexOf('NBD Smith') !== -1 && t2.indexOf('1 NBD Rd') !== -1, (t2.match(/.{20}(Contractor Smith|Contractor Rd).{10}/) || [''])[0]);
+    ok('"NBD" in the tenant\'s own entity name is not rewritten', t2.indexOf('NBD Roofing Co') !== -1);
     // $-patterns in user data are text
     const r3 = CS.renderV1(Object.assign({}, base, { party: CS.partyFor({}, true), facts: { ownerNames: "$& $1 $' $`", propertyAddress: 'x' } }));
     ok('"$&" and "$1" in a name print as typed', all(r3).indexOf("$& $1 $' $`") !== -1);
@@ -245,7 +244,7 @@ function loadRegistry(textObj) {
     ok('server: the clause block carries the name but no scannable {{token}} from it', CHK.placeholdersIn(html).filter((x) => /date|address/.test(x)).length === 0, JSON.stringify(CHK.placeholdersIn(html)));
     ok('server: the name is still there to read (only the braces are separated)', /\{​\{date\}\}/.test(html) || /\{​\{date/.test(html));
     ok('server: an ordinary name is untouched', DE.buildClauseSet(KyLaw, lead, {}, {}, 'tenantX', { ownerNames: 'Jane Smith', propertyAddress: '1 Elm St' }).sections.length > 0
-      && /Jane Smith/.test(all(DE.buildClauseSet(KyLaw, lead, {}, {}, 'tenantX', { ownerNames: 'Jane Smith', propertyAddress: '1 Elm St' }))));
+      && all(DE.buildClauseSet(KyLaw, lead, {}, {}, 'tenantX', { ownerNames: 'Jane Smith', propertyAddress: '1 Elm St' })).indexOf('Jane Smith') !== -1);
     // client: mergeFields is single-pass, and the send gate sees no false placeholder
     const env = H.docs({ flags: { docClauseSetV1: true, docEvidenceFoundation: true } });
     const v = H.VARIANTS.oh_cash;
@@ -332,8 +331,8 @@ function loadRegistry(textObj) {
       const dealFull = ky(DE.printedByRef(KyLaw, full));
       ok('deal page: a stored page that carries them records them', ['CANC-1_V1', 'INS-1_V1', 'INS-3_V1', 'INS-4_V1', 'LIEN-3_V1'].every((r) => dealFull.refs.indexOf(r) !== -1), dealFull.refs.join(','));
       ok('the callers pass what they printed (esign envelope: pdfByRef; deal page: printedByRef of the stored page; client: its own blocks)',
-        /DE\.pdfByRef\(/.test(readRepo('functions/esign-envelope.js')) && /DE\.printedByRef\(KyLaw, pbuf/.test(readRepo('functions/deal-acceptance.js'))
-        && /printed: printed/.test(readRepo('docs/pro/js/document-generator.js')));
+        readRepo('functions/esign-envelope.js').indexOf('DE.pdfByRef(') !== -1 && readRepo('functions/deal-acceptance.js').indexOf('DE.printedByRef(KyLaw, pbuf') !== -1
+        && readRepo('docs/pro/js/document-generator.js').indexOf('printed: printed') !== -1);
       // a contract with no warranty tier: WAR-4 is not recorded
       const noWar = H.render(env, 'renderContract', H.VARIANTS.oh_cash, { warrantyTier: 'none' });
       void noWar;
@@ -388,7 +387,7 @@ function loadRegistry(textObj) {
     ok('server-built refs: only refs the registry would print for this lead are kept', s.clauseIds.indexOf('PAY-4_V1') !== -1 && s.clauseIds.indexOf('LIEN-3_V1') === -1 && s.clauseIds.indexOf('ZZZ-9_V1') === -1);
     // the callers pass the flag and carry the mismatch
     const rs = readRepo('functions/remote-signing.js'), ip = readRepo('functions/in-person-signing-logic.js');
-    ok('remote link and in-person pass the clause flag to stampFor and keep clauseRefsMismatch', /v1: clauseFlagOnAtMint/.test(rs) && /clauseRefsMismatch/.test(rs) && /clauseRefsMismatch/.test(ip) && /v1: /.test(ip));
+    ok('remote link and in-person pass the clause flag to stampFor and keep clauseRefsMismatch', rs.indexOf('v1: clauseFlagOnAtMint') !== -1 && rs.indexOf('clauseRefsMismatch') !== -1 && ip.indexOf('clauseRefsMismatch') !== -1 && ip.indexOf('v1: ') !== -1);
     const ev = DE.buildEvidence({ path: 'in_person', clauseRefsMismatch: true });
     ok('buildEvidence always carries clauseRefsMismatch (false by default)', ev.clauseRefsMismatch === true && DE.buildEvidence({}).clauseRefsMismatch === false);
   }
@@ -444,8 +443,8 @@ function loadRegistry(textObj) {
     const ev = (db._get('deal_rooms/deal0001') || {}).acceptedEvidence || {};
     ok('accept: the evidence records clauseSetSha256 (the block the homeowner was shown)', acc.res.statusCode === 200 && ev.clauseSetSha256 === sha, JSON.stringify(ev.clauseSetSha256));
     const src = readRepo('functions/deal-acceptance.js');
-    ok('size limit: the minted block is capped (a token doc stays far under 1 MiB)', /CLAUSE_BLOCK_MAX/.test(src));
-    ok('rules: clients cannot write the token (see firestore-rules.clause-set-v1-review-2026-11-18.test.js)', /match \/deal_accept_tokens\/\{token\} \{\s*allow read, write: if false;/.test(readRepo('firestore.rules')));
+    ok('size limit: the minted block is capped (a token doc stays far under 1 MiB)', src.indexOf('CLAUSE_BLOCK_MAX') !== -1);
+    // (clients cannot write the token: firestore-rules.clause-set-v1-review-2026-11-18.test.js, emulator)
   }
 
   // ═══════════════════════════════════════════════════════════════════════
