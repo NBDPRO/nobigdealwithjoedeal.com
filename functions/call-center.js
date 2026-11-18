@@ -150,7 +150,7 @@ async function runIngest({ db, bucket, live, nowMs, feed }) {
   // moved since the cursor was built, the scan restarts at it once.
   const floor = L.historyFloor(cfg.backfillFrom);
   const startCursor = L.scanCursor(cfg, floor);
-  const days = await listAll("'" + root + "' in parents and mimeType = '" + FOLDER_MIME + "' and trashed = false", 'id, name');
+  const days = await listAll("'" + root + "' in parents and mimeType = '" + FOLDER_MIME + "' and trashed = false", 'id, name, createdTime');
   const scan = L.foldersToScan(days, startCursor, floor);
 
   const index = L.buildPhoneIndex(await ownerLeads(db, fd));
@@ -282,6 +282,17 @@ async function runIngest({ db, bucket, live, nowMs, feed }) {
   for (const day of scan.filter((d) => d.ymd >= recentFrom).reverse()) done.set(day.ymd, await fileDay(day));
   // Recordings loose in the top folder: re-listed every run; they never move the cursor.
   await fileDay({ id: root }, true);
+  // A backfill (Cube ACR "Force backup", 2026-11-18) can create a day folder
+  // dated before the cursor, which the scan above never reaches. Any day
+  // folder CREATED in the last 2 days is read once more; it never moves the
+  // cursor, and calls already filed are skipped as re-uploads.
+  const scanned = new Set(scan.map((d) => d.id));
+  for (const day of days) {
+    const ymd = L.dayFolderDate(day.name);
+    const created = Date.parse(day.createdTime || '');
+    if (!ymd || ymd < floor || scanned.has(day.id) || !(created > nowMs - 2 * 86400000)) continue;
+    await fileDay(day);
+  }
   for (const day of scan.filter((d) => d.ymd < recentFrom)) {
     const fin = await fileDay(day);
     done.set(day.ymd, fin);
