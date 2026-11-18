@@ -57,6 +57,10 @@
 .pri-table td:nth-child(3) { min-width: 120px; }
 .pri-rejected td { color: var(--m); text-decoration: line-through; }
 .pri-needs_unit td:last-child { color: var(--ui-warn-text, var(--gold)); }
+/* Slice 4 (2026-11-17): tier ticks on the item forms and the Update my cost panel (js/price-offers-ui.js). */
+.prl-ticks { border: 0; padding: 0; margin: 0 0 10px; min-width: 0; }
+.prl-tick { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-right: 16px; font-size: 14px; cursor: pointer; }
+.prl-tick input { width: 20px; height: 20px; margin: 0; accent-color: var(--orange); }
 @media (max-width: 480px) {
   .prl-row2 { grid-template-columns: 1fr; }
   .prl-btn { flex: 1 1 100%; }

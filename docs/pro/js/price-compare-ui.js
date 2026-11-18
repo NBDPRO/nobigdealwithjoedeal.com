@@ -127,7 +127,8 @@
     return '<div class="prl-offer' + (a.seen ? ' is-seen' : '') + '">' +
       '<div class="prl-otitle"><span class="ui-badge ' + (a.type === 'cheaper' ? 'is-success' : 'is-warn') + '">' + (a.type === 'cheaper' ? 'Cheaper elsewhere' : 'Price went up') + '</span> ' + esc(name) + '</div>' +
       '<div class="prl-src">' + esc(text) + (a.type === 'cheaper' ? (S.settings.taxBps === null ? ' (as recorded)' : ' (tax included)') : '') + '</div>' +
-      '<div class="prl-actions">' + (a.productId ? '<button type="button" class="btn btn-ghost prl-btn" data-prc-action="close" data-prl-action="openProduct" data-prl-id="' + esc(a.productId) + '">Open the product</button>' : '') +
+      '<div class="prl-actions">' + (a.productId && a.offerId && PL().canSave() ? '<button type="button" class="btn btn-orange prl-btn" data-prc-action="close" data-prl-action="openCost" data-prl-id="' + esc(a.productId) + '" data-prl-offer="' + esc(a.offerId) + '">Update my cost</button>' : '') +
+      (a.productId ? '<button type="button" class="btn btn-ghost prl-btn" data-prc-action="close" data-prl-action="openProduct" data-prl-id="' + esc(a.productId) + '">Open the product</button>' : '') +
       (a.seen ? '' : '<button type="button" class="ui-btn-quiet prl-btn" data-prc-action="seen" data-prc-id="' + esc(a.id) + '" data-prc-obs="' + esc(a.obsId) + '">Seen</button>') + '</div></div>';
   }
 
