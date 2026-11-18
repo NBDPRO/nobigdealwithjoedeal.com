@@ -77,7 +77,9 @@
   // that still skips script/style/comments).
   function strip(html, keepTags) {
     var src = String(html == null ? '' : html);
-    var low = src.toLowerCase();
+    // ASCII-only lowercase: it never changes the string's length, so offsets into `low` are offsets into
+    // `src` (toLowerCase() maps 'İ' to two code units and shifted every later index; review 2, item 6).
+    var low = src.replace(/[A-Z]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) + 32); });
     var out = [];
     var i = 0, n = src.length;
     var gtGone = false;            // no '>' left anywhere ahead: every later '<' is text

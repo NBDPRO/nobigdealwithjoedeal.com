@@ -240,6 +240,21 @@ const failDocSets = (db) => {
     ok('5: the callable\'s readBytes checks the object size before downloading it', /getMetadata\(\)[\s\S]{0,200}too_large/.test(wrap) && /readBytes: async \(p, max\)/.test(wrap));
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('6. strip() offsets survive a character whose lowercase form changes length');
+  if (!CHK) ok('doc-send-checks available', false);
+  else {
+    const I = '\u0130';   // 'İ': toLowerCase() is two code units
+    ok('6: control: the premise holds (İ lowercases to a different length)', I.toLowerCase().length !== I.length);
+    ok('6: a [Placeholder] inside <script> after an İ is not a placeholder', CHK.placeholdersIn(I + '<script>[Placeholder]</script>').length === 0, JSON.stringify(CHK.placeholdersIn(I + '<script>[Placeholder]</script>')));
+    ok('6: ...after many İ', CHK.placeholdersIn(I.repeat(40) + '<p>ok</p><SCRIPT>var a="[Placeholder]";</SCRIPT>').length === 0);
+    ok('6: ...and the same inside <style>', CHK.placeholdersIn(I + '<style>.a::after{content:"[Placeholder]"}</style>').length === 0);
+    ok('6: a real [Placeholder] in the text after a script is still found', CHK.placeholdersIn(I + '<script>1</script><p>Dear [Homeowner Name]</p>').indexOf('[Homeowner Name]') !== -1);
+    ok('6: a script that has no closing tag does not hide text before it', CHK.placeholdersIn(I + '<p>[Property Address]</p><script>x').indexOf('[Property Address]') !== -1);
+    ok('6: control: plain ASCII behaves as before', CHK.placeholdersIn('<script>[Placeholder]</script>').length === 0 && CHK.placeholdersIn('<p>[Placeholder]</p>').length === 1);
+    ok('6: both twins are still byte-identical', fs.readFileSync(path.join(ROOT, 'docs/pro/js/doc-send-checks.js'), 'utf8').replace(/\r\n/g, '\n') === fs.readFileSync(path.join(FN, 'doc-send-checks.js'), 'utf8').replace(/\r\n/g, '\n'));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join('; ')); process.exit(1); }
 })().catch((e) => { console.error('FATAL', e); process.exit(1); });
