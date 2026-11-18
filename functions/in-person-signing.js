@@ -89,7 +89,13 @@ exports.recordInPersonSignature = onCall(
       }, DE.requestFacts(request.rawRequest)) : null;
       // Phase 3 (flag docAtticAckV1, strict read): the attic acknowledgment is read back and the re-roof gate runs.
       // Review 2026-11-18, finding 3: the flag is read once the lead is loaded (the acting user's OR the tenant owner's, strict).
-      const attic = { flagOn: (lead) => DE.atticGateOn(db, uid, lead, HttpsError), readBytes: async (p, max) => {
+      // Review 2 (item 7): this path never refuses because of the ATTIC flag reads. The gate runs only when the flag is positively known on
+      // (the acting user's, else the tenant owner's); a read that fails reads "not known on", so flag-off in-person signing behaves exactly
+      // as before the attic lane (the evidence-flag reads above are the only strict ones here, and they already were).
+      const attic = { flagOn: async (lead) => {
+        try { return await DE.atticGateOn(db, uid, lead, HttpsError); }
+        catch (e) { logger.warn('[recordInPersonSignature] attic flag unreadable, treated as not on', { uid, err: e && e.message }); return false; }
+      }, readBytes: async (p, max) => {
         const f = getStorage().bucket().file(p);
         const [md] = await f.getMetadata();
         if (Number(md && md.size) > max) { const er = new Error('document over the read cap'); er.code = 'too_large'; throw er; }

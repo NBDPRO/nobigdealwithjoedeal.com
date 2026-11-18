@@ -383,6 +383,49 @@ const FORM_NI = renderForm(true);
     ok('no read available on the page: nothing written', (await p.T(...args())) === false && p.writes.length === 0);
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('7. in-person signing with the attic flag off does not change when a feature_flags doc cannot be read');
+  {
+    const REALI = ['./in-person-signing-logic', './doc-evidence', './ky-insurance-law', './attic-gate', './attic-ack', './await-briefly', 'crypto'];
+    // an ordinary signed document (not a contract, not an attic form) so the call ends after the checks; the evidence flags are off
+    const mk = (unreadable, flags) => {
+      const s = { 'leads/L1': lead({ primaryEstimateId: 'E1' }), 'estimates/E1': REROOF,
+        'leads/L1/documents/d1': { type: 'photo_report', status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner' }], htmlPath: 'documents/REP/L1/d-9.html', userId: 'REP' } };
+      Object.entries(flags || {}).forEach(([id, v]) => { s['feature_flags/' + id] = v; });
+      const db = kit.makeDb(s);
+      const realDoc = db.doc;
+      db.doc = (p) => (unreadable.indexOf(p) !== -1 ? { get: async () => { throw new Error('unavailable ' + p); } } : realDoc(p));
+      return db;
+    };
+    const call = async (db) => {
+      const L = kit.loadHandler('in-person-signing.js', db, kit.makeStorage({}), { './job-spine': { recordJobEvent: async () => ({}) } }, REALI);
+      try { return { v: await L.fns.recordInPersonSignature({ auth: { uid: 'REP', token: { companyId: 'CO' } }, data: { leadId: 'L1', docId: 'd1' }, rawRequest: { headers: {}, ip: '203.0.113.9' } }) }; } catch (e) { return { e }; }
+    };
+    let r = await call(mk([]));
+    ok('control: flags readable and off - the call proceeds', !!r.v && r.v.ok === true, r.e && r.e.message);
+    r = await call(mk(['feature_flags/CO']));
+    ok('flag off, the tenant owner\'s flag doc cannot be read: the call proceeds exactly as before (the attic read must not add a refusal)', !!r.v && r.v.ok === true, r.e && r.e.code + ' ' + r.e.message);
+    r = await call(mk(['feature_flags/CO'], { _default: {}, REP: { docAtticAckV1: false } }));
+    ok('...also with the user\'s own flag explicitly false', !!r.v && r.v.ok === true, r.e && r.e.message);
+    // a contract on a re-roof lead: the gate applies when the flag is positively on, and is skipped when it cannot be known
+    const mkContract = (unreadable, flags) => {
+      const db = mk(unreadable, flags);
+      const prev = db._get('leads/L1/documents/d1');
+      db._store.set('leads/L1/documents/d1', Object.assign({}, prev, { type: 'contract' }));
+      return db;
+    };
+    const callC = async (db) => {
+      const L = kit.loadHandler('in-person-signing.js', db, kit.makeStorage({}), { './job-spine': { recordJobEvent: async () => ({ moved: false }) } }, REALI);
+      try { return { v: await L.fns.recordInPersonSignature({ auth: { uid: 'REP', token: { companyId: 'CO' } }, data: { leadId: 'L1', docId: 'd1' }, rawRequest: { headers: {}, ip: '203.0.113.9' } }) }; } catch (e) { return { e }; }
+    };
+    r = await callC(mkContract([], { _default: {}, CO: { docAtticAckV1: true } }));
+    ok('the tenant owner\'s flag positively ON: a re-roof contract with no attic form is still refused in person', !!r.e && r.e.code === 'failed-precondition' && /Attic, Ventilation/.test(r.e.message), r.e && r.e.message);
+    r = await callC(mkContract(['feature_flags/CO']));
+    ok('the owner\'s flag doc unreadable (flag not known on): the contract is recorded as before', !!r.v && r.v.ok === true, r.e && r.e.code + ' ' + r.e.message);
+    r = await callC(mkContract([], { _default: {}, REP: { docAtticAckV1: true } }));
+    ok('the user\'s own flag positively ON: the gate still refuses a re-roof with no attic form', !!r.e && r.e.code === 'failed-precondition', r.e && r.e.message);
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });
