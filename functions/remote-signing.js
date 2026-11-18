@@ -430,6 +430,12 @@ exports.createSignRequest = onCall(
     // 2026-10-04: a contract goes out for signature only with the Notice of
     // Right to Cancel + both completed FTC forms attached. A contract
     // generated before they were added has none — it is refused with the fix.
+    // Review 2026-11-18 (findings 2 and 7): the pre-send gap check runs HERE, on the server, from the
+    // stored document, the lead, the company profile and the locked price; the browser check is UX only.
+    // The flag is read strictly: a read that FAILS refuses the send (retryable) instead of reading "off".
+    const gateClass = DE.isContractClass(docMeta.type);
+    const gateOn = (CW.isContractDocType(docMeta.type) || gateClass) ? await DE.flagForGate(db, uid, HttpsError) : false;
+    let gateHtml = null;
     if (CW.isContractDocType(docMeta.type)) {
       let contractHtml = '';
       try {
@@ -443,13 +449,15 @@ exports.createSignRequest = onCall(
         throw new HttpsError('failed-precondition',
           'This contract was made before the 3-day cancellation forms were added. Generate the contract again, then send that one.');
       }
-      // Fail closed (flag docEvidenceFoundation, default OFF): the server re-reads the stored
-      // contract, so a placeholder the client check missed (or a client that skipped it) stops here.
-      if (await DE.flagForUid(db, uid)) {
-        const left = require('./doc-send-checks').placeholdersIn(contractHtml);
-        if (left.length) {
-          throw new HttpsError('failed-precondition', DE.describeGaps(left.map((t) => ({ message: 'The document still has a placeholder: ' + t }))));
-        }
+      gateHtml = contractHtml;
+    }
+    if (gateOn && gateHtml == null) {
+      try {
+        const [gbuf] = await getStorage().bucket().file(htmlPath).download();
+        gateHtml = gbuf.toString('utf8');
+      } catch (e) {
+        logger.error('[createSignRequest] document html unreadable for the send check', { leadId, docId, err: e.message });
+        throw new HttpsError('unavailable', 'Could not read the document. Try again shortly.');
       }
     }
 
@@ -495,14 +503,35 @@ exports.createSignRequest = onCall(
     // legalName is NBD's, or absent) leaves tenantName '' → the exact
     // lead.repName || NBD fallback below stands → byte-identical.
     let tenantName = '';
+    let tenantProfile = {};
     const tenantKey = lead.companyId || lead.userId;
     if (tenantKey) {
       try {
         const cpSnap = await db.doc(`companyProfile/${tenantKey}`).get();
+        if (cpSnap.exists) tenantProfile = cpSnap.data() || {};
         if (cpSnap.exists) { const _ln = ((cpSnap.data() || {}).brand || {}).legalName || ''; tenantName = (_ln && _ln !== 'No Big Deal Home Solutions') ? _ln : ''; }  // NBD-name guard (byte-identical; mirrors render-pdf.js/sms-functions.js)
       } catch (e) {
         logger.warn('[createSignRequest] tenant resolve failed', { leadId, err: e.message });
       }
+    }
+
+    // Fail closed (flag docEvidenceFoundation, default OFF): price, property address, homeowner name,
+    // company mailing address, legal entity name and any [Placeholder] / {{token}} left in the stored
+    // document. A profile that could not be read counts as blank, never as fine.
+    if (gateOn) {
+      let gatePrice = priceSnapshot && priceSnapshot.totalCents > 0 ? priceSnapshot.totalCents : null;
+      if (gatePrice == null) {
+        try {
+          const gpid = typeof lead.primaryEstimateId === 'string' ? lead.primaryEstimateId : '';
+          const ges = gpid && /^[A-Za-z0-9_-]{1,128}$/.test(gpid) ? await db.doc(`estimates/${gpid}`).get() : null;
+          if (ges && ges.exists) gatePrice = DE.estimateCents(ges.data());
+        } catch (_) { gatePrice = null; }
+      }
+      const gaps = DE.serverContractGaps({
+        type: docMeta.type, html: gateHtml, lead, profile: tenantProfile, tenantKey, KyLaw,
+        priceCents: gatePrice, homeownerName: signerName || undefined,
+      });
+      if (gaps.length) throw new HttpsError('failed-precondition', DE.describeGaps(gaps));
     }
 
     await db.doc(`doc_sign_tokens/${token}`).set({

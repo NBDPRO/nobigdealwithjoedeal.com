@@ -317,7 +317,19 @@ exports.createEsignEnvelope = onCall(
     if (!pages.length) throw new HttpsError('invalid-argument', 'That PDF has no pages');
     if (pages.length > 100) throw new HttpsError('invalid-argument', 'That PDF has more than 100 pages');
 
-    const { companyName } = await resolveCompanyName(db, lead);
+    const { companyName, profile } = await resolveCompanyName(db, lead);
+
+    // Fail closed (flag docEvidenceFoundation, default OFF; review 2026-11-18 finding 2): an uploaded
+    // PDF is opaque to the server, so what is checked is what the server CAN see of the parties: the
+    // property address and homeowner name on the lead, the company mailing address and legal entity
+    // name on the profile. A flag read that FAILS refuses (retryable) rather than reading "off".
+    const DE = require('./doc-evidence');
+    if (await DE.flagForGate(db, uid, HttpsError)) {
+      const gaps = DE.serverContractGaps({
+        type: 'work_authorization', lead, profile, tenantKey: lead.companyId || lead.userId, KyLaw: require('./ky-insurance-law'), html: '',
+      });
+      if (gaps.length) throw new HttpsError('failed-precondition', DE.describeGaps(gaps));
+    }
 
     await db.doc(`esign_envelopes/${envelopeId}`).set({
       ownerUid: uid,
@@ -672,7 +684,7 @@ exports.sendEstimateEnvelope = onCall(
     // Fail-closed send check (flag docEvidenceFoundation, default OFF): no blank price,
     // address, homeowner name, mailing address or legal entity name goes out on a contract.
     const DE = require('./doc-evidence');
-    const checkSend = await DE.flagForUid(db, uid);
+    const checkSend = await DE.flagForGate(db, uid, HttpsError);
     const entityName = DE.entityNameFor(profile, lead.companyId || lead.userId);
     if (checkSend) {
       const gaps = DE.serverGaps({

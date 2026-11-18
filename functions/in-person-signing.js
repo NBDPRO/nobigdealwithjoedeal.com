@@ -69,7 +69,8 @@ exports.recordInPersonSignature = onCall(
       // Evidence parity (flag docEvidenceFoundation, default OFF): IP and user agent come from this
       // request, the digest from the stored signed copy; the flag is read per person.
       const DE = require('./doc-evidence');
-      const evidence = (await DE.flagForUid(db, uid)) ? Object.assign({
+      // A flag read that FAILS refuses (retryable): it must not read "off" and skip the checks.
+      const evidence = (await DE.flagForGate(db, uid, HttpsError)) ? Object.assign({
         enabled: true,
         readBytes: async (p) => { const [buf] = await getStorage().bucket().file(p).download(); return buf; },
         onError: (err) => logger.warn('[recordInPersonSignature] evidence write failed', { uid, err: err && err.message }),
@@ -77,6 +78,7 @@ exports.recordInPersonSignature = onCall(
       return await handleInPersonSignature(db, { uid, token: request.auth.token || {} }, request.data, evidence ? { evidence } : undefined);
     } catch (e) {
       if (e instanceof RefusalError) throw new HttpsError(e.code, e.message);
+      if (e instanceof HttpsError) throw e;
       logger.warn('[recordInPersonSignature] failed', { uid, err: e && e.message });
       throw new HttpsError('internal', 'Could not record the signing');
     }

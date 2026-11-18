@@ -47,6 +47,46 @@ function notSignedReason(docMeta) {
   return null;
 }
 
+/** The same shape firestore.rules enforces on a client write of htmlPath. */
+function htmlPathOk(htmlPath, leadId) {
+  const parts = String(htmlPath || '').split('/');
+  return parts.length === 4 && parts[0] === 'documents' && parts[2] === leadId && /^[A-Za-z0-9._-]+.html$/.test(parts[3]);
+}
+
+/**
+ * The pre-send gap check, run SERVER-side on the in-person path too (review 2026-11-18, finding 2):
+ * price (the lead's primary estimate), property address, homeowner name, company mailing address,
+ * legal entity name and any [Placeholder] left in the stored document. Returns the gap list, or
+ * throws a RefusalError('unavailable') when the document cannot be read (fail closed, retryable).
+ * Only for a contract-class document; others return [].
+ */
+async function contractGapsFor(db, ctx, evidence) {
+  const DE = require('./doc-evidence');
+  const { leadId, lead, docMeta } = ctx;
+  if (!DE.isContractClass(docMeta.type)) return [];
+  const htmlPath = typeof docMeta.htmlPath === 'string' ? docMeta.htmlPath : '';
+  let html = '';
+  if (evidence.readBytes && htmlPathOk(htmlPath, leadId)) {
+    try { const buf = await evidence.readBytes(htmlPath); html = buf ? Buffer.from(buf).toString('utf8') : ''; }
+    catch (_) { throw new RefusalError('unavailable', 'Could not read the document to check it. Try again in a moment.'); }
+  } else {
+    throw new RefusalError('unavailable', 'Could not read the document to check it. Try again in a moment.');
+  }
+  let profile = {};
+  const tenantKey = lead.companyId || lead.userId;
+  try {
+    const cp = tenantKey ? await db.doc('companyProfile/' + tenantKey).get() : null;
+    if (cp && cp.exists) profile = cp.data() || {};
+  } catch (_) { profile = {}; }
+  let priceCents = null;
+  try {
+    const pid = typeof lead.primaryEstimateId === 'string' && ID_RE.test(lead.primaryEstimateId) ? lead.primaryEstimateId : '';
+    const es = pid ? await db.doc('estimates/' + pid).get() : null;
+    if (es && es.exists) priceCents = DE.estimateCents(es.data());
+  } catch (_) { priceCents = null; }
+  return DE.serverContractGaps({ type: docMeta.type, html, lead, profile, tenantKey, KyLaw: require('./ky-insurance-law'), priceCents });
+}
+
 /**
  * Write signatureEvidence on the signed document, once. Write-once: a second call (a retry,
  * or a rep calling again) never replaces the first record, and a document the remote link
@@ -110,7 +150,11 @@ async function handleInPersonSignature(db, auth, data, deps) {
   // HERE, by the admin SDK, from this request — a client cannot attest its own IP or digest.
   const evidence = deps && deps.evidence;
   if (evidence && evidence.enabled === true) {
-    // Never blocks the card move below: the contract is saved either way.
+    // Flag on: the same gap check as every other send path. Unlike the evidence write below, this DOES
+    // refuse: a contract with a blank price or a [Placeholder] does not advance the pipeline as signed.
+    const gaps = await contractGapsFor(db, { leadId, lead, docMeta }, evidence);
+    if (gaps.length) throw new RefusalError('failed-precondition', require('./doc-evidence').describeGaps(gaps));
+    // The evidence write never blocks the card move below: the contract is saved either way.
     try { await recordEvidence(db, { leadId, docId, lead, docMeta, uid, data: d }, evidence); }
     catch (e) { if (typeof evidence.onError === 'function') evidence.onError(e); }
   }

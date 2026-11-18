@@ -378,7 +378,9 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
     else {
       const HTML = '<html><body>SIGNED CONTRACT COPY</body></html>';
       const mk = (docExtra) => kit.makeDb({
-        'leads/L1': { userId: 'U1', companyId: 'U1', address: '12 Oak St, Cincinnati, OH 45202', jobType: 'cash' },
+        'leads/L1': { userId: 'U1', companyId: 'U1', firstName: 'Dana', lastName: 'Whitfield', address: '12 Oak St, Cincinnati, OH 45202', jobType: 'cash', primaryEstimateId: 'E1' },
+        'estimates/E1': { grandTotal: 14500 },
+        'companyProfile/U1': { brand: { legalName: 'Acme Roofing LLC', entityName: 'Acme Roofing LLC', contact: { mailingAddress: '1 Main St, Cincinnati, OH 45202' } } },
         'leads/L1/documents/d1': Object.assign({ type: 'contract', status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner' }], htmlPath: 'documents/U1/L1/d-1.html' }, docExtra || {}),
       });
       const spine = [];
@@ -404,16 +406,16 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
       ok('flag OFF (no evidence dep): nothing is written, as before', !(db._get('leads/L1/documents/d1') || {}).signatureEvidence);
       db = mk({ signedRemotely: true }); await call(db, {}, deps());
       ok('a remotely signed document keeps the evidence that path wrote (none overwritten)', !(db._get('leads/L1/documents/d1') || {}).signatureEvidence);
-      db = mk({ htmlPath: 'documents/OTHER/L-OTHER/x.html' }); await call(db, {}, deps({ readBytes: async () => { throw new Error('must not read a foreign path'); } }));
+      db = mk({ type: 'work_report', htmlPath: 'documents/OTHER/L-OTHER/x.html' }); await call(db, {}, deps({ readBytes: async () => { throw new Error('must not read a foreign path'); } }));
       ev = (db._get('leads/L1/documents/d1') || {}).signatureEvidence || {};
       ok('a path outside this lead is never read (digest null, evidence still written)', ev.signedSha256 === null && ev.path === 'in_person');
-      db = mk(); const o3 = await call(db, {}, deps({ readBytes: async () => { throw new Error('storage down'); }, onError: () => {} }));
-      ok('a storage failure never blocks the card move', o3.moved === true);
+      db = mk({ type: 'work_report' }); const o3 = await call(db, {}, deps({ readBytes: async () => { throw new Error('storage down'); }, onError: () => {} }));
+      ok('a storage failure while digesting never blocks the card move (a document the gap check does not cover)', o3.ok === true);
       db = mk({ status: 'sent', signedAt: null });
       let refused = false; try { await call(db, {}, deps()); } catch (e) { refused = e.code === 'failed-precondition'; }
       ok('an unsigned document is refused and no evidence is written', refused && !(db._get('leads/L1/documents/d1') || {}).signatureEvidence);
       const wrap = read('functions/in-person-signing.js') || '';
-      ok('the callable reads the flag per person and takes IP/UA from request.rawRequest', /flagForUid\(db, uid\)[\s\S]*requestFacts\(request\.rawRequest\)/.test(wrap));
+      ok('the callable reads the flag per person and takes IP/UA from request.rawRequest', /flagForGate\(db, uid, HttpsError\)[\s\S]*requestFacts\(request\.rawRequest\)/.test(wrap));
     }
   }
 
@@ -472,6 +474,136 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
     const g = CHK ? CHK.contractGaps(Object.assign({}, full, { text: 'x'.repeat(2 * 1024 * 1024 + 1) })) : [];
     ok('11: a document over 2 MB is refused with a clear gap, not scanned', g.some((x) => x.code === 'tooLarge' && /too large/i.test(x.message)), JSON.stringify(g.map((x) => x.code)));
     ok('11: a document under 2 MB passes the size gate', !!CHK && !CHK.contractGaps(Object.assign({}, full, { text: 'x'.repeat(1024 * 1024) })).some((x) => x.code === 'tooLarge'));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  section('R2. findings 2 and 7: the send gates run on the server and fail closed');
+  {
+    if (!kit || !DE) ok('R2 harness available', false);
+    else {
+      const P = 'documents/U1/L1/d-1.html';
+      const CONTRACT = '<!DOCTYPE html><html><head><title>Roofing Contract</title></head><body><h1>Roofing Contract</h1><p>Contract price: $14,500.00</p>'
+        + '<!--nbd-cancel-packet:start--><section data-nbd-cancel-by="2026-11-17"><h2>Notice of Right to Cancel</h2>'
+        + '<div data-nbd-noc="ftc"><p>NOTICE OF CANCELLATION. NOT LATER THAN MIDNIGHT OF November 17, 2026</p></div>'
+        + '<div data-nbd-noc="ftc"><p>NOTICE OF CANCELLATION. NOT LATER THAN MIDNIGHT OF November 17, 2026</p></div>'
+        + '</section><!--nbd-cancel-packet:end-->'
+        + '<div data-nbd-sig="homeowner" data-nbd-sig-required="1"><canvas width="300" height="100"></canvas></div></body></html>';
+      const PROFILE = { brand: { legalName: 'Acme Roofing LLC', entityName: 'Acme Roofing LLC', contact: { mailingAddress: '1 Main St, Cincinnati, OH 45202' } } };
+      const leadX = { userId: 'U1', companyId: 'U1', firstName: 'Dana', lastName: 'Whitfield', email: 'dana@example.test', address: '12 Oak St, Cincinnati, OH 45202', jobType: 'cash', primaryEstimateId: 'E1' };
+      const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './doc-evidence', './await-briefly', './signed-price', 'crypto'];
+      const rsStubs = () => ({ './cancel-window': require(path.join(FN, 'cancel-window.js')), './ky-insurance-law': K, './lead-artifact-paths': require(path.join(FN, 'lead-artifact-paths.js')),
+        './esign-logic': ESL, './doc-evidence': DE, './await-briefly': require(path.join(FN, 'await-briefly.js')), './signed-price': require(path.join(FN, 'signed-price.js')) });
+      const seedRS = (flag, o) => {
+        const x = Object.assign({ lead: leadX, profile: PROFILE, est: { grandTotal: 14500 }, html: CONTRACT }, o || {});
+        const s = { 'leads/L1': x.lead, 'leads/L1/documents/d1': { type: 'contract', typeName: 'Roofing Contract', htmlPath: P, userId: 'U1' } };
+        if (x.profile) s['companyProfile/U1'] = x.profile;
+        if (x.est) s['estimates/E1'] = x.est;
+        if (flag) s['feature_flags/_default'] = { docEvidenceFoundation: true };
+        return { s, html: x.html };
+      };
+      async function mint(flag, o, dbMod) {
+        const w = seedRS(flag, o);
+        const db = kit.makeDb(w.s); const st = kit.makeStorage({ [P]: w.html });
+        if (dbMod) dbMod(db);
+        const L = kit.loadHandler('remote-signing.js', db, st, rsStubs(), REAL);
+        try { return { v: await L.fns.createSignRequest({ auth: { uid: 'U1', token: {} }, data: { leadId: 'L1', docId: 'd1', signerEmail: 'dana@example.test', signerName: 'Dana Whitfield' } }), db }; }
+        catch (e) { return { e, db }; }
+      }
+      const tokens = (db) => db._all('doc_sign_tokens').length;
+      const breakFlags = (db) => { const orig = db.doc; db.doc = (p) => (/^feature_flags\//.test(p) ? { get: async () => { throw new Error('firestore unavailable'); } } : orig(p)); };
+      let r = await mint(true);
+      ok('2 remote: flag ON, a complete contract is sent', !!r.v && tokens(r.db) === 1, r.e && r.e.message);
+      r = await mint(true, { est: null });
+      ok('2 remote: flag ON, no price on the primary estimate is refused (server-side price check)', !!r.e && r.e.code === 'failed-precondition' && /price/.test(r.e.message) && tokens(r.db) === 0, r.e && r.e.message);
+      r = await mint(true, { profile: { brand: { legalName: 'Acme Roofing LLC', contact: { mailingAddress: '1 Main St' } } } });
+      ok('2 remote: flag ON, a tenant with no legal entity name is refused', !!r.e && /legal entity name/.test(r.e.message) && tokens(r.db) === 0, r.e && r.e.message);
+      r = await mint(true, { profile: { brand: { legalName: 'Acme Roofing LLC', entityName: 'Acme Roofing LLC', contact: {} } } });
+      ok('2 remote: flag ON, no company mailing address is refused', !!r.e && /mailing address/.test(r.e.message));
+      r = await mint(true, { lead: Object.assign({}, leadX, { address: '', firstName: '', lastName: '' }) });
+      ok('2 remote: flag ON, no property address is refused', !!r.e && /address/.test(r.e.message), r.e && r.e.message);
+      r = await mint(true, { html: CONTRACT.replace('Roofing Contract</h1>', 'Roofing Contract for [Homeowner Name]</h1>') });
+      ok('2 remote: flag ON, a [Placeholder] left in the stored contract is refused', !!r.e && /placeholder/i.test(r.e.message) && tokens(r.db) === 0);
+      r = await mint(true, { html: CONTRACT + 'x'.repeat(2 * 1024 * 1024 + 5) });
+      ok('11 remote: flag ON, a contract over 2 MB is refused with the size message', !!r.e && /too large/i.test(r.e.message) && tokens(r.db) === 0, r.e && r.e.message);
+      r = await mint(false, { est: null, profile: null });
+      ok('flag OFF: the same blank-price, no-profile contract still goes out (nothing changed)', !!r.v && tokens(r.db) === 1, r.e && r.e.message);
+      r = await mint(false, {}, breakFlags);
+      ok('7 remote: a flag read that FAILS refuses the contract send (retryable "unavailable"), no link minted', !!r.e && r.e.code === 'unavailable' && tokens(r.db) === 0, r.e && (r.e.code + ' ' + r.e.message));
+      ok('7 flagForUid keeps its best-effort contract for callers that only add (an unreadable flag reads OFF)', (await DE.flagForUid({ doc: () => ({ get: async () => { throw new Error('x'); } }) }, 'u')) === false);
+      let thrown = null; try { await DE.flagForUid({ doc: () => ({ get: async () => { throw new Error('x'); } }) }, 'u', { strict: true }); } catch (er) { thrown = er; }
+      ok('7 flagForUid({strict:true}) throws instead', !!thrown);
+
+      // in-person path
+      const L = tryReq(path.join(FN, 'in-person-signing-logic.js'));
+      const mkIP = (o) => {
+        const x = Object.assign({ est: { grandTotal: 14500 }, profile: PROFILE }, o || {});
+        const s = { 'leads/L1': x.lead || leadX, 'leads/L1/documents/d1': Object.assign({ type: 'contract', status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner' }], htmlPath: P }, x.doc || {}) };
+        if (x.est) s['estimates/E1'] = x.est;
+        if (x.profile) s['companyProfile/U1'] = x.profile;
+        return kit.makeDb(s);
+      };
+      const ipCall = (db, html, extra) => L.handleInPersonSignature(db, { uid: 'U1', token: {} }, { leadId: 'L1', docId: 'd1' },
+        { recordJobEvent: async () => ({ moved: true }), evidence: Object.assign({ enabled: true, ip: '198.51.100.30', ua: 'Rep', readBytes: async () => Buffer.from(html) }, extra || {}) });
+      const refusal = async (fn) => { try { await fn(); return null; } catch (er) { return er; } };
+      let db = mkIP();
+      let e = await refusal(() => ipCall(db, CONTRACT));
+      ok('2 in-person: flag ON, a complete contract records and moves the card', e === null && !!(db._get('leads/L1/documents/d1') || {}).signatureEvidence, e && e.message);
+      db = mkIP({ est: null });
+      e = await refusal(() => ipCall(db, CONTRACT));
+      ok('2 in-person: flag ON, no price is refused and no evidence is written', !!e && e.code === 'failed-precondition' && /price/.test(e.message) && !(db._get('leads/L1/documents/d1') || {}).signatureEvidence, e && e.message);
+      db = mkIP();
+      e = await refusal(() => ipCall(db, CONTRACT + '<p>[Property Address]</p>'));
+      ok('2 in-person: flag ON, a [Placeholder] in the stored copy is refused', !!e && /placeholder/i.test(e.message));
+      db = mkIP({ profile: { brand: { contact: { mailingAddress: '1 Main St' } } } });
+      e = await refusal(() => ipCall(db, CONTRACT));
+      ok('2 in-person: flag ON, no legal entity name is refused', !!e && /legal entity name/.test(e.message));
+      db = mkIP();
+      e = await refusal(() => ipCall(db, CONTRACT, { readBytes: async () => { throw new Error('storage down'); } }));
+      ok('2 in-person: flag ON, an unreadable stored copy is a retryable refusal, not a pass', !!e && e.code === 'unavailable');
+      db = mkIP({ est: null });
+      e = await refusal(() => L.handleInPersonSignature(db, { uid: 'U1', token: {} }, { leadId: 'L1', docId: 'd1' }, { recordJobEvent: async () => ({ moved: true }) }));
+      ok('2 in-person: flag OFF (no evidence dep), the same blank-price contract moves as before', e === null);
+      const wrapSrc = read('functions/in-person-signing.js') || '';
+      ok('7 in-person: the callable reads the flag as a gate and lets its retryable error through', /flagForGate\(db, uid, HttpsError\)/.test(wrapSrc) && /e instanceof HttpsError\) throw e/.test(wrapSrc));
+
+      // createEsignEnvelope (uploaded PDF)
+      const PDFLib = tryReq('pdf-lib');
+      if (!PDFLib) ok('createEsignEnvelope harness (pdf-lib)', false);
+      else {
+        const pdfDoc = await PDFLib.PDFDocument.create(); pdfDoc.addPage([612, 792]);
+        const pdfBytes = Buffer.from(await pdfDoc.save());
+        const SRC = 'esign/U1/L1/ENVUP0001/source.pdf';
+        const run = async (flag, lead, profile, brk) => {
+          const s = { 'leads/L1': lead, 'companyProfile/U1': profile };
+          if (flag) s['feature_flags/_default'] = { docEvidenceFoundation: true };
+          const d2 = kit.makeDb(s); const st2 = kit.makeStorage({ [SRC]: pdfBytes });
+          if (brk) brk(d2);
+          const stubs = { './esign-stamp': require(path.join(FN, 'esign-stamp.js')), './esign-logic': ESL, './doc-evidence': DE, './ky-insurance-law': K,
+            './estimate-esign-pdf': tryReq(path.join(FN, 'estimate-esign-pdf.js')), './customer-estimate-rows': require(path.join(FN, 'customer-estimate-rows.js')),
+            './deposit-plan-view': require(path.join(FN, 'deposit-plan-view.js')), './cancel-window': require(path.join(FN, 'cancel-window.js')),
+            './cancel-notice-pdf': require(path.join(FN, 'cancel-notice-pdf.js')), './integrations/heartbeat': { onSchedule: (o, h) => h } };
+          stubs['./esign-io'] = kit.loadHandler('esign-io.js', d2, st2, stubs, []).fns;
+          const H = kit.loadHandler('esign-envelope.js', d2, st2, stubs, []);
+          try { return { v: await H.fns.createEsignEnvelope({ auth: { uid: 'U1', token: {} }, data: { leadId: 'L1', envelopeId: 'ENVUP0001', sourcePath: SRC, title: 'Contract' } }), db: d2 }; }
+          catch (er) { return { e: er, db: d2 }; }
+        };
+        let q = await run(true, leadX, PROFILE);
+        ok('2 envelope: flag ON, an uploaded PDF for a lead with every party fact registers', !!q.v && !!q.db._get('esign_envelopes/ENVUP0001'), q.e && q.e.message);
+        q = await run(true, Object.assign({}, leadX, { address: '' }), PROFILE);
+        ok('2 envelope: flag ON, no property address is refused and nothing is stored', !!q.e && q.e.code === 'failed-precondition' && /address/.test(q.e.message) && !q.db._get('esign_envelopes/ENVUP0001'), q.e && q.e.message);
+        q = await run(true, leadX, { brand: { legalName: 'Acme Roofing LLC', contact: { mailingAddress: '1 Main St' } } });
+        ok('2 envelope: flag ON, no legal entity name is refused', !!q.e && /legal entity name/.test(q.e.message));
+        q = await run(false, Object.assign({}, leadX, { address: '' }), {});
+        ok('2 envelope: flag OFF, unchanged: the same upload registers', !!q.v && !!q.db._get('esign_envelopes/ENVUP0001'), q.e && q.e.message);
+        q = await run(false, leadX, PROFILE, breakFlags);
+        ok('7 envelope: a flag read that FAILS refuses (retryable), nothing stored', !!q.e && q.e.code === 'unavailable' && !q.db._get('esign_envelopes/ENVUP0001'), q.e && q.e.message);
+      }
+
+      // browser gate: flag ON + module missing must BLOCK
+      const dg = read('docs/pro/js/document-generator.js') || '';
+      const gateSrc = (dg.match(/_docSendGate\(type, data, html\) \{[\s\S]*?\n  \},/) || [''])[0];
+      ok('2 browser: with the flag ON and the checks module missing the gate BLOCKS (the module-missing branch returns false)', /if \(!C\)[\s\S]{0,900}return false/.test(gateSrc) && /reload/i.test(gateSrc), gateSrc.slice(0, 200));
+    }
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

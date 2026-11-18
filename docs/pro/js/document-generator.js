@@ -188,7 +188,16 @@ window.NBDDocGen = {
    */
   _docSendGate(type, data, html) {
     const C = (typeof window !== 'undefined') && window.NBDDocSendChecks;
-    if (!C || !C.isContractClass(type) || (data && data._isBlankPreview) || !this._docEvidenceOn()) return true;
+    if (!this._docEvidenceOn() || (data && data._isBlankPreview)) return true;
+    if (!C) {
+      // Flag ON but the checks module did not load (review 2026-11-18): do NOT let a contract through
+      // unchecked. The server runs the same check, but a clear message here beats a late refusal.
+      if (['contract', 'proposal', 'work_authorization', 'estimate_esign'].indexOf(type) === -1) return true;
+      const miss = 'The pre-send document check did not load. Reload the page and try again.';
+      if (typeof showToast === 'function') showToast(miss, 'error'); else console.error(miss);
+      return false;
+    }
+    if (!C.isContractClass(type)) return true;
     const d = data || {};
     const J = window.NBDJurisdiction;
     const brand = (window._brand ? window._brand() : null) || {};

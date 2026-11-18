@@ -47,15 +47,31 @@ function flagOn(flagsDefault, flagsMine) {
  * person's own doc. An unreadable flag reads OFF: this ships dark, and a read
  * failure must never switch new behaviour on.
  */
-async function flagForUid(db, uid) {
+async function flagForUid(db, uid, opts) {
+  // opts.strict (review 2026-11-18, finding 7): a SEND GATE must not read "off" because the
+  // read failed. With strict the error is thrown (the gate turns it into a retryable refusal);
+  // without it the old best-effort "unreadable reads OFF" holds, for the parts that only add.
+  const strict = !!(opts && opts.strict === true);
   try {
     const flagDocId = String(uid || '');
     const reads = [db.doc('feature_flags/_default').get()];
-    if (flagDocId) reads.push(db.doc('feature_flags/' + flagDocId).get().catch(() => null));
+    if (flagDocId) reads.push(strict ? db.doc('feature_flags/' + flagDocId).get() : db.doc('feature_flags/' + flagDocId).get().catch(() => null));
     const snaps = await Promise.all(reads);
     const docs = snaps.map((s) => (s && s.exists ? (s.data() || {}) : {}));
     return flagOn(docs[0], docs[1]);
-  } catch (_) { return false; }
+  } catch (e) { if (strict) throw e; return false; }
+}
+
+const FLAG_UNREADABLE_MSG = 'Could not run the pre-send document check just now. Nothing was sent. Try again in a moment.';
+
+/**
+ * The flag as a SEND GATE reads it: true / false, or a retryable 'unavailable' error when the
+ * flag could not be read at all (fail closed: a read error never switches a control off).
+ * HttpsError is passed in so this module stays free of npm packages.
+ */
+async function flagForGate(db, uid, HttpsError) {
+  try { return await flagForUid(db, uid, { strict: true }); }
+  catch (_) { throw new HttpsError('unavailable', FLAG_UNREADABLE_MSG); }
 }
 
 function sha256Hex(data) {
@@ -133,8 +149,43 @@ function serverGaps(facts) {
   return Checks.contractGaps(facts);
 }
 
+/**
+ * The full gap check as the SERVER can run it (review 2026-11-18, finding 2): from the stored
+ * document, the lead, the tenant profile and the price, never from anything the browser claims.
+ * The browser check is only UX; this is the gate.
+ *   o = { type, html, lead, profile, tenantKey, KyLaw, priceCents, address, homeownerName }
+ * Start date and estimated completion live in the generator's form data, which the server never
+ * sees (the stored HTML prints them as free text), so those two are not checked here: they are
+ * marked present, and the [placeholder] scan still catches an unfilled token for them.
+ */
+function serverContractGaps(o) {
+  const x = o || {};
+  const lead = x.lead || {};
+  const KyLaw = x.KyLaw;
+  const name = x.homeownerName != null ? x.homeownerName
+    : [lead.firstName, lead.lastName].filter(Boolean).join(' ') || lead.name || lead.fullName;
+  return Checks.contractGaps({
+    type: x.type || 'contract',
+    priceCents: x.priceCents,
+    address: x.address != null ? x.address : lead.address,
+    homeownerName: name,
+    mailingAddress: KyLaw && typeof KyLaw.contractorMailingAddress === 'function' ? KyLaw.contractorMailingAddress(x.profile || {}) : '',
+    needsMailingAddress: true,
+    entityName: entityNameFor(x.profile, x.tenantKey),
+    startDate: 'not observable on the server', estimatedCompletion: 'not observable on the server',
+    text: x.html == null ? '' : x.html,
+  });
+}
+
+/** Cents from an estimate document (grandTotal, else total), or null. */
+function estimateCents(est) {
+  const n = Number(est && (est.grandTotal != null ? est.grandTotal : est.total));
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
+}
+
 module.exports = {
   FLAG_NAME, FLAG_DEFAULT, NBD_ENTITY_NAME, CLAUSE_SET_VERSION: ClauseSet.CLAUSE_SET_VERSION,
-  flagOn, flagForUid, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
+  flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
+  serverContractGaps, estimateCents, isContractClass: Checks.isContractClass,
   describeGaps: Checks.describeGaps,
 };
