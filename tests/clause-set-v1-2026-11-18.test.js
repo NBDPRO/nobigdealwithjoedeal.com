@@ -276,7 +276,7 @@ function section(name) { console.log('\n' + name); }
     const build = async (state, jobType, profile, flagOn) => {
       drawn.length = 0;
       const addr = state === 'KY' ? H.KY_ADDR : H.OH_ADDR;
-      const cs = flagOn ? DE.buildClauseSet(KyLaw, lead(addr, jobType), {}, profile, '', { ownerNames: 'Jane Smith and Pat Smith', propertyAddress: addr, date: 'November 18, 2026' }) : null;
+      const cs = flagOn ? DE.buildClauseSet(KyLaw, lead(addr, jobType), {}, profile, DE.NBD_OWNER_UID_FOR_TESTS, { ownerNames: 'Jane Smith and Pat Smith', propertyAddress: addr, date: 'November 18, 2026' }) : null;
       const r = await H.esignPdf(state, { clauseSet: cs, failClosed: !!flagOn, entityName: 'No Big Deal Solutions LLC' });
       return { r, cs, text: drawn.join(' ').replace(/\s+/g, ' ') };
     };

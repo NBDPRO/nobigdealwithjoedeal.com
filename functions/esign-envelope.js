@@ -689,7 +689,7 @@ exports.sendEstimateEnvelope = onCall(
     const entityName = DE.entityNameFor(profile, lead.companyId || lead.userId);
     // Clause set v1 (flag docClauseSetV1): the clauses this contract prints, from this tenant's own numbers.
     // A number it needs and lacks refuses the send with the field's name; flag off, none of this runs.
-    const clauseSet = clauseOn ? DE.buildClauseSet(KyLaw, lead, est, profile, lead.companyId || lead.userId, {
+    const clauseSet = clauseOn ? DE.buildClauseSetFor(HttpsError, KyLaw, lead, est, profile, lead.companyId || lead.userId, {
       ownerNames: signers.map((s) => s.name).join(' and '), propertyAddress: address,
       date: KyLaw.formatDay(KyLaw.todayIn(timeZone)),
     }) : null;

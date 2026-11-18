@@ -279,7 +279,9 @@
       sec[1].forEach(function (id) {
         var c = T[id], item = null;
         if (BYREF[id] !== undefined) {
-          if (_prints(BYREF_PRINTS[id], v, o)) item = { id: id, ref: id + '_V1', byRef: true, paragraphs: [] };
+          // o.printed (review 2026-11-18, item 1): the by-reference blocks THIS document actually carries. Given, a
+          // by-reference clause is listed only when the caller says its block printed; absent, the rule decides.
+          if (_prints(BYREF_PRINTS[id], v, o) && (!o.printed || o.printed[id] === true)) item = { id: id, ref: id + '_V1', byRef: true, paragraphs: [] };
         } else if (c && _prints(c.prints, v, o)) {
           var paras = [];
           c.parts.forEach(function (p) { if (_partOk(p.only, v, terms)) paras.push(_fill(p.text, terms, o.facts, party)); });

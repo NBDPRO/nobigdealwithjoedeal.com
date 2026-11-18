@@ -311,7 +311,7 @@ exports.createDealAcceptToken = onCall(
       const dealOwner = deal.customerName || [leadData.firstName, leadData.lastName].filter(Boolean).join(' ') || leadData.name || '';
       let cs = null;
       if (clauseOn) {
-        cs = DE.buildClauseSet(KyLaw, leadData, {}, profile, ownerCompanyId, {
+        cs = DE.buildClauseSetFor(HttpsError, KyLaw, leadData, {}, profile, ownerCompanyId, {
           ownerNames: dealOwner, propertyAddress: dealAddress, date: KyLaw.formatDay(KyLaw.todayIn(KyLaw.resolveTimeZone(profile))),
         });
         clauseSetV1 = { version: cs.clauseSetVersion, refs: cs.refs.slice(), html: DE.clauseSetHtml(cs), variant: cs.variant };

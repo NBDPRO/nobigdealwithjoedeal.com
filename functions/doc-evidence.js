@@ -189,7 +189,14 @@ function clauseContextFor(KyLaw, lead, est) {
  * The clause set v1 for a server-built document (flag docClauseSetV1): renderV1 with this tenant's numbers
  * (NBD's own only for the NBD tenant), its party block and the job facts. Pure; the caller reads the flag.
  */
-function buildClauseSet(KyLaw, lead, est, profile, tenantKey, facts) {
+function buildClauseSet(KyLaw, lead, est, profile, tenantKey, facts, printed) {
+  // Review 2026-11-18, item 9: a lead with neither companyId nor userId is nobody's. It never reads as NBD (NBD's numbers
+  // and party names); the v1 build is refused instead.
+  if (!tenantKey) {
+    const err = new Error('This lead has no company on it, so the clause set cannot be built. Open the lead, check its company, and try again.');
+    err.clauseRefused = true;
+    throw err;
+  }
   const nbd = isNbdTenant(tenantKey);
   const p = profile || {};
   const brand = p.brand || {};
@@ -200,7 +207,17 @@ function buildClauseSet(KyLaw, lead, est, profile, tenantKey, facts) {
     terms: ClauseSet.paymentTermsFor(p.paymentTerms, nbd),
     party: ClauseSet.partyFor(brand, nbd),
     facts: Object.assign({ companyPhone: phone }, facts || {}),
+    printed: printed || undefined,
   });
+}
+
+/** buildClauseSet for a callable: a refusal becomes a failed-precondition HttpsError (HttpsError is passed in). */
+function buildClauseSetFor(HttpsError, KyLaw, lead, est, profile, tenantKey, facts, printed) {
+  try { return buildClauseSet(KyLaw, lead, est, profile, tenantKey, facts, printed); }
+  catch (e) {
+    if (e && e.clauseRefused) throw new HttpsError('failed-precondition', e.message);
+    throw e;
+  }
 }
 
 const _esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -291,7 +308,7 @@ function clauseFlagForUid(db, uid) { return flagForUid(db, uid, { flag: CLAUSE_F
 module.exports = {
   CLAUSE_FLAG_NAME, clauseFlagForUid,
   FLAG_NAME, FLAG_DEFAULT, NBD_ENTITY_NAME, CLAUSE_SET_VERSION: ClauseSet.CLAUSE_SET_VERSION,
-  clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, clauseFlagForGate, v1RefsFrom, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
+  NBD_OWNER_UID_FOR_TESTS: NBD_OWNER_UID, clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, buildClauseSetFor, clauseFlagForGate, v1RefsFrom, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
   serverContractGaps, estimateCents, isContractClass: Checks.isContractClass,
   describeGaps: Checks.describeGaps,
 };

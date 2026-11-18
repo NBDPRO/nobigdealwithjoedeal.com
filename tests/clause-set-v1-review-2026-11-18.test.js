@@ -119,6 +119,27 @@ function loadRegistry(textObj) {
     ok('a second save adds a field and keeps the first save\'s values', L2.disputeDays === 10 && L2.lateInterestPct === 8);
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('9. a key-less lead FAILS the v1 build (it never reads as NBD)');
+  {
+    const DE = require('../functions/doc-evidence.js');
+    const KyLaw = require('../functions/ky-insurance-law.js');
+    const lead = { address: H.OH_ADDR, jobType: 'cash' };
+    const run = (key, l) => { try { return { cs: DE.buildClauseSet(KyLaw, l || lead, {}, {}, key, {}) }; } catch (e) { return { err: e }; } };
+    ['', null, undefined, 0].forEach((k) => {
+      const r = run(k);
+      ok('tenant key ' + JSON.stringify(k) + ': buildClauseSet throws a refusal', !!r.err && r.err.clauseRefused === true && /tenant|company/i.test(String(r.err.message)), r.err && r.err.message);
+    });
+    ok('the NBD owner uid still builds', !!run(process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1').cs);
+    ok('another tenant\'s key builds', !!run('tenantX').cs);
+    class HE extends Error { constructor(c, m) { super(m); this.code = c; } }
+    let he = null;
+    try { DE.buildClauseSetFor(HE, KyLaw, lead, {}, {}, '', {}); } catch (e) { he = e; }
+    ok('buildClauseSetFor turns it into a failed-precondition HttpsError', he instanceof HE && he.code === 'failed-precondition' && /Company Profile|company/i.test(he.message), he && he.message);
+    ok('the callers build through buildClauseSetFor (esign envelope, deal page)',
+      /DE\.buildClauseSetFor\(/.test(readRepo('functions/esign-envelope.js')) && /DE\.buildClauseSetFor\(/.test(readRepo('functions/deal-acceptance.js')));
+  }
+
   // @@SECTIONS@@
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
