@@ -38,6 +38,17 @@ const H = 792;
 const M = 54;
 const BODY = 10;
 
+// Optional brand colours, passed by the caller ({ primary, accent } as #rrggbb).
+// Absent or invalid = the neutral grey/black look this file always had, so a
+// tenant is never printed in another company's colours.
+function hexRgb(h) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(h == null ? '' : h).trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+}
+const GREY = [0.35, 0.37, 0.42];
+
 function winAnsi(s) {
   return String(s == null ? '' : s)
     .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
@@ -84,9 +95,9 @@ class Layout {
     this.y -= opts.gap;
     return this;
   }
-  rule(gray) {
+  rule(gray, color, thickness) {
     this.ensure(10);
-    this.page.drawLine({ start: { x: M, y: this.y }, end: { x: W - M, y: this.y }, thickness: 0.7, color: pdfLib().rgb(gray || 0.75, gray || 0.75, gray || 0.78) });
+    this.page.drawLine({ start: { x: M, y: this.y }, end: { x: W - M, y: this.y }, thickness: thickness || 0.7, color: color ? pdfLib().rgb(...color) : pdfLib().rgb(gray || 0.75, gray || 0.75, gray || 0.78) });
     this.y -= 10;
     return this;
   }
@@ -130,14 +141,17 @@ async function buildEstimateContractPdf(input) {
   const fonts = { reg: await doc.embedFont(StandardFonts.Helvetica), bold: await doc.embedFont(StandardFonts.HelveticaBold) };
   const L = new Layout(doc, fonts);
   const company = i.companyName || 'No Big Deal Home Solutions';
+  const brandPrimary = hexRgb(i.brand && i.brand.primary);
+  const brandAccent = hexRgb(i.brand && i.brand.accent);
+  const LABEL = brandPrimary || GREY; // section captions
 
   // ── Header ─────────────────────────────────────────────────────────────
   L.newPage()
-    .text(company, { size: 16, bold: true, gap: 2 })
-    .text(i.title || 'Roofing Contract', { size: 13, bold: true, gap: 2 })
+    .text(company, Object.assign({ size: 16, bold: true, gap: 2 }, brandPrimary ? { color: brandPrimary } : {}))
+    .text(i.title || 'Roofing Contract', Object.assign({ size: 13, bold: true, gap: 2 }, brandPrimary ? { color: brandPrimary } : {}))
     .text([i.estimateNumber ? 'Estimate #' + i.estimateNumber : '', i.preparedDate ? 'Prepared ' + i.preparedDate : '']
-      .filter(Boolean).join('  ·  ') || ' ', { size: 9, gap: 8, color: [0.35, 0.37, 0.42] })
-    .rule();
+      .filter(Boolean).join('  ·  ') || ' ', { size: 9, gap: 8, color: GREY })
+    .rule(0, brandAccent, brandAccent ? 2 : 0);
 
   // Clause set v1 (flag docClauseSetV1): every paragraph prints with its clause id, bold lead-ins as plain text.
   const cs = i.clauseSet && Array.isArray(i.clauseSet.sections) ? i.clauseSet : null;
@@ -147,7 +161,7 @@ async function buildEstimateContractPdf(input) {
   }));
 
   const c = i.customer || {};
-  L.text('PREPARED FOR', { size: 8.5, bold: true, gap: 2, color: [0.35, 0.37, 0.42] })
+  L.text('PREPARED FOR', { size: 8.5, bold: true, gap: 2, color: LABEL })
     .text(c.name || '-', { bold: true, gap: 1 });
   if (c.address) L.text(c.address, { gap: 1 });
   const contact = [c.phone, c.email].filter(Boolean).join('  ·  ');
@@ -155,27 +169,33 @@ async function buildEstimateContractPdf(input) {
   L.y -= 6;
   L.rule();
   if (cs && cs.party) {
-    L.text('PARTIES', { size: 8.5, bold: true, gap: 3, color: [0.35, 0.37, 0.42] });
+    L.text('PARTIES', { size: 8.5, bold: true, gap: 3, color: LABEL });
     cs.party.paragraphs.forEach((p) => L.text('PARTY-1  ' + clauseText(p), { size: 9.5, gap: 6 }));
     L.rule();
   }
 
   // ── Scope ──────────────────────────────────────────────────────────────
-  L.text('SCOPE OF WORK', { size: 8.5, bold: true, gap: 4, color: [0.35, 0.37, 0.42] });
+  L.text('SCOPE OF WORK', { size: 8.5, bold: true, gap: 4, color: LABEL });
   const lines = Array.isArray(i.lines) ? i.lines : [];
   if (lines.length) {
     const descW = 330;
     const qtyX = M + descW + 14;
     const amtRight = W - M;
-    L.ensure(14);
-    L.page.drawText('Description', { x: M, y: L.y - 9, size: 9, font: fonts.bold });
-    L.page.drawText('Qty', { x: qtyX, y: L.y - 9, size: 9, font: fonts.bold });
-    L.page.drawText('Amount', { x: amtRight - fonts.bold.widthOfTextAtSize('Amount', 9), y: L.y - 9, size: 9, font: fonts.bold });
-    L.y -= 14;
+    const tableHeader = () => {
+      L.ensure(14);
+      L.page.drawText('Description', { x: M, y: L.y - 9, size: 9, font: fonts.bold });
+      L.page.drawText('Qty', { x: qtyX, y: L.y - 9, size: 9, font: fonts.bold });
+      L.page.drawText('Amount', { x: amtRight - fonts.bold.widthOfTextAtSize('Amount', 9), y: L.y - 9, size: 9, font: fonts.bold });
+      L.y -= 14;
+    };
+    tableHeader();
     lines.forEach((ln) => {
       const desc = wrap(fonts.reg, winAnsi(ln.name || 'Line item'), 9.5, descW);
       const h = desc.length * 9.5 * 1.35 + 3;
+      const pageBefore = L.pageIndex;
       L.ensure(h);
+      // A line that starts a new page gets the column headings again.
+      if (L.pageIndex !== pageBefore) tableHeader();
       const top = L.y;
       desc.forEach((d, k) => L.page.drawText(d, { x: M, y: top - 9.5 - k * 9.5 * 1.35, size: 9.5, font: fonts.reg }));
       const q = winAnsi(ln.quantity == null ? '' : String(ln.quantity)).slice(0, 18);
@@ -198,7 +218,7 @@ async function buildEstimateContractPdf(input) {
 
   // ── Payment ────────────────────────────────────────────────────────────
   const dp = i.depositPlan;
-  L.text('PAYMENT TERMS', { size: 8.5, bold: true, gap: 3, color: [0.35, 0.37, 0.42] });
+  L.text('PAYMENT TERMS', { size: 8.5, bold: true, gap: 3, color: LABEL });
   if (dp && (dp.summary || dp.valueText)) {
     if (dp.valueText) L.text((dp.label || 'Due at signing') + ': ' + dp.valueText, { bold: true, gap: 2 });
     if (dp.summary) L.text(dp.summary, { gap: 2 });
@@ -215,7 +235,7 @@ async function buildEstimateContractPdf(input) {
     cs.sections.forEach((s) => {
       if (!s.items.some((x) => !x.byRef)) return;
       L.ensure(40);
-      L.text(s.title.toUpperCase(), { size: 8.5, bold: true, gap: 3, color: [0.35, 0.37, 0.42] });
+      L.text(s.title.toUpperCase(), { size: 8.5, bold: true, gap: 3, color: LABEL });
       clauseItems(s.items);
     });
   }
@@ -234,7 +254,7 @@ async function buildEstimateContractPdf(input) {
   const need = L.textHeight(accept, BODY, false) + L.textHeight(KyLaw.FTC_STATEMENT, 10.5, true) + hssaH + 24 + signers.length * SIG_BLOCK
     + partyLines.reduce((h, t) => h + L.textHeight(t, BODY, false) + 4, 0);
   if (L.y - need < M) L.newPage();
-  L.text('ACCEPTANCE', { size: 8.5, bold: true, gap: 3, color: [0.35, 0.37, 0.42] })
+  L.text('ACCEPTANCE', { size: 8.5, bold: true, gap: 3, color: LABEL })
     .text(accept, { gap: 8 })
     // 16 CFR 429.1(a): in immediate proximity to the buyer's signature, bold, >= 10 pt.
     .text(KyLaw.FTC_STATEMENT, { size: 10.5, bold: true, gap: 10 });
@@ -292,6 +312,15 @@ async function buildEstimateContractPdf(input) {
     L.page.drawLine({ start: { x: M, y: L.y - 10 }, end: { x: M + 260, y: L.y - 10 }, thickness: 0.8, color: rgb(0, 0, 0) });
     L.y -= 14;
     L.text("(Buyer's signature)", { size: 9.5, bold: true, gap: 0 });
+  });
+
+  // Running footer on every page: who, which estimate, and "Page n of N".
+  const allPages = doc.getPages();
+  const footer = winAnsi([company, i.estimateNumber ? 'Estimate #' + i.estimateNumber : ''].filter(Boolean).join('  ·  '));
+  allPages.forEach((pg, k) => {
+    const right = 'Page ' + (k + 1) + ' of ' + allPages.length;
+    pg.drawText(footer, { x: M, y: 30, size: 8, font: fonts.reg, color: rgb(...GREY) });
+    pg.drawText(right, { x: W - M - fonts.reg.widthOfTextAtSize(right, 8), y: 30, size: 8, font: fonts.reg, color: rgb(...GREY) });
   });
 
   const bytes = await doc.save({ useObjectStreams: true });
