@@ -47,6 +47,9 @@ async function run() {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'leads/L1'), { userId: 'owner1', companyId: 'owner1' });
+    await setDoc(doc(db, 'leads/LR'), { userId: 'owner1', companyId: 'owner1', scope: 'reroof' });
+    await setDoc(doc(db, 'leads/LP'), { userId: 'owner1', companyId: 'owner1', scope: 'repair' });
+    await setDoc(doc(db, 'leads/LR2'), { userId: 'owner1', companyId: 'owner1', scope: 'reroof' });
     await setDoc(doc(db, 'leads/L1/documents/draft'), { name: 'a', type: 'attic_acknowledgment', status: 'draft', userId: 'owner1' });
     await setDoc(doc(db, 'leads/L1/documents/signed'), { name: 'a', type: 'attic_acknowledgment', status: 'signed', signedAt: new Date(), userId: 'owner1', atticAckResult: RES });
     await setDoc(doc(db, 'attic_overrides/o1'), { leadId: 'L1', companyId: 'owner1', byUid: 'owner1', byName: 'Joe', reason: 'would not sign the page', at: 1 });
@@ -70,6 +73,22 @@ async function run() {
   await check('control: the company_admin of the same company can read it', 'allow', getDoc(ov(admin, 'o1')));
   await check('a rep who did not record it cannot read it', 'deny', getDoc(ov(rep, 'o1')));
   await check('another company\'s admin cannot read it', 'deny', getDoc(ov(stranger, 'o1')));
+
+  // Review 2026-11-18 (finding 1): a client can raise a lead's scope, never lower it, and never writes the server's floor.
+  const ld = (db, id) => doc(db, 'leads/' + id);
+  await check('control: the owner raises scope from none to reroof', 'allow', updateDoc(ld(owner, 'L1'), { scope: 'reroof' }));
+  await check('control: the owner raises repair to reroof', 'allow', updateDoc(ld(owner, 'LP'), { scope: 'reroof' }));
+  await check('control: re-saving the same scope on a reroof lead is fine', 'allow', updateDoc(ld(owner, 'LR2'), { scope: 'reroof', notes: 'x' }));
+  await check('owner lowers reroof to repair', 'deny', updateDoc(ld(owner, 'LR'), { scope: 'repair' }));
+  await check('owner lowers reroof to other', 'deny', updateDoc(ld(owner, 'LR'), { scope: 'other' }));
+  await check('owner removes scope from a reroof lead', 'deny', updateDoc(ld(owner, 'LR'), { scope: deleteField() }));
+  await check('a rep lowers reroof to siding', 'deny', updateDoc(ld(rep, 'LR'), { scope: 'siding' }));
+  await check('a company_admin lowers reroof to repair', 'deny', updateDoc(ld(admin, 'LR'), { scope: 'repair' }));
+  await check('owner lowers repair to other', 'deny', updateDoc(ld(owner, 'LP'), { scope: 'other' }));
+  await check('control: an ordinary edit on a reroof lead is allowed', 'allow', updateDoc(ld(owner, 'LR'), { notes: 'ordinary edit' }));
+  await check('owner plants atticScopeFloor (server-owned)', 'deny', updateDoc(ld(owner, 'L1'), { atticScopeFloor: 'reroof' }));
+  await check('owner creates a lead already carrying atticScopeFloor', 'deny', setDoc(ld(owner, 'NEWF'), { userId: 'owner1', companyId: 'owner1', meter: 'manual', atticScopeFloor: 'reroof' }));
+  await check('control: owner creates an ordinary lead', 'allow', setDoc(ld(owner, 'NEWOK'), { userId: 'owner1', companyId: 'owner1', meter: 'manual', scope: 'reroof' }));
 
   await env.cleanup();
   const bad = results.filter((r) => !r.ok);

@@ -546,7 +546,7 @@ exports.createSignRequest = onCall(
     // signature until the signed attic form (or the signed not-inspected page, or a recorded owner override) exists.
     if (AG.gated(docMeta.type) && await DE.atticGateOn(db, uid, lead, HttpsError)) {
       let dec;
-      try { dec = await AG.decide(db, leadId, lead); }
+      try { dec = await AG.decide(db, leadId, lead, { estimateId: docMeta.estimateId }); }
       catch (e) {
         logger.warn('[createSignRequest] attic gate unreadable', { leadId, err: e.message });
         throw new HttpsError('unavailable', 'Could not check the attic acknowledgment just now. Nothing was sent. Try again in a moment.');

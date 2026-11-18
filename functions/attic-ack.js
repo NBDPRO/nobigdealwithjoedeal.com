@@ -53,10 +53,24 @@
     if (k === 'repair') return 'repair';
     return 'other';
   }
-  /** The scope the gate reads: the rep's explicit choice on the lead, else the estimate's default. */
+  // Review 2026-11-18 (finding 1): a scope is only ever RAISED. The rep's stored scope is a floor, never a ceiling.
+  var RANK = { other: 0, siding: 1, gutters: 1, repair: 2, reroof: 3 };
+  function scopeRank(s) { return Object.prototype.hasOwnProperty.call(RANK, s) ? RANK[s] : 0; }
+  function maxScope(list) {
+    return (list || []).reduce(function (m, s) { return scopeRank(s) > scopeRank(m) ? s : m; }, 'other');
+  }
+  /**
+   * The scope the gate reads: the MAXIMUM of the lead's stored scope (a floor the rep can raise, never lower), the server's
+   * own floor (atticScopeFloor, written when a re-roof was seen), and the scope each estimate in play suggests. est is one
+   * estimate or an array (the one being sent, the lead's primary, ...).
+   */
   function effectiveScope(lead, est) {
-    var s = lead && typeof lead.scope === 'string' ? lead.scope : '';
-    return SCOPES.indexOf(s) !== -1 ? s : scopeFromEstimate(est);
+    var ests = Array.isArray(est) ? est : [est];
+    var c = ['other'];
+    if (lead && typeof lead.scope === 'string' && SCOPES.indexOf(lead.scope) !== -1) c.push(lead.scope);
+    if (lead && lead.atticScopeFloor === 'reroof') c.push('reroof');
+    ests.forEach(function (e) { c.push(scopeFromEstimate(e)); });
+    return maxScope(c);
   }
   function needsForm(scope) { return scope === 'reroof'; }
 
@@ -242,7 +256,7 @@
     FLAG: FLAG, VERSION: VERSION, DOC_TYPES: DOC_TYPES, SCOPES: SCOPES, SCOPE_LABELS: SCOPE_LABELS, STATUSES: STATUSES,
     REASONS: REASONS, REASON_LINE: REASON_LINE, REASON_WHO: REASON_WHO, CONDITION_KEYS: CONDITION_KEYS, RULES: RULES, ACCESS: ACCESS,
     REC_DEFS: REC_DEFS, TEXT: TXT,
-    hasTearOff: hasTearOff, scopeFromEstimate: scopeFromEstimate, effectiveScope: effectiveScope, needsForm: needsForm,
+    hasTearOff: hasTearOff, scopeFromEstimate: scopeFromEstimate, effectiveScope: effectiveScope, scopeRank: scopeRank, maxScope: maxScope, needsForm: needsForm,
     validate: validate, words: words, party: party, missingTerms: missingTerms, clean: _clean,
     recommendationLines: recommendationLines, parseAcks: parseAcks, acksComplete: acksComplete, evidenceAcks: evidenceAcks,
     declinedAny: declinedAny, gate: gate, isSignedForm: isSignedForm, needsWarrantyExclusion: needsWarrantyExclusion,

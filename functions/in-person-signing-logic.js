@@ -227,7 +227,7 @@ async function handleInPersonSignature(db, auth, data, deps) {
       await db.doc('leads/' + leadId + '/documents/' + docId).set({ atticAckResult: result }, { merge: true });
     } else if (AG.gated(docMeta.type)) {
       let dec;
-      try { dec = await AG.decide(db, leadId, lead); } catch (_) { throw new RefusalError('unavailable', 'Could not check the attic acknowledgment just now. Try again in a moment.'); }
+      try { dec = await AG.decide(db, leadId, lead, { estimateId: docMeta.estimateId }); } catch (_) { throw new RefusalError('unavailable', 'Could not check the attic acknowledgment just now. Try again in a moment.'); }
       if (!dec.satisfied) await refuse(dec.message);
     }
   }

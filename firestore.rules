@@ -235,6 +235,8 @@ service cloud.firestore {
         'referralCodeInvalid', 'referralRewardJobCount', 'referralRewardPaidAt',
         // Roof Care Plan mirror (functions/care-plan.js) — server-written only.
         'carePlan',
+        // The attic gate's re-roof floor (functions/attic-gate.js, admin SDK).
+        'atticScopeFloor',
         // Intake provenance (functions/integrations/calcom.js, lead-bridge.js,
         // thumbtack.js — admin SDK). lead-alert.js decides whether to page
         // someone from these, so a client must not be able to assert them
@@ -839,6 +841,19 @@ service cloud.firestore {
             && d.get('archivedBy', null) == null);
     }
 
+    // Attic acknowledgment (docAtticAckV1, review 2026-11-18, finding 1): a lead's scope (reroof, repair, siding, gutters,
+    // other) may be RAISED by the client but never lowered, and a re-roof is never turned into something the gate ignores. The
+    // server reads the highest of this field, the estimates in play and its own atticScopeFloor (server-owned, never written
+    // here). Lowering goes through the owner/admin callable recordAtticOverride (kind scope_lowered, with a reason).
+    function atticScopeRank(s) {
+      return s == 'reroof' ? 3 : (s == 'repair' ? 2 : (s in ['siding', 'gutters'] ? 1 : 0));
+    }
+    function atticScopeNotLowered() {
+      return didNotChange(['scope'])
+        || (request.resource.data.get('scope', '') is string
+            && atticScopeRank(request.resource.data.get('scope', '')) >= atticScopeRank(resource.data.get('scope', '')));
+    }
+
     // CREATE (2026-11-14 review): a lead may not be born hidden by someone who
     // could not hide it by an update. Live markers (absent, or false / null)
     // are fine for anyone who may create (the CSV import writes deleted:false);
@@ -948,6 +963,9 @@ service cloud.firestore {
           // (functions/care-plan.js webhook). It drives the member badge, the
           // 10% repair discount and storm priority, so only the server sets it.
           && didNotChange(['carePlan'])
+          // The server's re-roof floor and the scope that cannot be lowered (attic acknowledgment, review 2026-11-18).
+          && didNotChange(['atticScopeFloor'])
+          && atticScopeNotLowered()
           // stripeCustomerId outranks email/phone/address in the Stripe ledger's match and is billed by
           // mintCrmStripeInvoice, so a rep setting it could pull another customer's payments onto their
           // lead. Server-only: the ledger and CRM Stripe invoices (admin SDK) — 2026-11-14.

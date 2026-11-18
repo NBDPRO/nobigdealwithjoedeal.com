@@ -13,6 +13,7 @@
  */
 'use strict';
 
+const crypto = require('crypto');
 const AA = require('./attic-ack');
 
 const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
@@ -55,22 +56,58 @@ function resultFor(docType, signedHtml, formDateMs) {
   };
 }
 
-async function _estimateFor(db, lead) {
-  const pid = lead && typeof lead.primaryEstimateId === 'string' && ID_RE.test(lead.primaryEstimateId) ? lead.primaryEstimateId : '';
-  if (!pid) return null;
-  const s = await db.doc('estimates/' + pid).get();
-  return s && s.exists ? (s.data() || {}) : null;
+const okId = (v) => typeof v === 'string' && ID_RE.test(v);
+
+/** A short digest of an estimate's priced content: an override is bound to it, so a re-priced or re-scoped estimate needs a new one. */
+function estimateStamp(est) {
+  const e = est || {};
+  return crypto.createHash('sha256').update(JSON.stringify([e.rows || [], e.lineItems || [], e.grandTotal == null ? null : e.grandTotal])).digest('hex').slice(0, 16);
+}
+
+/**
+ * Every estimate in play for this send (review 2026-11-18, finding 1): the one actually being sent (o.estimate / o.estimateId),
+ * the lead's primary, and - only when neither resolves - the lead's own estimates. The first of these is the BASIS an override
+ * is bound to. A read that fails throws (the caller fails closed).
+ */
+async function _estimateSet(db, leadId, lead, o) {
+  const list = [];
+  const seen = {};
+  const add = (id, data) => { if (data && !seen[id]) { seen[id] = true; list.push({ id, data }); } };
+  let basis = null;
+  if (o.estimate && typeof o.estimate === 'object') { basis = { id: okId(o.estimateId) ? o.estimateId : '', data: o.estimate }; }
+  else if (okId(o.estimateId)) {
+    const s = await db.doc('estimates/' + o.estimateId).get();
+    if (s && s.exists) basis = { id: o.estimateId, data: s.data() || {} };
+  }
+  if (basis) add(basis.id, basis.data);
+  const pid = okId(lead && lead.primaryEstimateId) ? lead.primaryEstimateId : '';
+  if (pid && !seen[pid]) {
+    const s = await db.doc('estimates/' + pid).get();
+    if (s && s.exists) { const d = s.data() || {}; add(pid, d); if (!basis) basis = { id: pid, data: d }; }
+  }
+  if (!list.length && okId(leadId)) {
+    const q = await db.collection('estimates').where('leadId', '==', leadId).limit(20).get();
+    q.docs.forEach((d) => { const x = d.data() || {}; if (x.deleted !== true) add(d.id, x); });
+    if (!basis && list.length === 1) basis = list[0];
+  }
+  return { list, basis: basis ? { id: basis.id, stamp: estimateStamp(basis.data) } : { id: '', stamp: '' } };
 }
 
 /**
  * The gate for a contract-class document on this lead. A read that fails THROWS (the caller fails closed; a
  * missing attic form is never assumed). -> { scope, required, satisfied, how, message, warn }
  */
-async function decide(db, leadId, lead) {
-  const est = await _estimateFor(db, lead);
-  const scope = AA.effectiveScope(lead, est);
+async function decide(db, leadId, lead, opts) {
+  const o = opts || {};
+  const L = lead || {};
+  const set = await _estimateSet(db, leadId, L, o);
+  const scope = AA.effectiveScope(L, set.list.map((x) => x.data));
   const g0 = AA.gate({ scope, signedForm: false, override: false });
-  if (!g0.required) return Object.assign({ scope }, g0);
+  if (!g0.required) return Object.assign({ scope, basis: set.basis }, g0);
+  // Remember that this was a re-roof (server-owned floor): taking the tear-off line off the estimate later does not lower it.
+  if (L.atticScopeFloor !== 'reroof' && okId(leadId) && o.noWrite !== true) {
+    try { await db.doc('leads/' + leadId).set({ atticScopeFloor: 'reroof' }, { merge: true }); } catch (_) { /* the gate below is the control */ }
+  }
   const found = [];
   for (const t of AA.DOC_TYPES) {
     const snap = await db.collection('leads/' + leadId + '/documents').where('type', '==', t).get();
@@ -88,7 +125,7 @@ async function decide(db, leadId, lead) {
     const ov = await db.collection(OVERRIDES).where('leadId', '==', leadId).limit(1).get();
     override = !ov.empty;
   }
-  return Object.assign({ scope }, AA.gate({ scope, signedForm, override }));
+  return Object.assign({ scope, basis: set.basis }, AA.gate({ scope, signedForm, override }));
 }
 
 /**
@@ -123,4 +160,4 @@ async function recordOverride(db, auth, data, fail) {
   return { ok: true, id: ref.id };
 }
 
-module.exports = { OVERRIDES, gated, isAtticDoc, applyAcks, resultFor, decide, recordOverride };
+module.exports = { estimateStamp, OVERRIDES, gated, isAtticDoc, applyAcks, resultFor, decide, recordOverride };

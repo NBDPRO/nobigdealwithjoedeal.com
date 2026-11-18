@@ -145,10 +145,10 @@ const tickAll = (h, no) => h.replace(/data-nbd-ack="(ack:saw|ack:existing|rec:de
     ok('flag on, with a recorded owner override: the link goes out', !!r.v, r.e && r.e.message);
     r = await mint(world({ docAtticAckV1: true }, { overrides: [{ leadId: 'OTHER', byUid: 'U1', reason: 'a different lead' }] }));
     ok('an override on another lead does not count', !!r.e);
-    r = await mint(world({ docAtticAckV1: true }, { lead: { scope: 'repair' } }));
+    r = await mint(world({ docAtticAckV1: true }, { lead: { scope: 'repair' }, est: { grandTotal: 14500, rows: [{ code: 'GTR 5K' }] } }));
     ok('a repair: warn only, never blocked', !!r.v, r.e && r.e.message);
-    r = await mint(world({ docAtticAckV1: true }, { lead: { scope: 'siding' }, est: { grandTotal: 14500, rows: [{ code: 'LAB TO1' }] } }));
-    ok('siding: no form needed, even if the estimate has a tear-off line', !!r.v, r.e && r.e.message);
+    r = await mint(world({ docAtticAckV1: true }, { lead: { scope: 'siding' }, est: { grandTotal: 14500, rows: [{ code: 'SDG 1' }] } }));
+    ok('siding with no tear-off line: no form needed (review 2026-11-18: a tear-off line would make it a re-roof)', !!r.v, r.e && r.e.message);
     r = await mint(world({ docAtticAckV1: true }, { est: { grandTotal: 14500, rows: [{ code: 'GTR 5K' }] } }));
     ok('an estimate with no tear-off and no scope set: not a re-roof, not blocked', !!r.v, r.e && r.e.message);
     r = await mint(world({ docAtticAckV1: true }, { type: 'attic_acknowledgment' }));
@@ -162,7 +162,7 @@ const tickAll = (h, no) => h.replace(/data-nbd-ack="(ack:saw|ack:existing|rec:de
     r = await mint(world({ docAtticAckV1: true }), (db) => { const o = db.collection; db.collection = (c) => (/documents$/.test(c) ? { where: () => ({ get: async () => { throw new Error('down'); } }) } : o(c)); });
     ok('an unreadable document list refuses (fail closed), never lets the contract through', !!r.e && r.e.code === 'unavailable' && tokens(r.db) === 0, r.e && r.e.code);
   }
-  ok('the e-sign envelope runs the same gate under the strict flag read', src('functions/esign-envelope.js').indexOf('atticGateOn') !== -1 && src('functions/esign-envelope.js').indexOf('AG.decide(db, leadId, lead)') !== -1);
+  ok('the e-sign envelope runs the same gate under the strict flag read', src('functions/esign-envelope.js').indexOf('atticGateOn') !== -1 && src('functions/esign-envelope.js').indexOf('AG.decide(db, leadId, lead, {') !== -1);
 
   // ═══════════════════════════════════════════════════════
   section('D. the owner/admin override (Q18)');
@@ -189,7 +189,7 @@ const tickAll = (h, no) => h.replace(/data-nbd-ack="(ack:saw|ack:existing|rec:de
     db = mk();
     r = await call(db, { uid: 'PLAT', token: { role: 'admin' } }, { leadId: 'L1', reason: REASON });
     ok('the platform admin can', !!r.v);
-    db = world({ docAtticAckV1: true }, { lead: { userId: 'REP', companyId: 'CO', scope: 'siding' } });
+    db = world({ docAtticAckV1: true }, { lead: { userId: 'REP', companyId: 'CO', scope: 'siding' }, est: { grandTotal: 14500, rows: [{ code: 'SDG 1' }] } });
     r = await call(db, { uid: 'CO', token: { companyId: 'CO' } }, { leadId: 'L1', reason: REASON });
     ok('no override on a job that does not need the form', !!r.e && r.e.code === 'failed-precondition');
     const m = await mint(world({ docAtticAckV1: true }, { overrides: [ev] }));

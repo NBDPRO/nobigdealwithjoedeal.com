@@ -43,7 +43,7 @@ section('A. scope (Q22): defaulted from tear-off lines, the rep\'s choice wins')
   ok('a repair estimate with no tear-off defaults to repair', AA.scopeFromEstimate({ workKind: 'repair', rows: [{ code: 'LAB RPR' }] }) === 'repair');
   ok('no tear-off and no repair kind defaults to other', AA.scopeFromEstimate({ rows: [{ code: 'GTR 5K' }] }) === 'other');
   ok('no estimate at all is other, never reroof', AA.scopeFromEstimate(null) === 'other' && AA.scopeFromEstimate({}) === 'other');
-  ok('the lead\'s explicit scope wins over the estimate', AA.effectiveScope({ scope: 'repair' }, tear) === 'repair');
+  ok('the lead\'s explicit scope is a floor: it raises the estimate\'s, never lowers it (review 2026-11-18)', AA.effectiveScope({ scope: 'repair' }, tear) === 'reroof' && AA.effectiveScope({ scope: 'reroof' }, { rows: [] }) === 'reroof' && AA.effectiveScope({ scope: 'repair' }, { rows: [] }) === 'repair');
   ok('an unknown stored scope falls back to the estimate', AA.effectiveScope({ scope: 'bogus' }, tear) === 'reroof' && AA.effectiveScope({}, tear) === 'reroof');
   ok('the five scopes', AA.SCOPES.join() === 'reroof,repair,siding,gutters,other');
   ok('only reroof needs the form', AA.needsForm('reroof') && !AA.needsForm('repair') && !AA.needsForm('siding') && !AA.needsForm('gutters') && !AA.needsForm('other'));

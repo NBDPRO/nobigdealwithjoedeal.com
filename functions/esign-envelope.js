@@ -688,7 +688,7 @@ exports.sendEstimateEnvelope = onCall(
     if (await DE.atticGateOn(db, uid, lead, HttpsError)) {
       const AG = require('./attic-gate');
       let dec;
-      try { dec = await AG.decide(db, leadId, lead); } catch (_) { throw new HttpsError('unavailable', 'Could not check the attic acknowledgment just now. Nothing was sent. Try again in a moment.'); }
+      try { dec = await AG.decide(db, leadId, lead, { estimate: est, estimateId }); } catch (_) { throw new HttpsError('unavailable', 'Could not check the attic acknowledgment just now. Nothing was sent. Try again in a moment.'); }
       if (!dec.satisfied) throw new HttpsError('failed-precondition', dec.message);
     }
     const clauseOn = await DE.clauseFlagForGate(db, uid, HttpsError);

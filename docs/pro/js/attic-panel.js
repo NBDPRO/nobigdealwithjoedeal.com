@@ -42,7 +42,9 @@
     } catch (_) { est = null; }
     var rec = L.atticCheck && typeof L.atticCheck === 'object' ? JSON.parse(JSON.stringify(L.atticCheck)) : { status: 'inspected', conditions: {}, vent: {}, recs: [], photos: [] };
     rec.conditions = rec.conditions || {}; rec.vent = rec.vent || {}; rec.recs = rec.recs || []; rec.photos = rec.photos || [];
-    S = { leadId: id, rec: rec, scope: AA().effectiveScope(L, est), urls: {}, problems: [], busy: false };
+    var sc = AA().effectiveScope(L, est);
+    // Review 2026-11-18 (finding 1): the scope can be raised here, never lowered (an owner or admin lowers it with a reason).
+    S = { leadId: id, rec: rec, scope: sc, minScope: sc, urls: {}, problems: [], busy: false };
     mount(); render();
     if (w.nbdModal && typeof w.nbdModal.open === 'function') w.nbdModal.open(MODAL_ID);
     else document.getElementById(MODAL_ID).setAttribute('aria-hidden', 'false');
@@ -69,7 +71,8 @@
     var A = AA(), X = A.TEXT, r = S.rec, host = document.getElementById('atticPanelBody');
     if (!host) return;
     var h = '<h3>Attic check</h3>';
-    h += field('Scope of this job', '<select data-attic-f="scope">' + A.SCOPES.map(function (s) { return '<option value="' + s + '"' + (S.scope === s ? ' selected' : '') + '>' + esc(A.SCOPE_LABELS[s]) + '</option>'; }).join('') + '</select>');
+    h += field('Scope of this job', '<select data-attic-f="scope">' + A.SCOPES.map(function (s) { return '<option value="' + s + '"' + (S.scope === s ? ' selected' : '') + (A.scopeRank(s) < A.scopeRank(S.minScope) ? ' disabled' : '') + '>' + esc(A.SCOPE_LABELS[s]) + '</option>'; }).join('') + '</select>');
+    if (A.scopeRank(S.minScope) > 0) h += '<p class="attic-note">The scope can be raised, not lowered here. If the job really is not a re-roof, the company owner or an admin records that with a reason.</p>';
     if (S.scope === 'repair') h += '<p class="attic-note">A repair does not need the form; it can be offered.</p>';
     if (!A.needsForm(S.scope) && S.scope !== 'repair') h += '<p class="attic-note">No attic form is used on this job.</p>';
     h += '<div class="attic-f"><label><input type="radio" name="atticStatus" data-attic-f="status" value="inspected"' + (r.status !== 'not_inspected' ? ' checked' : '') + '> We inspected the attic</label> ' +
@@ -119,7 +122,7 @@
   // ── Edit ─────────────────────────────────────────────────────────
   function setField(path, el) {
     var r = S.rec, v = el.type === 'checkbox' ? el.checked : el.value;
-    if (path === 'scope') { S.scope = v; return true; }
+    if (path === 'scope') { if (AA().scopeRank(v) >= AA().scopeRank(S.minScope)) S.scope = v; return true; }
     if (path === 'status') { r.status = v; return true; }
     if (path.indexOf('cond.') === 0) { r.conditions[path.slice(5)] = v === true; return true; }
     if (path.indexOf('vent.') === 0) { r.vent[path.slice(5)] = v; return false; }
