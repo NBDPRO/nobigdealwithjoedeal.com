@@ -369,7 +369,7 @@ const ON_OWNER = { _default: {}, CO: { docAtticAckV1: true } };
     ok('atticFreeCheckDays 1 is fine', AA.missingTerms({ atticFreeCheckDays: 1 }).length === 0);
 
     // run the panel's task function against a fake page
-    const code = fs.readFileSync(path.join(ROOT, 'docs/pro/js/attic-panel.js'), 'utf8').replace(/\r\n/g, '\n');
+    const panelJs = fs.readFileSync(path.join(ROOT, 'docs/pro/js/attic-panel.js'), 'utf8').replace(/\r\n/g, '\n');
     const store = new Map();
     const writes = [];
     const win = { location: { pathname: '/pro/customer.html' }, _user: { uid: 'REP', email: 'rep@example.test' }, db: {}, serverTimestamp: () => 'TS',
@@ -380,7 +380,7 @@ const ON_OWNER = { _default: {}, CO: { docAtticAckV1: true } };
       addEventListener() {}, NBDFlags: { enabled: () => true, onReady() {} }, _leadDoc: { id: 'L1', scheduledDate: '' }, _customerId: 'L1' };
     win.NBDAtticAck = AA; win.NBDAtticAckText = require(path.join(FN, 'attic-ack-text.js'));
     const doc0 = { addEventListener() {}, getElementById: () => null, createElement: () => ({ setAttribute() {}, appendChild() {} }), body: { appendChild() {} } };
-    new Function('window', 'document', 'console', code)(win, doc0, console);
+    new Function('window', 'document', 'console', panelJs)(win, doc0, console);
     const T = win.NBDAtticPanel && win.NBDAtticPanel._freeCheckTask;
     ok('the panel exposes its free-check task for the test', typeof T === 'function');
     if (typeof T === 'function') {
