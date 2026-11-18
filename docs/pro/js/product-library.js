@@ -661,7 +661,8 @@
         const colorCount = p.colors ? p.colors.length : 0;
         const hasLabor = p.labor && p.labor.perUnit > 0;
         productsHtml += `
-          <div class="pl-card plx-card">
+          <div class="pl-card plx-card">${(window.NBDPriceLedger && window.NBDPriceLedger.enabled()) ? `
+            <div class="prl-card-photo" data-prl-card-photo="${escapeHtml(p.id)}" hidden></div>` : ''}
             <div class="plx-card-head">
               <div class="plx-grow">
                 <div class="plx-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
