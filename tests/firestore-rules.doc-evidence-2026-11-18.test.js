@@ -49,6 +49,7 @@ async function run() {
     await setDoc(doc(db, 'leads/L1/documents/draft'), { name: 'c', status: 'draft', userId: 'owner1' });
     await setDoc(doc(db, 'leads/L1/documents/sent'), { name: 'c', status: 'sent', userId: 'owner1', signatureEvidence: { path: 'remote_link', ip: '1.1.1.1' } });
     await setDoc(doc(db, 'leads/L1/documents/signed'), { name: 'c', status: 'signed', signedAt: new Date(), userId: 'owner1', signatureEvidence: { path: 'in_person', ip: '1.1.1.1' } });
+    await setDoc(doc(db, 'leads/L1/documents/refused'), { name: 'c', status: 'signed', signedAt: new Date(), userId: 'owner1', evidenceRefused: { reasons: [{ code: 'price', message: 'The contract price is blank or $0.00.' }], at: 1766000000000 } });
     await setDoc(doc(db, 'leads/L1/documents/stampfail'), { name: 'c', status: 'sent', userId: 'owner1', signedStampFailed: true, signedStampFailedAt: new Date() });
     await setDoc(doc(db, 'deal_rooms/open'), { userId: 'owner1', status: 'sent' });
     await setDoc(doc(db, 'deal_rooms/closed'), { userId: 'owner1', status: 'accepted', acceptedTier: 'better', acceptedPrice: 100, acceptedEvidence: { ip: '1.1.1.1', clauseSetVersion: 'CS-REAL' } });
@@ -78,6 +79,11 @@ async function run() {
   await check('owner plants signedStampFailed on a draft', 'deny', updateDoc(d('draft'), { signedStampFailed: true }));
   await check('owner creates a row carrying signedStampFailed', 'deny', setDoc(doc(owner, 'leads/L1/documents/new5'), { name: 'x', status: 'draft', userId: 'owner1', signedStampFailed: true }));
   await check('control: owner edits an ordinary field on a stamp-failed row', 'allow', updateDoc(d('stampfail'), { name: 'renamed' }));
+  // review 2 (2026-11-18), item 4: evidenceRefused is server-owned too.
+  await check('owner deletes evidenceRefused from a signed row', 'deny', updateDoc(d('refused'), { evidenceRefused: deleteField() }));
+  await check('owner rewrites evidenceRefused on a signed row', 'deny', updateDoc(d('refused'), { 'evidenceRefused.at': 1 }));
+  await check('owner plants evidenceRefused on a draft', 'deny', updateDoc(d('draft'), { evidenceRefused: { reasons: [], at: 1 } }));
+  await check('owner creates a row carrying evidenceRefused', 'deny', setDoc(doc(owner, 'leads/L1/documents/new6'), { name: 'x', status: 'draft', userId: 'owner1', evidenceRefused: { reasons: [], at: 1 } }));
   await check('control: owner may still flip sharedWithHomeowner on a signed row', 'allow', updateDoc(d('signed'), { sharedWithHomeowner: true }));
 
   await check('control: owner edits notes on an open deal room', 'allow', updateDoc(doc(owner, 'deal_rooms/open'), { notes: 'n' }));

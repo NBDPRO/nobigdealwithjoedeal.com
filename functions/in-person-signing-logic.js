@@ -135,7 +135,8 @@ async function recordEvidence(db, ctx, evidence) {
     const snap = await t.get(ref);
     const cur = snap && snap.exists ? (snap.data() || {}) : null;
     if (!cur || cur.signatureEvidence) return false;
-    t.set(ref, { signatureEvidence: record }, { merge: true });
+    // A refusal earlier on this row (evidenceRefused) is cleared once the evidence is actually written.
+    t.set(ref, cur.evidenceRefused ? { signatureEvidence: record, evidenceRefused: null } : { signatureEvidence: record }, { merge: true });
     return true;
   });
   return wrote ? record : null;
@@ -173,7 +174,17 @@ async function handleInPersonSignature(db, auth, data, deps) {
     // Flag on: the same gap check as every other send path. Unlike the evidence write below, this DOES
     // refuse: a contract with a blank price or a [Placeholder] does not advance the pipeline as signed.
     const gaps = await contractGapsFor(db, { leadId, lead, docMeta }, evidence);
-    if (gaps.length) throw new RefusalError('failed-precondition', require('./doc-evidence').describeGaps(gaps));
+    if (gaps.length) {
+      // Review 2 (2026-11-18), item 4: the rep's browser already wrote this row as "signed" before this call, so a
+      // bare refusal would leave a signed row with no evidence and no trace of why. The server marks it
+      // (evidenceRefused is server-owned in firestore.rules), best-effort: the refusal itself always reaches the rep.
+      try {
+        await db.doc('leads/' + leadId + '/documents/' + docId).set({
+          evidenceRefused: { reasons: gaps.map((g) => ({ code: g.code, message: g.message })), at: Date.now() },
+        }, { merge: true });
+      } catch (_) { /* the refusal below is the primary signal */ }
+      throw new RefusalError('failed-precondition', require('./doc-evidence').describeGaps(gaps));
+    }
     // The evidence write never blocks the card move below: the contract is saved either way.
     try { await recordEvidence(db, { leadId, docId, lead, docMeta, uid, data: d }, evidence); }
     catch (e) { if (typeof evidence.onError === 'function') evidence.onError(e); }

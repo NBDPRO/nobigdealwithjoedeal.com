@@ -144,6 +144,49 @@ const failDocSets = (db) => {
     ok('3: flag ON but unreadable: the mint fails closed (unavailable), never reads as off', r.err && r.err.code === 'unavailable' && tokCount(db) === 0, r.err && r.err.message);
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('4. in-person: a refused row carries a server-owned evidenceRefused mark (not silent)');
+  const IPL = tryReq(path.join(FN, 'in-person-signing-logic.js'));
+  const IP_PATH = 'documents/U1/L1/d-1.html';
+  const IP_FULL = '<html><body><p>Agreement for Dana Whitfield at 12 Oak St, Cincinnati, OH 45202. Total $14,500.00.</p></body></html>';
+  const ipWorld = (o) => {
+    const x = Object.assign({ est: { grandTotal: 14500 } }, o || {});
+    const s = {
+      'leads/L1': { userId: 'U1', companyId: 'U1', firstName: 'Dana', lastName: 'Whitfield', address: '12 Oak St, Cincinnati, OH 45202', jobType: 'cash', primaryEstimateId: 'E1' },
+      'companyProfile/U1': { brand: { legalName: 'Acme Roofing LLC', entityName: 'Acme Roofing LLC', contact: { mailingAddress: '1 Main St, Cincinnati, OH 45202' } } },
+      'leads/L1/documents/d1': { type: 'contract', status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner' }], htmlPath: IP_PATH },
+    };
+    if (x.est) s['estimates/E1'] = x.est;
+    return kit.makeDb(s);
+  };
+  const ipRun = async (db, html, extra, deps) => {
+    try {
+      await IPL.handleInPersonSignature(db, { uid: 'U1', token: {} }, { leadId: 'L1', docId: 'd1' },
+        { recordJobEvent: async () => ({ moved: true }), evidence: Object.assign({ enabled: true, ip: '198.51.100.30', ua: 'Rep', readBytes: async () => Buffer.from(html) }, extra || {}) });
+      return null;
+    } catch (e) { return e; }
+  };
+  if (!kit || !DE || !IPL) ok('in-person harness available', false);
+  else {
+    let db = ipWorld({ est: null }); let e = await ipRun(db, IP_FULL);
+    let row = db._get('leads/L1/documents/d1') || {};
+    ok('4: a refusal still throws failed-precondition', !!e && e.code === 'failed-precondition');
+    ok('4: ...and leaves evidenceRefused {reasons, at} on the row so the refusal is visible', row.evidenceRefused && Array.isArray(row.evidenceRefused.reasons) && row.evidenceRefused.reasons.some((r) => r.code === 'price') && row.evidenceRefused.at > 0, JSON.stringify(row.evidenceRefused));
+    ok('4: ...and still no signatureEvidence', !row.signatureEvidence);
+    db = ipWorld(); e = await ipRun(db, IP_FULL);
+    row = db._get('leads/L1/documents/d1') || {};
+    ok('4: control: a complete contract records evidence and leaves no evidenceRefused', e === null && !!row.signatureEvidence && !row.evidenceRefused);
+    db = ipWorld({ est: null }); await ipRun(db, IP_FULL);
+    db._store.set('estimates/E1', { grandTotal: 14500 });
+    e = await ipRun(db, IP_FULL); row = db._get('leads/L1/documents/d1') || {};
+    ok('4: a later successful call records the evidence and clears the stale mark', e === null && !!row.signatureEvidence && !row.evidenceRefused);
+    db = ipWorld(); e = await ipRun(db, IP_FULL, { readBytes: async () => { throw new Error('down'); } });
+    ok('4: an unreadable copy (retryable) is not marked refused', !!e && e.code === 'unavailable' && !(db._get('leads/L1/documents/d1') || {}).evidenceRefused);
+    db = ipWorld({ est: null }); { const d0 = db.doc; db.doc = (p) => { const r = d0(p); if (/documents\/d1$/.test(p)) { r.set = async () => { throw new Error('write down'); }; } return r; }; }
+    e = await ipRun(db, IP_FULL);
+    ok('4: if the mark itself cannot be written the refusal still reaches the rep', !!e && e.code === 'failed-precondition');
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join('; ')); process.exit(1); }
 })().catch((e) => { console.error('FATAL', e); process.exit(1); });
