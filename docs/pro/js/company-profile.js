@@ -337,6 +337,10 @@
   // configured tenant never inherits NBD's phone/email/logo/seal (review M1).
   // null until a keyed load/cache/save populates it (i.e. NBD or pre-auth).
   let _brandOverrideRaw = null;
+  // The tenant's RAW paymentTerms (what it wrote, not the NBD defaults merged under it). _resolveLegal keeps a field
+  // when the tenant set it, whatever its value, and blanks it when it did not (review 2026-11-18, item 2): blank by
+  // tenant identity, never by comparing with NBD's number.
+  let _ptOverrideRaw = null;
 
   // Resolve the per-tenant document key for `companyProfile/{key}`.
   //
@@ -431,6 +435,7 @@
     _profileEpoch++;
     _loadedKey = null;
     _brandOverrideRaw = null;
+    _ptOverrideRaw = null;
     window._companyProfile = deepMerge({}, NBD_COMPANY_PROFILE_DEFAULTS);
     if (window._companyProfileLoaded === true) window._companyProfileLoaded = false;
   };
@@ -458,12 +463,14 @@
         // overrides can't survive into this tenant's session.
         window._companyProfile = deepMerge({}, NBD_COMPANY_PROFILE_DEFAULTS);
         _brandOverrideRaw = null;
+        _ptOverrideRaw = null;
         try {
           const cachedRaw = localStorage.getItem(_cacheKeyFor(key));
           if (cachedRaw) {
             const cached = JSON.parse(cachedRaw) || {};
             window._companyProfile = deepMerge(NBD_COMPANY_PROFILE_DEFAULTS, cached);
             _brandOverrideRaw = cached.brand || null;
+            _ptOverrideRaw = cached.paymentTerms || null;
           }
         } catch (_) { /* ignore */ }
       }
@@ -513,6 +520,7 @@
         const remote = snap.data() || {};
         window._companyProfile = deepMerge(NBD_COMPANY_PROFILE_DEFAULTS, remote);
         _brandOverrideRaw = (remote && remote.brand) || null;
+        _ptOverrideRaw = (remote && remote.paymentTerms) || null;
         try { localStorage.setItem(_cacheKeyFor(key), JSON.stringify(remote)); } catch (_) {}
       } else {
         // The server has no doc for this tenant: the defaults ARE its
@@ -520,6 +528,7 @@
         // server's — a write the rules refused, or a doc since deleted.
         window._companyProfile = deepMerge({}, NBD_COMPANY_PROFILE_DEFAULTS);
         _brandOverrideRaw = null;
+        _ptOverrideRaw = null;
         try { localStorage.removeItem(_cacheKeyFor(key)); } catch (_) {}
       }
       // Hydration is DEFINITIVE only once the doc read succeeded (exists or
@@ -697,12 +706,14 @@
     // Snapshot for a rollback if the server refuses the write (ST-F02).
     const _rbProfile = window._companyProfile;
     const _rbBrandRaw = _brandOverrideRaw;
+    const _rbPtRaw = _ptOverrideRaw;
     let _rbCache = null;
     if (key) { try { _rbCache = localStorage.getItem(_cacheKeyFor(key)); } catch (_) { /* storage blocked */ } }
     window._companyProfile = onServerCopy
       ? deepMerge(window._companyProfile, overridesObj)
       : deepMerge(NBD_COMPANY_PROFILE_DEFAULTS, mergedRemote);
     if ('brand' in overridesObj) _brandOverrideRaw = overridesObj.brand || null;
+    if (overridesObj.paymentTerms && typeof overridesObj.paymentTerms === 'object') _ptOverrideRaw = Object.assign({}, _ptOverrideRaw || {}, overridesObj.paymentTerms);
     if (key) { try { localStorage.setItem(_cacheKeyFor(key), JSON.stringify(mergedRemote)); } catch (_) {} }
     if (!window.db) return window._companyProfile;
     if (!key) {
@@ -732,6 +743,7 @@
       if (window._companyProfile === _applied) {
         window._companyProfile = _rbProfile;
         _brandOverrideRaw = _rbBrandRaw;
+        _ptOverrideRaw = _rbPtRaw;
         try {
           if (_rbCache == null) localStorage.removeItem(_cacheKeyFor(key));
           else localStorage.setItem(_cacheKeyFor(key), _rbCache);
@@ -945,10 +957,12 @@
         if (R && typeof R.policyText === 'function') out[k] = R.policyText();
       }
     });
-    // Payment terms: NBD's numbers are NBD's. A tenant keeps only the fields it changed from them.
+    // Payment terms: NBD's numbers are NBD's. A tenant keeps the fields IT set (by identity, not by value: a tenant that
+    // deliberately chose 8% keeps 8%) and the rest are unset, the same as the server reads it.
     if (out.paymentTerms && typeof out.paymentTerms === 'object') {
       const pt = {};
-      Object.keys(D.paymentTerms).forEach(function (k) { pt[k] = out.paymentTerms[k] !== D.paymentTerms[k] ? out.paymentTerms[k] : null; });
+      const rawPt = _ptOverrideRaw && typeof _ptOverrideRaw === 'object' ? _ptOverrideRaw : {};
+      Object.keys(D.paymentTerms).forEach(function (k) { pt[k] = rawPt[k] !== undefined && rawPt[k] !== null && rawPt[k] !== '' ? rawPt[k] : null; });
       out.paymentTerms = pt;
     }
     return out;

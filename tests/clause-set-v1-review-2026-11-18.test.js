@@ -89,6 +89,36 @@ function loadRegistry(textObj) {
     });
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('2. paymentTerms: blank by tenant identity, never by value (client and server agree)');
+  {
+    const env = H.docs({});
+    const W = env.win;
+    await W._saveCompanyProfile({ brand: { legalName: 'Oak Roofing LLC' }, paymentTerms: { lateInterestPct: 8, lateGraceDays: 15 } });
+    const L = W._legal().paymentTerms;
+    ok('a non-NBD tenant that SET lateInterestPct 8 (NBD\'s own number) keeps 8', L.lateInterestPct === 8, String(L.lateInterestPct));
+    ok('a non-NBD tenant that set lateGraceDays 15 keeps 15', L.lateGraceDays === 15, String(L.lateGraceDays));
+    ok('a field the tenant did not set is unset (null), even where NBD has a default', L.disputeDays === null && L.restockPct === null && L.claimNoticeDays === null, JSON.stringify(L));
+    const CS = require('../functions/clause-set.js');
+    const server = CS.paymentTermsFor({ lateInterestPct: 8, lateGraceDays: 15 }, false);
+    ok('the server reads the same tenant the same way (8 and 15 kept, the rest unset)',
+      server.lateInterestPct === 8 && server.lateGraceDays === 15 && server.disputeDays === null);
+    ok('client _legal() and server paymentTermsFor agree field for field', CS.PT_FIELDS.every((k) => L[k] === server[k]));
+    // another tenant, nothing set
+    const env2 = H.docs({});
+    await env2.win._saveCompanyProfile({ brand: { legalName: 'Elm Exteriors Inc' } });
+    ok('a non-NBD tenant that set nothing has every field unset on the client', CS.PT_FIELDS.every((k) => env2.win._legal().paymentTerms[k] === null), JSON.stringify(env2.win._legal().paymentTerms));
+    // NBD: untouched (defaults), and an NBD override still counts
+    const env3 = H.docs({});
+    await env3.win._saveCompanyProfile({ paymentTerms: { lateInterestPct: 6 } });
+    const N = env3.win._legal().paymentTerms;
+    ok('NBD keeps its defaults and its own override', N.lateInterestPct === 6 && N.lateGraceDays === 15 && N.restockPct === 15);
+    // a later save for the tenant keeps what an earlier one set
+    await W._saveCompanyProfile({ paymentTerms: { disputeDays: 10 } });
+    const L2 = W._legal().paymentTerms;
+    ok('a second save adds a field and keeps the first save\'s values', L2.disputeDays === 10 && L2.lateInterestPct === 8);
+  }
+
   // @@SECTIONS@@
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
