@@ -99,6 +99,51 @@ const failDocSets = (db) => {
     ok('2: control: a normal signing is unchanged (row stamped, evidence on the row)', z.doc.status === 'signed' && z.doc.signatureEvidence && z.doc.signatureEvidence.ip === '198.51.100.9' && !z.doc.signedStampFailed);
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('3. deal-room mint refuses an incomplete page (flag on); flag off is unchanged');
+  if (!kit || !DE) ok('deal harness available', false);
+  else {
+    const DEAL_PATH = 'deal_rooms/U1/deal0001.html';
+    const REALD = ['./cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', './lead-artifact-paths', './await-briefly', './portal-after-signing', './signed-price', './customer-estimate-rows', './doc-send-checks', 'crypto'];
+    const stubs = () => ({
+      './deal-install-date': { fillLeadInstallDate: async () => null },
+      './deal-view-logic': { isPreviewBot: () => false, shouldNotifyView: () => false, viewMessage: () => ({ title: '', body: '' }) },
+      './estimate-send-logic': {}, './thursday-video-gate': { isNbdTenant: () => false, DEAL_ROOM_INJECT: '', DEAL_ROOM_SCRIPT_PATH: '/x.js' },
+      './deal-accepted-tier': { applyAcceptedTier: async () => {} },
+      './ky-insurance-law': K, './cancel-window': require(path.join(FN, 'cancel-window.js')), './esign-logic': ESL, './doc-evidence': DE,
+    });
+    const GOODPAGE = '<html><body><p>Your roof, three packages.</p></body></html>';
+    const BADPAGE = '<html><body><p>Your roof for [Customer Name], three packages.</p></body></html>';
+    const world = (flag, profile) => {
+      const o = {
+        'deal_rooms/deal0001': { status: 'sent', userId: 'U1', leadId: 'L1', customerName: 'Dana Whitfield', tiers: { better: { price: 13000 } } },
+        'leads/L1': { userId: 'U1', companyId: 'U1', address: '9 Elm St, Louisville, KY 40202', jobType: 'insurance' },
+      };
+      if (profile !== false) o['companyProfile/U1'] = { brand: { legalName: 'Acme Roofing LLC', entityName: 'Acme Roofing LLC', contact: { mailingAddress: '1 Main St, Cincinnati, OH 45202' } } };
+      if (flag) o['feature_flags/_default'] = { docEvidenceFoundation: true };
+      return kit.makeDb(o);
+    };
+    const mint = async (db, st) => {
+      const L = kit.loadHandler('deal-acceptance.js', db, st, stubs(), REALD);
+      try { return { out: await L.fns.createDealAcceptToken({ auth: { uid: 'U1', token: {} }, data: { dealId: 'deal0001' } }) }; }
+      catch (e) { return { err: e }; }
+    };
+    const tokCount = (db) => db._all('deal_accept_tokens').length;
+    let db = world(false); let r = await mint(db, kit.makeStorage({ [DEAL_PATH]: BADPAGE }));
+    ok('3: flag OFF: a page with a [Placeholder] still mints (unchanged)', !!r.out && !!r.out.token && tokCount(db) === 1, r.err && r.err.message);
+    db = world(true); r = await mint(db, kit.makeStorage({ [DEAL_PATH]: BADPAGE }));
+    ok('3: flag ON: a page with a leftover [Placeholder] is refused (failed-precondition) and no token is minted', r.err && r.err.code === 'failed-precondition' && /placeholder/i.test(r.err.message) && tokCount(db) === 0, r.err && r.err.message);
+    db = world(true, false); r = await mint(db, kit.makeStorage({ [DEAL_PATH]: GOODPAGE }));
+    ok('3: flag ON: no company legal entity / mailing address on file is refused', r.err && r.err.code === 'failed-precondition' && /legal entity/i.test(r.err.message) && tokCount(db) === 0, r.err && r.err.message);
+    db = world(true); r = await mint(db, kit.makeStorage({ [DEAL_PATH]: GOODPAGE }));
+    ok('3: flag ON: a complete page mints', !!r.out && !!r.out.token && tokCount(db) === 1, r.err && r.err.message);
+    db = world(true); r = await mint(db, kit.makeStorage({}));
+    ok('3: flag ON: a page that cannot be read at mint fails closed (unavailable), no token', r.err && r.err.code === 'unavailable' && tokCount(db) === 0, r.err && r.err.message);
+    db = world(true); { const o0 = db.doc; db.doc = (p) => (/^feature_flags\//.test(p) ? { get: async () => { throw new Error('down'); } } : o0(p)); }
+    r = await mint(db, kit.makeStorage({ [DEAL_PATH]: GOODPAGE }));
+    ok('3: flag ON but unreadable: the mint fails closed (unavailable), never reads as off', r.err && r.err.code === 'unavailable' && tokCount(db) === 0, r.err && r.err.message);
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join('; ')); process.exit(1); }
 })().catch((e) => { console.error('FATAL', e); process.exit(1); });

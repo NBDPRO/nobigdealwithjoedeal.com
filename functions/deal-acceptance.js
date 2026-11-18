@@ -281,9 +281,39 @@ exports.createDealAcceptToken = onCall(
     let pageSha256 = null;
     let pageArchivePath = null;
     let pageArchiveReason = null;
+    let pbuf = null;
     try {
-      const [pbuf] = await getStorage().bucket().file(htmlPath).download();
+      [pbuf] = await getStorage().bucket().file(htmlPath).download();
       pageSha256 = require('crypto').createHash('sha256').update(pbuf).digest('hex');
+    } catch (e) {
+      pbuf = null; pageSha256 = null; pageArchiveReason = 'page_unreadable_at_mint';
+      logger.warn('[createDealAcceptToken] page unreadable at mint', { dealId, msg: e && e.message });
+    }
+
+    // Review 2 (2026-11-18), item 3: accepting this page is signing the contract, so with the flag on for
+    // the rep the same pre-send gap check as every other path runs HERE, on the page as it stands now
+    // (price from the offerable tiers, address and name from the lead / deal, entity and mailing address
+    // from the company profile, a leftover [Placeholder] in the page). An incomplete page is refused and
+    // no link is minted; a flag or page that cannot be read fails closed. Flag off: unchanged. The
+    // acceptance (submit) is unchanged.
+    const DE = require('./doc-evidence');
+    if (await DE.flagForGate(db, uid, HttpsError)) {
+      if (!pbuf) throw new HttpsError('unavailable', 'Could not read the deal page to check it. Nothing was sent. Try again in a moment.');
+      let leadData = {};
+      if (leadId) { try { const ls = await db.doc(`leads/${leadId}`).get(); leadData = ls.exists ? (ls.data() || {}) : {}; } catch (_) { leadData = {}; } }
+      let profile = {};
+      try { const cp = await db.doc(`companyProfile/${ownerCompanyId}`).get(); if (cp.exists) profile = cp.data() || {}; } catch (_) { profile = {}; }
+      const bestTier = Math.max.apply(null, [0].concat(VALID_TIERS.map((t) => tierPrices[t])));
+      const gaps = DE.serverContractGaps({
+        type: 'proposal', html: pbuf.toString('utf8'), lead: leadData, profile, tenantKey: ownerCompanyId, KyLaw,
+        priceCents: bestTier > 0 ? Math.round(bestTier * 100) : null,
+        address: leadData.address || deal.address || deal.customerAddress || deal.propertyAddress || '',
+        homeownerName: deal.customerName || [leadData.firstName, leadData.lastName].filter(Boolean).join(' ') || leadData.name || '',
+      });
+      if (gaps.length) throw new HttpsError('failed-precondition', DE.describeGaps(gaps));
+    }
+
+    if (pbuf) {
       try {
         pageArchivePath = htmlPath.replace(/(.html?)?$/i, '') + '.minted-' + Date.now() + '.html';
         await getStorage().bucket().file(pageArchivePath).save(pbuf, { contentType: 'text/html', resumable: false });
@@ -291,9 +321,6 @@ exports.createDealAcceptToken = onCall(
         pageArchivePath = null; pageArchiveReason = 'archive_save_failed';
         logger.warn('[createDealAcceptToken] page archive failed', { dealId, msg: e && e.message });
       }
-    } catch (e) {
-      pageSha256 = null; pageArchiveReason = 'page_unreadable_at_mint';
-      logger.warn('[createDealAcceptToken] page unreadable at mint', { dealId, msg: e && e.message });
     }
 
     const now = Date.now();
