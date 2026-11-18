@@ -118,7 +118,7 @@ async function recordEvidence(db, ctx, evidence) {
     documentSha256: null, signedSha256,
     // No consent step on the rep's phone today (phase 2): recorded as "not asked", never as agreed.
     consent: { agreed: null },
-    signedAtMs: Date.now(), ip: evidence.ip, ua: evidence.ua, recordedByUid: uid,
+    signedAtMs: Date.now(), ip: evidence.ip, ipSource: evidence.ipSource, ua: evidence.ua, recordedByUid: uid,
   });
   record.signedCopySha256 = signedSha256;
   record.signedAtClientReported = clientSignedAt;

@@ -110,7 +110,7 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
   // ═══════════════════════════════════════════════════════════════════════
   section('C2. NBDDocGen.generate refuses a contract with a hole (flag on) and is unchanged (flag off)');
   {
-    function env(flagOn, brandX) {
+    function env(flagOn, brandX, skipChecksModule) {
       const brand = Object.assign({ legalName: 'No Big Deal Home Solutions', colors: {}, contact: { mailingAddress: '4400 Test Pike, Cincinnati, OH 45202' } }, brandX || {});
       const toasts = []; const opened = [];
       const win = { _brand: () => brand, _companyProfileLoaded: true, NBDFlags: { enabled: (n) => flagOn && n === 'docEvidenceFoundation' },
@@ -122,6 +122,7 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
         console: { log() {}, warn() {}, error() {} }, setTimeout, clearTimeout, Date, Math, JSON, Intl, TextEncoder };
       vm.createContext(sb);
       for (const f of ['ky-insurance-law.js', 'doc-send-checks.js', 'deposit-rule.js', 'estimate-config.js', 'tenant-rules.js', 'document-generator.js', 'document-generator-templates.js', 'document-generator-library.js', 'doc-preflight.js']) {
+        if (skipChecksModule && f === 'doc-send-checks.js') continue;
         try { vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), sb, { filename: f }); } catch (_) { /* doc-send-checks.js absent on old code */ }
       }
       return { win, toasts, opened };
@@ -129,8 +130,8 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
     const signers = [{ role: 'homeowner', label: 'Homeowner', required: true }];
     const good = { homeownerName: 'Jane Smith', address: '12 Oak St, Cincinnati, OH 45202', totalPrice: '$12,000.00', contractPrice: '$12,000.00', startDate: '2026-12-01', estimatedCompletion: '5-7 business days', signers };
     const NBDX = { entityName: 'No Big Deal Solutions LLC' };
-    async function run(flag, type, data, brandX) {
-      const e = env(flag, brandX);
+    async function run(flag, type, data, brandX, skipChecksModule) {
+      const e = env(flag, brandX, skipChecksModule);
       await e.win.NBDDocGen.generate(type, Object.assign({}, data));
       return e;
     }
@@ -139,6 +140,12 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
     e = await run(true, 'contract', { signers }, NBDX);
     ok('flag ON: a blank contract is refused, nothing opens', e.opened.length === 0);
     ok('...with one error listing price, address and name', e.toasts.length === 1 && e.toasts[0][0] === 'error' && /price/.test(e.toasts[0][1]) && /address/.test(e.toasts[0][1]) && /homeowner name/.test(e.toasts[0][1]));
+    e = await run(true, 'contract', good, NBDX, true);
+    ok('flag ON + the checks module missing: a contract is BLOCKED with a reload message (review 2026-11-18)', e.opened.length === 0 && e.toasts.length === 1 && /did not load/.test(e.toasts[0][1]), JSON.stringify(e.toasts));
+    e = await run(false, 'contract', good, NBDX, true);
+    ok('flag OFF + the checks module missing: still allowed (unchanged)', e.opened.length === 1 && e.toasts.length === 0);
+    e = await run(true, 'receipt', { homeownerName: '', signers }, NBDX, true);
+    ok('flag ON + module missing: a non-contract type (receipt) is not blocked', e.toasts.every((t) => !/did not load/.test(t[1])));
     e = await run(true, 'contract', good, NBDX);
     ok('flag ON: a complete contract opens', e.opened.length === 1 && e.toasts.length === 0, JSON.stringify(e.toasts));
     e = await run(true, 'contract', good, {});
@@ -353,7 +360,6 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
       ok('7b: with the token\'s snapshot, a flag read that FAILS at POST cannot switch the consent requirement off', y.sub.statusCode === 422 && y.sub.body.needsConsent === true);
       y = await go2({}, true);
       ok('7b: a link minted before the snapshot existed falls back to the flag as it stands', y.sub.statusCode === 422 && y.sub.body.needsConsent === true);
-      ok('7b: createSignRequest writes consentAsked on the token from the flag it just read', /consentAsked: flagOnAtMint/.test(read('functions/remote-signing.js') || ''));
       // finding 8: the document-row write after a saved signed copy is retried, and its loss is never silent
       async function go3(failFirst, failAlways) {
         const db = kit.makeDb(world(false)); const st = kit.makeStorage({ [GOOD_PATH]: ORIGINAL });
@@ -623,8 +629,20 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
       db = mkIP({ est: null });
       e = await refusal(() => L.handleInPersonSignature(db, { uid: 'U1', token: {} }, { leadId: 'L1', docId: 'd1' }, { recordJobEvent: async () => ({ moved: true }) }));
       ok('2 in-person: flag OFF (no evidence dep), the same blank-price contract moves as before', e === null);
-      const wrapSrc = read('functions/in-person-signing.js') || '';
-      ok('7 in-person: the callable reads the flag as a gate and lets its retryable error through', /flagForGate\(db, uid, HttpsError\)/.test(wrapSrc) && /e instanceof HttpsError\) throw e/.test(wrapSrc));
+      {
+        const stW = kit.makeStorage({ [P]: CONTRACT });
+        const callW = async (dbW) => {
+          const W = kit.loadHandler('in-person-signing.js', dbW, stW, { './in-person-signing-logic': L, './doc-evidence': DE }, []);
+          try { return { v: await W.fns.recordInPersonSignature({ auth: { uid: 'U1', token: {} }, data: { leadId: 'L1', docId: 'd1' }, rawRequest: { headers: { 'x-forwarded-for': '6.6.6.6, 203.0.113.5, 35.1.1.1' }, get: () => 'RepPhone/1' } }) }; }
+          catch (er) { return { e: er }; }
+        };
+        db = mkIP(); breakFlags(db);
+        let w1 = await callW(db);
+        ok('7 in-person: through the real callable, a flag read that FAILS is a retryable "unavailable", not "internal" and not a skip', !!w1.e && w1.e.code === 'unavailable' && !(db._get('leads/L1/documents/d1') || {}).signatureEvidence, w1.e && w1.e.code);
+        db = mkIP(); db._store.set('feature_flags/_default', { docEvidenceFoundation: true });
+        w1 = await callW(db);
+        ok('2 in-person: through the real callable (flag ON, complete contract) the evidence is written with the request\'s address and its derivation', !!w1.v && ((db._get('leads/L1/documents/d1') || {}).signatureEvidence || {}).ip === '203.0.113.5' && /^xff:hops=\d+:chain=3$/.test(((db._get('leads/L1/documents/d1') || {}).signatureEvidence || {}).ipSource || ''), w1.e && w1.e.message);
+      }
 
       // createEsignEnvelope (uploaded PDF)
       const PDFLib = tryReq('pdf-lib');
@@ -659,10 +677,6 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
         ok('7 envelope: a flag read that FAILS refuses (retryable), nothing stored', !!q.e && q.e.code === 'unavailable' && !q.db._get('esign_envelopes/ENVUP0001'), q.e && q.e.message);
       }
 
-      // browser gate: flag ON + module missing must BLOCK
-      const dg = read('docs/pro/js/document-generator.js') || '';
-      const gateSrc = (dg.match(/_docSendGate\(type, data, html\) \{[\s\S]*?\n  \},/) || [''])[0];
-      ok('2 browser: with the flag ON and the checks module missing the gate BLOCKS (the module-missing branch returns false)', /if \(!C\)[\s\S]{0,900}return false/.test(gateSrc) && /reload/i.test(gateSrc), gateSrc.slice(0, 200));
     }
   }
 
@@ -723,8 +737,6 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
       db = mk({ signedRemotely: true, signatureEvidence: { path: 'remote_link', ip: '9.9.9.9' } }, true);
       await call(db, {});
       ok('4: evidence a signing path wrote is never replaced (the precondition is "absent", not a client flag)', db._get('leads/L1/documents/d1').signatureEvidence.ip === '9.9.9.9' && db.evidenceWrites.length === 0);
-      const src = read('functions/in-person-signing-logic.js') || '';
-      ok('4: recordEvidence uses a transaction that reads signatureEvidence before writing', /runTransaction/.test(src) && !/signedRemotely === true\) return null/.test(src));
     }
   }
 
@@ -797,6 +809,7 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
       ev = (db._get('deal_rooms/d1') || {}).acceptedEvidence || {};
       ok('5: a token minted before this change gets documentSha256 null and reason no_archive_at_mint (still no live read)', ev.documentSha256 === null && ev.documentSha256Reason === 'no_archive_at_mint');
       // finding 6
+      ok('10: the deal-room evidence carries ipSource (the test stub reports "unreported")', ev.ipSource === 'unreported');
       ok('6: consent is labelled client_asserted (the server cannot see the tick)', ev.consentSource === 'client_asserted');
       ok('6: acceptance behaviour is unchanged: an unticked box is still recorded as false and still accepted', await (async () => {
         db = world(); st = kit.makeStorage({ [DEAL_PATH]: PAGE1 }); m = await mintToken(db, st);
@@ -827,7 +840,6 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
     ok('10: requestFacts carries ipSource with the ip', facts.ip === '203.0.113.5' && /^xff:hops=\d+:chain=3$/.test(facts.ipSource || ''), JSON.stringify(facts));
     ok('10: buildEvidence always has an ipSource key (null when unknown)', !!DE && 'ipSource' in DE.buildEvidence({}) && DE.buildEvidence({}).ipSource === null && DE.buildEvidence({ ipSource: 'socket' }).ipSource === 'socket');
     ok('10: the signer evidence on the e-sign envelope carries it too', 'ipSource' in ESL.buildSignerEvidence({ ip: '1.1.1.1', ipSource: 'socket' }) && ESL.buildSignerEvidence({ ip: '1.1.1.1', ipSource: 'socket' }).ipSource === 'socket');
-    ok('10: the deal-room evidence carries it', /ipSource/.test(read('functions/deal-acceptance.js') || ''));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
