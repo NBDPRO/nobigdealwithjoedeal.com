@@ -62,47 +62,82 @@ console.log('\nWhich products a line can be');
   ok('a sub that is not listed (labor, ventilation) is never priced', ids('LAB TO1', 'labor-teardown') === '' && ids('RFG RIDG-VNT', 'ventilation') === '');
 }
 
+// The starter links, plus one company link for the synthetic line (RFG SYN is not in the starter list).
+const MAP = Object.assign({}, L.lineCodeMap([]), { 'RFG SYN': 'under_001' });
+
 console.log('\nOne line at the company\'s suppliers');
 {
   const ctx = { nowMs: NOW, accounts: ACCOUNTS, taxBps: null };
   const offers = [offer('a', 'other_testco', 'shingle_001', pack('BDL', 'SQ', 1, 3), 66660000, 5)];
-  const r = L.materialsPricing([{ code: 'RFG 240-GAF-HDZ', sub: 'shingles-arch', qty: 25.4, unit: 'SQ' }], PRODUCTS, offers, ctx)[0];
+  const r = L.materialsPricing([{ code: 'RFG 240-GAF-HDZ', sub: 'shingles-arch', qty: 25.4, unit: 'SQ' }], PRODUCTS, offers, ctx, MAP)[0];
   ok('priced: 25.4 SQ at 3 bundles a square is 77 bundles, rounded up', r.state === 'priced' && r.buyQty === 77 && r.purchaseUnit === 'BDL' && r.supplierId === 'other_testco', r);
   ok('the line total is the per-square price times the squares bought (77 / 3), in integer micros', r.totalMicros === Math.round(66660000 * 77 / 3) && Number.isSafeInteger(r.totalMicros) && r.perPurchaseMicros === Math.round(66660000 / 3));
-  const roll = L.materialsPricing([{ code: 'RFG SYN', sub: 'underlayment', qty: 23.4, unit: 'SQ' }], PRODUCTS, [offer('b', 'other_testco', 'under_001', pack('RL', 'SQ', 4, 1), 22220000, 5)], ctx)[0];
+  const roll = L.materialsPricing([{ code: 'RFG SYN', sub: 'underlayment', qty: 23.4, unit: 'SQ' }], PRODUCTS, [offer('b', 'other_testco', 'under_001', pack('RL', 'SQ', 4, 1), 22220000, 5)], ctx, MAP)[0];
   ok('an item packed differently from the list\'s rule gives its own count: 4-square rolls, 23.4 SQ is 6 rolls', roll.state === 'priced' && roll.buyQty === 6 && roll.purchaseUnit === 'RL', roll);
-  const exact = L.materialsPricing([{ code: 'RFG SYN', sub: 'underlayment', qty: 24, unit: 'SQ' }], PRODUCTS, [offer('b', 'other_testco', 'under_001', pack('RL', 'SQ', 4, 1), 22220000, 5)], ctx)[0];
+  const exact = L.materialsPricing([{ code: 'RFG SYN', sub: 'underlayment', qty: 24, unit: 'SQ' }], PRODUCTS, [offer('b', 'other_testco', 'under_001', pack('RL', 'SQ', 4, 1), 22220000, 5)], ctx, MAP)[0];
   ok('an exact multiple is not bumped (24 SQ is 6 rolls)', exact.buyQty === 6);
-  const piece = L.materialsPricing([{ code: 'RFG DRPE-AL', sub: 'drip-edge', qty: 170, unit: 'LF' }], PRODUCTS, [offer('c', 'other_exampledepot', 'flash_003', pack('PC', 'LF', 12, 1), 1111111, 3)], ctx)[0];
+  const piece = L.materialsPricing([{ code: 'RFG DRPE-AL', sub: 'drip-edge', qty: 170, unit: 'LF' }], PRODUCTS, [offer('c', 'other_exampledepot', 'flash_003', pack('PC', 'LF', 12, 1), 1111111, 3)], ctx, MAP)[0];
   ok('12-ft pieces: 170 LF is 15 pieces', piece.state === 'priced' && piece.buyQty === 15 && piece.purchaseUnit === 'PC', piece);
 
-  const unit = L.materialsPricing([{ code: 'RFG DRPE-AL', sub: 'drip-edge', qty: 170, unit: 'EA' }], PRODUCTS, [offer('c', 'other_exampledepot', 'flash_003', pack('PC', 'LF', 12, 1), 1111111, 3)], ctx)[0];
+  const unit = L.materialsPricing([{ code: 'RFG DRPE-AL', sub: 'drip-edge', qty: 170, unit: 'EA' }], PRODUCTS, [offer('c', 'other_exampledepot', 'flash_003', pack('PC', 'LF', 12, 1), 1111111, 3)], ctx, MAP)[0];
   ok('the estimate unit is not the product\'s unit: not priced (unit)', unit.state === 'unit');
-  const stale = L.materialsPricing([{ code: 'RFG 240-GAF-HDZ', sub: 'shingles-arch', qty: 25.4, unit: 'SQ' }], PRODUCTS, [offer('a', 'other_testco', 'shingle_001', pack('BDL', 'SQ', 1, 3), 66660000, 61)], ctx)[0];
+  const stale = L.materialsPricing([{ code: 'RFG 240-GAF-HDZ', sub: 'shingles-arch', qty: 25.4, unit: 'SQ' }], PRODUCTS, [offer('a', 'other_testco', 'shingle_001', pack('BDL', 'SQ', 1, 3), 66660000, 61)], ctx, MAP)[0];
   ok('a paid price 61 days old does not count: no_price', stale.state === 'no_price');
-  const none = L.materialsPricing([{ code: 'RFG 240-GAF-HDZ', sub: 'shingles-arch', qty: 25.4, unit: 'SQ' }], PRODUCTS, [], ctx)[0];
-  ok('no supplier item linked to any matching product: not_linked', none.state === 'not_linked');
+  const none = L.materialsPricing([{ code: 'RFG 240-GAF-HDZ', sub: 'shingles-arch', qty: 25.4, unit: 'SQ' }], PRODUCTS, [], ctx, MAP)[0];
+  ok('the linked product has no supplier item: not_linked', none.state === 'not_linked' && none.productId === 'shingle_001');
   const two = L.materialsPricing([{ code: 'RFG 240-GAF-HDZ', sub: 'shingles-arch', qty: 25.4, unit: 'SQ' }], PRODUCTS,
-    [offer('a', 'other_testco', 'shingle_001', pack('BDL', 'SQ', 1, 3), 66660000, 5), offer('d', 'other_testco', 'shingle_002', pack('BDL', 'SQ', 1, 3), 55550000, 5)], ctx)[0];
-  ok('two matching products each with an item: ambiguous, never a guess', two.state === 'ambiguous' && two.count === 2);
+    [offer('a', 'other_testco', 'shingle_001', pack('BDL', 'SQ', 1, 3), 66660000, 5), offer('d', 'other_testco', 'shingle_002', pack('BDL', 'SQ', 1, 3), 55550000, 5)], ctx, MAP)[0];
+  ok('two shingles with items: the GAF HDZ line prices from GAF HDZ, never the cheaper other shingle', two.state === 'priced' && two.offerId === 'a' && two.productId === 'shingle_001', two);
+  const borrow = L.materialsPricing([{ code: 'RFG 240-GAF-HDZ', qty: 25.4, unit: 'SQ' }], PRODUCTS, [offer('d', 'other_testco', 'shingle_002', pack('BDL', 'SQ', 1, 3), 55550000, 5)], ctx, MAP)[0];
+  ok('only another shingle has an item: the line is not priced, it never borrows that price', borrow.state === 'not_linked' && borrow.productId === 'shingle_001', borrow);
+  const unlinked = L.materialsPricing([{ code: 'RFG 240-ATL', qty: 25.4, unit: 'SQ' }], PRODUCTS, [offer('a', 'other_testco', 'shingle_001', pack('BDL', 'SQ', 1, 3), 66660000, 5)], ctx, MAP)[0];
+  ok('a code no product has: code_unlinked', unlinked.state === 'code_unlinked');
+  const clash = L.materialsPricing([{ code: 'RFG 240-GAF-HDZ', qty: 25.4, unit: 'SQ' }], PRODUCTS, [offer('a', 'other_testco', 'shingle_001', pack('BDL', 'SQ', 1, 3), 66660000, 5)], ctx, { 'RFG 240-GAF-HDZ': null })[0];
+  ok('a code two products claim: code_conflict, not priced', clash.state === 'code_conflict');
   const archived = L.materialsPricing([{ code: 'RFG 240-GAF-HDZ', sub: 'shingles-arch', qty: 25.4, unit: 'SQ' }], PRODUCTS,
-    [offer('a', 'other_testco', 'shingle_001', pack('BDL', 'SQ', 1, 3), 66660000, 5), offer('e', 'other_testco', 'shingle_002', pack('BDL', 'SQ', 1, 3), 55550000, 5, { active: false })], ctx)[0];
+    [offer('a', 'other_testco', 'shingle_001', pack('BDL', 'SQ', 1, 3), 66660000, 5), offer('e', 'other_testco', 'shingle_002', pack('BDL', 'SQ', 1, 3), 55550000, 5, { active: false })], ctx, MAP)[0];
   ok('an item that was removed does not count as linked', archived.state === 'priced' && archived.offerId === 'a');
+}
+
+console.log('\nEstimate codes to products');
+{
+  const vm2 = require('vm');
+  const w2 = {}; const c2 = vm2.createContext({ window: w2, console: { log() {} } });
+  vm2.runInContext(fs.readFileSync(path.join(ROOT, 'docs/pro/js/product-data.js'), 'utf8'), c2);
+  vm2.runInContext(fs.readFileSync(path.join(ROOT, 'docs/pro/js/estimate-catalog-xactimate.js'), 'utf8'), c2);
+  const ids = new Set(w2.NBD_PRODUCTS.map((p) => p.id));
+  const bad = Object.keys(L.PL_LINE_STARTER).filter((c) => !w2.NBD_XACT_CATALOG.find(c) || !ids.has(L.PL_LINE_STARTER[c]));
+  ok('every starter code is a real estimate code and every product a real catalog product', Object.keys(L.PL_LINE_STARTER).length === 45 && bad.length === 0, bad);
+  ok('the codes left out on purpose (more than one product fits) are not in it', ['RFG SYN', 'RFG NAIL-C', 'RFG RIDG', 'RFG SKY-STD', 'RFG PWR', 'RFG SOLAR', 'RFG TURB', 'GTR GG-MESH'].every((c) => !(c in L.PL_LINE_STARTER)));
+  const m0 = L.lineCodeMap([]);
+  ok('no company links: the starter list as is', m0['RFG 240-GAF-HDZ'] === 'shingle_001' && m0['RFG 3T20'] === 'shingle_010' && m0['RFG 3T25'] === 'shingle_010' && !('RFG SYN' in m0));
+  const own = [{ id: 'shingle_001', estimateCodes: ['RFG 240-GAF-HDZ', 'RFG 240-GAF-UHD'], estimateCodesSet: true }];
+  const m1 = L.lineCodeMap(own);
+  ok('a product\'s own list replaces its starter codes and adds new ones', m1['RFG 240-GAF-UHD'] === 'shingle_001' && m1['RFG 240-GAF-HDZ'] === 'shingle_001');
+  const dropped = L.lineCodeMap([{ id: 'shingle_001', estimateCodes: [], estimateCodesSet: true }]);
+  ok('a product that removes its starter code: that code is unlinked', !('RFG 240-GAF-HDZ' in dropped));
+  const clash = L.lineCodeMap([{ id: 'shingle_002', estimateCodes: ['RFG 240-GAF-HD', 'RFG 240-GAF-HDZ'], estimateCodesSet: true }]);
+  ok('two products claim one code: it maps to null (unlinked), never to either', clash['RFG 240-GAF-HDZ'] === null && clash['RFG 240-GAF-HD'] === 'shingle_002');
+  ok('reset (estimateCodesSet false) uses the starter list again', L.lineCodeMap([{ id: 'shingle_001', estimateCodes: [], estimateCodesSet: false }])['RFG 240-GAF-HDZ'] === 'shingle_001');
+  ok('productEstimateCodes: starter codes, or the product\'s own list', L.productEstimateCodes('shingle_010', []).sort().join() === 'RFG 3T20,RFG 3T25' && L.productEstimateCodes('shingle_001', own).join() === 'RFG 240-GAF-HDZ,RFG 240-GAF-UHD');
+  const s1 = L.sanitizeEstimateCodes([' rfg  240-gaf-hdz ', 'RFG 240-GAF-HDZ', 'GTR 5K-AL']);
+  ok('codes are trimmed, upper-cased and de-duplicated', s1.ok && s1.value.join('|') === 'RFG 240-GAF-HDZ|GTR 5K-AL', s1);
+  ok('a code with markup or over 40 codes is refused', L.sanitizeEstimateCodes(['<b>x</b>']).ok === false && L.sanitizeEstimateCodes(new Array(41).fill(0).map((_, i) => 'RFG X' + i)).ok === false && L.sanitizeEstimateCodes('RFG X').ok === false);
 }
 
 console.log('\nWhich supplier');
 {
   const both = [offer('a', 'other_testco', 'shingle_001', pack('BDL', 'SQ', 1, 3), 66660000, 5), offer('f', 'other_exampledepot', 'shingle_001', pack('BDL', 'SQ', 1, 3), 55550000, 5)];
   const line = [{ code: 'RFG 240-GAF-HDZ', sub: 'shingles-arch', qty: 3, unit: 'SQ' }];
-  const cheap = L.materialsPricing(line, PRODUCTS, both, { nowMs: NOW, accounts: ACCOUNTS, taxBps: null })[0];
+  const cheap = L.materialsPricing(line, PRODUCTS, both, { nowMs: NOW, accounts: ACCOUNTS, taxBps: null }, MAP)[0];
   ok('no usual supplier set: the cheapest fresh price', cheap.supplierId === 'other_exampledepot' && cheap.preferred === false, cheap);
   const usualAccounts = [Object.assign({}, ACCOUNTS[0], { preferredFor: ['roofing_shingles'] }), ACCOUNTS[1]];
-  const usual = L.materialsPricing(line, PRODUCTS, both, { nowMs: NOW, accounts: usualAccounts, taxBps: null })[0];
+  const usual = L.materialsPricing(line, PRODUCTS, both, { nowMs: NOW, accounts: usualAccounts, taxBps: null }, MAP)[0];
   ok('the supplier set as usual for shingles wins even when dearer', usual.supplierId === 'other_testco' && usual.preferred === true, usual);
   const usualStale = [offer('a', 'other_testco', 'shingle_001', pack('BDL', 'SQ', 1, 3), 66660000, 90), both[1]];
-  const fallBack = L.materialsPricing(line, PRODUCTS, usualStale, { nowMs: NOW, accounts: usualAccounts, taxBps: null })[0];
+  const fallBack = L.materialsPricing(line, PRODUCTS, usualStale, { nowMs: NOW, accounts: usualAccounts, taxBps: null }, MAP)[0];
   ok('the usual supplier\'s price is stale: the cheapest fresh one instead', fallBack.supplierId === 'other_exampledepot');
-  const taxed = L.materialsPricing(line, PRODUCTS, [both[0]], { nowMs: NOW, accounts: ACCOUNTS, taxBps: 780 })[0];
+  const taxed = L.materialsPricing(line, PRODUCTS, [both[0]], { nowMs: NOW, accounts: ACCOUNTS, taxBps: 780 }, MAP)[0];
   ok('with a tax rate set a before-tax price gets it added, and says so', taxed.taxIncluded === true && taxed.totalMicros === Math.round(L.applyTaxMicros(66660000, 780) * 9 / 3));
 }
 
@@ -126,7 +161,7 @@ console.log('\nThe list by the company\'s own suppliers (materials-list.js)');
   const flat = []; list.groups.forEach((g) => g.items.forEach((i) => flat.push(i)));
   const results = flat.map((i) => i.code === 'RFG 240-GAF-HDZ'
     ? { state: 'priced', supplierId: 'other_testco', buyQty: 77, purchaseUnit: 'BDL', totalMicros: 1711111111, perPurchaseMicros: 22220000, observedAtMs: NOW, kind: 'paid', taxIncluded: false, preferred: false }
-    : { state: i.code === 'RFG SYN' ? 'not_linked' : 'ambiguous' });
+    : { state: i.code === 'RFG SYN' ? 'not_linked' : 'code_unlinked' });
   const supplierOf = (id) => ({ other_testco: { label: 'Testco (registry)', type: 'distributor' }, other_exampledepot: { label: 'Example Depot', type: 'retail' } })[id] || null;
   const v = PM.supplierView(list, results, ACCOUNTS, supplierOf, M.DISTRIBUTOR, M.HOME_DEPOT);
   const stores = v.groups.map((g) => g.store);
@@ -140,7 +175,7 @@ console.log('\nThe list by the company\'s own suppliers (materials-list.js)');
   ok('the copied text uses the company\'s suppliers and still carries no price', /Testco Supply:/.test(text) && /77 bundles — Architectural shingle/.test(text) && !/\$/.test(text), text);
   win.NBDPriceLogic = L;
   const staff = PM.bodyHtml(v, true, false), repView = PM.bodyHtml(v, false, false);
-  ok('the owner, admins and managers see the supplier price, the line total and why a line has none', /\$1,711\.11/.test(staff) && /\$22\.22 per bundle/.test(staff) && /no supplier item linked yet/.test(staff) && /At your suppliers/.test(staff), staff);
+  ok('the owner, admins and managers see the supplier price, the line total and why a line has none', /\$1,711\.11/.test(staff) && /\$22\.22 per bundle/.test(staff) && /the product has no supplier item yet/.test(staff) && /this estimate code is not linked to a product/.test(staff) && /At your suppliers/.test(staff), staff);
   ok('a rep sees quantities and where to buy, and no dollar figure at all', !/\$/.test(repView) && /77 <span>bundles<\/span>/.test(repView) && /Testco Supply/.test(repView), repView);
   const evil = PM.supplierView(list, results, [{ supplierId: 'other_testco', label: '<img src=x>', type: 'distributor', active: true }], supplierOf, M.DISTRIBUTOR, M.HOME_DEPOT);
   ok('a supplier label is escaped where it is painted', PM.bodyHtml(evil, true, false).indexOf('<img src=x>') === -1 && PM.bodyHtml(evil, true, false).indexOf('&lt;img src=x&gt;') !== -1);

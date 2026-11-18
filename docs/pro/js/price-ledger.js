@@ -200,6 +200,9 @@
     } catch (e) { warn('seenMarks', e); return {}; }
   }
   const markSeen = (alertId, obsId) => save('markSeen', { alertId, obsId });
+  /** A product's estimate codes (2026-11-18): the codes whose materials-list lines price from it. reset: back to the starter list. */
+  const setEstimateCodes = (productId, codes) => save('setEstimateCodes', { productId, codes });
+  const resetEstimateCodes = (productId) => save('setEstimateCodes', { productId, reset: true });
 
   /** One price row with its full provenance (slice 4: what Update my cost checks). Owner, admin, manager (rules). */
   async function observation(obsId) {
@@ -426,6 +429,7 @@
   w.NBDPriceLedger = {
     FLAG, enabled, role, canSave, canRecord, companyKey,
     suppliers, offersFor, history, unlinked, allOffers, seenMarks, compareSettings,
+    setEstimateCodes, resetEstimateCodes,
     saveAccount, saveOffer, linkOffer, verifyPack, archiveOffer, voidObservation, record, recordHdReceipts, importRows, markSeen,
     approveCost, undoCost, productLinks, syncApplied, observation,
     savePhoto, removePhoto, photoUrl, paintPhotos, cardPhotos,

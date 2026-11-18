@@ -7,9 +7,10 @@
  * (js/materials-list.js, which is not edited): the list opens exactly as before,
  * then this file reads the company's supplier items and prices and repaints it.
  *
- *   - a line is priced only when exactly one library product it can be has a
- *     supplier item linked (NBDPriceLogic.materialsPricing); otherwise it keeps the
- *     estimate's quantity and says "No price yet"
+ *   - a line prices only from the one product its estimate code is linked to
+ *     (2026-11-18: the starter list, changed per product on the Stores & prices
+ *     sheet; NBDPriceLogic.lineCodeMap / materialsPricing); otherwise it keeps the
+ *     estimate's quantity and says "No price yet" and why
  *   - the store is the supplier the company set as usual for that kind of product,
  *     else the cheapest fresh price; the quantity is whole purchase units from the
  *     item's confirmed pack size
@@ -26,7 +27,7 @@
   var w = window;
   var FLAG = 'supplierPricing';
   var BUY_WORDS = { BDL: 'bundles', RL: 'rolls', BX: 'boxes', PC: 'pieces', EA: 'each', SHT: 'sheets', SQ: 'squares', LF: 'linear ft', SF: 'sq ft', GAL: 'gallons', PAIL: 'pails', TUBE: 'tubes', BAG: 'bags', CTN: 'cartons', PLT: 'pallets', LB: 'lb' };
-  var WHY = { not_linked: 'no supplier item linked yet', ambiguous: 'more than one product matches this line', unit: 'the product is priced in another unit', no_price: 'no fresh supplier price' };
+  var WHY = { code_unlinked: 'this estimate code is not linked to a product', code_conflict: 'two products claim this estimate code', not_linked: 'the product has no supplier item yet', unit: 'the product is priced in another unit', no_price: 'no fresh supplier price' };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var dollars = function (n) { return '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
   // Shown in whole cents: a buy list is read as dollars and cents, not as a unit price to four places.
@@ -122,12 +123,17 @@ var microsText = function (m) { var L = w.NBDPriceLogic; return L ? L.microsToTe
         var it = cat && typeof cat.find === 'function' ? cat.find(i.code) : null;
         return { code: i.code, sub: (it && it.sub) || '', qty: i.estQty, unit: i.estUnit };
       });
-      var ids = {};
-      lines.forEach(function (l) { LG.materialProductsFor(l.code, l.sub, products).forEach(function (p) { ids[p.id] = true; }); });
-      return Promise.all([PL.offersFor(Object.keys(ids)), PL.suppliers()]).then(function (got) {
+      // Each line prices only from the product its estimate code is linked to (the
+      // starter list, as changed per product on the Stores & prices sheet).
+      return PL.productLinks().then(function (links) {
+        var codeMap = LG.lineCodeMap(links), ids = {};
+        lines.forEach(function (l) { var p = codeMap[String(l.code || '').toUpperCase()]; if (p) ids[p] = true; });
+        return Promise.all([PL.offersFor(Object.keys(ids)), PL.suppliers()]).then(function (got) { return { got: got, codeMap: codeMap }; });
+      }).then(function (r) {
+        var got = r.got;
         if (document.getElementById('mlOverlay') !== ov) return null;   // closed or reopened meanwhile
         var settings = PL.compareSettings();
-        var results = LG.materialsPricing(lines, products, got[0], { nowMs: Date.now(), accounts: got[1], taxBps: settings.taxBps });
+        var results = LG.materialsPricing(lines, products, got[0], { nowMs: Date.now(), accounts: got[1], taxBps: settings.taxBps }, r.codeMap);
         var view = supplierView(list, results, got[1], LG.supplierOf, M.DISTRIBUTOR, M.HOME_DEPOT);
         var role = PL.role();
         var modal = ov.querySelector('.ml-modal'), head = ov.querySelector('.ml-head');

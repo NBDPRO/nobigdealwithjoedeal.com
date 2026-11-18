@@ -49,7 +49,7 @@
       'js/opp-approval-logic.js?v=1',
       'js/opp-approval.js?v=1'
     ],
-    supplierpricing: ['js/price-materials.js?v=1']
+    supplierpricing: ['js/price-materials.js?v=3']
   };
   var FLAG_BUNDLES = {
     bulkCloseStaleLeads: 'staleleads',
