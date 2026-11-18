@@ -375,6 +375,7 @@ const ON_OWNER = { _default: {}, CO: { docAtticAckV1: true } };
     const writes = [];
     const win = { location: { pathname: '/pro/customer.html' }, _user: { uid: 'REP', email: 'rep@example.test' }, db: {}, serverTimestamp: () => 'TS',
       doc: (db, ...p) => ({ path: p.join('/') }), collection: (db, ...p) => ({ path: p.join('/') }),
+      getDoc: async (ref) => { const d = store.get(ref.path); return { exists: () => d !== undefined, data: () => d }; },
       setDoc: async (ref, data, opts) => { writes.push(['setDoc', ref.path, data]); store.set(ref.path, Object.assign({}, store.get(ref.path) || {}, data)); },
       addDoc: async (ref, data) => { writes.push(['addDoc', ref.path, data]); },
       updateDoc: async (ref, data) => { writes.push(['updateDoc', ref.path, data]); },
@@ -392,20 +393,20 @@ const ON_OWNER = { _default: {}, CO: { docAtticAckV1: true } };
       const w1 = writes.filter((x) => /tasks/.test(x[1]));
       ok('the task is written with a SET at the deterministic id attic-check-<leadId>, never an add', w1.length === 1 && w1[0][0] === 'setDoc' && w1[0][1] === 'leads/L1/tasks/attic-check-L1', JSON.stringify(w1.map((x) => x.slice(0, 2))));
       await T('L1', rec, { days: 3, startMs: Date.now() + 30 * day, nowMs: Date.now() });
-      ok('a second click writes the SAME id again, so it cannot duplicate', writes.filter((x) => /tasks/.test(x[1])).every((x) => x[1] === 'leads/L1/tasks/attic-check-L1') && !writes.some((x) => x[0] === 'addDoc'));
-      writes.length = 0;
+      ok('a second click finds the task already there (review 2: create only if absent) and writes nothing more, so it cannot duplicate', writes.filter((x) => /tasks/.test(x[1])).length === 1 && writes.filter((x) => /tasks/.test(x[1])).every((x) => x[1] === 'leads/L1/tasks/attic-check-L1') && !writes.some((x) => x[0] === 'addDoc'));
+      writes.length = 0; store.clear();
       await T('L1', rec, { days: 3, startMs: Date.now() + 1 * day, nowMs: Date.now() });
       const soon = writes.filter((x) => /tasks/.test(x[1]))[0];
       ok('a start date only a day away (3 days before = in the past): due tomorrow at the earliest', !!soon && soon[2].dueDate >= ymd(Date.now() + day) && soon[2].dueDate === ymd(Date.now() + day), soon && soon[2].dueDate);
-      writes.length = 0;
+      writes.length = 0; store.clear();
       await T('L1', rec, { days: 3, startMs: Date.now() - 10 * day, nowMs: Date.now() });
       const past = writes.filter((x) => /tasks/.test(x[1]))[0];
       ok('a start date already past: due tomorrow, never in the past', !!past && past[2].dueDate === ymd(Date.now() + day));
-      writes.length = 0;
+      writes.length = 0; store.clear();
       await T('L1', rec, { days: 3, startMs: Date.now() + 30 * day, nowMs: Date.now() });
       const far = writes.filter((x) => /tasks/.test(x[1]))[0];
       ok('a start date a month out: due start minus the days', !!far && far[2].dueDate === ymd(Date.now() + 27 * day));
-      writes.length = 0;
+      writes.length = 0; store.clear();
       await T('L1', rec, { days: 0, startMs: Date.now() + 30 * day, nowMs: Date.now() });
       ok('days of 0 (below the minimum) writes no task with an invented number', writes.filter((x) => /tasks/.test(x[1])).length === 0);
     }

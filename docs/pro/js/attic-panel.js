@@ -181,7 +181,14 @@
     if (due < now + DAY) due = now + DAY;
     var ymd = new Date(due).toISOString().slice(0, 10);
     var title = 'Offer the free attic check before the start date';
-    await w.setDoc(w.doc(w.db, 'leads', leadId, 'tasks', 'attic-check-' + leadId), {
+    // Review 2 (item 5): create only if absent. The lead's freeCheckTaskCreated flag can be lost (a failed write, an older record), and a
+    // set at the fixed id would then reopen a task the rep already completed. A task that cannot be read is not overwritten blind.
+    var ref = w.doc(w.db, 'leads', leadId, 'tasks', 'attic-check-' + leadId);
+    if (!w.getDoc) return false;
+    var cur;
+    try { cur = await w.getDoc(ref); } catch (e) { return false; }
+    if (cur && (typeof cur.exists === 'function' ? cur.exists() : cur.exists === true)) return true;
+    await w.setDoc(ref, {
       leadId: leadId, userId: (w._user && w._user.uid) || null, title: title, text: title, dueDate: ymd, priority: 'normal', done: false,
       notes: 'The attic was not inspected (' + rec.reason + '). A check is free if asked for at least ' + days + ' days before the start date.',
       source: 'attic-ack', createdAt: w.serverTimestamp ? w.serverTimestamp() : new Date(), createdBy: (w._user && w._user.email) || 'Attic check'

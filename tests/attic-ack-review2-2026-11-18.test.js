@@ -345,6 +345,44 @@ const FORM_NI = renderForm(true);
     ok('control: the creating rep of a lead that has a companyId still cannot', !!r.e && r.e.code === 'permission-denied');
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('5. the free check task is created only if absent (a lost freeCheckTaskCreated flag cannot reopen a completed task)');
+  {
+    const panelJs = fs.readFileSync(path.join(ROOT, 'docs/pro/js/attic-panel.js'), 'utf8').replace(/\r\n/g, '\n');
+    const mkPanel = (o) => {
+      const x = o || {};
+      const store = new Map(Object.entries(x.seed || {}));
+      const writes = [];
+      const win = { location: { pathname: '/pro/customer.html' }, _user: { uid: 'REP', email: 'rep@example.test' }, db: {}, serverTimestamp: () => 'TS',
+        doc: (db, ...p) => ({ path: p.join('/') }), collection: (db, ...p) => ({ path: p.join('/') }),
+        getDoc: x.noGetDoc ? undefined : async (ref) => { if (x.readFails) throw new Error('offline'); const d = store.get(ref.path); return { exists: () => d !== undefined, data: () => d }; },
+        setDoc: async (ref, data) => { writes.push(['setDoc', ref.path, data]); store.set(ref.path, Object.assign({}, store.get(ref.path) || {}, data)); },
+        addDoc: async (ref, data) => { writes.push(['addDoc', ref.path, data]); },
+        updateDoc: async (ref, data) => { writes.push(['updateDoc', ref.path, data]); },
+        addEventListener() {}, NBDFlags: { enabled: () => true, onReady() {} }, _leadDoc: { id: 'L1', scheduledDate: '' }, _customerId: 'L1' };
+      win.NBDAtticAck = AA; win.NBDAtticAckText = require(path.join(FN, 'attic-ack-text.js'));
+      const doc0 = { addEventListener() {}, getElementById: () => null, createElement: () => ({ setAttribute() {}, appendChild() {} }), body: { appendChild() {} } };
+      new Function('window', 'document', 'console', panelJs)(win, doc0, console);
+      return { T: win.NBDAtticPanel._freeCheckTask, store, writes };
+    };
+    const rec = { status: 'not_inspected', reason: 'declined' };
+    const day = 86400000;
+    const args = () => ['L1', rec, { days: 3, startMs: Date.now() + 30 * day, nowMs: Date.now() }];
+    let p = mkPanel();
+    ok('no task yet: the task is written once, at the deterministic id', (await p.T(...args())) === true && p.writes.filter((x) => x[0] === 'setDoc' && x[1] === 'leads/L1/tasks/attic-check-L1').length === 1);
+    const before = p.writes.length;
+    ok('a second call (the flag was lost) finds it and writes nothing', (await p.T(...args())) === true && p.writes.length === before);
+    p = mkPanel({ seed: { 'leads/L1/tasks/attic-check-L1': { title: 'Offer the free attic check before the start date', done: true, completedAt: '2026-11-19', dueDate: '2026-12-01', notes: 'rep note' } } });
+    const r5 = await p.T(...args());
+    const t5 = p.store.get('leads/L1/tasks/attic-check-L1');
+    ok('a COMPLETED task is not reopened, re-dated or rewritten', p.writes.length === 0 && t5.done === true && t5.completedAt === '2026-11-19' && t5.dueDate === '2026-12-01' && t5.notes === 'rep note', JSON.stringify(p.writes.map((x) => x.slice(0, 2))));
+    ok('...and the call still reports the task as present (so the lead flag is set)', r5 === true);
+    p = mkPanel({ readFails: true });
+    ok('a task that cannot be read is not overwritten blind: nothing written, not reported as created', (await p.T(...args())) === false && p.writes.length === 0);
+    p = mkPanel({ noGetDoc: true });
+    ok('no read available on the page: nothing written', (await p.T(...args())) === false && p.writes.length === 0);
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });
