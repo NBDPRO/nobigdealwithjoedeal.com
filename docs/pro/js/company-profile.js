@@ -182,6 +182,14 @@
     brand: {
       displayName: 'No Big Deal',
       legalName:   'No Big Deal Home Solutions',
+      // Legal-entity fields (2026-11-18, data only; no document prints them yet).
+      // entityName is the contracting party, dbaName the name it trades under, signerTitle
+      // the title of the person who signs for it. Identity fields: blanked for any other
+      // tenant that has not set its own (_IDENTITY_TOP below). With the send checks on
+      // (flag docEvidenceFoundation) a contract is refused while entityName is blank.
+      entityName:  'No Big Deal Solutions LLC',
+      dbaName:     'No Big Deal Home Solutions',
+      signerTitle: 'Manager',
       seal:        'NBD',
       docPrefix:   'NBD',   // customer IDs / doc numbers: NBD-0001, NBD-WC-…
       // The tagline documents actually carry. Was "No Big Deal with Joe Deal —
@@ -768,7 +776,7 @@
   // worse failure than a wrong colour. Blanked to '' like the rest of the
   // identity surface; the badge renderer treats '' / [] / undefined as "no
   // badges" so a tenant that has not set its own simply prints none.
-  const _IDENTITY_TOP     = ['seal', 'docPrefix', 'tagline', 'smsSignOff', 'logoUrl', 'affiliates'];
+  const _IDENTITY_TOP     = ['seal', 'docPrefix', 'tagline', 'smsSignOff', 'logoUrl', 'affiliates', 'entityName', 'dbaName', 'signerTitle'];
   // 'mailingAddress' belongs here for the same reason as the rest: it is a
   // postal address that identifies a specific business. Left to deep-merge, a
   // stranger tenant would inherit NBD's the moment NBD sets one.

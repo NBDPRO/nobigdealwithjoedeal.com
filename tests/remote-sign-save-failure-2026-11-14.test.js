@@ -91,7 +91,7 @@ function makeStorage(files, failSave) {
     _files: m, downloads, saves,
   };
 }
-const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './await-briefly', './signed-price', 'crypto'];
+const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './doc-evidence', './await-briefly', './signed-price', 'crypto'];
 const LOGS = [];
 const SPINE = [];
 function loadFn(db, storage) {
@@ -287,7 +287,7 @@ async function docRow(row) {
   {
     const signDoc = kit.parseTags(kit.read('docs/pro/sign.html'));
     const sp = signDoc.$$('script').find((e) => /^js\/sign-page\.js/.test(e.attr('src') || ''));
-    ok('sign.html cache-busts the changed sign-page.js (v=5)', !!sp && sp.attr('src') === 'js/sign-page.js?v=5', sp && sp.attr('src'));
+    ok('sign.html cache-busts the changed sign-page.js (v=6)', !!sp && sp.attr('src') === 'js/sign-page.js?v=6', sp && sp.attr('src'));
   }
 
   section('6. Joe\'s decisions (2026-11-14)');

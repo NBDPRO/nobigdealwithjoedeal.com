@@ -41,6 +41,7 @@
   var foot = document.getElementById('spFoot');
   var submitBtn = document.getElementById('spSubmit');
   var docName = document.getElementById('spDocName');
+  var consentNeeded = false;
 
   // ── Phone reading layout (2026-09-25, phone audit homeowner#2) ───
   // The document arrives as a US-letter page at print size (9-10px clause
@@ -118,6 +119,14 @@
       brandEl.style.visibility = '';
       try { document.title = 'Review & Sign · ' + brandEl.textContent; } catch (e) {}
     }
+    // Consent (feature flag docEvidenceFoundation, server-driven): shown only when the server
+    // sends its consent sentence, and then required before Submit. Set as text, never HTML.
+    var consentEl = document.getElementById('spConsent');
+    if (r.data.consent && r.data.consent.required && consentEl) {
+      consentNeeded = true;
+      document.getElementById('spConsentText').textContent = String(r.data.consent.text || '');
+      consentEl.hidden = false;
+    }
     frame.srcdoc = withPhoneLayout(r.data.html || '');
     frame.style.display = 'block';
     frame.addEventListener('load', function () {
@@ -149,6 +158,11 @@
 
   // ── Submit ───────────────────────────────────────────────────────
   async function submit() {
+    var consentBox = document.getElementById('spConsentBox');
+    if (consentNeeded && !(consentBox && consentBox.checked)) {
+      _spNotify('Tick the box to agree to sign electronically, then submit.', 'warning');
+      return;
+    }
     submitBtn.disabled = true;
     var orig = submitBtn.textContent;
     submitBtn.innerHTML = '<span class="spin"></span> Finalizing…';
@@ -177,7 +191,7 @@
 
     submitBtn.innerHTML = '<span class="spin"></span> Submitting…';
     var r;
-    try { r = await post('submitSignature', { token: token, signedHtml: stripPhoneLayout(fin.html) }); }
+    try { r = await post('submitSignature', consentNeeded ? { token: token, signedHtml: stripPhoneLayout(fin.html), consent: true } : { token: token, signedHtml: stripPhoneLayout(fin.html) }); }
     catch (e) { submitBtn.disabled = false; submitBtn.textContent = orig; _spNotify('Connection problem — please try again.', 'error'); return; }
 
     if (r.ok && r.data.ok && r.data.saved === false) {
