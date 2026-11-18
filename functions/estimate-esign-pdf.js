@@ -153,11 +153,11 @@ async function buildEstimateContractPdf(input) {
       .filter(Boolean).join('  ·  ') || ' ', { size: 9, gap: 8, color: GREY })
     .rule(0, brandAccent, brandAccent ? 2 : 0);
 
-  // Clause set v1 (flag docClauseSetV1): every paragraph prints with its clause id, bold lead-ins as plain text.
+  // Clause set v1 (flag docClauseSetV1): paragraphs print without their clause id (the evidence records the refs), bold lead-ins as plain text.
   const cs = i.clauseSet && Array.isArray(i.clauseSet.sections) ? i.clauseSet : null;
   const clauseText = (t) => String(t).replace(/\*\*/g, '');
   const clauseItems = (items) => (items || []).filter((x) => !x.byRef).forEach((x) => x.paragraphs.forEach((p) => {
-    L.text(x.id + '  ' + clauseText(p), { size: 9, gap: 4 });
+    L.text(clauseText(p), { size: 9, gap: 4 });
   }));
 
   const c = i.customer || {};
@@ -170,7 +170,7 @@ async function buildEstimateContractPdf(input) {
   L.rule();
   if (cs && cs.party) {
     L.text('PARTIES', { size: 8.5, bold: true, gap: 3, color: LABEL });
-    cs.party.paragraphs.forEach((p) => L.text('PARTY-1  ' + clauseText(p), { size: 9.5, gap: 6 }));
+    cs.party.paragraphs.forEach((p) => L.text(clauseText(p), { size: 9.5, gap: 6 }));
     L.rule();
   }
 

@@ -127,7 +127,8 @@ function loadHandler(rel, db, storage, extraStubs, real) {
     './photo-reencode': { reencodePhoto: async (b) => b },
     resend: { Resend: class { constructor() { this.emails = { send: async () => ({ data: { id: 'm1' } }) }; } } },
   }, extraStubs || {});
-  const realIds = real || [];
+  // The attic modules (phase 3) are pure and have no npm requires: always the real ones.
+  const realIds = (real || []).concat(['./attic-ack', './attic-gate']);
   const proc = { env: { FUNCTIONS_EMULATOR: 'true' } };
   const dir = path.join(FN, path.dirname(rel));
   const req = (id) => {

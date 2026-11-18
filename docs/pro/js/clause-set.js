@@ -138,7 +138,7 @@
   var PT_BOUNDS = {
     lateGraceDays: [0, 365, true], lateInterestPct: [0, 100, false], disputeDays: [0, 365, true], finalPaymentDays: [0, 365, true],
     punchListDays: [0, 365, true], pauseNoticeDays: [0, 365, true], restockPct: [0, 100, false], cardFeePct: [0, 10, false],
-    deckingPerSheetCents: [0, 100000, true], deckingSheetsBeforeChangeOrder: [1, 200, true], atticFreeCheckDays: [0, 365, true],
+    deckingPerSheetCents: [0, 100000, true], deckingSheetsBeforeChangeOrder: [1, 200, true], atticFreeCheckDays: [1, 365, true],
     claimNoticeDays: [0, 365, true]
   };
   function _numOk(v, field) {
