@@ -393,6 +393,61 @@ function loadRegistry(textObj) {
     ok('buildEvidence always carries clauseRefsMismatch (false by default)', ev.clauseRefsMismatch === true && DE.buildEvidence({}).clauseRefsMismatch === false);
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('8. deal page: sha256 of the injected clause block on the token and in the acceptance evidence');
+  {
+    const kit = require('./lib/doc-evidence-kit');
+    const DE = require('../functions/doc-evidence.js');
+    const ESL = require('../functions/esign-logic.js');
+    const K = require('../functions/ky-insurance-law.js');
+    const CS = require('../functions/clause-set.js');
+    const FN = path.join(H.ROOT, 'functions');
+    const DEAL_PATH = 'deal_rooms/U1/deal0001.html';
+    const REALD = ['./cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', './lead-artifact-paths', './await-briefly', './portal-after-signing', './signed-price', './customer-estimate-rows', './doc-send-checks', 'crypto'];
+    const stubs = () => ({
+      './deal-install-date': { fillLeadInstallDate: async () => null },
+      './deal-view-logic': { isPreviewBot: () => false, shouldNotifyView: () => false, viewMessage: () => ({ title: '', body: '' }) },
+      './estimate-send-logic': {}, './thursday-video-gate': { isNbdTenant: () => false, DEAL_ROOM_INJECT: '', DEAL_ROOM_SCRIPT_PATH: '/x.js' },
+      './deal-accepted-tier': { applyAcceptedTier: async () => {} },
+      './ky-insurance-law': K, './cancel-window': require(path.join(FN, 'cancel-window.js')), './esign-logic': ESL, './doc-evidence': DE,
+    });
+    const PAGE = '<html><head></head><body><p>Your roof, three packages.</p><div class="section-title">Sign &amp; Schedule</div><div class="sign-section">sign</div></body></html>';
+    const terms = Object.assign({}, CS.NBD_PAYMENT_TERMS_DEFAULTS, { deckingPerSheetCents: 10000 });
+    const db = kit.makeDb({
+      'deal_rooms/deal0001': { status: 'sent', userId: 'U1', leadId: 'L1', customerName: 'Dana Whitfield', tiers: { better: { price: 13000 } } },
+      'leads/L1': { userId: 'U1', companyId: 'U1', address: '12 Oak St, Cincinnati, OH 45202', jobType: 'cash' },
+      'companyProfile/U1': { paymentTerms: terms, brand: { legalName: 'Acme Roofing LLC', entityName: 'Acme Roofing LLC', signerTitle: 'Owner', contact: { mailingAddress: '1 Main St, Cincinnati, OH 45202', phone: '(513) 555-0100' } } },
+      'feature_flags/_default': { docClauseSetV1: true },
+    });
+    const L = kit.loadHandler('deal-acceptance.js', db, kit.makeStorage({ [DEAL_PATH]: PAGE }), stubs(), REALD);
+    const view = async (token) => {
+      const res = { statusCode: 200, headers: {}, sent: '', status(c) { this.statusCode = c; return this; }, set(k, v) { this.headers[k] = v; return this; }, send(b) { this.sent = b; return this; }, json(b) { this.sent = JSON.stringify(b); return this; } };
+      const c = kit.reqRes({}, {}); c.req.method = 'GET'; c.req.path = '/deal/' + token; await L.fns.getDealRoom(c.req, res); return res;
+    };
+    let out = null, err = null;
+    try { out = await L.fns.createDealAcceptToken({ auth: { uid: 'U1', token: {} }, data: { dealId: 'deal0001' } }); } catch (e) { err = e; }
+    const tok = out ? (db._get('deal_accept_tokens/' + out.token) || {}) : {};
+    const sha = require('crypto').createHash('sha256').update(String((tok.clauseSetV1 || {}).html || ''), 'utf8').digest('hex');
+    ok('mint: the token carries clauseSetV1.sha256 = sha256 of the injected block', !!out && /^[a-f0-9]{64}$/.test((tok.clauseSetV1 || {}).sha256 || '') && tok.clauseSetV1.sha256 === sha, err && err.message);
+    const good = out ? await view(out.token) : { sent: '' };
+    ok('serve: an untouched block is served', /data-nbd-clause-set/.test(good.sent));
+    // a block changed on the token after mint is not served
+    const db2 = kit.makeDb(JSON.parse(JSON.stringify({})));
+    void db2;
+    const t2 = db._get('deal_accept_tokens/' + (out && out.token)) || {};
+    if (out) db._store.set('deal_accept_tokens/' + out.token, Object.assign({}, t2, { status: 'pending', clauseSetV1: Object.assign({}, t2.clauseSetV1, { html: t2.clauseSetV1.html.replace('15 days', '1 day') + '<p>extra</p>' }) }));
+    const bad = out ? await view(out.token) : { statusCode: 0, sent: '' };
+    ok('serve: a block that no longer matches its sha256 is refused, never injected', bad.statusCode >= 400 && !/data-nbd-clause-set/.test(bad.sent), bad.statusCode + ' ' + String(bad.sent).slice(0, 80));
+    if (out) db._store.set('deal_accept_tokens/' + out.token, t2);
+    const acc = kit.reqRes({ token: out && out.token, tier: 'better', signature: 'data:image/png;base64,' + 'A'.repeat(400), financing: -1, consent: true }, { ip: '198.51.100.20', ua: 'Mozilla/5.0 DealPhone' });
+    if (out) await L.fns.submitDealAcceptance(acc.req, acc.res);
+    const ev = (db._get('deal_rooms/deal0001') || {}).acceptedEvidence || {};
+    ok('accept: the evidence records clauseSetSha256 (the block the homeowner was shown)', acc.res.statusCode === 200 && ev.clauseSetSha256 === sha, JSON.stringify(ev.clauseSetSha256));
+    const src = readRepo('functions/deal-acceptance.js');
+    ok('size limit: the minted block is capped (a token doc stays far under 1 MiB)', /CLAUSE_BLOCK_MAX/.test(src));
+    ok('rules: clients cannot write the token (see firestore-rules.clause-set-v1-review-2026-11-18.test.js)', /match \/deal_accept_tokens\/\{token\} \{\s*allow read, write: if false;/.test(readRepo('firestore.rules')));
+  }
+
   // @@SECTIONS@@
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

@@ -38,6 +38,9 @@ const { logger } = require('firebase-functions/v2');
 const { FieldValue, Timestamp, getFirestore } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
+// The clause block (flag docClauseSetV1) is stored on the deal_accept_tokens doc: the set is about 60 KB of HTML at most,
+// so 300 KB leaves the 1 MiB Firestore document limit far away.
+const CLAUSE_BLOCK_MAX = 300000;
 const { callableRateLimit, assertNotViewer } = require('./shared');
 const { fillLeadInstallDate } = require('./deal-install-date');
 const { spineAfterDealAccept } = require('./job-spine');
@@ -314,7 +317,11 @@ exports.createDealAcceptToken = onCall(
         cs = DE.buildClauseSetFor(HttpsError, KyLaw, leadData, {}, profile, ownerCompanyId, {
           ownerNames: dealOwner, propertyAddress: dealAddress, date: KyLaw.formatDay(KyLaw.todayIn(KyLaw.resolveTimeZone(profile))),
         }, DE.printedByRef(KyLaw, pbuf.toString('utf8'))); // by-reference clauses are listed only when the stored page carries them
-        clauseSetV1 = { version: cs.clauseSetVersion, refs: cs.refs.slice(), html: DE.clauseSetHtml(cs), variant: cs.variant };
+        const csHtml = DE.clauseSetHtml(cs);
+        // The block rides on the token (a Firestore doc, 1 MiB at most): refuse an absurd one instead of failing at write.
+        if (csHtml.length > CLAUSE_BLOCK_MAX) throw new HttpsError('failed-precondition', 'The clause set is too large to attach to this link.');
+        // sha256 of exactly what getDealRoom injects: getDealRoom re-checks it before serving, and the acceptance evidence records it.
+        clauseSetV1 = { version: cs.clauseSetVersion, refs: cs.refs.slice(), html: csHtml, variant: cs.variant, sha256: DE.sha256Hex(csHtml) };
       }
       const gaps = DE.serverContractGaps({
         type: 'proposal', html: pbuf.toString('utf8') + (clauseSetV1 ? clauseSetV1.html : ''), lead: leadData, profile, tenantKey: ownerCompanyId, KyLaw,
@@ -496,7 +503,15 @@ exports.getDealRoom = onRequest(
     try { html = KyLaw.restampCancelPacket(html, new Date()); } catch (_) { /* serve as stored */ }
     html = stripDealRoomHtml(html);
     // Clause set v1 (minted onto the token under flag docClauseSetV1): flag off = no field = the page as stored.
-    if (tok.clauseSetV1 && typeof tok.clauseSetV1.html === 'string') html = require('./doc-evidence').injectClauseBlock(html, tok.clauseSetV1.html);
+    if (tok.clauseSetV1 && typeof tok.clauseSetV1.html === 'string') {
+      const DEc = require('./doc-evidence');
+      // A block that no longer matches the digest minted with it is never shown (fail closed).
+      if (!tok.clauseSetV1.sha256 || DEc.sha256Hex(tok.clauseSetV1.html) !== tok.clauseSetV1.sha256) {
+        logger.error('[getDealRoom] clause block digest mismatch', { token: token.slice(0, 6) });
+        errPage(500, 'We could not load this deal right now. Please try again shortly.'); return;
+      }
+      html = DEc.injectClauseBlock(html, tok.clauseSetV1.html);
+    }
 
     // Packet (2026-10-04): a FULL packet's inspection photos go in where the
     // page left its marker, each one at /deal/<token>/photo/<n> (getDealPhoto
@@ -696,6 +711,8 @@ exports.submitDealAcceptance = onRequest(
         evidence.documentSha256Source = served ? 'served_at_view' : (minted ? 'minted' : null);
         evidence.documentSha256Reason = pageDigest ? null : (typeof t.pageArchiveReason === 'string' && t.pageArchiveReason ? t.pageArchiveReason : 'no_archive_at_mint');
         evidence.mintedPageSha256 = minted;
+        // sha256 of the clause block the homeowner was shown (minted onto the token, re-checked at serve); null when the page carried none.
+        evidence.clauseSetSha256 = t.clauseSetV1 ? hex(t.clauseSetV1.sha256) : null;
         evidence.pageChangedSinceMint = !!(served && minted && served !== minted);
         evidence.pagePath = t.htmlPath || null;
         evidence.pageArchivePath = t.pageArchivePath || null;
