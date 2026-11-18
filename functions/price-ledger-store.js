@@ -55,6 +55,8 @@ const LINK_FIELDS = ['productId', 'preferredOfferId', 'applied', 'updatedAt', 'u
 const PHOTO_LINK_FIELDS = ['productId', 'photo', 'updatedAt', 'updatedBy'];
 // The fields an estimate-codes save owns on a productLinks doc (2026-11-18).
 const CODE_LINK_FIELDS = ['productId', 'estimateCodes', 'estimateCodesSet', 'updatedAt', 'updatedBy'];
+// The fields a code-ratio save owns (2026-11-18).
+const RATIO_LINK_FIELDS = ['productId', 'codeRatios', 'updatedAt', 'updatedBy'];
 const PHOTO_MAX_BYTES = 3 * 1024 * 1024;
 const PHOTO_EDGE = 640;
 /** The bytes of a data: URL for a raster image (PNG, JPEG, WebP, GIF), or null. */
@@ -724,6 +726,34 @@ const saveOps = {
     const before = prev.exists && (prev.data() || {}).estimateCodesSet === true ? ((prev.data() || {}).estimateCodes || []) : null;
     await ref.set({ productId, estimateCodes: codes, estimateCodesSet: data.reset !== true, updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid }, { mergeFields: CODE_LINK_FIELDS });
     await writeAudit(db, companyId, { type: 'estimate_codes_set', targetType: 'product', targetId: productId, detail: { codes: data.reset === true ? null : codes, before }, actor: caller });
+    return { ok: true, id: productId };
+  },
+
+  /**
+   * Code ratios (2026-11-18, Jo): for an estimate code whose unit is not its product's
+   * (the estimate per square, the product per roll), how many estimate units one
+   * product unit is. data: { productId, code, num, den } saves it (a person confirmed
+   * it), { productId, code, clear: true } removes it. Kept on productLinks/{productId}
+   * .codeRatios; audited. Nothing converts until one is saved.
+   */
+  async setCodeRatio(db, companyId, data, caller) {
+    assertCompany(companyId);
+    data = data || {};
+    const productId = data.productId;
+    if (typeof productId !== 'string' || !PRODUCT_ID_RE.test(productId)) return bad('bad_product');
+    const code = String(data.code == null ? '' : data.code).replace(/\s+/g, ' ').trim().toUpperCase();
+    const lib = await libraryRef(db, companyId).get();
+    if (!productOf(productId, lib.exists ? (lib.data() || {}) : null)) return bad('bad_product');
+    const ref = linkRef(db, companyId, productId);
+    const prev = await ref.get();
+    const ratios = Object.assign({}, (prev.exists && (prev.data() || {}).codeRatios) || {});
+    const before = ratios[code] || null;
+    if (data.clear === true) delete ratios[code];
+    else ratios[code] = { num: data.num, den: data.den };
+    const s = L.sanitizeCodeRatios(ratios);
+    if (!s.ok || !s.value || (data.clear !== true && !s.value[code])) return bad('bad_ratio');
+    await ref.set({ productId, codeRatios: s.value, updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid }, { mergeFields: RATIO_LINK_FIELDS });
+    await writeAudit(db, companyId, { type: 'code_ratio_set', targetType: 'product', targetId: productId, detail: { code, ratio: data.clear === true ? null : s.value[code], before }, actor: caller });
     return { ok: true, id: productId };
   },
 

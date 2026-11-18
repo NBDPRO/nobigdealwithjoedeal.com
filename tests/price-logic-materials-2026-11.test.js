@@ -125,6 +125,34 @@ console.log('\nEstimate codes to products');
   ok('a code with markup or over 40 codes is refused', L.sanitizeEstimateCodes(['<b>x</b>']).ok === false && L.sanitizeEstimateCodes(new Array(41).fill(0).map((_, i) => 'RFG X' + i)).ok === false && L.sanitizeEstimateCodes('RFG X').ok === false);
 }
 
+console.log('\nCode ratios (an estimate code in another unit than its product)');
+{
+  ok('a typed ratio is an exact fraction by digits', JSON.stringify(L.parseRatioText('33.3')) === '{"num":333,"den":10}' && JSON.stringify(L.parseRatioText(' 10 ')) === '{"num":10,"den":1}' && JSON.stringify(L.parseRatioText('0.5')) === '{"num":1,"den":2}');
+  ok('zero, a negative, an exponent or text is refused', L.parseRatioText('0') === null && L.parseRatioText('-2') === null && L.parseRatioText('1e3') === null && L.parseRatioText('ten') === null && L.parseRatioText('1.23456') === null);
+  ok('a fraction reads back as short decimal text', L.ratioText({ num: 333, den: 10 }) === '33.3' && L.ratioText({ num: 10, den: 1 }) === '10' && L.ratioText({ num: 1, den: 3 }) === '0.3333');
+  ok('saved ratios are checked and reduced', L.sanitizeCodeRatios({ 'RFG 15F': { num: 8, den: 2 } }).value['RFG 15F'].num === 4 && L.sanitizeCodeRatios({ 'RFG 15F': { num: 0, den: 1 } }).ok === false && L.sanitizeCodeRatios({ '<x>': { num: 1, den: 1 } }).ok === false);
+  const vm3 = require('vm');
+  const w3 = {}; const c3 = vm3.createContext({ window: w3, console: { log() {} } });
+  vm3.runInContext(fs.readFileSync(path.join(ROOT, 'docs/pro/js/product-data.js'), 'utf8'), c3);
+  vm3.runInContext(fs.readFileSync(path.join(ROOT, 'docs/pro/js/estimate-catalog-xactimate.js'), 'utf8'), c3);
+  const mism = Object.keys(L.PL_LINE_STARTER).map((code) => [code, w3.NBD_PRODUCTS.find((p) => p.id === L.PL_LINE_STARTER[code]), w3.NBD_XACT_CATALOG.find(code).unit]).filter(([, p, u]) => u !== p.unit);
+  const none = mism.filter(([, p, u]) => !L.suggestCodeRatio(p, u));
+  ok('every one of the 15 starter codes in another unit gets a suggestion from its product', mism.length === 15 && none.length === 0, none.map((x) => x[0]));
+  const sug = (code) => { const m = mism.find((x) => x[0] === code); return L.ratioText(L.suggestCodeRatio(m[1], m[2])); };
+  ok('the suggestions read the product\'s coverage: 10 squares a roll, 25 ft a bundle, 32 sq ft a sheet, 100 pieces a box', sug('RFG SYN-TAMKO') === '10' && sug('RFG RIDG-ARC') === '25' && sug('RFG OSB716') === '32' && sug('RFG STPF-AL') === '100' && sug('RFG RIDG-TAMKO') === '33.3');
+  ok('no suggestion when the units match or the product says nothing', L.suggestCodeRatio({ unit: 'SQ', coverage: { bundlesPerSq: 3 } }, 'SQ') === null && L.suggestCodeRatio({ unit: 'EA', coverage: null }, 'SF') === null);
+  const links = [{ id: 'under_001', codeRatios: { 'RFG SYN': { num: 10, den: 1 } } }];
+  ok('ratios are read from the product that holds them', L.lineCodeRatios(links)['RFG SYN'].num === 10 && L.lineCodeRatios(links)['RFG SYN'].productId === 'under_001');
+  const rollProduct = [{ id: 'under_001', category: 'roofing_underlayment', section: 'Synthetic', unit: 'RL' }];
+  const rollOffer = [offer('r', 'other_testco', 'under_001', pack('RL', 'RL', 1, 1), 44440000, 5)];
+  const line = [{ code: 'RFG SYN', qty: 23.4, unit: 'SQ' }];
+  const ctx = { nowMs: NOW, accounts: ACCOUNTS, taxBps: null };
+  const noRatio = L.materialsPricing(line, rollProduct, rollOffer, ctx, { 'RFG SYN': 'under_001' })[0];
+  ok('without a saved ratio a line in squares against a product per roll is not priced (unit)', noRatio.state === 'unit');
+  const withRatio = L.materialsPricing(line, rollProduct, rollOffer, ctx, { 'RFG SYN': 'under_001' }, L.lineCodeRatios(links))[0];
+  ok('with 1 roll = 10 squares: 23.4 SQ is 3 rolls, priced per roll, and the ratio is reported', withRatio.state === 'priced' && withRatio.buyQty === 3 && withRatio.totalMicros === 44440000 * 3 && withRatio.ratio && withRatio.ratio.num === 10, withRatio);
+}
+
 console.log('\nWhich supplier');
 {
   const both = [offer('a', 'other_testco', 'shingle_001', pack('BDL', 'SQ', 1, 3), 66660000, 5), offer('f', 'other_exampledepot', 'shingle_001', pack('BDL', 'SQ', 1, 3), 55550000, 5)];

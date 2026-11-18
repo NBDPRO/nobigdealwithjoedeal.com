@@ -28,7 +28,7 @@
   var w = window;
   var FLAG = 'supplierPricing';
   var BUY_WORDS = { BDL: 'bundles', RL: 'rolls', BX: 'boxes', PC: 'pieces', EA: 'each', SHT: 'sheets', SQ: 'squares', LF: 'linear ft', SF: 'sq ft', GAL: 'gallons', PAIL: 'pails', TUBE: 'tubes', BAG: 'bags', CTN: 'cartons', PLT: 'pallets', LB: 'lb' };
-  var WHY = { code_unlinked: 'this estimate code is not linked to a product', code_conflict: 'two products claim this estimate code', not_linked: 'the product has no supplier item yet', unit: 'the product is priced in another unit', no_price: 'no fresh supplier price' };
+  var WHY = { code_unlinked: 'this estimate code is not linked to a product', code_conflict: 'two products claim this estimate code', not_linked: 'the product has no supplier item yet', unit: 'the product is priced in another unit; set the ratio on its Stores & prices sheet', no_price: 'no fresh supplier price' };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var dollars = function (n) { return '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
   // Shown in whole cents: a buy list is read as dollars and cents, not as a unit price to four places.
@@ -130,12 +130,12 @@ var microsText = function (m) { var L = w.NBDPriceLogic; return L ? L.microsToTe
       return PL.productLinks().then(function (links) {
         var codeMap = LG.lineCodeMap(links), ids = {};
         lines.forEach(function (l) { var p = codeMap[String(l.code || '').toUpperCase()]; if (p) ids[p] = true; });
-        return Promise.all([PL.offersFor(Object.keys(ids)), PL.suppliers()]).then(function (got) { return { got: got, codeMap: codeMap }; });
+        return Promise.all([PL.offersFor(Object.keys(ids)), PL.suppliers()]).then(function (got) { return { got: got, codeMap: codeMap, ratios: LG.lineCodeRatios(links) }; });
       }).then(function (r) {
         var got = r.got;
         if (document.getElementById('mlOverlay') !== ov) return null;   // closed or reopened meanwhile
         var settings = PL.compareSettings();
-        var results = LG.materialsPricing(lines, products, got[0], { nowMs: Date.now(), accounts: got[1], taxBps: settings.taxBps }, r.codeMap);
+        var results = LG.materialsPricing(lines, products, got[0], { nowMs: Date.now(), accounts: got[1], taxBps: settings.taxBps }, r.codeMap, r.ratios);
         var view = supplierView(list, results, got[1], LG.supplierOf, M.DISTRIBUTOR, M.HOME_DEPOT);
         var role = PL.role();
         var modal = ov.querySelector('.ml-modal'), head = ov.querySelector('.ml-head');
