@@ -305,7 +305,7 @@ const tickAll = (h, no) => h.replace(/<input\b[^>]*>/gi, (tag) => {
     ok('flag on, with the signed form: the link is minted', !!r.v && !!r.v.token, r.e && r.e.message);
     r = await mintDeal(null);
     ok('FLAG OFF: the deal link mints exactly as before', !!r.v && !!r.v.token, r.e && r.e.message);
-    ok('the gate also covers a deal with no lead? No: reported, not gated', src('functions/deal-acceptance.js').indexOf('A deal with no lead') !== -1);
+    ok('a deal with no resolvable lead is gated from its own estimate and refused with neither (review 2026-11-18, finding 4)', /no resolvable lead/.test(src('functions/deal-acceptance.js')));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

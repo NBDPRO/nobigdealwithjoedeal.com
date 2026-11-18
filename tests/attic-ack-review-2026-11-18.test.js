@@ -234,6 +234,55 @@ const ON_OWNER = { _default: {}, CO: { docAtticAckV1: true } };
     ok('remote: the inspected form sent as the not-inspected document type is refused', x.res.statusCode === 422 && x.tok.status === 'pending');
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('4. the deal page: no resolvable lead falls back to the deal\'s own estimate, else refuses (fail closed)');
+  {
+    const CS = require(path.join(FN, 'clause-set.js'));
+    const DEAL_PATH = 'deal_rooms/REP/deal0001.html';
+    const REALD = ['./cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', './lead-artifact-paths', './await-briefly', './portal-after-signing', './signed-price', './customer-estimate-rows', './doc-send-checks', './attic-gate', './attic-ack', 'crypto'];
+    const stubsD = () => ({
+      './deal-install-date': { fillLeadInstallDate: async () => null },
+      './deal-view-logic': { isPreviewBot: () => false, shouldNotifyView: () => false, viewMessage: () => ({ title: '', body: '' }) },
+      './estimate-send-logic': {}, './thursday-video-gate': { isNbdTenant: () => false, DEAL_ROOM_INJECT: '', DEAL_ROOM_SCRIPT_PATH: '/x.js' },
+      './deal-accepted-tier': { applyAcceptedTier: async () => {}, dealTierPrices: (t) => t },
+      './ky-insurance-law': K, './cancel-window': require(path.join(FN, 'cancel-window.js')), './esign-logic': ESL, './doc-evidence': DE,
+    });
+    const PAGE = '<html><head></head><body><p>Your roof.</p><div class="section-title">Sign &amp; Schedule</div><div class="sign-section">sign</div></body></html>';
+    const mintDeal = async (flags, o) => {
+      const x = o || {};
+      const s = {
+        'deal_rooms/deal0001': Object.assign({ status: 'sent', userId: 'REP', customerName: 'Dana Whitfield', tiers: { better: { price: 13000 } } }, x.deal),
+        'companyProfile/CO': { paymentTerms: Object.assign({}, CS.NBD_PAYMENT_TERMS_DEFAULTS, { deckingPerSheetCents: 10000 }) },
+      };
+      if (x.lead !== null) s['leads/L1'] = lead(Object.assign({ address: '12 Oak St, Covington, KY 41011', jobType: 'insurance' }, x.lead));
+      if (x.est) s['estimates/E1'] = Object.assign({ userId: 'REP' }, x.est);
+      Object.entries(flags || {}).forEach(([id, v]) => { s['feature_flags/' + id] = v; });
+      if (x.signed) s['leads/L1/documents/a0'] = SIGNED;
+      const db = kit.makeDb(s);
+      const L = kit.loadHandler('deal-acceptance.js', db, kit.makeStorage({ [DEAL_PATH]: PAGE }), stubsD(), REALD);
+      try { return { v: await L.fns.createDealAcceptToken({ auth: { uid: 'REP', token: { companyId: 'CO', role: 'sales_rep' } }, data: { dealId: 'deal0001' } }), db }; } catch (e) { return { e, db }; }
+    };
+    const deals = (db) => db._all('deal_accept_tokens').length;
+    const NOTEAR = { grandTotal: 13000, rows: [{ code: 'GTR 5K' }] };
+    let r = await mintDeal(ON_OWNER, { deal: { leadId: 'L1' }, lead: { primaryEstimateId: 'E1' }, est: REROOF });
+    ok('control: a re-roof deal linked to a lead with no attic form is refused under the OWNER\'s flag (rep flag off)', !!r.e && r.e.code === 'failed-precondition' && deals(r.db) === 0, r.e && r.e.message);
+    r = await mintDeal(ON_OWNER, { deal: { estimateId: 'E1' }, lead: null, est: REROOF });
+    ok('no lead, the deal\'s own estimate has a tear-off line: no link is minted', !!r.e && r.e.code === 'failed-precondition' && /Attic, Ventilation/.test(r.e.message) && deals(r.db) === 0, r.e && r.e.message);
+    r = await mintDeal(ON_OWNER, { deal: {}, lead: null });
+    ok('no lead and no estimate: refused (fail closed), nothing minted', !!r.e && r.e.code === 'failed-precondition' && deals(r.db) === 0, r.e && r.e.message);
+    r = await mintDeal(ON_OWNER, { deal: { leadId: 'GHOST' }, lead: null });
+    ok('a deal pointing at a lead that does not exist, with no estimate: refused', !!r.e && deals(r.db) === 0, r.e && r.e.message);
+    r = await mintDeal(ON_OWNER, { deal: { estimateId: 'E1' }, lead: null, est: NOTEAR });
+    ok('no lead, the deal\'s own estimate has no tear-off line: minted', !!r.v && deals(r.db) === 1, r.e && r.e.message);
+    r = await mintDeal(ON_OWNER, { deal: { leadId: 'L1', estimateId: 'E1' }, lead: { scope: 'repair' }, est: REROOF });
+    ok('a lead set to repair but the deal\'s estimate has a tear-off line: refused', !!r.e && r.e.code === 'failed-precondition');
+    r = await mintDeal(ON_OWNER, { deal: { leadId: 'L1' }, lead: { primaryEstimateId: 'E1' }, est: REROOF, signed: true });
+    ok('the signed form clears it', !!r.v, r.e && r.e.message);
+    r = await mintDeal({ _default: {} }, { deal: {}, lead: null });
+    ok('FLAG OFF: a deal with no lead and no estimate mints exactly as before', !!r.v && deals(r.db) === 1, r.e && r.e.message);
+    ok('the source says a deal with no resolvable lead falls back to its own estimate and refuses when neither resolves', /no resolvable lead/i.test(src('functions/deal-acceptance.js')));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

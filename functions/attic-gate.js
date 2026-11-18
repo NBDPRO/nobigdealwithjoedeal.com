@@ -175,6 +175,11 @@ async function decide(db, leadId, lead, opts) {
   const o = opts || {};
   const L = lead || {};
   const set = await _estimateSet(db, leadId, L, o);
+  // A deal with no resolvable lead and no estimate cannot be classified: refuse (never assume "not a re-roof").
+  if (o.requireResolved === true && !set.list.length && AA.effectiveScope(L, []) === 'other') {
+    return { scope: 'unknown', basis: set.basis, required: true, satisfied: false, how: null, warn: false,
+      message: 'This deal is not linked to a customer or an estimate, so the attic acknowledgment cannot be checked. Link the deal to the customer, then send it. Nothing was sent.' };
+  }
   const scope = AA.effectiveScope(L, set.list.map((x) => x.data));
   const g0 = AA.gate({ scope, signedForm: false, override: false });
   if (!g0.required) return Object.assign({ scope, basis: set.basis }, g0);
@@ -183,6 +188,8 @@ async function decide(db, leadId, lead, opts) {
     try { await db.doc('leads/' + leadId).set({ atticScopeFloor: 'reroof' }, { merge: true }); } catch (_) { /* the gate below is the control */ }
   }
   const found = [];
+  // No lead: no signed form can exist (the forms live on the lead) and no override can be recorded: the gate stays closed.
+  if (!okId(leadId)) return Object.assign({ scope, basis: set.basis }, AA.gate({ scope, signedForm: false, override: false }));
   for (const t of AA.DOC_TYPES) {
     const snap = await db.collection('leads/' + leadId + '/documents').where('type', '==', t).get();
     snap.docs.forEach((d) => found.push(d));
