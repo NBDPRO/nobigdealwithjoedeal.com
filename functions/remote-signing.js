@@ -437,7 +437,10 @@ exports.createSignRequest = onCall(
     // flagOnAtMint is ALSO what the sign page will do about consent: it is stamped on the token (consentAsked)
     // so getSignDocument and submitSignature follow the decision made here and never re-read the flag (finding 7).
     const flagOnAtMint = await DE.flagForGate(db, uid, HttpsError);
-    const gateOn = flagOnAtMint && (CW.isContractDocType(docMeta.type) || gateClass);
+    // Review 2026-11-18, item 6: the unresolved-number / placeholder gate also runs under docClauseSetV1 (strict read,
+    // a read error refuses). The consent checkbox above stays docEvidenceFoundation's alone.
+    const clauseFlagOnAtMint = await DE.clauseFlagForGate(db, uid, HttpsError);
+    const gateOn = (flagOnAtMint || clauseFlagOnAtMint) && (CW.isContractDocType(docMeta.type) || gateClass);
     let gateHtml = null;
     if (CW.isContractDocType(docMeta.type)) {
       let contractHtml = '';

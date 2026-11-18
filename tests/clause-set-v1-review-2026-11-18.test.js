@@ -140,6 +140,81 @@ function loadRegistry(textObj) {
       /DE\.buildClauseSetFor\(/.test(readRepo('functions/esign-envelope.js')) && /DE\.buildClauseSetFor\(/.test(readRepo('functions/deal-acceptance.js')));
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('6. the server gate runs under EITHER flag (docEvidenceFoundation or docClauseSetV1), fail closed');
+  {
+    const FN = path.join(H.ROOT, 'functions');
+    module.paths.unshift(path.join(FN, 'node_modules'));
+    const kit = require('./lib/doc-evidence-kit');
+    const K = require(path.join(FN, 'ky-insurance-law.js'));
+    const DE = require(path.join(FN, 'doc-evidence.js'));
+    const ESL = require(path.join(FN, 'esign-logic.js'));
+    const P = 'documents/U1/L1/d-1.html';
+    const CONTRACT = '<!DOCTYPE html><html><head><title>Roofing Contract</title></head><body><h1>Roofing Contract</h1><p>Contract price: $14,500.00</p>'
+      + '<!--nbd-cancel-packet:start--><section data-nbd-cancel-by="2026-11-17"><h2>Notice of Right to Cancel</h2>'
+      + '<div data-nbd-noc="ftc"><p>NOTICE OF CANCELLATION. NOT LATER THAN MIDNIGHT OF November 17, 2026</p></div>'
+      + '<div data-nbd-noc="ftc"><p>NOTICE OF CANCELLATION. NOT LATER THAN MIDNIGHT OF November 17, 2026</p></div>'
+      + '</section><!--nbd-cancel-packet:end-->'
+      + '<div data-nbd-sig="homeowner" data-nbd-sig-required="1"><canvas width="300" height="100"></canvas></div></body></html>';
+    const PROFILE = { brand: { legalName: 'Acme Roofing LLC', entityName: 'Acme Roofing LLC', contact: { mailingAddress: '1 Main St, Cincinnati, OH 45202' } } };
+    const leadX = { userId: 'U1', companyId: 'U1', firstName: 'Dana', lastName: 'Whitfield', email: 'dana@example.test', address: '12 Oak St, Cincinnati, OH 45202', jobType: 'cash', primaryEstimateId: 'E1' };
+    const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './doc-evidence', './await-briefly', './signed-price', 'crypto'];
+    const stubs = () => ({ './cancel-window': require(path.join(FN, 'cancel-window.js')), './ky-insurance-law': K, './lead-artifact-paths': require(path.join(FN, 'lead-artifact-paths.js')),
+      './esign-logic': ESL, './doc-evidence': DE, './await-briefly': require(path.join(FN, 'await-briefly.js')), './signed-price': require(path.join(FN, 'signed-price.js')) });
+    const flagsDoc = (f) => f;
+    const seed = (flags, html) => {
+      const s = { 'leads/L1': leadX, 'leads/L1/documents/d1': { type: 'contract', typeName: 'Roofing Contract', htmlPath: P, userId: 'U1' }, 'companyProfile/U1': PROFILE, 'estimates/E1': { grandTotal: 14500 } };
+      if (flags) s['feature_flags/_default'] = flagsDoc(flags);
+      return s;
+    };
+    const breakFlags = (db) => { const o = db.doc; db.doc = (p) => (/^feature_flags\//.test(p) ? { get: async () => { throw new Error('down'); } } : o(p)); };
+    async function mint(flags, html, mod) {
+      const db = kit.makeDb(seed(flags)); const st = kit.makeStorage({ [P]: html });
+      if (mod) mod(db);
+      const L = kit.loadHandler('remote-signing.js', db, st, stubs(), REAL);
+      try { return { v: await L.fns.createSignRequest({ auth: { uid: 'U1', token: {} }, data: { leadId: 'L1', docId: 'd1', signerEmail: 'dana@example.test', signerName: 'Dana Whitfield' } }), db }; }
+      catch (e) { return { e, db }; }
+    }
+    const tokens = (db) => db._all('doc_sign_tokens').length;
+    const UNRES = CONTRACT.replace('Roofing Contract</h1>', 'Roofing Contract</h1><p>interest at {{lateInterestPct}} percent</p>');
+
+    let r = await mint({ docClauseSetV1: true }, UNRES);
+    ok('remote: docClauseSetV1 alone: a contract with an unresolved {{number}} is refused, no link', !!r.e && r.e.code === 'failed-precondition' && /placeholder|lateInterestPct/.test(r.e.message) && tokens(r.db) === 0, r.e && r.e.message);
+    r = await mint({ docClauseSetV1: true }, CONTRACT);
+    ok('remote: docClauseSetV1 alone: a complete contract still goes out', !!r.v && tokens(r.db) === 1, r.e && r.e.message);
+    ok('remote: docClauseSetV1 alone does NOT turn the consent checkbox on (that stays docEvidenceFoundation)', (r.db._all('doc_sign_tokens')[0] || {}).consentAsked === false);
+    r = await mint({ docEvidenceFoundation: true }, UNRES);
+    ok('remote: docEvidenceFoundation alone still refuses (unchanged)', !!r.e && tokens(r.db) === 0);
+    r = await mint(null, UNRES);
+    ok('remote: both flags off: the same contract goes out (flag-off behaviour unchanged)', !!r.v && tokens(r.db) === 1, r.e && r.e.message);
+    r = await mint(null, UNRES, breakFlags);
+    ok('remote: an unreadable flag refuses with a retryable "unavailable"', !!r.e && r.e.code === 'unavailable' && tokens(r.db) === 0, r.e && (r.e.code + ' ' + r.e.message));
+
+    // in-person
+    const Lg = require(path.join(FN, 'in-person-signing-logic.js'));
+    const mkIP = (flags) => {
+      const s = { 'leads/L1': leadX, 'leads/L1/documents/d1': { type: 'contract', status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner' }], htmlPath: P }, 'estimates/E1': { grandTotal: 14500 }, 'companyProfile/U1': PROFILE };
+      if (flags) s['feature_flags/_default'] = flags;
+      return kit.makeDb(s);
+    };
+    const call = async (db, html) => {
+      const st = kit.makeStorage({ [P]: html });
+      const W = kit.loadHandler('in-person-signing.js', db, st, { './in-person-signing-logic': Lg, './doc-evidence': DE }, []);
+      try { return { v: await W.fns.recordInPersonSignature({ auth: { uid: 'U1', token: {} }, data: { leadId: 'L1', docId: 'd1' }, rawRequest: { headers: { 'x-forwarded-for': '203.0.113.5' }, get: () => 'RepPhone/1' } }) }; }
+      catch (e) { return { e }; }
+    };
+    let c = await call(mkIP({ docClauseSetV1: true }), UNRES);
+    ok('in-person: docClauseSetV1 alone: a stored copy with an unresolved {{number}} is refused', !!c.e && /placeholder|lateInterestPct/.test(String(c.e.message)), c.e && c.e.message);
+    c = await call(mkIP({ docClauseSetV1: true }), CONTRACT);
+    ok('in-person: docClauseSetV1 alone: a complete copy records', !!c.v && c.v.ok === true, c.e && c.e.message);
+    c = await call(mkIP(null), UNRES);
+    ok('in-person: both flags off: unchanged (the same copy is accepted)', !!c.v, c.e && c.e.message);
+    const dbB = mkIP({ docClauseSetV1: true }); breakFlags(dbB);
+    c = await call(dbB, CONTRACT);
+    ok('in-person: an unreadable flag is a retryable refusal', !!c.e && c.e.code === 'unavailable', c.e && c.e.code);
+    ok('the server sources read both flags through the strict gate', /clauseFlagForGate|flagForGate/.test(readRepo('functions/remote-signing.js')) && /clauseFlagForGate/.test(readRepo('functions/in-person-signing.js')));
+  }
+
   // @@SECTIONS@@
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
