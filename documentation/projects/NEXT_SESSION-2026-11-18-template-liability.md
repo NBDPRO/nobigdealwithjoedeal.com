@@ -17,9 +17,11 @@ Method: grill Jo on every decision, audit the 36 templates, write the drafts, bu
 | #3167 | The sweep note, [TEMPLATE-DEEP-SWEEP-2026-11-17](TEMPLATE-DEEP-SWEEP-2026-11-17.md): decisions log, audit (Part 5A-C), build plan (Part 7). |
 | #3173 | Phase 1, ships dark: versioned clause registry, server-written signing evidence on every path, fail-closed send checks behind the per-user flag `docEvidenceFoundation` (**default OFF**). See [CLAUSE-EVIDENCE-FOUNDATION-2026-11-18](CLAUSE-EVIDENCE-FOUNDATION-2026-11-18.md). |
 
-**Open when this note was written:** PR #3176, `docs/attorney-review-packet`, docs only. The packet is
-`ATTORNEY-REVIEW-PACKET-2026-11-18.md` on that branch (about 13,800 words, 58 clauses, 42 attorney questions). It
-becomes a normal INDEX link once #3176 merges. A Word copy was generated outside the repo (see "Not verified").
+**Update 2026-11-18 (later):** PR #3176 (the attorney packet, `ATTORNEY-REVIEW-PACKET-2026-11-18.md`, about 13,800
+words, 58 clauses, 42 attorney questions) and this note's own PR #3178 both merged. Jo sends the packet to the
+attorney. A Word copy was generated outside the repo (see "Not verified"). Phase 2 (`docClauseSetV1`, clause set on the
+contract, e-sign PDF and deal page, ships dark) was built on `feat/clause-set-v1` and was in review fixes; check
+whether it merged. The signing-ease lane (Q48 to Q68 in the sweep note) and the payment-terms settings screen follow it.
 
 ## Where the decisions live
 
