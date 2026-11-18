@@ -439,6 +439,27 @@ section (c) states them correctly.
 | Q45 | Restocking = the lesser of 15% or the supplier's actual restocking charge, plus actual reverse delivery. |
 | Q46 | Card-fee (credit only, none on Kentucky insurance jobs, capped at the processor's actual cost, noticed to the processor, shown before the pay button) and late-interest (8% simple after 15 days) choices kept. |
 | Q47 | Phase 1 (evidence and clause foundation) started 2026-11-18. |
+| Q48 | QR / text-link / copy-link / email panel for generated documents; a link can be created without an email on file. |
+| Q49 | Paper-signed uploads record document type, link to the original and digest, signing date, rep attestation, optional witness, and a distinct "wet signed" status; printed copies carry the document id and a short digest. |
+| Q50 | Every signing path emails the signed PDF to the homeowner automatically when an email is on file. |
+| Q51 | Supplement request gets a homeowner authorization signature; insurance inspection report a homeowner release; warranty certificate default signers (homeowner, rep); before-and-after "acknowledgment" becomes a real "received on [date]" line or is removed. |
+| Q52 | Contracts require every owner on record to sign (separate second-owner role). |
+| Q53 | Signing-ease lane starts after phase 2 merges. |
+| Q54 | Payment-terms settings screen is built next after phase 2 is pushed, with the same limits as the server and a "ready / not ready" line. |
+| Q55 | NBD starting decking price is $100 per sheet flat up to 10 sheets; Jo checks it against real cost before the flag goes on. |
+| Q56 | (Auto-fix on the docs PRs: moot, both merged.) |
+| Q57 | Flags go on for Jo's account only after attorney sign-off, after a dry run on a test lead; off for reps and other tenants until the settings screen and Ohio/Kentucky questions are settled. |
+| Q58 | The attorney packet is sent now (it merged as #3176); attorney edits change one wording file. |
+| Q59 | The QR panel appears on contract/paperwork signing and on the estimate and deal-page screens. |
+| Q60 | The panel has a one-tap "make a new link" button. |
+| Q61 | Generated-document sign links last 14 days with automatic email reminders every 2 days (up to 3); text reminders stay manual until the carrier approval comes through. |
+| Q62 | In-person signing shows an "I agree to sign electronically" tick before the homeowner draws, and the record stores it. |
+| Q63 | A paper-signed contract files the contract and moves the job only after the rep attests; otherwise it stays "uploaded, not certified". |
+| Q64 | The signed PDF goes to the homeowner and the rep on every path; in person, a "no email on file, collect one" prompt when needed. |
+| Q65 | "Signed" status becomes server-only for contract-class documents (in-person via the existing server call), as its own step with tests after the QR panel. |
+| Q66 | A "signing packet": one link or QR walks the homeowner through the contract, attic acknowledgment, property sheet and other forms in order; built after the QR panel and paper certification. |
+| Q67 | The signing-ease lane runs first; phase 3 (attic form) starts when Jo sends baffle and duct prices. |
+| Q68 | Only an owner or admin can change the payment settings; reps see them read-only plus the readiness line. |
 
 **Status:** Phase 0 (removal-only fixes) merged as PR 3161 on 2026-11-18, all 24 checks passing. Phase 1 is in progress on `feat/clause-evidence-foundation`.
 
