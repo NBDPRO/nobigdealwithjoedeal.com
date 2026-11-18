@@ -15,6 +15,7 @@
 
 const crypto = require('crypto');
 const AA = require('./attic-ack');
+const TXT = require('./attic-ack-text');
 
 const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 const OVERRIDES = 'attic_overrides';
@@ -24,12 +25,81 @@ const CONTRACT_CLASS = ['contract', 'proposal', 'work_authorization', 'estimate_
 function gated(type) { return CONTRACT_CLASS.indexOf(String(type || '')) !== -1; }
 function isAtticDoc(type) { return AA.DOC_TYPES.indexOf(String(type || '')) !== -1; }
 
+// ── The manifest (review 2026-11-18, finding 2) ────────────────────
+// The server holds what an attic form MUST contain: which controls, which of them are required, the marker for the variant and the
+// packet's own wording. A stored copy that is rep-authored (the in-person path, and the remote path's original) is compared to it
+// and only a match counts. The ids below mirror the renderer (document-generator-library.js renderAtticAcknowledgment); the real
+// render is pinned against this in tests/attic-ack-review-2026-11-18.test.js.
+const ACK_IDS = ['saw', 'declined', 'existing', 'not_inspection', 'moisture', 'tearoff'];
+const STMT_IDS = ['not_checked', 'offered', 'unseen', 'no_change'];
+const MAX_CONTROLS = 60;
+const MARKER_RE = /<!--\s*nbd:attic-ack\s+(\S+)\s+(inspected|not_inspected)\s*-->/g;
+
+function manifestFor(docType) {
+  const t = String(docType || '');
+  if (AA.DOC_TYPES.indexOf(t) === -1) return null;
+  const notInspected = t === 'attic_not_inspected';
+  const required = (notInspected ? STMT_IDS.map((i) => 'ack:stmt_' + i) : []).concat(ACK_IDS.map((i) => 'ack:' + i));
+  const must = (TXT.RECS_THIRD_PARTY || []).map((_, i) => 'third_party_' + (i + 1));
+  const lines = AA.REC_DEFS.map((d) => d.id).concat(must);
+  const paras = [].concat(TXT.WHY, TXT.ACKS, [TXT.SAVINGS], notInspected ? TXT.STATEMENTS : []);
+  return { variant: notInspected ? 'not_inspected' : 'inspected', required, must, lines, paras };
+}
+
+function _plain(s) {
+  return String(s == null ? '' : s).replace(/<!--[\s\S]*?-->/g, ' ').replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0*39;|&#x27;/g, "'").replace(/&amp;/g, '&')
+    .replace(/\*\*/g, '').replace(/\bNBD\b/g, 'Contractor').replace(/at least (\d+|\{\{atticFreeCheckDays\}\}) days/g, 'at least N days').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Is this stored HTML the attic form the server would have issued for this document type? -> { ok, reasons: [code] }
+ * Same controls (ids, types, required flags), the variant marker for the type, and the packet's paragraphs. Ticks are not part of
+ * it (a signed copy has them). Anything else - an extra, missing or non-required control, a stripped flag, hand-written HTML - fails.
+ */
+function verifyManifest(docType, html) {
+  const m = manifestFor(docType);
+  const bad = [];
+  if (!m) return { ok: false, reasons: ['doc_type'] };
+  const s = String(html == null ? '' : html);
+  const markers = []; let mm; MARKER_RE.lastIndex = 0;
+  while ((mm = MARKER_RE.exec(s))) markers.push(mm);
+  if (markers.length !== 1 || markers[0][1] !== AA.VERSION || markers[0][2] !== m.variant) bad.push('marker');
+  const parsed = AA.parseAcks(s);
+  const rawCount = (s.match(/data-nbd-ack/gi) || []).length;
+  if (parsed.length !== rawCount || parsed.length > MAX_CONTROLS) bad.push('control_count');
+  const seen = {};
+  parsed.forEach((c) => { if (seen[c.id]) bad.push('duplicate:' + c.id); seen[c.id] = c; });
+  const boxes = parsed.filter((c) => c.type === 'checkbox').map((c) => c.id).sort();
+  const reqs = m.required.slice().sort();
+  if (boxes.join('|') !== reqs.join('|')) bad.push('checkboxes');
+  parsed.filter((c) => c.type === 'checkbox').forEach((c) => { if (c.required !== true) bad.push('not_required:' + c.id); });
+  const groups = {};
+  parsed.filter((c) => c.type === 'radio').forEach((c) => {
+    const r = /^rec:([a-z_0-9]+):(yes|no)$/.exec(c.id);
+    if (!r || m.lines.indexOf(r[1]) === -1) { bad.push('radio_id:' + c.id); return; }
+    if (c.required) bad.push('radio_required:' + c.id);
+    (groups[r[1]] = groups[r[1]] || {})[r[2]] = true;
+  });
+  Object.keys(groups).forEach((g) => { if (!(groups[g].yes && groups[g].no)) bad.push('half_line:' + g); });
+  m.must.forEach((g) => { if (!groups[g]) bad.push('missing_line:' + g); });
+  const text = _plain(s);
+  m.paras.forEach((p, i) => { if (text.indexOf(_plain(p)) === -1) bad.push('wording:' + i); });
+  return { ok: bad.length === 0, reasons: bad.slice(0, 12) };
+}
+
+/** The doc type the marker names (for a caller with no type of its own). */
+function typeFromMarker(html) {
+  const r = /<!--\s*nbd:attic-ack\s+\S+\s+(inspected|not_inspected)\s*-->/.exec(String(html || ''));
+  return r && r[1] === 'not_inspected' ? 'attic_not_inspected' : 'attic_acknowledgment';
+}
+
 /**
  * The executed record for a document that carries tick controls: the original's markup, with `checked` and
  * `disabled` written onto each control from the submission's state. Returns { html, acks, complete }.
  * A control the submission added (an id the original does not have) is ignored.
  */
-function applyAcks(originalHtml, signedHtml) {
+function applyAcks(originalHtml, signedHtml, docType) {
   const orig = String(originalHtml == null ? '' : originalHtml);
   const sub = {};
   AA.parseAcks(signedHtml).forEach((a) => { sub[a.id] = a.checked === true; });
@@ -40,17 +110,21 @@ function applyAcks(originalHtml, signedHtml) {
     return bare.replace(/\s*(\/?)>$/, (_m, slash) => (sub[m[1]] === true ? ' checked=""' : '') + ' disabled=""' + (slash ? ' />' : '>'));
   });
   const acks = AA.parseAcks(html);
-  return { html, acks, complete: acks.length > 0 && AA.acksComplete(acks).ok };
+  // The ORIGINAL is rep-authored: it must be the server's own form for this type, or nothing counts as complete.
+  const manifest = verifyManifest(docType || typeFromMarker(orig), orig);
+  return { html, acks, manifestOk: manifest.ok, manifestReasons: manifest.reasons, complete: manifest.ok && acks.length > 0 && AA.acksComplete(acks).ok };
 }
 
 /** What a signed attic form records, from the stored signed copy. */
 function resultFor(docType, signedHtml, formDateMs) {
   const acks = AA.parseAcks(signedHtml);
+  const manifest = verifyManifest(docType, signedHtml);
   return {
     version: AA.VERSION,
     notInspected: String(docType) === 'attic_not_inspected',
     declined: AA.declinedAny(acks),
-    complete: acks.length > 0 && AA.acksComplete(acks).ok,
+    manifestOk: manifest.ok,
+    complete: manifest.ok && acks.length > 0 && AA.acksComplete(acks).ok,
     acknowledgments: AA.evidenceAcks(acks),
     formDateMs: Number.isFinite(Number(formDateMs)) ? Number(formDateMs) : null,
   };
@@ -160,4 +234,4 @@ async function recordOverride(db, auth, data, fail) {
   return { ok: true, id: ref.id };
 }
 
-module.exports = { estimateStamp, OVERRIDES, gated, isAtticDoc, applyAcks, resultFor, decide, recordOverride };
+module.exports = { estimateStamp, manifestFor, verifyManifest, OVERRIDES, gated, isAtticDoc, applyAcks, resultFor, decide, recordOverride };

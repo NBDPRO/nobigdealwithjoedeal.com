@@ -31,11 +31,23 @@ function ok(name, cond, detail) {
 }
 function section(name) { console.log('\n' + name); }
 
-const FORM = '<html><body><h1>Attic</h1>'
-  + '<input type="checkbox" data-nbd-ack="ack:saw" data-nbd-required="1"><input type="checkbox" data-nbd-ack="ack:existing" data-nbd-required="1">'
-  + '<input type="radio" name="r" data-nbd-ack="rec:decking:yes"><input type="radio" name="r" data-nbd-ack="rec:decking:no">'
-  + '<div data-nbd-sig="homeowner" data-nbd-sig-required="1"><canvas width="300" height="100"></canvas></div></body></html>';
-const tickAll = (h, no) => h.replace(/data-nbd-ack="(ack:saw|ack:existing|rec:decking:(yes|no))"/g, (m, id) => (id.indexOf('rec:') === 0 && id !== (no ? 'rec:decking:no' : 'rec:decking:yes') ? m : m + ' checked=""'));
+// The REAL form (review 2026-11-18, finding 2: the server compares the stored copy to its own manifest, so a hand-written fixture no
+// longer counts). One priced ventilation line (decking) gives a Yes/No the homeowner can decline.
+const FORM = (() => {
+  const H = require('./helpers/clause-v1-harness');
+  const env = H.docs({ flags: { docAtticAckV1: true } });
+  ['docs/pro/js/attic-ack-text.js', 'docs/pro/js/attic-ack.js', 'docs/pro/js/document-generator-library.js'].forEach((f) => H.load(env, f));
+  const cp = Object.assign({}, H.profileFor(env.win, H.BIZ_ADDR), { paymentTerms: { deckingPerSheetCents: 10000 } });
+  return env.win.NBDDocGen.renderAtticAcknowledgment({ homeownerName: 'Jane Smith', address: '12 Oak St', contractDate: '2026-11-18', formDate: '2026-11-18', companyProfile: cp,
+    signers: [{ role: 'homeowner', label: 'Homeowner', required: true }, { role: 'rep', label: 'Rep', required: true }],
+    atticCheck: { status: 'inspected', inspectedOn: '2026-11-17', accessPoint: 'hatch', conditions: { mold: true }, photos: [{ id: 'p1', kind: 'overview' }, { id: 'p2', kind: 'cond:mold' }], vent: { floorSqFt: 1200, rule: '1/300' }, recs: [{ id: 'decking', qty: 2 }] } });
+})();
+const N_CONTROLS = (FORM.match(/data-nbd-ack=/g) || []).length;
+// the homeowner's ticks: every checkbox; Yes on every line, or No on the decking line
+const tickAll = (h, no) => h.replace(/<input\b[^>]*>/gi, (tag) => {
+  if (/type="radio"/.test(tag)) { const want = /rec:decking:/.test(tag) ? (no ? ':no"' : ':yes"') : ':yes"'; return tag.indexOf(want) === -1 ? tag : tag.replace(/>$/, ' checked="">'); }
+  return tag.replace(/>$/, ' checked="">');
+});
 
 (async () => {
   // ═══════════════════════════════════════════════════════
@@ -84,13 +96,13 @@ const tickAll = (h, no) => h.replace(/data-nbd-ack="(ack:saw|ack:existing|rec:de
   section('B. remote signing: the ticks are read back from the ORIGINAL, incomplete is refused');
   {
     const r = AG.applyAcks(FORM, tickAll(FORM, true));
-    ok('a complete set of ticks is applied to the original and is complete', r.complete && r.acks.filter((a) => a.checked).length === 3);
-    ok('the controls are disabled in the record', r.html.split('disabled=""').length - 1 === 4);
-    ok('a control the submission added is ignored', AG.applyAcks(FORM, tickAll(FORM, true) + '<input type="checkbox" data-nbd-ack="ack:evil" checked="">').acks.length === 4);
+    ok('a complete set of ticks is applied to the original and is complete', r.complete && r.manifestOk && r.acks.filter((a) => a.checked).length === 9);
+    ok('the controls are disabled in the record', r.html.split('disabled=""').length - 1 === N_CONTROLS);
+    ok('a control the submission added is ignored', AG.applyAcks(FORM, tickAll(FORM, true) + '<input type="checkbox" data-nbd-ack="ack:evil" checked="">').acks.length === N_CONTROLS);
     ok('an unticked required box is incomplete', !AG.applyAcks(FORM, FORM).complete);
     ok('a Yes AND a No on one line is incomplete', !AG.applyAcks(FORM, tickAll(FORM, true).replace('data-nbd-ack="rec:decking:yes"', 'data-nbd-ack="rec:decking:yes" checked=""')).complete);
     const res = AG.resultFor('attic_acknowledgment', r.html, 5);
-    ok('the result records version, decline and every tick', res.version === 'ATTIC_ACK_V1' && res.declined === true && res.complete === true && res.acknowledgments.length === 4 && res.notInspected === false);
+    ok('the result records version, decline and every tick', res.version === 'ATTIC_ACK_V1' && res.declined === true && res.complete === true && res.acknowledgments.length === N_CONTROLS && res.notInspected === false);
     ok('the not-inspected page is recorded as such', AG.resultFor('attic_not_inspected', r.html, 5).notInspected === true);
     const rs = src('functions/remote-signing.js');
     const w = src('docs/pro/js/signature-widget.js');
@@ -212,7 +224,7 @@ const tickAll = (h, no) => h.replace(/data-nbd-ack="(ack:saw|ack:existing|rec:de
     let db = mkIP({ type: 'attic_acknowledgment' });
     let r = await run(db, { attic: attic(signedCopy) });
     const row = db._get('leads/L1/documents/d1') || {};
-    ok('a completed attic form: the server writes atticAckResult from the stored signed copy', !!r.v && row.atticAckResult && row.atticAckResult.complete === true && row.atticAckResult.declined === true && row.atticAckResult.acknowledgments.length === 4, r.e && r.e.message);
+    ok('a completed attic form: the server writes atticAckResult from the stored signed copy', !!r.v && row.atticAckResult && row.atticAckResult.complete === true && row.atticAckResult.declined === true && row.atticAckResult.acknowledgments.length === N_CONTROLS, r.e && r.e.message);
     db = mkIP({ type: 'attic_acknowledgment' });
     r = await run(db, { attic: attic(FORM) });
     ok('an attic form with unticked boxes is refused and marked, never counted as signed', !!r.e && r.e.code === 'failed-precondition' && !((db._get('leads/L1/documents/d1') || {}).atticAckResult) && !!(db._get('leads/L1/documents/d1') || {}).evidenceRefused);
@@ -232,7 +244,7 @@ const tickAll = (h, no) => h.replace(/data-nbd-ack="(ack:saw|ack:existing|rec:de
     db = mkIP({ type: 'attic_acknowledgment' });
     r = await run(db, { attic: attic(signedCopy), evidence: { enabled: true, ip: '203.0.113.5', ua: 'x', ipSource: 'x', readBytes: async () => Buffer.from(signedCopy, 'utf8') } });
     const ev = ((db._get('leads/L1/documents/d1') || {}).signatureEvidence) || {};
-    ok('the in-person evidence records acknowledgments: [{ id, checked }]', !!r.v && Array.isArray(ev.acknowledgments) && ev.acknowledgments.length === 4 && ev.acknowledgments.some((a) => a.id === 'rec:decking:no' && a.checked === true), r.e && r.e.message);
+    ok('the in-person evidence records acknowledgments: [{ id, checked }]', !!r.v && Array.isArray(ev.acknowledgments) && ev.acknowledgments.length === N_CONTROLS && ev.acknowledgments.some((a) => a.id === 'rec:decking:no' && a.checked === true), r.e && r.e.message);
     const ip = src('functions/in-person-signing.js');
   }
 

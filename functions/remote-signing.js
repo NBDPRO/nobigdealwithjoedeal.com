@@ -891,8 +891,16 @@ exports.submitSignature = onRequest(
         // Phase 3 (attic acknowledgment): a document with tick controls is recorded with the ticks the signer made,
         // taken from the submission for the controls the ORIGINAL has and nothing else. Every required tick and a
         // Yes or No on every line is enforced here, not only in the page. Before the burn.
-        if (AA.parseAcks(originalHtml).length) {
-          const applied = AG.applyAcks(rebuilt.html, signedHtml);
+        if (AG.isAtticDoc(p.docType) || AA.parseAcks(originalHtml).length) {
+          // Review 2026-11-18 (finding 2): the ORIGINAL is rep-authored. It must be the server's own attic form for this document
+          // type (same controls, required flags, marker and wording) or the submission is refused, before the burn.
+          const mf = AG.verifyManifest(typeof p.docType === 'string' ? p.docType : '', originalHtml);
+          if (!mf.ok) {
+            logger.error('[submitSignature] attic form does not match the server manifest - refusing', { token: token.slice(0, 6), leadId: p.leadId || null, docId: p.docId || null, reasons: mf.reasons });
+            res.status(422).json({ error: 'This acknowledgment could not be verified. Please contact your rep for a corrected copy.' });
+            return;
+          }
+          const applied = AG.applyAcks(rebuilt.html, signedHtml, typeof p.docType === 'string' ? p.docType : '');
           if (!applied.complete) {
             res.status(422).json({ error: 'Please tick every box and choose Yes or No on every line, then sign again.', missingAcks: true });
             return;

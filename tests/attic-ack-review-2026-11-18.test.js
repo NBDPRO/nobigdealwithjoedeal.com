@@ -140,6 +140,100 @@ const ON_OWNER = { _default: {}, CO: { docAtticAckV1: true } };
     ok('e-sign send of an estimate with no tear-off: not blocked by the attic gate', !(r.e && /Attic, Ventilation/.test(r.e.message)), r.e && r.e.message);
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('2. a forged acknowledgment never counts: the stored HTML is compared to the server\'s own manifest');
+  {
+    const H = require('./helpers/clause-v1-harness');
+    const envG = H.docs({ flags: { docAtticAckV1: true } });
+    ['docs/pro/js/attic-ack-text.js', 'docs/pro/js/attic-ack.js', 'docs/pro/js/document-generator-library.js'].forEach((f) => H.load(envG, f));
+    const DG = envG.win.NBDDocGen;
+    const base = { homeownerName: 'Jane Smith', address: '12 Oak St', contractDate: '2026-11-18', companyProfile: H.profileFor(envG.win, H.BIZ_ADDR), formDate: '2026-11-18',
+      signers: [{ role: 'homeowner', label: 'Homeowner', required: true }, { role: 'rep', label: 'Rep', required: true }] };
+    const render = (rec) => DG.renderAtticAcknowledgment(Object.assign({ atticCheck: rec }, base));
+    const insp = { status: 'inspected', inspectedOn: '2026-11-17', accessPoint: 'hatch', conditions: { mold: true }, photos: [{ id: 'p1', kind: 'overview' }, { id: 'p2', kind: 'cond:mold' }], vent: { floorSqFt: 1200, rule: '1/300' }, recs: [] };
+    const INSP = render(insp);
+    const NI = render({ status: 'not_inspected', reason: 'declined' });
+    // the homeowner's ticks: every checkbox, the Yes of every line
+    const tick = (html) => html.replace(/<input\b[^>]*>/gi, (tag) => (/type="radio"/.test(tag) && !/:yes"/.test(tag) ? tag : tag.replace(/>$/, ' checked="">')));
+    const V = (type, html) => AG.verifyManifest(type, html);
+    ok('the real inspected form passes the manifest as attic_acknowledgment', V('attic_acknowledgment', INSP).ok, JSON.stringify(V('attic_acknowledgment', INSP).reasons));
+    ok('the real not-inspected page passes as attic_not_inspected', V('attic_not_inspected', NI).ok, JSON.stringify(V('attic_not_inspected', NI).reasons));
+    ok('a signed (ticked) copy of the real form still passes (ticks are not part of the manifest)', V('attic_acknowledgment', tick(INSP)).ok);
+    ok('wrong doc type: the inspected form as attic_not_inspected is refused', !V('attic_not_inspected', INSP).ok);
+    ok('wrong doc type: the not-inspected page as attic_acknowledgment is refused', !V('attic_acknowledgment', NI).ok);
+    ok('a type that is not an attic form is refused', !V('contract', INSP).ok);
+    ok('stripped required flags (every one) are refused', !V('attic_acknowledgment', INSP.replace(/ data-nbd-required="1"/g, '')).ok);
+    ok('ONE stripped required flag is refused', !V('attic_acknowledgment', INSP.replace(' data-nbd-required="1"', '')).ok);
+    ok('an extra required control is refused', !V('attic_acknowledgment', INSP.replace('</body>', '<input type="checkbox" data-nbd-ack="ack:evil" data-nbd-required="1"></body>')).ok);
+    ok('an extra non-required control is refused', !V('attic_acknowledgment', INSP.replace('</body>', '<input type="checkbox" data-nbd-ack="ack:extra"></body>')).ok);
+    ok('an extra radio with a made-up line id is refused', !V('attic_acknowledgment', INSP.replace('</body>', '<input type="radio" data-nbd-ack="rec:free_roof:yes"><input type="radio" data-nbd-ack="rec:free_roof:no"></body>')).ok);
+    ok('a missing required control is refused', !V('attic_acknowledgment', INSP.replace(/<input[^>]*data-nbd-ack="ack:moisture"[^>]*>/, '')).ok);
+    ok('a recommendation line made required is refused', !V('attic_acknowledgment', INSP.replace('data-nbd-ack="rec:third_party_1:yes"', 'data-nbd-ack="rec:third_party_1:yes" data-nbd-required="1"')).ok);
+    ok('a Yes with no No (half a line) is refused', !V('attic_acknowledgment', INSP.replace(/<input[^>]*data-nbd-ack="rec:third_party_2:no"[^>]*>/, '')).ok);
+    ok('a marker that says the other variant is refused', !V('attic_acknowledgment', INSP.replace('inspected -->', 'not_inspected -->')).ok);
+    ok('no marker at all is refused', !V('attic_acknowledgment', INSP.replace(/<!-- nbd:attic-ack[^>]*-->/, '')).ok);
+    const TXT = require(path.join(FN, 'attic-ack-text.js'));
+    const flat = (s) => s.replace(/\*\*/g, '');
+    ok('an acknowledgment paragraph reworded is refused', INSP.indexOf('Items I declined.') !== -1 && !V('attic_acknowledgment', INSP.replace('Items I declined.', 'Items I accepted.')).ok);
+    ok('the savings sentence reworded is refused', INSP.indexOf('Nothing in this form limits') !== -1 && !V('attic_acknowledgment', INSP.replace('Nothing in this form limits', 'Something in this form limits')).ok);
+    ok('the why-we-check paragraph deleted is refused', !V('attic_acknowledgment', INSP.replace(/<p class="aa-p"><strong>Why we check[\s\S]*?<\/p>/, '')).ok);
+    const HAND = '<html><body><!-- nbd:attic-ack ATTIC_ACK_V1 inspected --><h1>Attic</h1><input type="checkbox" data-nbd-ack="ack:saw"><div data-nbd-sig="homeowner"></div></body></html>';
+    ok('hand-written HTML with one non-required control is refused', !V('attic_acknowledgment', HAND).ok);
+    ok('the OLD test fixture (six hand-written controls) is refused too', !V('attic_acknowledgment', '<html><body><input type="checkbox" data-nbd-ack="ack:saw" data-nbd-required="1"><input type="checkbox" data-nbd-ack="ack:existing" data-nbd-required="1"></body></html>').ok);
+    ok('a hostile id with markup is refused', !V('attic_acknowledgment', INSP.replace('</body>', '<input type="checkbox" data-nbd-ack="ack:x&quot;"></body>')).ok);
+    ok('the NBD name is accepted as "Contractor" for another tenant (words(), isNbd false)', V('attic_acknowledgment', INSP.replace(/\bNBD\b/g, 'Contractor')).ok);
+
+    // resultFor: complete only for a manifest-clean, fully ticked copy
+    const good = AG.resultFor('attic_acknowledgment', tick(INSP), 5);
+    ok('resultFor: the real form fully ticked is complete', good.complete === true && good.manifestOk === true);
+    const forged = AG.resultFor('attic_acknowledgment', HAND.replace('data-nbd-ack="ack:saw"', 'data-nbd-ack="ack:saw" checked=""'), 5);
+    ok('resultFor: a hand-written form with its one control ticked is NOT complete', forged.complete === false && forged.manifestOk === false);
+    ok('resultFor: the real form with the required boxes unticked is not complete', AG.resultFor('attic_acknowledgment', INSP, 5).complete === false);
+    ok('applyAcks on a hand-written original is not complete', AG.applyAcks(HAND, HAND.replace('data-nbd-ack="ack:saw"', 'data-nbd-ack="ack:saw" checked=""')).complete === false);
+    ok('applyAcks on the real original with the real ticks is complete', AG.applyAcks(INSP, tick(INSP)).complete === true);
+
+    // in-person: the rep's own stored HTML
+    const SP = 'documents/REP/L1/d-9.html';
+    const mkIP = (docRow) => kit.makeDb({ 'leads/L1': lead({ primaryEstimateId: 'E1' }), 'estimates/E1': REROOF, 'companyProfile/CO': PROFILE,
+      'leads/L1/documents/d1': Object.assign({ status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner' }], htmlPath: SP, userId: 'REP' }, docRow) });
+    const Lg = require(path.join(FN, 'in-person-signing-logic.js'));
+    const runIP = async (db, html) => { try { return { v: await Lg.handleInPersonSignature(db, { uid: 'REP', token: { companyId: 'CO' } }, { leadId: 'L1', docId: 'd1' }, { attic: { on: true, readBytes: async () => Buffer.from(html, 'utf8') } }) }; } catch (e) { return { e }; } };
+    let db = mkIP({ type: 'attic_acknowledgment' });
+    let r = await runIP(db, tick(INSP));
+    ok('in-person: the real form, fully ticked: the server result is written', !!r.v && (db._get('leads/L1/documents/d1') || {}).atticAckResult && db._get('leads/L1/documents/d1').atticAckResult.complete === true, r.e && r.e.message);
+    db = mkIP({ type: 'attic_acknowledgment' });
+    r = await runIP(db, HAND.replace('data-nbd-ack="ack:saw"', 'data-nbd-ack="ack:saw" checked=""'));
+    ok('in-person: a rep\'s hand-written HTML with its one control ticked: refused, marked, NO atticAckResult', !!r.e && r.e.code === 'failed-precondition' && !(db._get('leads/L1/documents/d1') || {}).atticAckResult && !!(db._get('leads/L1/documents/d1') || {}).evidenceRefused);
+    db = mkIP({ type: 'attic_not_inspected' });
+    r = await runIP(db, tick(INSP));
+    ok('in-person: the inspected form recorded under the not-inspected doc type: refused', !!r.e && !(db._get('leads/L1/documents/d1') || {}).atticAckResult);
+
+    // remote: the rep-authored ORIGINAL is re-validated before the submission is accepted
+    const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const GP = 'documents/REP/L1/d-1.html';
+    const sign = (orig) => orig.replace(/<canvas class="nbd-sig-canvas"><\/canvas>/g, '<img src="' + PNG + '" alt="Homeowner" class="nbd-sig-img" style="max-width:100%;height:auto;display:block;background:#fff;">')
+      .replace(/<div class="nbd-sig-controls">[\s\S]*?<\/span>\s*<\/div>/g, '<div class="nbd-sig-date">Signed November 18, 2026</div>')
+      .replace(/data-nbd-sig="(homeowner|rep)"/g, 'data-nbd-sig="$1" data-nbd-sig-finalized="1" data-nbd-sig-signed-at="2026-11-18T15:00:00.000Z"');
+    const REMOTE = async (orig, signed, docType) => {
+      const db2 = kit.makeDb({ 'leads/L1': lead(), 'leads/L1/documents/d1': { name: 'Attic', status: 'sent', type: docType, htmlPath: GP },
+        'doc_sign_tokens/TOKATTIC0001': { status: 'pending', leadId: 'L1', docId: 'd1', ownerUid: 'REP', mintedBy: 'REP', htmlPath: GP, signerName: 'Dana Whitfield', docType, consentAsked: false } });
+      const st = kit.makeStorage({ [GP]: orig });
+      const Lr = kit.loadHandler('remote-signing.js', db2, st, stubs(), REAL);
+      const sub = kit.reqRes({ token: 'TOKATTIC0001', signedHtml: signed });
+      await Lr.fns.submitSignature(sub.req, sub.res);
+      return { db: db2, res: sub.res, tok: db2._get('doc_sign_tokens/TOKATTIC0001'), doc: db2._get('leads/L1/documents/d1') };
+    };
+    const FORGED = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Attic</title></head><body><h1>Attic</h1><!-- nbd:attic-ack ATTIC_ACK_V1 inspected --><input type="checkbox" data-nbd-ack="ack:saw">'
+      + '<div class="nbd-sig-block" data-nbd-sig="homeowner" data-label="Homeowner" data-required="true"><div class="nbd-sig-label">Homeowner</div><canvas class="nbd-sig-canvas"></canvas><div class="nbd-sig-controls"><button type="button" data-nbd-sig-action="clear">Clear</button><span class="nbd-sig-state"></span></div><div class="nbd-sig-print-name">Print Name &amp; Date</div></div><script src="/pro/js/signature-widget.js"></script></body></html>';
+    let x = await REMOTE(FORGED, sign(FORGED).replace('data-nbd-ack="ack:saw"', 'data-nbd-ack="ack:saw" checked=""'), 'attic_acknowledgment');
+    ok('remote: a rep-authored original with one non-required control is refused (422) and the link is NOT burned', x.res.statusCode === 422 && x.tok.status === 'pending' && !(x.doc && x.doc.atticAckResult), x.res.statusCode + ' ' + JSON.stringify(x.res.body));
+    const ORIG_OK = INSP;
+    x = await REMOTE(ORIG_OK, tick(sign(ORIG_OK)), 'attic_acknowledgment');
+    ok('remote: the real form, ticked and signed, is accepted and the server result is written', x.res.statusCode === 200 && !!(x.doc && x.doc.atticAckResult && x.doc.atticAckResult.complete === true), x.res.statusCode + ' ' + JSON.stringify(x.res.body));
+    x = await REMOTE(ORIG_OK, tick(sign(ORIG_OK)), 'attic_not_inspected');
+    ok('remote: the inspected form sent as the not-inspected document type is refused', x.res.statusCode === 422 && x.tok.status === 'pending');
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });
