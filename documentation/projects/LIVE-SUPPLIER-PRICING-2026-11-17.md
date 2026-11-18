@@ -324,7 +324,10 @@ Not covered by the rep lock, and Jo's call (not changed here):
 - The legacy `priceBook/{companyId}` doc (Home Depot receipt prices, the old
   "Price book" button) is readable by every company member, a rep included. Its
   rule is pinned by `tests/price-book-2026-10-02.test.js`; changing it is a
-  deliberate re-pin.
+  deliberate re-pin. **Done 2026-11-18 (Jo: "Yes, lock reps out"):** the read rule
+  refuses a sales_rep, the pin now checks catalogCosts' rule plus that one clause,
+  and the Price book button hides for reps. Side effect: a rep's order screen no
+  longer lists the Home Depot SKUs bought for a lead (it reads the same doc).
 - `catalogCosts/{companyId}` (the cost book, where an approved supplier cost lands)
   is readable by every company member, as it has been since 2026-07.
 

@@ -97,7 +97,10 @@ console.log('D. cost data stays private');
   const m = rules.match(/match \/priceBook\/\{companyId\} \{([\s\S]*?)\n    \}/);
   const c = rules.match(/match \/catalogCosts\/\{companyId\} \{([\s\S]*?)\n    \}/);
   const strip = (t) => (t || '').split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n').replace(/\s+/g, ' ').trim();
-  ok('priceBook rules exist and match catalogCosts exactly (read + write split)', !!m && !!c && strip(m[1]) === strip(c[1]), strip(m && m[1]));
+  // Deliberate re-pin 2026-11-18 (Jo: reps never read a supplier price): the price book
+  // is catalogCosts' rule exactly, plus one clause that refuses a sales_rep the read.
+  const REP_CLAUSE = " && request.auth.token.get('role', '') != 'sales_rep';";
+  ok('priceBook rules are catalogCosts\' (read + write split) plus the no-sales_rep read clause', !!m && !!c && strip(m[1]) === strip(c[1]).replace(/(allow read: if [^;]*);/, '$1' + REP_CLAUSE.replace(/\s+/g, ' ').replace(/^ /, ' ')), strip(m && m[1]));
   ok('price-book.js carries no seeded prices (no cents literals in data)', !/lastPaidCents:\s*\d/.test(read('docs/pro/js/price-book.js')));
 }
 

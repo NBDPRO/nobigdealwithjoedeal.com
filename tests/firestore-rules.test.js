@@ -3173,7 +3173,8 @@ async function run() {
   const BOOK = { items: { homedepot_100318 : { store: 'homedepot', sku: '100318', lastPaidCents: 3498, lastPaidDate: '2026-09-28', history: [] } } };
   await x44('owner (uid = company key) writes the book', 'allow', setDoc(doc(own44, 'priceBook/co-44'), BOOK));
   await x44('company_admin writes it', 'allow', setDoc(doc(cadm44, 'priceBook/co-44'), BOOK, { merge: true }));
-  await x44('sales rep reads it', 'allow', getDoc(doc(rep44, 'priceBook/co-44')));
+  // 2026-11-18 (Jo): reps never read a supplier price, the old price book included.
+  await x44('sales rep can not read it', 'deny', getDoc(doc(rep44, 'priceBook/co-44')));
   await x44('viewer reads it', 'allow', getDoc(doc(view44, 'priceBook/co-44')));
   await x44('sales rep writes it', 'deny', setDoc(doc(rep44, 'priceBook/co-44'), BOOK, { merge: true }));
   await x44('viewer writes it', 'deny', setDoc(doc(view44, 'priceBook/co-44'), BOOK, { merge: true }));

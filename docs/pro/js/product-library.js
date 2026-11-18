@@ -738,7 +738,7 @@
           <div class="plx-row8">${editable ? `
             <button data-pl-action="addProduct" class="plx-btn-add">+ Add Product</button>
 ` : ''}
-            <button type="button" class="btn btn-ghost" data-pb-action="open" title="What you actually paid, per store SKU">💲 Price book</button>${(window.NBDPriceLedger && window.NBDPriceLedger.enabled() && window.NBDPriceLedger.canRecord()) ? `
+            ${(window._userClaims || {}).role !== 'sales_rep' ? `<button type="button" class="btn btn-ghost" data-pb-action="open" title="What you actually paid, per store SKU">💲 Price book</button>` : ''}${(window.NBDPriceLedger && window.NBDPriceLedger.enabled() && window.NBDPriceLedger.canRecord()) ? `
             <button type="button" class="btn btn-ghost" data-prl-action="openUnlinked" title="Receipt items not linked to a product yet">Unlinked items</button>` : ''}${prlAdmin ? `
             <button type="button" class="btn btn-ghost" data-pri-action="open" title="A supplier's quote, price sheet or invoice as a CSV file">Import prices</button>
             <button type="button" class="btn btn-ghost" data-prc-action="open" title="Price moves and cheaper suppliers">Compare suppliers <span class="prc-count" data-prc-count hidden></span></button>` : ''}
