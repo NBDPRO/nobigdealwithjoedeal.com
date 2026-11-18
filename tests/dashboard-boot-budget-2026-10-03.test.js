@@ -444,8 +444,10 @@ if (!SHIPPED_GATES) {
 // readable local history ceiling was already exceeded on main (2516548 B vs 2455 KB) and measures 2548540 B
 // (2488.8 KB) combined: 2455 -> 2491 KB. Rounded up to the next KB plus 2 KB. Each listed PR should drop its own
 // per-PR raise on rebase.
+// deliberate raise 2026-11-18 (attic acknowledgment, phase 3): attic-panel.js, attic-ack.js, attic-ack-text.js (lazy docgen group,
+// dark behind docAtticAckV1) + the signature widget's tick controls: shipped local 1370 -> 1385 KB.
 const CUSTOMER_CEILING = { localScripts: 128, blockingScripts: 1, htmlBytes: 196 * 1024,
-  localBytes: 2491 * 1024, blockingBytes: 29 * 1024, shippedLocalBytes: 1370 * 1024, shippedBlockingBytes: 16 * 1024 };
+  localBytes: 2491 * 1024, blockingBytes: 29 * 1024, shippedLocalBytes: 1385 * 1024, shippedBlockingBytes: 16 * 1024 };
 // +1 KB shipped, deliberate (2026-11-18, evidence and clause foundation): company-profile.js carries the three legal-entity
 // defaults (entityName, dbaName, signerTitle), ~0.4 KB minified. No new tag; doc-send-checks.js rides the lazy docgen bundle. Own line.
 console.log('\nCUSTOMER PAGE BOOT BUDGET (docs/pro/customer.html)');
