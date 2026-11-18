@@ -661,7 +661,8 @@
         const colorCount = p.colors ? p.colors.length : 0;
         const hasLabor = p.labor && p.labor.perUnit > 0;
         productsHtml += `
-          <div class="pl-card plx-card">
+          <div class="pl-card plx-card">${(window.NBDPriceLedger && window.NBDPriceLedger.enabled()) ? `
+            <div class="prl-card-photo" data-prl-card-photo="${escapeHtml(p.id)}" hidden></div>` : ''}
             <div class="plx-card-head">
               <div class="plx-grow">
                 <div class="plx-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
@@ -707,7 +708,7 @@
                 : NOT_SET}</div>
               <div class="plx-row6">${editable ? `
                 <button class="pl-card-btn plx-btn-edit" data-pl-action="editProduct" data-pl-id="${escapeHtml(p.id)}">Edit</button>
-                <button class="pl-card-btn plx-btn-ghost" data-pl-action="archiveProduct" data-pl-id="${escapeHtml(p.id)}">Archive</button>` : ''}${(window.NBDPriceLedger && window.NBDPriceLedger.enabled()) ? `
+                <button class="pl-card-btn plx-btn-ghost" data-pl-action="archiveProduct" data-pl-id="${escapeHtml(p.id)}">Archive</button>` : ''}${(window.NBDPriceLedger && window.NBDPriceLedger.enabled() && window.NBDPriceLedger.canRecord()) ? `
                 <button class="pl-card-btn plx-btn-ghost prl-card-btn" data-prl-action="openProduct" data-prl-id="${escapeHtml(p.id)}">Stores &amp; prices</button>` : ''}
               </div>
             </div>
@@ -737,7 +738,7 @@
           <div class="plx-row8">${editable ? `
             <button data-pl-action="addProduct" class="plx-btn-add">+ Add Product</button>
 ` : ''}
-            <button type="button" class="btn btn-ghost" data-pb-action="open" title="What you actually paid, per store SKU">💲 Price book</button>${(window.NBDPriceLedger && window.NBDPriceLedger.enabled()) ? `
+            <button type="button" class="btn btn-ghost" data-pb-action="open" title="What you actually paid, per store SKU">💲 Price book</button>${(window.NBDPriceLedger && window.NBDPriceLedger.enabled() && window.NBDPriceLedger.canRecord()) ? `
             <button type="button" class="btn btn-ghost" data-prl-action="openUnlinked" title="Receipt items not linked to a product yet">Unlinked items</button>` : ''}${prlAdmin ? `
             <button type="button" class="btn btn-ghost" data-pri-action="open" title="A supplier's quote, price sheet or invoice as a CSV file">Import prices</button>
             <button type="button" class="btn btn-ghost" data-prc-action="open" title="Price moves and cheaper suppliers">Compare suppliers <span class="prc-count" data-prc-count hidden></span></button>` : ''}

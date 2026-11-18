@@ -17,6 +17,8 @@
  *   estimateFollowBoard → estimatefollowboard (js/estimate-follow-board.js)
  *   followUpBoard       → followupboard       (estimate board, logic, screen,
  *                                              Thumbtack opportunities cards)
+ *   supplierPricing     → supplierpricing     (js/price-materials.js: the materials
+ *                                              list at the company's suppliers, 2026-11-18)
  *
  * Each feature keeps its own flag check, role check and button sync, so with
  * the flag off nothing changes: the toolbar button stays hidden and no code
@@ -46,7 +48,8 @@
       'js/follow-up-board.js?v=2',
       'js/opp-approval-logic.js?v=1',
       'js/opp-approval.js?v=1'
-    ]
+    ],
+    supplierpricing: ['js/price-materials.js?v=2']
   };
   var FLAG_BUNDLES = {
     bulkCloseStaleLeads: 'staleleads',
@@ -54,7 +57,8 @@
     speedToLead: 'speedtolead',
     reputationLoop: 'reputation',
     estimateFollowBoard: 'estimatefollowboard',
-    followUpBoard: 'followupboard'
+    followUpBoard: 'followupboard',
+    supplierPricing: 'supplierpricing'
   };
   var requested = {};
 

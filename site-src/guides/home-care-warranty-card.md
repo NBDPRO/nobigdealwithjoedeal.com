@@ -65,7 +65,7 @@ Hail and high wind leave clues you can see from the ground. Before anything gets
 - [ ] Siding cracked, chipped or holed on the side the storm came from.
 - [ ] New water stains on ceilings, or damp spots in the attic.
 
-Then call or text me. Whether insurance covers it depends on your policy and the damage. I'll tell you honestly if it's worth a claim.
+Then call or text me. Whether insurance covers it depends on your policy and the damage. I document the damage with photos so you can decide whether to file a claim.
 
 # Your warranty, plainly
 

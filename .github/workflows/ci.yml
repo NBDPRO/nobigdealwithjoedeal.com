@@ -664,6 +664,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only storage --project nbd-subpapers-test 'node storage-rules.sub-papers.test.js'
+      # Product photos (2026-11-18, supplier price ledger): product-photos/{companyId}/ is read by the company's staff and reps, written only by the server. Own file (positive control inside).
+      - name: Run product-photos storage rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only storage --project nbd-prodphotos-test 'node storage-rules.product-photos.test.js'
       # Apple Health weight Shortcut (2026-10-20): health_shortcut_keys / health_shortcut_state / system flag are Admin-SDK only. Own file (positive controls inside).
       - name: Run health-shortcut rules tests under emulator
         run: |

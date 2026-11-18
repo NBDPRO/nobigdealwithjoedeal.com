@@ -51,6 +51,17 @@ const profileRef = (db, companyId) => db.doc('companyProfile/' + companyId);
 const PRODUCT_ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
 // The fields an approval or an undo owns on a productLinks doc; anything else there (a later slice's photo) is kept.
 const LINK_FIELDS = ['productId', 'preferredOfferId', 'applied', 'updatedAt', 'updatedBy'];
+// Product photos (2026-11-18): the fields a photo save owns on a productLinks doc, the size cap and the long edge.
+const PHOTO_LINK_FIELDS = ['productId', 'photo', 'updatedAt', 'updatedBy'];
+const PHOTO_MAX_BYTES = 3 * 1024 * 1024;
+const PHOTO_EDGE = 640;
+/** The bytes of a data: URL for a raster image (PNG, JPEG, WebP, GIF), or null. */
+function decodePhoto(dataUrl) {
+  const m = String(dataUrl == null ? '' : dataUrl).match(/^data:image\/(?:png|jpeg|jpg|webp|gif);base64,([A-Za-z0-9+/=\s]+)$/);
+  if (!m) return null;
+  const buf = Buffer.from(m[1].replace(/\s+/g, ''), 'base64');
+  return buf.length ? buf : null;
+}
 let SEED = null;
 const seed = () => (SEED || (SEED = require('./product-seed-public.json')));
 
@@ -628,6 +639,61 @@ const saveOps = {
       }, { mergeFields: LINK_FIELDS });
       return { ok: true, id: audit.id, applied: [{ tier, dollars: back, fromDollars: cur, undo: true }] };
     });
+  },
+
+  /**
+   * Product photos (2026-11-18, Jo: owner and admins add them; shown on the product
+   * card and the Stores & prices sheet, inside the CRM only). data: { target:
+   * 'product' | 'offer', id, image: 'data:image/...;base64,...' } to add or replace,
+   * or { target, id, remove: true }. The image is re-encoded on the server (proves it
+   * is an image, drops EXIF and GPS, at most 640 px, WebP) and stored at
+   * product-photos/{companyId}/{id}/{sha}.webp. A product's photo lives on
+   * productLinks/{productId}.photo (never on the product row), an item's on the
+   * offer. The replaced file is deleted. Never a download URL: the screen reads it
+   * with getBlob.
+   */
+  async savePhoto(db, companyId, data, caller, nowMs) {
+    assertCompany(companyId);
+    data = data || {};
+    const target = data.target, id = data.id;
+    if (target !== 'product' && target !== 'offer') return bad('bad_photo_target');
+    if (typeof id !== 'string' || !(target === 'product' ? PRODUCT_ID_RE : ID_RE).test(id)) return bad('not_found');
+    let ref, prev = null;
+    if (target === 'offer') {
+      const snap = await readOffer(db, companyId, id);
+      if (!snap) return bad('not_found');
+      ref = snap.ref; prev = (snap.data() || {}).photo || null;
+    } else {
+      const lib = await libraryRef(db, companyId).get();
+      if (!productOf(id, lib.exists ? (lib.data() || {}) : null)) return bad('bad_product');
+      ref = linkRef(db, companyId, id);
+      const cur = await ref.get();
+      prev = cur.exists ? ((cur.data() || {}).photo || null) : null;
+    }
+    let photo = null;
+    if (data.remove !== true) {
+      const raw = decodePhoto(data.image);
+      if (!raw) return bad('photo_bad');
+      if (raw.length > PHOTO_MAX_BYTES) return bad('photo_too_big');
+      let out;
+      try {
+        out = await require('./photo-reencode').reencodePhoto(raw, 'webp', { maxEdge: PHOTO_EDGE });
+      } catch (e) { return bad('photo_bad'); }
+      let w = null, h = null;
+      try { const meta = await require('sharp')(out).metadata(); w = meta.width || null; h = meta.height || null; } catch (_) { /* size is only for layout */ }
+      const sha = require('crypto').createHash('sha256').update(out).digest('hex').slice(0, 32);
+      const path = 'product-photos/' + companyId + '/' + id + '/' + sha + '.webp';
+      await require('firebase-admin/storage').getStorage().bucket().file(path).save(out, { resumable: false, contentType: 'image/webp', metadata: { cacheControl: 'private, max-age=86400' } });
+      photo = { path, w, h, atMs: nowMs, by: caller.uid };
+    }
+    if (target === 'offer') await ref.update(Object.assign({ photo }, stamp(caller)));
+    else await ref.set({ productId: id, photo, updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid }, { mergeFields: PHOTO_LINK_FIELDS });
+    // The file it replaced (or the one removed): best effort, the new pointer is already written.
+    if (prev && typeof prev.path === 'string' && (!photo || prev.path !== photo.path) && prev.path.indexOf('product-photos/' + companyId + '/' + id + '/') === 0) {
+      try { await require('firebase-admin/storage').getStorage().bucket().file(prev.path).delete({ ignoreNotFound: true }); } catch (_) { /* an orphan file is harmless: nothing points at it */ }
+    }
+    await writeAudit(db, companyId, { type: photo ? 'photo_saved' : 'photo_removed', targetType: target, targetId: id, detail: { w: photo ? photo.w : null, h: photo ? photo.h : null }, actor: caller });
+    return { ok: true, id };
   },
 
   async voidObservation(db, companyId, data, caller, nowMs) {
