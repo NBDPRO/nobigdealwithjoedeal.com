@@ -100,7 +100,7 @@ console.log('\nFIRESTORE_FLAGS — dark feature_flags names registered with an e
 {
   const FF = REG.FIRESTORE_FLAGS || [];
   const optRules = require(path.join(FN_DIR, 'opp-rules.js'));
-  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair, supplierPricing and docEvidenceFoundation', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend', 'supplierPricing', 'docEvidenceFoundation']));
+  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair, supplierPricing, docEvidenceFoundation and docClauseSetV1', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend', 'supplierPricing', 'docEvidenceFoundation', 'docClauseSetV1']));
   const priceLogic = require(path.join(FN_DIR, 'price-logic.js'));
   ok('the code agrees with the registry: price-logic.js exports supplierPricing, default false', priceLogic.FLAG_NAME === 'supplierPricing' && priceLogic.FLAG_DEFAULT === false);
   ok('every Firestore flag defaults to false and ships dark', FF.every((f) => f.default === false && f.dark === true));
@@ -117,7 +117,7 @@ console.log('\nFIRESTORE_FLAGS — dark feature_flags names registered with an e
 {
   const FF = REG.FIRESTORE_FLAGS || [];
   const optRules = require(path.join(FN_DIR, 'opp-rules.js'));
-  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair, supplierPricing and docEvidenceFoundation', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend', 'supplierPricing', 'docEvidenceFoundation']));
+  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair, supplierPricing, docEvidenceFoundation and docClauseSetV1', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend', 'supplierPricing', 'docEvidenceFoundation', 'docClauseSetV1']));
   const priceLogic = require(path.join(FN_DIR, 'price-logic.js'));
   ok('the code agrees with the registry: price-logic.js exports supplierPricing, default false', priceLogic.FLAG_NAME === 'supplierPricing' && priceLogic.FLAG_DEFAULT === false);
   ok('every Firestore flag defaults to false and ships dark', FF.every((f) => f.default === false && f.dark === true));
@@ -134,7 +134,7 @@ console.log('\nFIRESTORE_FLAGS — dark feature_flags names registered with an e
 {
   const FF = REG.FIRESTORE_FLAGS || [];
   const optRules = require(path.join(FN_DIR, 'opp-rules.js'));
-  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair, supplierPricing and docEvidenceFoundation', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend', 'supplierPricing', 'docEvidenceFoundation']));
+  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair, supplierPricing, docEvidenceFoundation and docClauseSetV1', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend', 'supplierPricing', 'docEvidenceFoundation', 'docClauseSetV1']));
   const priceLogic = require(path.join(FN_DIR, 'price-logic.js'));
   ok('the code agrees with the registry: price-logic.js exports supplierPricing, default false', priceLogic.FLAG_NAME === 'supplierPricing' && priceLogic.FLAG_DEFAULT === false);
   ok('every Firestore flag defaults to false and ships dark', FF.every((f) => f.default === false && f.dark === true));
@@ -151,7 +151,7 @@ console.log('\nFIRESTORE_FLAGS — dark feature_flags names registered with an e
 {
   const FF = REG.FIRESTORE_FLAGS || [];
   const optRules = require(path.join(FN_DIR, 'opp-rules.js'));
-  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair, supplierPricing and docEvidenceFoundation', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend', 'supplierPricing', 'docEvidenceFoundation']));
+  ok('FIRESTORE_FLAGS lists exactly the Thumbtack Opportunities pair, supplierPricing, docEvidenceFoundation and docClauseSetV1', JSON.stringify(FF.map((f) => f.name)) === JSON.stringify(['thumbtackOpportunities', 'thumbtackOppSend', 'supplierPricing', 'docEvidenceFoundation', 'docClauseSetV1']));
   const priceLogic = require(path.join(FN_DIR, 'price-logic.js'));
   ok('the code agrees with the registry: price-logic.js exports supplierPricing, default false', priceLogic.FLAG_NAME === 'supplierPricing' && priceLogic.FLAG_DEFAULT === false);
   ok('every Firestore flag defaults to false and ships dark', FF.every((f) => f.default === false && f.dark === true));

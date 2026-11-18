@@ -29,6 +29,8 @@ const Checks = require('./doc-send-checks');
 
 const FLAG_NAME = 'docEvidenceFoundation';
 const FLAG_DEFAULT = false;
+// Phase 2 (2026-11-18): print the clause set v1 on the contract-class paths. Per person, default OFF.
+const CLAUSE_FLAG_NAME = 'docClauseSetV1';
 
 // The platform tenant's legal entity (company-profile.js brand.entityName default,
 // the same string). A tenant key-less record, or the NBD owner's, is NBD's; any
@@ -37,9 +39,9 @@ const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1
 const NBD_ENTITY_NAME = 'No Big Deal Solutions LLC';
 
 /** Only the boolean true turns the flag on; per-person overrides the default doc. */
-function flagOn(flagsDefault, flagsMine) {
+function flagOn(flagsDefault, flagsMine, name) {
   const merged = Object.assign({}, flagsDefault || {}, flagsMine || {});
-  return merged[FLAG_NAME] === true;
+  return merged[name || FLAG_NAME] === true;
 }
 
 /**
@@ -58,7 +60,7 @@ async function flagForUid(db, uid, opts) {
     if (flagDocId) reads.push(strict ? db.doc('feature_flags/' + flagDocId).get() : db.doc('feature_flags/' + flagDocId).get().catch(() => null));
     const snaps = await Promise.all(reads);
     const docs = snaps.map((s) => (s && s.exists ? (s.data() || {}) : {}));
-    return flagOn(docs[0], docs[1]);
+    return flagOn(docs[0], docs[1], opts && opts.flag);
   } catch (e) { if (strict) throw e; return false; }
 }
 
@@ -193,7 +195,11 @@ function estimateCents(est) {
   return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
 }
 
+/** Is the clause-set v1 flag on for this person? An unreadable flag reads OFF (it only adds text; the send gate is the other flag). */
+function clauseFlagForUid(db, uid) { return flagForUid(db, uid, { flag: CLAUSE_FLAG_NAME }); }
+
 module.exports = {
+  CLAUSE_FLAG_NAME, clauseFlagForUid,
   FLAG_NAME, FLAG_DEFAULT, NBD_ENTITY_NAME, CLAUSE_SET_VERSION: ClauseSet.CLAUSE_SET_VERSION,
   flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
   serverContractGaps, estimateCents, isContractClass: Checks.isContractClass,
