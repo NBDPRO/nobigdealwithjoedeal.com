@@ -160,6 +160,21 @@ async function runIngest({ db, bucket, live, nowMs, feed }) {
   const counts = { folders: scan.length, seen: 0, fresh: 0, stored: 0, skipped: 0, failed: 0, buckets: {} };
   let cursor = startCursor;
   let budget = MAX_FILES_PER_RUN;
+  // A re-upload (Cube ACR "Force backup") is a new Drive id for a call already
+  // filed: matched by file name for this owner and day. One read per day, only
+  // when that day has a fresh file. A failed read files it (never lose a call).
+  const namesByDay = new Map();
+  async function filedNames(ymd) {
+    if (!namesByDay.has(ymd)) {
+      const set = new Set();
+      try {
+        (await db.collection(COLLECTION).where('userId', '==', fd.owner).where('ymd', '==', ymd).get())
+          .forEach((s) => { const n = (s.data() || {}).fileName; if (n) set.add(n); });
+      } catch (_) { /* no guard this run */ }
+      namesByDay.set(ymd, set);
+    }
+    return namesByDay.get(ymd);
+  }
 
   // One day folder: file what's new; true when every recording in it is done.
   // loose = the top folder itself (2026-11-18: Cube ACR started uploading
@@ -185,6 +200,7 @@ async function runIngest({ db, bucket, live, nowMs, feed }) {
       counts.seen++;
       const docRef = refs[i];
       if (have.has(docRef.id)) continue;
+      if ((await filedNames(parsed.ymd)).has(f.name)) { counts.reuploaded = (counts.reuploaded || 0) + 1; continue; }
       // Too big to copy is permanent, not a retry: log it and move on, so it
       // never holds its day (and every day after it) open.
       if (Number(f.size) > MAX_BYTES) {
