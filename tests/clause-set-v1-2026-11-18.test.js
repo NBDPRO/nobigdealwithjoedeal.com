@@ -249,8 +249,10 @@ function section(name) { console.log('\n' + name); }
     // company-profile.js: defaults, and the tenant blanking
     const D = on.win.NBD_COMPANY_PROFILE_DEFAULTS;
     ok('company-profile.js paymentTerms defaults equal the registry\'s NBD defaults', JSON.stringify(D.paymentTerms) === JSON.stringify(CS.NBD_PAYMENT_TERMS_DEFAULTS));
-    ok('_legal() blanks the numbers for a non-NBD tenant that kept the defaults, keeps the ones it changed', (() => {
-      const w = ten.win; w._companyProfile = Object.assign({}, w.NBD_COMPANY_PROFILE_DEFAULTS, { brand: Object.assign({}, w.NBD_COMPANY_PROFILE_DEFAULTS.brand, { legalName: 'Oaks Roofing' }), paymentTerms: Object.assign({}, D.paymentTerms, { lateGraceDays: 20 }) });
+    // Review 2026-11-18, item 2: blank by tenant identity (the fields the tenant wrote), never by value.
+    await ten.win._saveCompanyProfile({ brand: { legalName: 'Oaks Roofing' }, paymentTerms: { lateGraceDays: 20 } });
+    ok('_legal() blanks the numbers for a non-NBD tenant that did not set them, keeps the ones it set', (() => {
+      const w = ten.win;
       const pt = w._legal().paymentTerms;
       return pt.lateGraceDays === 20 && pt.lateInterestPct === null && pt.restockPct === null && w._legal().paymentTerms.deckingPerSheetCents === null;
     })());
