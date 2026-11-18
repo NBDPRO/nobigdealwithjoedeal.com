@@ -33,6 +33,7 @@ function ok(name, cond, detail) {
 function section(name) { console.log('\n' + name); }
 
 const REROOF = { grandTotal: 14500, rows: [{ code: 'LAB TO1' }] };
+const ON_OWNER = { _default: {}, CO: { docAtticAckV1: true } };
 const lead = (extra) => Object.assign({ userId: 'REP', companyId: 'CO', firstName: 'Dana', lastName: 'Whitfield', email: 'dana@example.test', address: '12 Oak St, Cincinnati, OH 45202', jobType: 'cash' }, extra || {});
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 // A signature the way signing writes it: the canvas becomes the image, the controls become the date line, the block is marked finalized.
@@ -215,6 +216,59 @@ const generated = async (docType, extraData) => {
     // a blank signer left unsigned keeps the controls and the widget's own button (in-person, one of two signed)
     const half = tick(GEN.replace(/<canvas class="nbd-sig-canvas"><\/canvas>/, '<img src="' + PNG + '" alt="Homeowner" class="nbd-sig-img" style="max-width:100%;height:auto;display:block;background:#fff;">').replace('<span class="nbd-sig-state">', '<button type="button" data-nbd-sig-action="use-saved">Use saved</button><span class="nbd-sig-state">'));
     ok('a copy with one signer still blank (controls and the Use saved button kept) is accepted', AG.verifyManifest('attic_acknowledgment', half, { signed: true }).ok === true, JSON.stringify(AG.verifyManifest('attic_acknowledgment', half, { signed: true }).reasons));
+  }
+
+  // ═══════════════════════════════════════════════════════
+  section('4. flag OFF: the deal mint reads no lead for attic purposes (and still refuses on a failed read when the flag is on)');
+  {
+    const CS = require(path.join(FN, 'clause-set.js'));
+    const DEAL_PATH = 'deal_rooms/REP/deal0001.html';
+    const REALD = ['./cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', './lead-artifact-paths', './await-briefly', './portal-after-signing', './signed-price', './customer-estimate-rows', './doc-send-checks', './attic-gate', './attic-ack', 'crypto'];
+    const stubsD = () => ({
+      './deal-install-date': { fillLeadInstallDate: async () => null },
+      './deal-view-logic': { isPreviewBot: () => false, shouldNotifyView: () => false, viewMessage: () => ({ title: '', body: '' }) },
+      './estimate-send-logic': {}, './thursday-video-gate': { isNbdTenant: () => false, DEAL_ROOM_INJECT: '', DEAL_ROOM_SCRIPT_PATH: '/x.js' },
+      './deal-accepted-tier': { applyAcceptedTier: async () => {}, dealTierPrices: (t) => t },
+      './ky-insurance-law': K, './cancel-window': require(path.join(FN, 'cancel-window.js')), './esign-logic': ESL, './doc-evidence': DE,
+    });
+    const PAGE = '<html><head></head><body><p>Your roof.</p><div class="section-title">Sign &amp; Schedule</div><div class="sign-section">sign</div></body></html>';
+    const mintDeal = async (flags, o) => {
+      const x = o || {};
+      const s = {
+        'deal_rooms/deal0001': { status: 'sent', userId: 'REP', customerName: 'Dana Whitfield', tiers: { better: { price: 13000 } }, leadId: 'L1', estimateId: 'E1' },
+        'companyProfile/CO': { paymentTerms: Object.assign({}, CS.NBD_PAYMENT_TERMS_DEFAULTS, { deckingPerSheetCents: 10000 }) },
+        'leads/L1': lead({ address: '12 Oak St, Covington, KY 41011', jobType: 'insurance', primaryEstimateId: 'E1' }), 'estimates/E1': Object.assign({ userId: 'REP' }, REROOF),
+      };
+      Object.entries(flags || {}).forEach(([id, v]) => { s['feature_flags/' + id] = v; });
+      const db = kit.makeDb(s);
+      let leadReads = 0;
+      const realDoc = db.doc;
+      db.doc = (p) => {
+        const ref = realDoc(p);
+        if (p !== 'leads/L1') return ref;
+        return Object.assign({}, ref, { get: async () => { leadReads++; if (x.failLeadReadAfter != null && leadReads > x.failLeadReadAfter) throw new Error('unavailable'); return ref.get(); } });
+      };
+      const L = kit.loadHandler('deal-acceptance.js', db, kit.makeStorage({ [DEAL_PATH]: PAGE }), stubsD(), REALD);
+      try { return { v: await L.fns.createDealAcceptToken({ auth: { uid: 'REP', token: { companyId: 'CO', role: 'sales_rep' } }, data: { dealId: 'deal0001' } }), db, reads: () => leadReads }; } catch (e) { return { e, db, reads: () => leadReads }; }
+    };
+    const minted = (db) => db._all('deal_accept_tokens').length;
+    let r = await mintDeal({ _default: {} }, { failLeadReadAfter: 1 });
+    ok('FLAG OFF: a lead that cannot be read a second time does not stop the mint (it is read once, as on main)', !!r.v && minted(r.db) === 1 && r.reads() === 1, (r.e && r.e.message) + ' reads=' + r.reads());
+    r = await mintDeal({ _default: {} });
+    ok('FLAG OFF: the lead is read exactly once', !!r.v && r.reads() === 1, 'reads=' + r.reads());
+    r = await mintDeal(ON_OWNER, { failLeadReadAfter: 1 });
+    ok('FLAG ON: the gate reads no lead of its own either (one read; the mint is then refused only for the missing signed form)', r.reads() === 1 && !!r.e && r.e.code === 'failed-precondition' && minted(r.db) === 0, (r.e && r.e.code) + ' reads=' + r.reads());
+    // a failed read inside the gate still refuses, with the retryable message (never passes)
+    {
+      const dbx = kit.makeDb({ 'deal_rooms/deal0001': { status: 'sent', userId: 'REP', customerName: 'Dana Whitfield', tiers: { better: { price: 13000 } }, leadId: 'L1', estimateId: 'E1' },
+        'companyProfile/CO': { paymentTerms: Object.assign({}, CS.NBD_PAYMENT_TERMS_DEFAULTS, { deckingPerSheetCents: 10000 }) },
+        'leads/L1': lead({ primaryEstimateId: 'E1' }), 'estimates/E1': Object.assign({ userId: 'REP' }, REROOF), 'feature_flags/CO': { docAtticAckV1: true } });
+      const realCol = dbx.collection;
+      dbx.collection = (c) => (c === 'attic_overrides' ? { where: () => ({ get: async () => { throw new Error('unavailable'); } }) } : realCol(c));
+      const L = kit.loadHandler('deal-acceptance.js', dbx, kit.makeStorage({ [DEAL_PATH]: PAGE }), stubsD(), REALD);
+      let e; try { await L.fns.createDealAcceptToken({ auth: { uid: 'REP', token: { companyId: 'CO', role: 'sales_rep' } }, data: { dealId: 'deal0001' } }); } catch (x2) { e = x2; }
+      ok('FLAG ON: the overrides the gate cannot read fail closed (unavailable) and no link is minted', !!e && e.code === 'unavailable' && dbx._all('deal_accept_tokens').length === 0, e && e.code);
+    }
   }
 
   console.log('\n' + (failed ? 'FAILED ' + failed + ': ' + fails.join(' | ') : 'all ok') + ' (' + passed + ' passed)');
