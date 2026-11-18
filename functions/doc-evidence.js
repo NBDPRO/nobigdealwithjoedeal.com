@@ -206,9 +206,20 @@ function buildClauseSet(KyLaw, lead, est, profile, tenantKey, facts, printed) {
     state: ctx.state, paymentSource: ctx.paymentSource,
     terms: ClauseSet.paymentTermsFor(p.paymentTerms, nbd),
     party: ClauseSet.partyFor(brand, nbd),
-    facts: Object.assign({ companyPhone: phone }, facts || {}),
+    // Review 2026-11-18, item 7: user-supplied facts carry no scannable {{token}} into the document.
+    facts: Object.assign({ companyPhone: ClauseSet.plain(phone) }, safeFacts(facts)),
     printed: printed || undefined,
   });
+}
+
+/** The job facts with every string made token-safe (ClauseSet.plain); non-strings (milestones) pass through. */
+function safeFacts(facts) {
+  const out = {};
+  Object.keys(facts || {}).forEach((k) => {
+    const v = facts[k];
+    out[k] = typeof v === 'string' ? ClauseSet.plain(v) : (Array.isArray(v) ? v.map((x) => (typeof x === 'string' ? ClauseSet.plain(x) : x)) : v);
+  });
+  return out;
 }
 
 /** buildClauseSet for a callable: a refusal becomes a failed-precondition HttpsError (HttpsError is passed in). */

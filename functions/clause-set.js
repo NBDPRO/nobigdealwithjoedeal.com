@@ -216,24 +216,30 @@
     return '$' + d + '.' + ('0' + (n % 100)).slice(-2);
   }
   var ENT_TOKEN = '{{entity}}';
+  // ONE pass over the TEMPLATE text (review 2026-11-18, item 7). A value (a name, an address) is inserted once and
+  // never rescanned, so a name typed as a token cannot expand, and the word NBD inside a name is not rewritten: the
+  // defined term NBD -> Contractor is applied to the template BEFORE any value goes in, and replacements are
+  // functions, so a dollar-ampersand in a name prints as typed.
+  function _reEsc(s) { return String(s).replace(/[.*+?^$()|[\]{}\\]/g, '\\$&'); }
+  var FILL_TOKENS = '\\{\\{cfg(\\$?):([A-Za-z]+)\\}\\}|\\{\\{(owner name\\(s\\)|property address|date|company phone|entity)\\}\\}';
   function _fill(text, terms, facts, party) {
-    var s = text.replace(/\{\{cfg(\$?):([A-Za-z]+)\}\}/g, function (m, money, k) {
-      if (!_numOk(terms[k], k)) return '{{' + k + '}}';
-      return money ? _money(terms[k]) : String(terms[k]);
-    });
     var f = facts || {};
     var ms = f.milestones && f.milestones.length ? f.milestones.join(', ') : null;
-    if (ms) s = s.replace(TX.MILESTONES, ms);
-    s = s.split('{{owner name(s)}}').join(f.ownerNames == null ? '{{owner name(s)}}' : f.ownerNames)
-      .split('{{property address}}').join(f.propertyAddress == null ? '{{property address}}' : f.propertyAddress)
-      .split('{{date}}').join(f.date == null ? '{{date}}' : f.date)
-      .split('{{company phone}}').join(f.companyPhone || '{{company phone}}')
-      .split(ENT_TOKEN).join(party && party.entity ? party.entity : ENT_TOKEN);
-    // A tenant's paper never names NBD: the defined term becomes "Contractor".
-    if (party && !party.isNbd) s = s.replace(/\bNBD\b/g, 'Contractor');
-    return s;
+    var s = party && !party.isNbd ? String(text).replace(/\bNBD\b/g, 'Contractor') : String(text);
+    var re = new RegExp((ms && TX.MILESTONES ? '(' + _reEsc(TX.MILESTONES) + ')|' : '()') + FILL_TOKENS, 'g');
+    return s.replace(re, function (m, msTok, money, k, name) {
+      if (msTok) return ms;
+      if (k) return _numOk(terms[k], k) ? (money ? _money(terms[k]) : String(terms[k])) : '{{' + k + '}}';
+      if (name === 'owner name(s)') return f.ownerNames == null ? m : String(f.ownerNames);
+      if (name === 'property address') return f.propertyAddress == null ? m : String(f.propertyAddress);
+      if (name === 'date') return f.date == null ? m : String(f.date);
+      if (name === 'company phone') return f.companyPhone ? String(f.companyPhone) : m;
+      if (name === 'entity') return party && party.entity ? String(party.entity) : m;
+      return m;
+    });
   }
-
+  /** A user-supplied string made safe to carry into a document that is scanned for {{tokens}}: the braces are separated. */
+  function plain(v) { return String(v == null ? '' : v).split('{{').join('{\u200b{'); }
   /** The party block: names and the signature line, from the brand (no NBD names for another tenant). */
   function partyFor(brand, isNbd) {
     var b = brand || {};
@@ -322,6 +328,7 @@
     NBD_PAYMENT_TERMS_DEFAULTS: NBD_PAYMENT_TERMS_DEFAULTS,
     PT_FIELDS: PT_FIELDS,
     numOk: _numOk,
+    plain: plain,
     paymentTermsFor: paymentTermsFor,
     variantOf: variantOf,
     partyFor: partyFor,

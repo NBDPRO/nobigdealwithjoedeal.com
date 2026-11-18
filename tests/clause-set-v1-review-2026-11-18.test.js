@@ -215,6 +215,50 @@ function loadRegistry(textObj) {
     ok('the server sources read both flags through the strict gate', /clauseFlagForGate|flagForGate/.test(readRepo('functions/remote-signing.js')) && /clauseFlagForGate/.test(readRepo('functions/in-person-signing.js')));
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('7. {{...}} in user data: single-pass substitution, no self-expansion, no false refusal, NBD not rewritten in names');
+  {
+    const CS = require('../functions/clause-set.js');
+    const DE = require('../functions/doc-evidence.js');
+    const KyLaw = require('../functions/ky-insurance-law.js');
+    const CHK = require('../functions/doc-send-checks.js');
+    const base = { state: 'OH', paymentSource: 'cash', terms: CS.paymentTermsFor({}, true) };
+    const all = (r) => r.sections.concat(r.party ? [{ items: [r.party] }] : []).reduce((a, s) => a.concat(s.items.reduce((b, i) => b.concat(i.paragraphs), [])), []).join('\n');
+    // renderV1: a value is inserted once and never rescanned
+    const r1 = CS.renderV1(Object.assign({}, base, { party: CS.partyFor({}, true), facts: { ownerNames: '{{date}}', propertyAddress: '9 {{owner name(s)}} Way', date: 'November 18, 2026' } }));
+    const t1 = all(r1);
+    ok('renderV1: an owner named "{{date}}" is not expanded to the date', /\{\{date\}\}/.test(t1));
+    ok('renderV1: a property address containing "{{owner name(s)}}" is not expanded to the owner', /9 \{\{owner name\(s\)\}\} Way/.test(t1) && !/9 \{\{date\}\} Way/.test(t1));
+    // tenant: "NBD" in a party's own name is not rewritten
+    const r2 = CS.renderV1(Object.assign({}, base, { party: CS.partyFor({ entityName: 'NBD Roofing Co', legalName: 'NBD Roofing Co' }, false), facts: { ownerNames: 'NBD Smith', propertyAddress: '1 NBD Rd' } }));
+    const t2 = all(r2);
+    ok('a tenant\'s paper still says Contractor where the template said NBD', /Contractor/.test(t2));
+    ok('"NBD" inside a homeowner name or address is NOT rewritten to Contractor', /NBD Smith/.test(t2) && /1 NBD Rd/.test(t2), (t2.match(/.{20}(Contractor Smith|Contractor Rd).{10}/) || [''])[0]);
+    ok('"NBD" in the tenant\'s own entity name is not rewritten', /NBD Roofing Co/.test(t2));
+    // $-patterns in user data are text
+    const r3 = CS.renderV1(Object.assign({}, base, { party: CS.partyFor({}, true), facts: { ownerNames: "$& $1 $' $`", propertyAddress: 'x' } }));
+    ok('"$&" and "$1" in a name print as typed', all(r3).indexOf("$& $1 $' $`") !== -1);
+    // server entry: neutralised so a later scan or substitution cannot see a token
+    const lead = { address: H.OH_ADDR, jobType: 'cash', companyId: 'tenantX' };
+    const cs = DE.buildClauseSet(KyLaw, lead, {}, { brand: { entityName: 'Acme LLC', legalName: 'Acme' } }, 'tenantX', { ownerNames: '{{date}}', propertyAddress: '2 {{address}} St', date: 'November 18, 2026' });
+    const html = DE.clauseSetHtml(cs);
+    ok('server: the clause block carries the name but no scannable {{token}} from it', CHK.placeholdersIn(html).filter((x) => /date|address/.test(x)).length === 0, JSON.stringify(CHK.placeholdersIn(html)));
+    ok('server: the name is still there to read (only the braces are separated)', /\{​\{date\}\}/.test(html) || /\{​\{date/.test(html));
+    ok('server: an ordinary name is untouched', DE.buildClauseSet(KyLaw, lead, {}, {}, 'tenantX', { ownerNames: 'Jane Smith', propertyAddress: '1 Elm St' }).sections.length > 0
+      && /Jane Smith/.test(all(DE.buildClauseSet(KyLaw, lead, {}, {}, 'tenantX', { ownerNames: 'Jane Smith', propertyAddress: '1 Elm St' }))));
+    // client: mergeFields is single-pass, and the send gate sees no false placeholder
+    const env = H.docs({ flags: { docClauseSetV1: true, docEvidenceFoundation: true } });
+    const v = H.VARIANTS.oh_cash;
+    const plain = H.render(env, 'renderContract', v);
+    const evil = H.render(env, 'renderContract', v, { homeownerName: '{{address}}', phone: '{{date}}' });
+    const addrCount = (s) => s.split(H.OH_ADDR).length - 1;
+    ok('client: a homeowner named "{{address}}" does not expand to the property address', addrCount(evil) === addrCount(plain), addrCount(evil) + ' vs ' + addrCount(plain));
+    ok('client: the evil name is printed, not dropped', /\{​\{address\}\}/.test(evil));
+    ok('client: no scannable {{address}} or {{date}} token left from user data', CHK.placeholdersIn(evil).filter((x) => /address|date/.test(x)).length === 0, JSON.stringify(CHK.placeholdersIn(evil)));
+    const dollar = H.render(env, 'renderContract', v, { homeownerName: "A $& B" });
+    ok('client: "$&" in a name prints as typed (no replacement-pattern expansion)', dollar.indexOf('A $&amp; B') !== -1);
+  }
+
   // @@SECTIONS@@
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

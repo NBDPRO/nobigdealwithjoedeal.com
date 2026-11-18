@@ -263,8 +263,8 @@ window.NBDDocGen = {
       sellerAddress: this._contractorPhysicalAddress(cp),
       email: co.email || '',
       fax: String((cp && cp.businessFax) || '').trim(),
-      homeownerName: d.homeownerName || (d.customer && d.customer.name) || '',
-      propertyAddress: d.address || d.homeownerAddress || d.propertyAddress || '',
+      homeownerName: this._noTok(d.homeownerName || (d.customer && d.customer.name) || ''),
+      propertyAddress: this._noTok(d.address || d.homeownerAddress || d.propertyAddress || ''),
       state: (j && j.state) || '',
       kyInsurance: !!(j && j.kyInsurance),
       // renderContract / renderProposal print the KRS 367.624(3) notices
@@ -339,6 +339,9 @@ window.NBDDocGen = {
       && T && T.CLAUSES && Object.keys(T.CLAUSES).length
       && window.NBDJurisdiction && typeof window.NBDJurisdiction.cancelPacketHtml === 'function');
   },
+
+  /** A user-supplied string with its "{{" separated (zero-width space): it cannot be read as an unfilled token or merged later. */
+  _noTok(v) { return String(v == null ? '' : v).split('{{').join('{\u200b{'); },
 
   /** Clause text to HTML: escaped, with the packet's **bold** lead-ins. */
   _clauseHtml(text) {
@@ -1723,16 +1726,14 @@ window.NBDDocGen = {
       ...data
     };
 
-    let result = template;
-    Object.keys(mergedData).forEach(key => {
-      const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
-      // Escape values: placeholders carry scalar lead/company data into an HTML
-      // template, so values are text. (Line-items/signature blocks are built
-      // separately, not via {{placeholders}}.)
-      result = result.replace(regex, this._escHtml(mergedData[key]));
-    });
-
-    return result;
+    // ONE pass (review 2026-11-18, item 7): a value is inserted once and never rescanned, so a homeowner named
+    // "{{address}}" cannot expand to the address, and "$&" prints as typed (function replacer). A "{{" inside a value
+    // is separated with a zero-width space so the pre-send placeholder scan does not read it as an unfilled token.
+    // Escape values: placeholders carry scalar lead/company data into an HTML
+    // template, so values are text. (Line-items/signature blocks are built
+    // separately, not via {{placeholders}}.)
+    return String(template).replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (m, key) => (Object.prototype.hasOwnProperty.call(mergedData, key)
+      ? this._escHtml(mergedData[key]).split('{{').join('{\u200b{') : m));
   },
 
   // ============================================================================
@@ -2937,9 +2938,9 @@ window.NBDDocGen = {
         const unitPrice = (it.unitPrice != null ? it.unitPrice : (it.rate != null ? it.rate : it.price)) || 0;
         const total = (it.total != null ? it.total : (Number(it.qty) || 0) * unitPrice) || 0;
         return `<tr>
-          <td>${this._escHtml(it.description || it.item)}</td>
+          <td>${this._escHtml(this._noTok(it.description || it.item))}</td>
           <td style="text-align:center;">${this._escHtml(it.qty != null ? it.qty : '')}</td>
-          <td style="text-align:center;">${this._escHtml(it.unit || '')}</td>
+          <td style="text-align:center;">${this._escHtml(this._noTok(it.unit || ''))}</td>
           <td style="text-align:right;">${_money(unitPrice)}</td>
           <td style="text-align:right;">${_money(total)}</td>
         </tr>`;
