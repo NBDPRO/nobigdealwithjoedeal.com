@@ -39,6 +39,7 @@ const DIRECTION = { '↗': 'outbound', '↙': 'inbound' };
 const NAME_RE = /^(\d{4}-\d{2}-\d{2}) (\d{2})-(\d{2})-(\d{2}) \(([^)]*)\)\s*(.*?)\s*([↗↙])?\.(m4a|mp3|amr|ogg|wav|aac|3gp|opus)$/i;
 const TRAILING_NUMBER_RE = /^(.*?)\s*\(\s*(\+?[\d][\d\s\-().]{6,})\)$/;
 const BARE_NUMBER_RE = /^\+?[\d][\d\s\-().]{6,}$/;
+const RAW_NAME_RE = /^phone_(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})_(_?)(\d{7,15})\.(m4a|mp3|amr|ogg|wav|aac|3gp|opus)$/i;
 
 // Jo's own contact-name tags. Kept as tags, stripped from the display name.
 const TAGS = [
@@ -54,9 +55,22 @@ const CARRIER_RE = /\b(allstate|state\s*farm|progressive|liberty\s*mutual|nation
 
 /** Parse a Cube ACR file name. Returns null for anything that isn't one. */
 function parseCubeAcrName(name) {
-  const m = NAME_RE.exec(String(name || '').trim());
-  if (!m) return null;
-  const [, ymd, hh, mi, ss, source, rest, arrow, ext] = m;
+  const s = String(name || '').trim();
+  const m = NAME_RE.exec(s);
+  let ymd, hh, mi, ss, source, rest, arrow, ext;
+  if (m) [, ymd, hh, mi, ss, source, rest, arrow, ext] = m;
+  else {
+    // The phone's own name for a recording (hand-uploaded, 2026-11-18):
+    // "phone_YYYYMMDD-HHMMSS_<number>"; a "+" in the number became a second "_".
+    // No contact label and no direction arrow.
+    const r = RAW_NAME_RE.exec(s);
+    if (!r) return null;
+    ymd = r[1] + '-' + r[2] + '-' + r[3];
+    [hh, mi, ss] = [r[4], r[5], r[6]];
+    source = 'phone';
+    rest = (r[7] ? '+' : '') + r[8];
+    ext = r[9];
+  }
   if (+hh > 23 || +mi > 59 || +ss > 59) return null;
 
   let label = '';
