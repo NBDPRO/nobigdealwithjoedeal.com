@@ -3031,8 +3031,11 @@ service cloud.firestore {
     // ── PRICE LEDGER (2026-11, flag supplierPricing) ───────────────────
     // Dated, sourced price history under priceBook/{companyId}/…. Every write
     // is a Cloud Function (admin SDK). A browser only reads.
-    // Offers (and their latest summary): the owner, company_admin, manager,
-    // sales_rep. Observations and meters: owner / company_admin / manager.
+    // Offers (and their latest summary) and supplier accounts: the owner,
+    // company_admin, manager (Jo, 2026-11-18: a sales_rep never reads a supplier
+    // price; this was plMember, rep included, until then). Observations and
+    // meters: owner / company_admin / manager. productLinks (photos, the last
+    // approved cost marker) stay readable by a sales_rep too.
     // Audit: owner / company_admin. A viewer, the access-code role `member`,
     // a token with no role, another tenant: nothing.
     // The claim branch is an ALLOWLIST of roles, read with .get('role','') so
@@ -3060,11 +3063,11 @@ service cloud.firestore {
             || (plClaim(companyId) && plRole() == 'company_admin'));
     }
     match /priceBook/{companyId}/supplierAccounts/{supplierId} {
-      allow read: if plMember(companyId);
+      allow read: if plStaff(companyId);
       allow write: if false;
     }
     match /priceBook/{companyId}/priceOffers/{offerId} {
-      allow read: if plMember(companyId);
+      allow read: if plStaff(companyId);
       allow write: if false;
     }
     match /priceBook/{companyId}/priceObservations/{obsId} {

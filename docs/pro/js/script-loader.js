@@ -275,7 +275,7 @@
       'js/product-data.js?v=6',
       'js/roofivent-catalog.js?v=2',
       'js/catalog-costs.js?v=5',
-      'js/product-library.js?v=22',
+      'js/product-library.js?v=23',
       // Price book viewer (2026-10-02): the Product Library's "Price book"
       // button. Same file the expenses bundle loads for the HD import.
       'css/price-book.css?v=1',
