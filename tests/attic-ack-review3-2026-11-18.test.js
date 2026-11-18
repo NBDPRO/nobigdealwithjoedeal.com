@@ -368,6 +368,30 @@ const generated = async (docType, extraData) => {
     ok('the generator writes estimateId on an attic form row and the panel passes the estimate', /type === 'attic_acknowledgment' \|\| type === 'attic_not_inspected'\) && typeof data\.estimateId/.test(src('docs/pro/js/document-generator.js')) && /estimateId: L\.primaryEstimateId/.test(src('docs/pro/js/attic-panel.js')));
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('7. remote: a signed copy over the cap says too large, not "tick every box"');
+  {
+    const GP = 'documents/REP/L1/d-1.html';
+    const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './doc-evidence', './await-briefly', './signed-price', './attic-gate', './attic-ack', 'crypto'];
+    const stubs = () => ({ './cancel-window': require(path.join(FN, 'cancel-window.js')), './ky-insurance-law': K, './lead-artifact-paths': require(path.join(FN, 'lead-artifact-paths.js')),
+      './esign-logic': ESL, './doc-evidence': DE, './await-briefly': require(path.join(FN, 'await-briefly.js')), './signed-price': require(path.join(FN, 'signed-price.js')), './attic-gate': AG, './attic-ack': AA });
+    const run = async (signedHtml, tok) => {
+      const db = kit.makeDb({ 'leads/L1': lead({ primaryEstimateId: 'E1' }), 'estimates/E1': REROOF, 'leads/L1/documents/d1': { name: 'Attic', status: 'sent', type: 'attic_acknowledgment', htmlPath: GP },
+        ['doc_sign_tokens/' + tok]: { status: 'pending', leadId: 'L1', docId: 'd1', ownerUid: 'REP', mintedBy: 'REP', htmlPath: GP, signerName: 'Dana Whitfield', docType: 'attic_acknowledgment', consentAsked: false } });
+      const Lr = kit.loadHandler('remote-signing.js', db, kit.makeStorage({ [GP]: GEN }), stubs(), REAL);
+      const sub = kit.reqRes({ token: tok, signedHtml });
+      await Lr.fns.submitSignature(sub.req, sub.res);
+      return { res: sub.res, tok: db._get('doc_sign_tokens/' + tok) };
+    };
+    const big = tick(sign(GEN)).replace('</body>', '<!--' + 'x'.repeat(AG.MAX_HTML) + '--></body>');
+    let r = await run(big, 'TOKBIG000001');
+    ok('a signed copy over 2 MB: 422 with the too-large message, link not burned', r.res.statusCode === 422 && r.res.body && r.res.body.error === AG.TOO_LARGE_MSG && !r.res.body.missingAcks && r.tok.status === 'pending', r.res.statusCode + ' ' + JSON.stringify(r.res.body).slice(0, 120));
+    r = await run(sign(GEN), 'TOKBIG000002');
+    ok('control: an ordinary copy with boxes unticked still says tick every box', r.res.statusCode === 422 && r.res.body.missingAcks === true && /tick every box/.test(r.res.body.error));
+    r = await run(tick(sign(GEN)), 'TOKBIG000003');
+    ok('control: the ordinary ticked copy is accepted', r.res.statusCode === 200);
+  }
+
   console.log('\n' + (failed ? 'FAILED ' + failed + ': ' + fails.join(' | ') : 'all ok') + ' (' + passed + ' passed)');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

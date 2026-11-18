@@ -901,6 +901,11 @@ exports.submitSignature = onRequest(
             return;
           }
           const applied = AG.applyAcks(rebuilt.html, signedHtml, typeof p.docType === 'string' ? p.docType : '');
+          if (!applied.complete && (applied.manifestReasons || []).indexOf('too_large') !== -1) {
+            // Review 3 (item 7): a signed copy over the cap is not "a box left unticked"; say what is wrong, before the burn.
+            res.status(422).json({ error: AG.TOO_LARGE_MSG, tooLarge: true });
+            return;
+          }
           if (!applied.complete) {
             res.status(422).json({ error: 'Please tick every box and choose Yes or No on every line, then sign again.', missingAcks: true });
             return;
