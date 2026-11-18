@@ -460,6 +460,11 @@ section (c) states them correctly.
 | Q66 | A "signing packet": one link or QR walks the homeowner through the contract, attic acknowledgment, property sheet and other forms in order; built after the QR panel and paper certification. |
 | Q67 | The signing-ease lane runs first; phase 3 (attic form) starts when Jo sends baffle and duct prices. |
 | Q68 | Only an owner or admin can change the payment settings; reps see them read-only plus the readiness line. |
+| Q69 | Attic "inspected" needs one overview photo from the access point plus one photo per ticked condition; not-inspected reasons "no access" and "not safe" need one photo each; "you declined" and "we couldn't schedule" need only the reason code. |
+| Q70 | The rep records the attic check in the estimate flow before the contract can be sent; the booking confirmation carries a short line asking the homeowner to clear the attic access (operational, not marketing). |
+| Q71 | The free later attic check (up to 3 days before the start date) creates a rep task due before the start date automatically. |
+| Q72 | On Kentucky insurance jobs the attic acknowledgment is part of the deal-page signing packet, so it cannot be skipped. |
+| Q73 | Default re-roof signing packet, in order: contract, attic acknowledgment (or the not-inspected page), property-condition sheet, material and color selection, notice of right to cancel; insurance jobs add the insurance next-steps letter; the rep can add optional documents but not remove required ones. |
 
 **Status:** Phase 0 (removal-only fixes) merged as PR 3161 on 2026-11-18, all 24 checks passing. Phase 1 is in progress on `feat/clause-evidence-foundation`.
 
