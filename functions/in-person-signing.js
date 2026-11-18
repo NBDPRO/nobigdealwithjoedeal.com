@@ -72,7 +72,15 @@ exports.recordInPersonSignature = onCall(
       // A flag read that FAILS refuses (retryable): it must not read "off" and skip the checks.
       const evidence = (await DE.flagForGate(db, uid, HttpsError)) ? Object.assign({
         enabled: true,
-        readBytes: async (p) => { const [buf] = await getStorage().bucket().file(p).download(); return buf; },
+        readBytes: async (p, max) => {
+          const f = getStorage().bucket().file(p);
+          if (max) {
+            const [md] = await f.getMetadata();
+            if (Number(md && md.size) > max) { const er = new Error('document over the read cap'); er.code = 'too_large'; throw er; }
+          }
+          const [buf] = await f.download();
+          return buf;
+        },
         onError: (err) => logger.warn('[recordInPersonSignature] evidence write failed', { uid, err: err && err.message }),
       }, DE.requestFacts(request.rawRequest)) : null;
       return await handleInPersonSignature(db, { uid, token: request.auth.token || {} }, request.data, evidence ? { evidence } : undefined);

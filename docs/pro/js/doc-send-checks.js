@@ -41,8 +41,32 @@
 
   // A document longer than this is refused, not scanned (review 2026-11-18): the check is
   // linear now, but an unbounded body on the send path is still a cost nobody asked for.
+  // Embedded data: URLs (a signed copy carries its signature PNGs inline) do not count toward it and
+  // are not scanned (review 2, item 5): a legitimate signed contract with a few signatures can pass
+  // 2 MB of base64 and must not be refused for that. Everything else is still bounded.
   var MAX_TEXT = 2 * 1024 * 1024;
-  function tooLarge(html) { return String(html == null ? '' : html).length > MAX_TEXT; }
+  var DATA_URL_END = '"' + "'" + '() <>' + String.fromCharCode(9, 13, 10);
+  // One linear pass: from each "data:" that does not continue a word ("metadata:"), skip to the
+  // character that ends a URL (quote, paren, space, angle bracket).
+  function stripDataUrls(s) {
+    var out = [], i = 0, n = s.length;
+    while (i < n) {
+      var k = s.indexOf('data:', i);
+      if (k < 0) { out.push(s.slice(i)); break; }
+      out.push(s.slice(i, k + 5));
+      if (k > 0 && /[A-Za-z0-9]/.test(s.charAt(k - 1))) { i = k + 5; continue; }
+      var j = k + 5;
+      while (j < n && DATA_URL_END.indexOf(s.charAt(j)) < 0) j++;
+      i = j;
+    }
+    return out.join('');
+  }
+  // The text the bound and the scan apply to: unchanged when already within the bound.
+  function measured(html) {
+    var s = String(html == null ? '' : html);
+    return s.length > MAX_TEXT ? stripDataUrls(s) : s;
+  }
+  function tooLarge(html) { return measured(html).length > MAX_TEXT; }
 
   var ENT = [[/&nbsp;/g, ' '], [/&amp;/g, '&'], [/&#39;/g, "'"], [/&quot;/g, '"']];
 
@@ -110,9 +134,10 @@
    * not missed). Over MAX_TEXT it returns [] and contractGaps reports the size instead.
    */
   function placeholdersIn(htmlOrText) {
-    if (tooLarge(htmlOrText)) return [];
+    var body = measured(htmlOrText);
+    if (body.length > MAX_TEXT) return [];
     var found = [];
-    [visibleText(htmlOrText), strip(htmlOrText, true)].forEach(function (t) {
+    [visibleText(body), strip(body, true)].forEach(function (t) {
       (t.match(BRACE_RE) || []).concat(t.match(BRACKET_RE) || []).forEach(function (m) {
         if (found.indexOf(m) === -1) found.push(m);
       });

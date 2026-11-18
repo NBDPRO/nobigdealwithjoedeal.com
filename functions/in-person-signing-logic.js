@@ -15,6 +15,9 @@
 'use strict';
 
 const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+// The most bytes of a stored document the gap check will read (review 2, item 5). The callable passes
+// it to readBytes, which refuses to download an object over it.
+const READ_CAP_BYTES = 16 * 1024 * 1024;
 
 class RefusalError extends Error {
   constructor(code, message) { super(message); this.code = code; }
@@ -67,8 +70,17 @@ async function contractGapsFor(db, ctx, evidence) {
   const htmlPath = typeof docMeta.htmlPath === 'string' ? docMeta.htmlPath : '';
   let html = '';
   if (evidence.readBytes && htmlPathOk(htmlPath, leadId)) {
-    try { const buf = await evidence.readBytes(htmlPath); html = buf ? Buffer.from(buf).toString('utf8') : ''; }
-    catch (_) { throw new RefusalError('unavailable', 'Could not read the document to check it. Try again in a moment.'); }
+    // The read is capped (review 2, item 5): the signed copy carries its signature images inline, so it can
+    // be large, but never unbounded. Over the cap = the same plain "too large" gap as the 2 MB text bound.
+    const tooBig = [{ code: 'tooLarge', message: 'The document is too large to check. Shorten it or remove embedded images, then try again.' }];
+    let buf = null;
+    try { buf = await evidence.readBytes(htmlPath, READ_CAP_BYTES); }
+    catch (e) {
+      if (e && e.code === 'too_large') return tooBig;
+      throw new RefusalError('unavailable', 'Could not read the document to check it. Try again in a moment.');
+    }
+    if (buf && buf.length > READ_CAP_BYTES) return tooBig;
+    html = buf ? Buffer.from(buf).toString('utf8') : '';
   } else {
     throw new RefusalError('unavailable', 'Could not read the document to check it. Try again in a moment.');
   }
@@ -105,7 +117,7 @@ async function recordEvidence(db, ctx, evidence) {
   // The same shape firestore.rules enforces on a client write of htmlPath.
   if (evidence.readBytes && htmlPath.split('/').length === 4 && htmlPath.split('/')[0] === 'documents'
       && htmlPath.split('/')[2] === leadId && /^[A-Za-z0-9._-]+\.html$/.test(htmlPath.split('/')[3])) {
-    try { const buf = await evidence.readBytes(htmlPath); if (buf) signedSha256 = DE.sha256Hex(buf); } catch (_) { signedSha256 = null; }
+    try { const buf = await evidence.readBytes(htmlPath, READ_CAP_BYTES); if (buf) signedSha256 = DE.sha256Hex(buf); } catch (_) { signedSha256 = null; }
   }
   const stamp = DE.stampFor(require('./ky-insurance-law'), lead, {});
   // Time is the SERVER's clock at this call. The row's signedAt is written by the rep's own browser,

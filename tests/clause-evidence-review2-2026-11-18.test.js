@@ -187,6 +187,59 @@ const failDocSets = (db) => {
     ok('4: if the mark itself cannot be written the refusal still reaches the rep', !!e && e.code === 'failed-precondition');
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('5. the size bound ignores embedded data: URLs; shipped templates trip no bracket scan');
+  if (!CHK) ok('doc-send-checks available', false);
+  else {
+    const big = (n) => 'data:image/png;base64,' + 'QUJD'.repeat(Math.ceil(n / 4));
+    const signedBig = '<html><body><p>Agreement for Dana at 12 Oak St.</p>'
+      + [1, 2, 3].map((i) => '<img alt="sig' + i + '" src="' + big(900 * 1024) + '">').join('') + '<div style="background:url(' + big(300 * 1024) + ')">x</div></body></html>';
+    ok('5: control: the fixture really is over the 2 MB bound as raw bytes', signedBig.length > CHK.MAX_TEXT);
+    ok('5: a signed copy carrying three signature PNGs is NOT "too large"', CHK.tooLarge(signedBig) === false);
+    const g = CHK.contractGaps({ type: 'contract', priceCents: 100, address: 'a', homeownerName: 'h', mailingAddress: 'm', needsMailingAddress: true, entityName: 'e', startDate: 's', estimatedCompletion: 'c', text: signedBig });
+    ok('5: ...and contractGaps reports no gap for it', g.length === 0, JSON.stringify(g.map((x) => x.code)));
+    ok('5: a placeholder after the embedded images is still found', CHK.placeholdersIn(signedBig.replace('</body>', '<p>[Property Address]</p></body>')).indexOf('[Property Address]') !== -1);
+    ok('5: 3 MB of real text is still too large', CHK.tooLarge('<p>' + 'word '.repeat(700000) + '</p>') === true);
+    ok('5: a data: URL in running text is not a size loophole (3 MB of text after one)', CHK.tooLarge('see data:x ' + 'word '.repeat(700000)) === true);
+    ok('5: "metadata:" is not treated as a data URL', CHK.tooLarge('metadata:' + 'A'.repeat(CHK.MAX_TEXT + 10)) === true);
+    const t0 = Date.now(); CHK.tooLarge('data:'.repeat(1500000)); CHK.placeholdersIn('<img src="data:' + 'A'.repeat(5 * 1024 * 1024) + '">');
+    ok('5: stripping is linear (7.5 MB of repeated "data:" and a 5 MB URL in well under 5 s)', Date.now() - t0 < 5000, (Date.now() - t0) + ' ms');
+    // the browser twin is byte-identical (pinned elsewhere too) so the same behaviour applies on the client
+    ok('5: the browser twin is the same file', fs.readFileSync(path.join(ROOT, 'docs/pro/js/doc-send-checks.js'), 'utf8').replace(/\r\n/g, '\n') === fs.readFileSync(path.join(FN, 'doc-send-checks.js'), 'utf8').replace(/\r\n/g, '\n'));
+
+    // the shipped templates: a bracket default sits only in a renderer the gap check never covers
+    const tpl = (read('docs/pro/js/document-generator-templates.js') || '').replace(/\r\n/g, '\n');
+    const parts = tpl.split(/\n  DG\.(render[A-Za-z]+) = function/);   // [pre, name, body, name, body, ...]
+    const CONTRACT_RENDERERS = ['renderWorkAuthorization', 'renderContract', 'renderProposal'];
+    const FILL_IN = ['[Property Address]', '[Homeowner Name]'];          // a true gap when left in a contract
+    let leaks = []; let seenRenderers = 0;
+    for (let i = 1; i < parts.length; i += 2) {
+      seenRenderers++;
+      const toks = (parts[i + 1].match(/\[[A-Z][A-Za-z0-9 #\/.'&-]{1,40}\]/g) || []).filter((t) => !/^\[[A-Z]\]$/.test(t));
+      if (CONTRACT_RENDERERS.indexOf(parts[i]) !== -1) toks.forEach((t) => { if (FILL_IN.indexOf(t) === -1) leaks.push(parts[i] + ' ' + t); });
+    }
+    ok('5: the template file parses into its renderers', seenRenderers >= 20, 'renderers=' + seenRenderers);
+    ok('5: no contract-class template prints a bracket token other than the two fill-in fields (no "[Date]" style label on a signed copy)', leaks.length === 0, leaks.join('; '));
+  }
+  if (IPL && kit && DE) {
+    const IPL5 = IPL;
+    const dbc = (cap) => ipWorld();
+    let seenCap = null; let big = Buffer.alloc(0);
+    const callCap = async (buf, thrown) => {
+      const db = ipWorld();
+      const e = await ipRun(db, '', { readBytes: async (p, max) => { seenCap = max; if (thrown) { const er = new Error('too big'); er.code = 'too_large'; throw er; } return buf; } });
+      return { e, row: db._get('leads/L1/documents/d1') || {} };
+    };
+    let r = await callCap(Buffer.from('<html><body>12 Oak St Dana $14,500.00</body></html>'));
+    ok('5: readBytes is handed a byte cap', typeof seenCap === 'number' && seenCap >= 8 * 1024 * 1024 && seenCap <= 64 * 1024 * 1024, String(seenCap));
+    r = await callCap(Buffer.alloc(seenCap + 1, 65));
+    ok('5: a read over the cap is refused as too large, not scanned or recorded', !!r.e && r.e.code === 'failed-precondition' && /too large/i.test(r.e.message) && !r.row.signatureEvidence, r.e && r.e.message);
+    r = await callCap(null, true);
+    ok('5: a too_large report from readBytes is the same refusal', !!r.e && r.e.code === 'failed-precondition' && /too large/i.test(r.e.message), r.e && r.e.message);
+    const wrap = (read('functions/in-person-signing.js') || '');
+    ok('5: the callable\'s readBytes checks the object size before downloading it', /getMetadata\(\)[\s\S]{0,200}too_large/.test(wrap) && /readBytes: async \(p, max\)/.test(wrap));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join('; ')); process.exit(1); }
 })().catch((e) => { console.error('FATAL', e); process.exit(1); });
