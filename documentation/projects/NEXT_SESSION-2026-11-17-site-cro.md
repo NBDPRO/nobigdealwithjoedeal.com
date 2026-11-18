@@ -7,8 +7,9 @@
 
 ## What this lane did
 Three read-only audits (homeowner persona walkthrough, CRO, SEO) turned into four fix lanes and three follow-up
-PRs, one draft PR each, all on Jo's answers below. Every PR was merged through the queue only with all 16
-required checks green, one at a time. **All of the PRs below are merged to `main` (queue empty, 2026-11-17).**
+PRs, plus two claim-wording PRs on 2026-11-18, one draft PR each, all on Jo's answers below. Every PR was merged
+through the queue only with all 16 required checks green. **All of the PRs below are merged to `main`
+(last one #3169, 2026-11-18).**
 
 | PR | What | State |
 |---|---|---|
@@ -20,6 +21,8 @@ required checks green, one at a time. **All of the PRs below are merged to `main
 | #3152 | Financing post "worth pursuing" wording softened; `the-nbd-guarantee` estimate buttons to `/inspect` | Merged |
 | #3154 | "Worth pursuing" wording softened on `roof-repair-erlanger-ky`, `roof-replacement-anderson-township-oh`, `roof-replacement-blue-ash-oh` (FAQ + JSON-LD) | Merged |
 | #3155 | The free-tool label is "Storm Damage Check" everywhere (partials, nav script, `llms.txt`, 66 pages; new structural test); the URL `/storm-check` is unchanged | Merged |
+| #3162 | Insurance-outcome wording off Blue Ash and Anderson Township roof-replacement pages (FAQ + JSON-LD); `/free-tools` card and `llms.txt` describe the Storm Damage Check by what it does, no claim prediction | Merged |
+| #3169 | "Worth a claim" sweep: 45 pages + 4 guide Markdown sources, now "I document the damage with photos so you can decide whether to file a claim"; `scripts/worth-a-claim-sweep-2026-11-18.js` + structural test | Merged |
 
 ## Jo's decisions (2026-11-17)
 - Reply promise everywhere: "Reply within 24 hours, usually the same day".
@@ -31,8 +34,8 @@ required checks green, one at a time. **All of the PRs below are merged to `main
 - Eight GSC-titled towns (Fort Mitchell, Indian Hill, Amelia, Mt. Orab, Loveland, Montgomery, Mason, Cincinnati) keep their "<Town> Roofer |" titles until Search Console says otherwise.
 
 ## Still open (not built)
-1. **Prose still implying a claim prediction** (the label itself is done in #3155): the `/free-tools` card ("a quick yes/no read on whether ... worth filing an insurance claim") and `docs/llms.txt`'s description ("worth an insurance claim"). `docs/llms-full.txt` still holds the old label until the deploy rebuild regenerates it.
-2. **Insurance-coverage and supplement wording on service pages, Jo to decide** (noticed in #3154, not changed): Blue Ash "most Ohio homeowner's policies will cover the cost minus your deductible" (FAQ + JSON-LD) and "the replacement may be covered by insurance"; Anderson Township "Storm or hail damage is what standard Ohio homeowner's policies are written for", "insurance claims here are worth the effort to document thoroughly" and "I ... supplement when the initial estimate comes in short"; Erlanger's FAQ question "Can a roof repair in Erlanger be covered by homeowner's insurance?".
+1. **Done, kept for the record:** the label (#3155), the insurance-coverage wording on Blue Ash / Anderson Township, `/free-tools` and `llms.txt` (#3162), and the "worth a claim" sweep (#3169). `docs/llms-full.txt` still holds the old label until the deploy rebuild regenerates it.
+2. **Claim-wording leftovers, Jo to decide** (outside the approved patterns, left on purpose): "tell you / walk you through whether a claim makes sense" on `siding-repair`, `hail-damage-covington`, `hail-damage-insurance-claim` and three blog posts (`tests/claim-wording.test.js` explicitly allows that exact sentence); roof-repair-fairfield ("advise whether an insurance path makes sense") and roof-repair-florence ("determine whether a repair-level claim ... is appropriate"); Erlanger's FAQ question "Can a roof repair in Erlanger be covered by homeowner's insurance?" (its answer already says it depends on your policy). **The four guide PDFs under `docs/guides/pdf/` still carry the old sentence**: they are built outside this repo's scripts and need regenerating from the updated `site-src/guides/*.md`.
 3. **Leftover `/#contact` buttons:** the footer "Get My Free Estimate" (a partial, so a restamp PR) and the "Talk to Joe" / "Send a message" links, which are genuine contact links and were left on purpose.
 4. **Reviews strip next to the `/inspect` form** (it sits inside an `nbd:partial` region) and **a dated review beside the quote form on service pages** (`google-reviews-widget.js` fills only the first container).
 5. **Teach `/inspect` to pick the Lexington cal.com event from the address**, then move the Lexington pages onto it. Today a Lexington lead on `/inspect` gets Cincinnati slots.
