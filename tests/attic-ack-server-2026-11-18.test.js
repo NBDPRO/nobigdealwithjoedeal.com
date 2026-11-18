@@ -134,7 +134,7 @@ const tickAll = (h, no) => h.replace(/<input\b[^>]*>/gi, (tag) => {
     (x.overrides || []).forEach((o2, i) => { s['attic_overrides/o' + i] = o2; });
     return kit.makeDb(s);
   };
-  const SIGNED = { type: 'attic_acknowledgment', status: 'signed', signedAt: { seconds: 1 }, atticAckResult: { version: 'ATTIC_ACK_V1', complete: true, declined: false } };
+  const SIGNED = { type: 'attic_acknowledgment', status: 'signed', signedAt: { seconds: 1 }, atticAckResult: { version: 'ATTIC_ACK_V1', complete: true, declined: false, estimateId: 'E1', estimateStamp: AG.estimateStamp({ grandTotal: 14500, rows: [{ code: 'LAB TO1' }] }) } };
   const mint = async (db, mod) => {
     if (mod) mod(db);
     const L = kit.loadHandler('remote-signing.js', db, kit.makeStorage({ [P]: CONTRACT }), stubs(), REAL);
@@ -294,7 +294,7 @@ const tickAll = (h, no) => h.replace(/<input\b[^>]*>/gi, (tag) => {
         'companyProfile/U1': { paymentTerms: Object.assign({}, CS.NBD_PAYMENT_TERMS_DEFAULTS, { deckingPerSheetCents: 10000 }) },
       };
       if (flags) s['feature_flags/_default'] = flags;
-      if (x.signed) s['leads/L1/documents/a0'] = SIGNED;
+      if (x.signed) s['leads/L1/documents/a0'] = Object.assign({}, SIGNED, { atticAckResult: Object.assign({}, SIGNED.atticAckResult, { estimateStamp: AG.estimateStamp({ grandTotal: 13000, rows: [{ code: 'LAB TO1' }] }) }) });
       const db = kit.makeDb(s);
       const L = kit.loadHandler('deal-acceptance.js', db, kit.makeStorage({ [DEAL_PATH]: PAGE }), stubsD(), REALD);
       try { return { v: await L.fns.createDealAcceptToken({ auth: { uid: 'U1', token: {} }, data: { dealId: 'deal0001' } }), db }; } catch (e) { return { e, db }; }

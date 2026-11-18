@@ -57,7 +57,7 @@ const world = (flags, o) => {
   Object.entries(x.extra || {}).forEach(([k, v]) => { s[k] = v; });
   return kit.makeDb(s);
 };
-const SIGNED = { type: 'attic_acknowledgment', status: 'signed', signedAt: { seconds: 1 }, atticAckResult: { version: 'ATTIC_ACK_V1', complete: true, declined: false } };
+const SIGNED = { type: 'attic_acknowledgment', status: 'signed', signedAt: { seconds: 1 }, atticAckResult: { version: 'ATTIC_ACK_V1', complete: true, declined: false, estimateId: 'E1', estimateStamp: AG.estimateStamp({ grandTotal: 14500, rows: [{ code: 'LAB TO1' }] }) } };
 const mint = async (db) => {
   const L = kit.loadHandler('remote-signing.js', db, kit.makeStorage({ [P]: CONTRACT }), stubs(), REAL);
   try { return { v: await L.fns.createSignRequest({ auth: { uid: 'REP', token: { companyId: 'CO', role: 'sales_rep' } }, data: { leadId: 'L1', docId: 'd1', signerEmail: 'dana@example.test', signerName: 'Dana Whitfield' } }), db }; }

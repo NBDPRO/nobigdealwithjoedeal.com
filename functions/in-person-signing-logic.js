@@ -229,6 +229,10 @@ async function handleInPersonSignature(db, auth, data, deps) {
       // What this proves (review 2026-11-18): the rep's signed-in device made the call, at this server time, over a copy of the form that
       // matches the server's manifest. It does not prove the homeowner ticked or signed it (the same limit as the evidence record's attests).
       result.attests = 'rep_device_and_time_only';
+      // Review 2 (item 4): the form covers the estimate it was signed against (id and stamp), the same binding an override has.
+      let fb;
+      try { fb = await AG.formBasis(db, leadId, lead); } catch (_) { throw new RefusalError('unavailable', 'Could not check the attic acknowledgment just now. Try again in a moment.'); }
+      result.estimateId = fb.id; result.estimateStamp = fb.stamp;
       await db.doc('leads/' + leadId + '/documents/' + docId).set({ atticAckResult: result }, { merge: true });
     } else if (AG.gated(docMeta.type)) {
       let dec;

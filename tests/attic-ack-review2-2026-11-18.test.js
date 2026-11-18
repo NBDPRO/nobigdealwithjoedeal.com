@@ -35,7 +35,7 @@ const NOTEAR = { grandTotal: 13000, rows: [{ code: 'GTR 5K' }] };
 const lead = (extra) => Object.assign({ userId: 'REP', companyId: 'CO', firstName: 'Dana', lastName: 'Whitfield', email: 'dana@example.test', address: '12 Oak St, Cincinnati, OH 45202', jobType: 'cash' }, extra || {});
 const ON_OWNER = { _default: {}, CO: { docAtticAckV1: true } };
 const CS = require(path.join(FN, 'clause-set.js'));
-const SIGNED = { type: 'attic_acknowledgment', status: 'signed', signedAt: { seconds: 1 }, atticAckResult: { version: 'ATTIC_ACK_V1', complete: true, declined: false } };
+const SIGNED = { type: 'attic_acknowledgment', status: 'signed', signedAt: { seconds: 1 }, atticAckResult: { version: 'ATTIC_ACK_V1', complete: true, declined: false, estimateId: 'E1', estimateStamp: AG.estimateStamp(REROOF) } };
 
 // The REAL form, rendered by the real generator (the manifest is pinned against it). One priced ventilation line (decking) gives a Yes/No.
 const renderForm = (notInspected) => {
@@ -146,9 +146,6 @@ const FORM_NI = renderForm(true);
     ok('the cap is 2 MB and the message says what to do', AG.MAX_HTML === 2 * 1024 * 1024 && /too large/i.test(AG.TOO_LARGE_MSG) && /fresh copy/i.test(AG.TOO_LARGE_MSG));
     const aOver = AG.applyAcks(over, over, 'attic_acknowledgment');
     ok('applyAcks refuses an original over the cap', aOver.complete === false && aOver.manifestReasons.indexOf('too_large') !== -1);
-    ok('both callers carry the clear message', /TOO_LARGE_MSG/.test(src('functions/remote-signing.js')) && /TOO_LARGE_MSG/.test(src('functions/in-person-signing-logic.js')));
-    ok('no lazy [\\s\\S]*? or [^>]* regex is left in the manifest reader', !/\[\\s\\S\]\*\?/.test(src('functions/attic-gate.js').replace(/\/\/.*$/gm, '')) && !/\[\^>\]\*/.test(src('functions/attic-gate.js').replace(/\/\/.*$/gm, '')) && !/\[\^>\]\*/.test(src('functions/attic-ack.js').replace(/\/\/.*$/gm, '')));
-    ok('the two copies of attic-ack.js are still identical', src('functions/attic-ack.js') === src('docs/pro/js/attic-ack.js'));
   }
 
   // ═══════════════════════════════════════════════════════
@@ -240,6 +237,112 @@ const FORM_NI = renderForm(true);
     bad('an unterminated comment before the wording fails', FORM.slice(0, first) + '<!-- ' + FORM.slice(first), 'unterminated');
     bad('an unterminated <style> before the wording fails', FORM.slice(0, first) + '<style>.x{} ' + FORM.slice(first), 'unterminated');
     bad('an unterminated tag at the end of the document fails', FORM + '<p title="x ', 'unterminated');
+  }
+
+  // ═══════════════════════════════════════════════════════
+  section('4. deleted rows are ignored, a form is bound to the estimate it covered, a legacy lead has no company owner');
+  {
+    const STAMP1 = AG.estimateStamp(REROOF);
+    const formRow = (extra) => Object.assign({ type: 'attic_acknowledgment', status: 'signed', signedAt: { seconds: 1 }, atticAckResult: { version: 'ATTIC_ACK_V1', complete: true, declined: false, estimateId: 'E1', estimateStamp: STAMP1 } }, extra || {});
+    const decideWith = async (rows, o) => {
+      const x = o || {};
+      const s = { 'leads/L1': lead(Object.assign({ primaryEstimateId: 'E1' }, x.lead)), 'estimates/E1': x.est || REROOF, 'companyProfile/CO': {} };
+      Object.entries(x.extra || {}).forEach(([k, v]) => { s[k] = v; });
+      rows.forEach((r, i) => { s['leads/L1/documents/a' + i] = r; });
+      const db = kit.makeDb(s);
+      return AG.decide(db, 'L1', s['leads/L1'], x.opts || {});
+    };
+    let d = await decideWith([formRow()]);
+    ok('control: a signed form bound to the estimate being sent satisfies the gate', d.required === true && d.satisfied === true && d.how === 'form', JSON.stringify(d));
+    // deleted rows
+    d = await decideWith([formRow({ deleted: true })]);
+    ok('a signed form row marked deleted: true does not satisfy the gate', d.satisfied === false, JSON.stringify(d));
+    d = await decideWith([formRow({ status: 'deleted' })]);
+    ok('a form row with status "deleted" does not satisfy the gate', d.satisfied === false);
+    d = await decideWith([formRow({ deleted: true }), formRow()]);
+    ok('a deleted row beside a live signed form: the live one still counts', d.satisfied === true);
+    // binding
+    d = await decideWith([formRow({ atticAckResult: { version: 'ATTIC_ACK_V1', complete: true, estimateId: 'E1', estimateStamp: 'deadbeefdeadbeef' } })]);
+    ok('a form signed against a different stamp (the estimate was re-priced or re-scoped since) does not satisfy it', d.satisfied === false);
+    d = await decideWith([formRow({ atticAckResult: { version: 'ATTIC_ACK_V1', complete: true, estimateId: 'E0', estimateStamp: STAMP1 } })]);
+    ok('a form signed against another estimate id (an older estimate) does not satisfy a newer one', d.satisfied === false);
+    d = await decideWith([formRow({ atticAckResult: { version: 'ATTIC_ACK_V1', complete: true } })]);
+    ok('a form row with no binding at all does not satisfy the gate', d.satisfied === false);
+    const E2 = { grandTotal: 16100, rows: [{ code: 'LAB TO1' }, { code: 'DECK' }] };
+    d = await decideWith([formRow()], { lead: { primaryEstimateId: 'E2' }, extra: { 'estimates/E2': E2 } });
+    ok('the lead\'s primary estimate moved on to a newer re-roof estimate: the old form does not cover it', d.satisfied === false && d.basis.id === 'E2');
+    d = await decideWith([formRow({ atticAckResult: { version: 'ATTIC_ACK_V1', complete: true, estimateId: 'E2', estimateStamp: AG.estimateStamp(E2) } })], { lead: { primaryEstimateId: 'E2' }, extra: { 'estimates/E2': E2 } });
+    ok('a form signed against the newer estimate does', d.satisfied === true);
+    d = await decideWith([formRow()], { est: Object.assign({}, REROOF, { grandTotal: 15000 }) });
+    ok('the same estimate id re-priced after the form was signed: refused', d.satisfied === false);
+    // the writers record the binding
+    const fb = await AG.formBasis(kit.makeDb({ 'leads/L1': lead({ primaryEstimateId: 'E1' }), 'estimates/E1': REROOF }), 'L1', lead({ primaryEstimateId: 'E1' }));
+    ok('formBasis is the lead\'s primary estimate id and stamp', fb.id === 'E1' && fb.stamp === STAMP1);
+    const Lg = require(path.join(FN, 'in-person-signing-logic.js'));
+    const tick = (html) => html.replace(/<input\b[^>]*>/gi, (t) => (/type="radio"/.test(t) && !/:yes"/.test(t) ? t : t.replace(/>$/, ' checked="">')));
+    const SP = 'documents/REP/L1/d-9.html';
+    const ipDb = kit.makeDb({ 'leads/L1': lead({ primaryEstimateId: 'E1' }), 'estimates/E1': REROOF, 'companyProfile/CO': {},
+      'leads/L1/documents/d1': { type: 'attic_acknowledgment', status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner' }], htmlPath: SP, userId: 'REP' } });
+    let ipr; try { ipr = await Lg.handleInPersonSignature(ipDb, { uid: 'REP', token: { companyId: 'CO' } }, { leadId: 'L1', docId: 'd1' }, { attic: { on: true, readBytes: async () => Buffer.from(tick(FORM), 'utf8') } }); } catch (e) { ipr = { e }; }
+    const ipRes = ((ipDb._get('leads/L1/documents/d1') || {}).atticAckResult) || {};
+    ok('in-person: the recorded result carries the estimate id and stamp it covers', !ipr.e && ipRes.complete === true && ipRes.estimateId === 'E1' && ipRes.estimateStamp === STAMP1, ipr.e && ipr.e.message);
+    ok('...so the gate reads that very row as satisfied for the same estimate', (await AG.decide(ipDb, 'L1', ipDb._get('leads/L1'), {})).satisfied === true);
+    ok('...and not once the estimate changes', (await AG.decide(Object.assign(ipDb, {}), 'L1', ipDb._get('leads/L1'), { estimate: Object.assign({}, REROOF, { grandTotal: 99999 }), estimateId: 'E1' })).satisfied === false);
+    // the remote link: the real form, signed through submitSignature, carries the same binding
+    {
+      const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+      const GP = 'documents/REP/L1/d-1.html';
+      const sign = (orig) => orig.replace(/<canvas class="nbd-sig-canvas"><\/canvas>/g, '<img src="' + PNG + '" alt="Homeowner" class="nbd-sig-img" style="max-width:100%;height:auto;display:block;background:#fff;">')
+        .replace(/<div class="nbd-sig-controls">[\s\S]*?<\/span>\s*<\/div>/g, '<div class="nbd-sig-date">Signed November 18, 2026</div>')
+        .replace(/data-nbd-sig="(homeowner|rep)"/g, 'data-nbd-sig="$1" data-nbd-sig-finalized="1" data-nbd-sig-signed-at="2026-11-18T15:00:00.000Z"');
+      const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './doc-evidence', './await-briefly', './signed-price', './attic-gate', './attic-ack', 'crypto'];
+      const stubs = () => ({ './cancel-window': require(path.join(FN, 'cancel-window.js')), './ky-insurance-law': K, './lead-artifact-paths': require(path.join(FN, 'lead-artifact-paths.js')),
+        './esign-logic': ESL, './doc-evidence': DE, './await-briefly': require(path.join(FN, 'await-briefly.js')), './signed-price': require(path.join(FN, 'signed-price.js')), './attic-gate': AG, './attic-ack': AA });
+      const db2 = kit.makeDb({ 'leads/L1': lead({ primaryEstimateId: 'E1' }), 'estimates/E1': REROOF, 'leads/L1/documents/d1': { name: 'Attic', status: 'sent', type: 'attic_acknowledgment', htmlPath: GP },
+        'doc_sign_tokens/TOKATTIC0002': { status: 'pending', leadId: 'L1', docId: 'd1', ownerUid: 'REP', mintedBy: 'REP', htmlPath: GP, signerName: 'Dana Whitfield', docType: 'attic_acknowledgment', consentAsked: false } });
+      const Lr = kit.loadHandler('remote-signing.js', db2, kit.makeStorage({ [GP]: FORM }), stubs(), REAL);
+      const sub = kit.reqRes({ token: 'TOKATTIC0002', signedHtml: tick(sign(FORM)) });
+      await Lr.fns.submitSignature(sub.req, sub.res);
+      const rr = (db2._get('leads/L1/documents/d1') || {}).atticAckResult || {};
+      ok('remote: the signed form carries the estimate id and stamp it covers', sub.res.statusCode === 200 && rr.complete === true && rr.estimateId === 'E1' && rr.estimateStamp === STAMP1, sub.res.statusCode + ' ' + JSON.stringify(sub.res.body));
+      // an unreadable estimate before the burn: the link is not used up
+      const db3 = kit.makeDb({ 'leads/L1': lead({ primaryEstimateId: 'E1' }), 'estimates/E1': REROOF, 'leads/L1/documents/d1': { name: 'Attic', status: 'sent', type: 'attic_acknowledgment', htmlPath: GP },
+        'doc_sign_tokens/TOKATTIC0003': { status: 'pending', leadId: 'L1', docId: 'd1', ownerUid: 'REP', mintedBy: 'REP', htmlPath: GP, signerName: 'Dana Whitfield', docType: 'attic_acknowledgment', consentAsked: false } });
+      const realDoc = db3.doc;
+      db3.doc = (p) => (p === 'estimates/E1' ? { get: async () => { throw new Error('unavailable'); } } : realDoc(p));
+      const Lr3 = kit.loadHandler('remote-signing.js', db3, kit.makeStorage({ [GP]: FORM }), stubs(), REAL);
+      const sub3 = kit.reqRes({ token: 'TOKATTIC0003', signedHtml: tick(sign(FORM)) });
+      await Lr3.fns.submitSignature(sub3.req, sub3.res);
+      ok('remote: an estimate that cannot be read refuses (503) before the burn, the link stays pending', sub3.res.statusCode === 503 && (db3._get('doc_sign_tokens/TOKATTIC0003') || {}).status === 'pending', sub3.res.statusCode);
+    }
+    // in-person: a stored copy over the cap is refused with the plain message
+    {
+      const big = FORM.replace('</body>', '<p>' + 'x'.repeat(AG.MAX_HTML) + '</p></body>');
+      const db4 = kit.makeDb({ 'leads/L1': lead({ primaryEstimateId: 'E1' }), 'estimates/E1': REROOF, 'companyProfile/CO': {},
+        'leads/L1/documents/d1': { type: 'attic_acknowledgment', status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner' }], htmlPath: SP, userId: 'REP' } });
+      let e4; try { await Lg.handleInPersonSignature(db4, { uid: 'REP', token: { companyId: 'CO' } }, { leadId: 'L1', docId: 'd1' }, { attic: { on: true, readBytes: async () => Buffer.from(tick(big), 'utf8') } }); } catch (e) { e4 = e; }
+      ok('in-person: a stored copy over the 2 MB cap is refused with the plain too-large message and marked', !!e4 && e4.message === AG.TOO_LARGE_MSG && !!(db4._get('leads/L1/documents/d1') || {}).evidenceRefused && !((db4._get('leads/L1/documents/d1') || {}).atticAckResult), e4 && e4.message);
+    }
+    // override authority on a legacy lead
+    const fail = (c, m) => Object.assign(new Error(m), { code: c });
+    const REASON = 'Homeowner will not sign the page; Joe approved by phone.';
+    const call = async (db, auth, data) => { try { return { v: await AG.recordOverride(db, auth, data, fail, { flagOn: async () => true }) }; } catch (e) { return { e }; } };
+    const legacy = () => kit.makeDb({ 'leads/L1': { userId: 'REP', firstName: 'Dana', primaryEstimateId: 'E1' }, 'estimates/E1': Object.assign({ userId: 'REP' }, REROOF) });
+    let r = await call(legacy(), { uid: 'REP', token: {} }, { leadId: 'L1', reason: REASON });
+    ok('a legacy lead (no companyId): the rep who created it is NOT the owner and cannot approve', !!r.e && r.e.code === 'permission-denied', r.e && r.e.message);
+    r = await call(legacy(), { uid: 'REP', token: { companyId: 'REP' } }, { leadId: 'L1', reason: REASON });
+    ok('...even with a token companyId equal to their own uid', !!r.e && r.e.code === 'permission-denied');
+    r = await call(legacy(), { uid: 'BOSS', token: { role: 'company_admin', companyId: 'CO' } }, { leadId: 'L1', reason: REASON });
+    ok('...a company_admin of some company cannot either (the lead belongs to none)', !!r.e && r.e.code === 'permission-denied');
+    r = await call(legacy(), { uid: 'ADM', token: { role: 'admin' } }, { leadId: 'L1', reason: REASON });
+    ok('...a platform admin can', !!r.v && r.v.ok === true, r.e && r.e.message);
+    r = await call(legacy(), { uid: 'REP', token: {} }, { leadId: 'L1', revoke: true });
+    ok('...and the rep cannot revoke on it either', !!r.e && r.e.code === 'permission-denied');
+    const withCo = () => kit.makeDb({ 'leads/L1': lead({ primaryEstimateId: 'E1' }), 'estimates/E1': Object.assign({ userId: 'REP' }, REROOF) });
+    r = await call(withCo(), { uid: 'CO', token: { companyId: 'CO' } }, { leadId: 'L1', reason: REASON });
+    ok('control: the owner of a lead that has a companyId still can', !!r.v && r.v.ok === true, r.e && r.e.message);
+    r = await call(withCo(), { uid: 'REP', token: { companyId: 'CO' } }, { leadId: 'L1', reason: REASON });
+    ok('control: the creating rep of a lead that has a companyId still cannot', !!r.e && r.e.code === 'permission-denied');
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

@@ -312,6 +312,11 @@ async function _estimateSet(db, leadId, lead, o) {
   return { list, basis: basis ? { id: basis.id, stamp: estimateStamp(basis.data) } : { id: '', stamp: '' } };
 }
 
+/** The estimate (id and stamp) a form signed NOW covers: the lead's primary estimate (else its only one). A read that fails throws. */
+async function formBasis(db, leadId, lead) {
+  return (await _estimateSet(db, leadId, lead || {}, {})).basis;
+}
+
 /**
  * The gate for a contract-class document on this lead. A read that fails THROWS (the caller fails closed; a
  * missing attic form is never assumed). opts = { estimate, estimateId } the estimate actually being sent (else the lead's
@@ -356,9 +361,14 @@ async function decide(db, leadId, lead, opts) {
   }
   // A form counts only with the server-written result (atticAckResult, server-owned in firestore.rules): the row's
   // own status and signedAt are written by the rep's browser on the in-person path.
+  // Review 2 (item 4): a deleted row never counts, and a form covers the estimate (id and stamp) it was signed against - the same binding an
+  // override has - so a form signed for an older estimate cannot satisfy a newer, re-priced or re-scoped re-roof estimate.
   const signedForm = found.some((d) => {
     const r = d.data() || {};
-    return AA.isSignedForm(r) && r.atticAckResult && r.atticAckResult.version === AA.VERSION && r.atticAckResult.complete === true;
+    if (r.deleted === true || String(r.status || '') === 'deleted') return false;
+    const res = r.atticAckResult;
+    return AA.isSignedForm(r) && !!res && res.version === AA.VERSION && res.complete === true
+      && String(res.estimateId || '') === set.basis.id && String(res.estimateStamp || '') === set.basis.stamp;
   });
   const override = valid.some((v) => v.kind !== 'scope_lowered');
   return Object.assign({ scope, rawScope, basis: set.basis }, AA.gate({ scope, signedForm, override }));
@@ -370,11 +380,13 @@ const OVERRIDE_DAYS = 30;
 function _ownerOrAdmin(auth, lead) {
   const uid = auth && auth.uid;
   const token = (auth && auth.token) || {};
-  const companyId = String(lead.companyId || lead.userId || '');
+  // Review 2 (item 4): a legacy lead with no companyId has no company owner. lead.userId is whoever created the lead (a rep), so it is never
+  // read as the owner here: only a platform admin can approve on such a lead.
+  const companyId = String(lead.companyId || '');
   const role = String(token.role || '');
   const tokenCo = typeof token.companyId === 'string' ? token.companyId : '';
   // A member of a company is never its owner just because they created the lead (review 2026-11-18, finding 6).
-  return role === 'admin' || (role === 'company_admin' && tokenCo !== '' && tokenCo === companyId) || uid === companyId;
+  return role === 'admin' || (companyId !== '' && ((role === 'company_admin' && tokenCo !== '' && tokenCo === companyId) || uid === companyId));
 }
 
 /**
@@ -441,4 +453,4 @@ async function recordOverride(db, auth, data, fail, deps) {
 
 const TOO_LARGE_MSG = 'This attic acknowledgment is too large to verify. Open the customer, create a fresh copy of the form and try again.';
 
-module.exports = { estimateStamp, manifestFor, verifyManifest, OVERRIDES, MAX_HTML, TOO_LARGE_MSG, gated, isAtticDoc, applyAcks, resultFor, decide, recordOverride };
+module.exports = { estimateStamp, manifestFor, verifyManifest, OVERRIDES, MAX_HTML, TOO_LARGE_MSG, formBasis, gated, isAtticDoc, applyAcks, resultFor, decide, recordOverride };
