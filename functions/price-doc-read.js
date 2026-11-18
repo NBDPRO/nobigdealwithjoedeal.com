@@ -51,11 +51,12 @@ const MAX_DOC_BYTES = 7 * 1024 * 1024;   // a callable carries about 10 MB, and 
 const EXT = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
 
 const MESSAGES = {
-  bad_file: 'Choose a PDF, or a JPG, PNG or WebP photo.',
+  bad_file: 'Choose a PDF, or a JPG, PNG, WebP or iPhone (HEIC) photo.',
   too_big: 'That file is over 7 MB. Choose a smaller one, or split the PDF.',
   cap: 'This month\'s document reading limit is reached. It starts again next month, or raise the limit in Company Settings.',
   reader_unavailable: 'The reader is not available just now. Try again in a minute.',
   unreadable: 'That document could not be read. Try a clearer photo, or the PDF from the supplier.',
+  heic_failed: 'That iPhone photo could not be opened. Take it again, or share it as a JPG.',
   ai_off: 'Document reading is switched off for now.',
 };
 const fail = (reason, extra) => Object.assign({ ok: false, reason, message: MESSAGES[reason] || 'That did not go through.' }, extra || {});
@@ -71,13 +72,21 @@ async function priceDocRead(request, deps) {
   await deps.assertAiEntitled(db, request.auth);
 
   const data = (request.data && typeof request.data === 'object') ? request.data : {};
-  const decoded = D.decodeDocDataUrl(data.file);
+  let decoded = D.decodeDocDataUrl(data.file);
   if (!decoded) return fail('bad_file');
   if (decoded.bytes.length > MAX_DOC_BYTES) return fail('too_big');
   const fileName = String(data.fileName == null ? '' : data.fileName).replace(/[\u0000-\u001F\u007F/\\]/g, ' ').trim().slice(0, 120) || 'document';
   const supplierId = (typeof data.supplierId === 'string' && L.supplierOf(data.supplierId)) ? data.supplierId : null;
   const companyId = caller.companyId;
   const docId = 'd_' + crypto.createHash('sha256').update(decoded.bytes).digest('hex').slice(0, 32);
+  // An iPhone photo (HEIC / HEIF): converted to JPEG here, before anything is reserved or
+  // paid; the reader takes JPEG, PNG, WebP, GIF and PDF only. The JPEG is what is read and
+  // stored (a browser can open it); the id stays the original file's, so the same photo
+  // sent twice is still answered from its first read.
+  if (decoded.mime === 'image/heic' || decoded.mime === 'image/heif' || deps.isHeicBytes(decoded.bytes)) {
+    try { decoded = { bytes: await deps.heicToJpeg(decoded.bytes), mime: 'image/jpeg' }; }
+    catch (e) { deps.logger.warn('[priceDocRead] heic decode failed'); return fail('heic_failed'); }
+  }
   const base = 'priceBook/' + companyId;
   const docRef = db.doc(base + '/priceDocs/' + docId);
 
@@ -162,9 +171,11 @@ const realDeps = () => ({
   priceCaller: require('./price-ledger')._internal.priceCaller,
   isAiDisabled: () => require('./integrations/killswitch').isAiDisabled(),
   assertAiEntitled: (db, auth) => require('./ai-gate').assertAiEntitled(db, auth),
+  isHeicBytes: (buf) => require('./receipt-inbox-logic').isHeicBytes(buf),
+  heicToJpeg: async (buf) => Buffer.from(await require('heic-convert')({ buffer: buf, format: 'JPEG', quality: 0.85 })),
   recordAiSpend: (feature, model, body) => { const s = require('./ai-spend'); return s.recordAiSpend(s.rowFromAnthropic(feature, model, body), { log: logger }); },
 });
 
-const OPTS = { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true, secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 120, memory: '512MiB', maxInstances: 5, concurrency: 4 };
+const OPTS = { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true, secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 120, memory: '1GiB', maxInstances: 5, concurrency: 4 };   // 1GiB: a 12MP HEIC decodes to a ~40-50MB raw buffer (as the receipt inbox)
 exports.priceDocRead = onCall(OPTS, withSentry('priceDocRead', require('./tenant-guard').wrapCallable((request) => priceDocRead(request, realDeps()))));
 exports._internal = { priceDocRead, MESSAGES, MAX_DOC_BYTES, RESERVE_USD, MODEL, HttpsError };

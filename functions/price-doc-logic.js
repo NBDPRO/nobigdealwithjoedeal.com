@@ -144,9 +144,13 @@ function docCapUsd(profile) {
 }
 const docMonthKey = (ms) => new Date(ms).toISOString().slice(0, 7);
 
-/** The file a person picked, as a data: URL: { bytes, mime } for a PDF or a JPEG / PNG / WebP / GIF, else null. */
+/**
+ * The file a person picked, as a data: URL: { bytes, mime } for a PDF or a JPEG / PNG /
+ * WebP / GIF, or an iPhone HEIC / HEIF photo (2026-11-18, Jo; converted to JPEG on the
+ * server before it is read). Anything else is null.
+ */
 function decodeDocDataUrl(dataUrl) {
-  const m = String(dataUrl == null ? '' : dataUrl).match(/^data:(application\/pdf|image\/(?:png|jpeg|jpg|webp|gif));base64,([A-Za-z0-9+/=\s]+)$/);
+  const m = String(dataUrl == null ? '' : dataUrl).match(/^data:(application\/pdf|image\/(?:png|jpeg|jpg|webp|gif|heic|heif));base64,([A-Za-z0-9+/=\s]+)$/);
   if (!m) return null;
   const bytes = Buffer.from(m[2].replace(/\s+/g, ''), 'base64');
   if (!bytes.length) return null;

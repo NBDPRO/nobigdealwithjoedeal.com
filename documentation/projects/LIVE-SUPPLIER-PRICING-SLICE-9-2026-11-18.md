@@ -65,4 +65,4 @@ Compare, has a third box: the monthly limit for reading documents (blank is $10)
   R10: a new callable can be dropped on its first deploy).
 - The dashboard boot script budget is at its ceiling after the limit box (2611 of
   2611 KB shipped).
-- HEIC photos (the iPhone default) are refused: share them as JPG, or take a PDF.
+- ~~HEIC photos (the iPhone default) are refused~~. Fixed 2026-11-18 (Jo: "Yes, convert them"): an iPhone HEIC or HEIF photo is converted to JPEG on the server (heic-convert, as the receipt inbox) before it is read and stored; priceDocRead now has 1GiB for the decode.
