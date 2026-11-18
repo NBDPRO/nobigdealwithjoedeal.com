@@ -203,7 +203,7 @@ const acts = (db) => [...db.store.keys()].filter((k) => k.startsWith('leads/L1/a
     const src = read('functions/deal-prequal.js');
     ok('rate-limited, preview bots ignored, always 204', /httpRateLimit\(req, res, 'dealprequal:ip'/.test(src) && /isPreviewBot/.test(src) && /res\.status\(204\)\.end\(\)/.test(src));
     ok('the endpoint sends nothing (no email / SMS / push)', !/resend|twilio|messages\.create|sendCustomNotification/i.test(src.replace(/\/\*[\s\S]*?\*\//g, '')));
-    ok('close-board.js bumped in the loader', /'js\/close-board\.js\?v=17'/.test(read('docs/pro/js/script-loader.js')));
+    ok('close-board.js bumped in the loader', /'js\/close-board\.js\?v=(1[7-9]|[2-9]\d)'/.test(read('docs/pro/js/script-loader.js')));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

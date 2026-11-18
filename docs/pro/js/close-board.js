@@ -217,7 +217,7 @@
   // server's DONE_STATUSES (functions/deal-acceptance.js): no new accept link is
   // minted for these, so the card drops Text / Email / Copy.
   // Server-owned fields of a homeowner acceptance (deal-acceptance.js).
-  const ACCEPTANCE_KEYS = ['acceptedTier', 'acceptedPrice', 'acceptedFinancing', 'acceptedSignature', 'acceptedAt', 'acceptedVia'];
+  const ACCEPTANCE_KEYS = ['acceptedTier', 'acceptedPrice', 'acceptedFinancing', 'acceptedSignature', 'acceptedAt', 'acceptedVia', 'acceptedEvidence'];
 
   function _isClosedDeal(d) {
     return !!(d && [DEAL_STATUS.ACCEPTED, DEAL_STATUS.SIGNED, DEAL_STATUS.SCHEDULED].includes(d.status));

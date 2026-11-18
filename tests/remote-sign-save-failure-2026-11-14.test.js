@@ -59,7 +59,7 @@ function makeDb(seed, failTimes) {
   const ref = (p) => ({
     id: p.split('/').pop(), path: p,
     get: async () => { const d = store.get(p); return { exists: d !== undefined, data: () => d, ref: ref(p), id: p.split('/').pop() }; },
-    set: async (patch, o) => { trip(p); store.set(p, apply((o && o.merge) ? (store.get(p) || {}) : {}, patch)); },
+    set: async (patch, o) => { trip(p); store.set(p, apply((o && (o.merge || o.mergeFields)) ? (store.get(p) || {}) : {}, patch)); },
     update: async (patch) => { if (!store.has(p)) throw new Error('NOT_FOUND ' + p); store.set(p, apply(store.get(p), patch)); },
   });
   return {
@@ -71,7 +71,7 @@ function makeDb(seed, failTimes) {
     batch: () => {
       const ops = [];
       return {
-        set: (r, d, o) => { ops.push(() => store.set(r.path, apply((o && o.merge) ? (store.get(r.path) || {}) : {}, d))); ops.paths = (ops.paths || []).concat(r.path); },
+        set: (r, d, o) => { ops.push(() => store.set(r.path, apply((o && (o.merge || o.mergeFields)) ? (store.get(r.path) || {}) : {}, d))); ops.paths = (ops.paths || []).concat(r.path); },
         update: (r, d) => { ops.push(() => store.set(r.path, apply(store.get(r.path) || {}, d))); ops.paths = (ops.paths || []).concat(r.path); },
         commit: async () => { (ops.paths || []).forEach(trip); ops.forEach((f) => f()); },
       };
@@ -91,7 +91,7 @@ function makeStorage(files, failSave) {
     _files: m, downloads, saves,
   };
 }
-const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './await-briefly', './signed-price', 'crypto'];
+const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './doc-evidence', './await-briefly', './signed-price', 'crypto'];
 const LOGS = [];
 const SPINE = [];
 function loadFn(db, storage) {
@@ -287,7 +287,7 @@ async function docRow(row) {
   {
     const signDoc = kit.parseTags(kit.read('docs/pro/sign.html'));
     const sp = signDoc.$$('script').find((e) => /^js\/sign-page\.js/.test(e.attr('src') || ''));
-    ok('sign.html cache-busts the changed sign-page.js (v=5)', !!sp && sp.attr('src') === 'js/sign-page.js?v=5', sp && sp.attr('src'));
+    ok('sign.html cache-busts the changed sign-page.js (v=6)', !!sp && sp.attr('src') === 'js/sign-page.js?v=6', sp && sp.attr('src'));
   }
 
   section('6. Joe\'s decisions (2026-11-14)');

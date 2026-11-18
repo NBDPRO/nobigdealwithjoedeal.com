@@ -228,12 +228,17 @@ service firebase.storage {
     // share-link upload was storage/unauthorized and the Copy/Text/Email
     // link actions always failed (NEW-D13). Deal rooms only ever store
     // HTML pages, so gate on isHtmlOnly() like documents/.
+    // Review 2 (2026-11-18), item 11: <dealId>.minted-<ms>.html is the server's archive copy of the page as
+    // minted (createDealAcceptToken, admin SDK, which bypasses these rules). It is evidence of what the
+    // homeowner was sent, so no client creates, overwrites or deletes one; the owner still reads it.
     match /deal_rooms/{uid}/{allPaths=**} {
       allow read: if isOwner(uid) || isAdmin();
       allow write: if ownerWrites(uid)
         && request.resource.size < 5 * 1024 * 1024
-        && isHtmlOnly();
-      allow delete: if ownerWrites(uid) || isAdmin();
+        && isHtmlOnly()
+        && !request.resource.name.matches('.*[.]minted-[0-9]+[.]html');
+      allow delete: if (ownerWrites(uid) || isAdmin())
+        && !(resource != null && resource.name.matches('.*[.]minted-[0-9]+[.]html'));
     }
 
     // ── SHARED GALLERIES ──────────────────────────────

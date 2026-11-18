@@ -202,6 +202,7 @@ function loadEsignHandlers(db) {
     // 2026-10-04: the pure rules (real module) and the shared I/O helpers
     // (real source, run under these same stubs — see loadIo below).
     './esign-logic': require(path.join(ROOT, 'functions', 'esign-logic.js')),
+    './doc-evidence': require(path.join(ROOT, 'functions', 'doc-evidence.js')),
     './integrations/_shared': { secretOr: (_secret, def) => def },
     './messaging-controls': require('./lib/messaging-controls-stub'),
     './resend-guard': { resendRejected: () => false, resendErrorMessage: () => 'rejected' },

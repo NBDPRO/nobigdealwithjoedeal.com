@@ -164,6 +164,20 @@ async function run() {
     { contentType: 'application/zip' }
   ));
 
+  // 9g. review 2 (2026-11-18), item 11: the per-mint archive copy of the deal page
+  //     (<dealId>.minted-<ms>.html) is written by the server (admin SDK) and is evidence of what was
+  //     served; the rep can read it but never overwrite or delete it. The page itself stays editable.
+  await env.withSecurityRulesDisabled(async (context) => {
+    await uploadBytes(ref(context.storage(), 'deal_rooms/alice/dr_test123.minted-1795000000000.html'), buf(512), { contentType: 'text/html' });
+  });
+  await assertFails(uploadBytes(ref(alice, 'deal_rooms/alice/dr_test123.minted-1795000000000.html'), buf(1024), { contentType: 'text/html' }));
+  await assertFails(uploadBytes(ref(alice, 'deal_rooms/alice/dr_test123.minted-1795000000001.html'), buf(1024), { contentType: 'text/html' }));
+  await assertFails(deleteObject(ref(alice, 'deal_rooms/alice/dr_test123.minted-1795000000000.html')));
+  await assertSucceeds(getBytes(ref(alice, 'deal_rooms/alice/dr_test123.minted-1795000000000.html')));
+  await assertFails(getBytes(ref(bob, 'deal_rooms/alice/dr_test123.minted-1795000000000.html')));
+  await assertSucceeds(uploadBytes(ref(alice, 'deal_rooms/alice/dr_test123.html'), buf(2048), { contentType: 'text/html' }));
+  await assertSucceeds(deleteObject(ref(alice, 'deal_rooms/alice/dr_test123.html')));
+
   // 10. bob CANNOT read alice's photos
   await assertFails(getBytes(ref(bob, 'photos/alice/roof.jpg')));
 

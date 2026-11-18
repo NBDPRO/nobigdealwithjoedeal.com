@@ -90,7 +90,7 @@ function makeDb(seed) {
     collection: (cn) => col(p + '/' + cn),
     async get() { const d = store.get(p); return { exists: d !== undefined, id: p.split('/').pop(), data: () => clone(d) }; },
     async update(patch) { if (!store.has(p)) throw new Error('NOT_FOUND ' + p); store.set(p, apply(store.get(p), patch)); },
-    async set(data, opt) { store.set(p, opt && opt.merge ? apply(store.get(p) || {}, data) : apply({}, data)); },
+    async set(data, opt) { store.set(p, opt && (opt.merge || opt.mergeFields) ? apply(store.get(p) || {}, data) : apply({}, data)); },
     async create(data) { if (store.has(p)) { const e = new Error('ALREADY_EXISTS'); e.code = 6; throw e; } store.set(p, apply({}, data)); },
   });
   const query = (cn, filters, lim) => ({
@@ -145,7 +145,7 @@ function makeStorage(files) {
 // remote-signing.js with real module code and fake I/O (the loader from
 // tests/contract-cancel-forms.test.js); its job-spine hand-off is the REAL
 // spine on the same fake Firestore.
-const REAL = ['./ky-insurance-law', './cancel-window', './cancel-notice-pdf', './job-spine-logic', './lead-artifact-paths', './esign-logic',
+const REAL = ['./ky-insurance-law', './cancel-window', './cancel-notice-pdf', './job-spine-logic', './lead-artifact-paths', './esign-logic', './doc-evidence',
   './await-briefly', './customer-estimate-rows', './signed-price', 'crypto'];
 function loadRemoteSigning(db, storage, spy) {
   const file = path.join(FN, 'remote-signing.js');

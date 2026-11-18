@@ -686,6 +686,20 @@ service cloud.firestore {
     function documentSaveFlagUpdateOk() {
       return request.resource.data.get('signedSaveFailed', null) == resource.data.get('signedSaveFailed', null);
     }
+    // signatureEvidence (2026-11-18, evidence and clause foundation) is server-owned: the
+    // record of who signed from where (IP, user agent), the clause-set version, the
+    // document digest and the consent shown. submitSignature and recordInPersonSignature
+    // (admin SDK) write it; no client creates a row carrying it or changes or removes it
+    // later, so the rep, an interested party to the contract, cannot forge or rewrite it.
+    // Review 2 (2026-11-18): signedStampFailed / signedStampFailedAt (the "signed but the row was
+    // not stamped" warning) and evidenceRefused (the in-person evidence gate refused the row) are
+    // server-owned the same way, so a rep cannot clear or forge them on a not-yet-signed row.
+    function documentEvidenceCreateOk() {
+      return !request.resource.data.keys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused']);
+    }
+    function documentEvidenceUpdateOk() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused']);
+    }
     function signedDocumentUpdateOk(leadId) {
       let keys = request.resource.data.diff(resource.data).affectedKeys();
       return keys.hasOnly(['sharedWithHomeowner', 'updatedAt'])
@@ -1348,7 +1362,8 @@ service cloud.firestore {
               || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
           && documentStatusWriteOk()
           && documentHtmlPathOk(leadId)
-          && documentSaveFlagCreateOk();
+          && documentSaveFlagCreateOk()
+          && documentEvidenceCreateOk();
         // Split from create (2026-09-29): an update reads `resource`, which a
         // create does not have. A signed row is locked — see documentIsSigned().
         allow update: if isAuth() && notViewer()
@@ -1357,6 +1372,7 @@ service cloud.firestore {
           && documentStatusWriteOk()
           && documentHtmlPathOk(leadId)
           && documentSaveFlagUpdateOk()
+          && documentEvidenceUpdateOk()
           && (!documentIsSigned() || signedDocumentUpdateOk(leadId));
         allow delete: if isAuth() && notViewer()
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
@@ -2474,10 +2490,12 @@ service cloud.firestore {
     match /documents/{docId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
       allow update: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
-        && (!documentIsSigned() || legacySignedDocumentUpdateOk());
+        && (!documentIsSigned() || legacySignedDocumentUpdateOk())
+        && documentEvidenceUpdateOk();
       allow delete: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
         && !documentIsSigned();
-      allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid
+        && documentEvidenceCreateOk();
     }
 
     // ── NOTES ─────────────────────────────────────────
@@ -4549,12 +4567,21 @@ service cloud.firestore {
     function dealIsClosed(d) {
       return d.get('status', '') in ['accepted', 'signed', 'scheduled'];
     }
+    // Review 2026-11-18: the acceptance fields are written ONLY by the admin SDK
+    // (submitDealAcceptance). Nothing a client sends, on a deal that is open or one
+    // that is closed, creates or changes them, and no client creates a deal room that
+    // already carries them: a rep is an interested party and must not be able to
+    // forge the homeowner's acceptance, signature or evidence.
+    function dealAcceptanceKeys() {
+      return ['acceptedTier', 'acceptedPrice', 'acceptedFinancing',
+              'acceptedSignature', 'acceptedAt', 'acceptedVia', 'acceptedEvidence'];
+    }
     function dealAcceptanceIntact() {
-      return !dealIsClosed(resource.data)
-        || (dealIsClosed(request.resource.data)
-            && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-              'acceptedTier', 'acceptedPrice', 'acceptedFinancing',
-              'acceptedSignature', 'acceptedAt', 'acceptedVia']));
+      return (!dealIsClosed(resource.data) || dealIsClosed(request.resource.data))
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(dealAcceptanceKeys());
+    }
+    function dealCreateHasNoAcceptance() {
+      return !request.resource.data.keys().hasAny(dealAcceptanceKeys());
     }
     // deal_rooms.leadId (2026-10-05): a deal names only the writer's own lead
     // or one in the writer's company. The accepted deal writes to that lead
@@ -4581,6 +4608,7 @@ service cloud.firestore {
       allow delete: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
         && !dealIsClosed(resource.data);
       allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid
+        && dealCreateHasNoAcceptance()
         && dealLeadOk(request.resource.data);
     }
 

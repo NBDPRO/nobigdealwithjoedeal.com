@@ -171,6 +171,68 @@ window.NBDDocGen = {
   },
 
   /**
+   * Feature flag docEvidenceFoundation (default OFF, per person): the fail-closed
+   * send check below, and the server evidence write for an in-person signing.
+   */
+  _docEvidenceOn() {
+    return !!(typeof window !== 'undefined' && window.NBDFlags && typeof window.NBDFlags.enabled === 'function'
+      && window.NBDFlags.enabled('docEvidenceFoundation'));
+  },
+
+  /**
+   * Fail-closed send check (flag docEvidenceFoundation): a contract-class document with
+   * a blank price, address, homeowner name, mailing address, legal entity name, start or
+   * completion, or a leftover [Placeholder] / {{token}} is refused with a plain list of
+   * what is missing (the rules live in doc-send-checks.js, shared with the server).
+   * `html` is the rendered document when there is one. Returns true when clear to go.
+   */
+  _docSendGate(type, data, html) {
+    const C = (typeof window !== 'undefined') && window.NBDDocSendChecks;
+    if (!this._docEvidenceOn() || (data && data._isBlankPreview)) return true;
+    if (!C) {
+      // Flag ON but the checks module did not load (review 2026-11-18): do NOT let a contract through
+      // unchecked. The server runs the same check, but a clear message here beats a late refusal.
+      if (['contract', 'proposal', 'work_authorization', 'estimate_esign'].indexOf(type) === -1) return true;
+      const miss = 'The pre-send document check did not load. Reload the page and try again.';
+      if (typeof showToast === 'function') showToast(miss, 'error'); else console.error(miss);
+      return false;
+    }
+    if (!C.isContractClass(type)) return true;
+    const d = data || {};
+    const J = window.NBDJurisdiction;
+    const brand = (window._brand ? window._brand() : null) || {};
+    const rawPrice = d.contractPrice || d.totalPrice || d.total || d.jobTotal || (d.estimate && d.estimate.grandTotal);
+    const n = Number(String(rawPrice == null ? '' : rawPrice).replace(/[^0-9.\-]/g, ''));
+    const priceCents = Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
+    // A key the form never set falls back to the template's own wording ("Upon contract
+    // execution", "5-7 business days"), which prints; only a key set to blank prints a blank.
+    const set = (k) => (Object.prototype.hasOwnProperty.call(d, k) ? d[k] : 'template default');
+    const gaps = C.contractGaps({
+      type, priceCents,
+      address: d.homeownerAddress || d.address || d.propertyAddress || (d.customer && d.customer.address),
+      homeownerName: d.homeownerName || d.customerName || (d.customer && d.customer.name),
+      mailingAddress: this._contractorPhysicalAddress(d.companyProfile),
+      needsMailingAddress: type === 'contract' || type === 'proposal' || !!(J && html && J.hasCancelPacket && J.hasCancelPacket(html)),
+      entityName: brand.entityName,
+      startDate: set('startDate'), estimatedCompletion: set('estimatedCompletion'),
+      text: html || '',
+    });
+    if (!gaps.length) return true;
+    const msg = C.describeGaps(gaps);
+    if (typeof showToast === 'function') showToast(msg, 'error'); else console.error(msg);
+    return false;
+  },
+
+  /** SHA-256 hex of a string (the digest of the document as presented), or null when unavailable. */
+  async _sha256Hex(text) {
+    try {
+      if (!window.crypto || !window.crypto.subtle || typeof TextEncoder === 'undefined') return null;
+      const buf = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(text)));
+      return Array.prototype.map.call(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
+    } catch (_) { return null; }
+  },
+
+  /**
    * Inputs for ky-insurance-law.js cancelPacketHtml: the tenant's name and
    * mailing address (the address the law requires on the form — never the
    * letterhead address), the homeowner and property, the property state for
@@ -578,6 +640,8 @@ window.NBDDocGen = {
         showToast('Add your mailing address in Settings → Company Profile ("Mailing Address (one line)") so the 3-day cancellation forms print it.', 'warning');
       }
     }
+    // Fail-closed send check, fields first (flag docEvidenceFoundation; no-op while it is off).
+    if (!this._docSendGate(type, data, '')) return;
 
     // ─── QA fix: reconcile single-total docs against their rendered lines ───
     // The invoice + proposal fill-forms collect ONE rep-entered total
@@ -649,6 +713,8 @@ window.NBDDocGen = {
       if(typeof showToast==='function') showToast('Document type not found','error'); else console.error('Document type not found:', type);
       return;
     }
+    // Fail-closed send check on the rendered text: a [Bracket] or {{token}} left in the document.
+    if (!this._docSendGate(type, data, html)) return;
     // Blank-preview watermark. Set by _blankifyDocData() on
     // customer.html when the rep uses the "Preview blank template"
     // escape hatch (either from the doc-template ⓘ icon or the
@@ -659,6 +725,11 @@ window.NBDDocGen = {
       html = html.replace(/<\/body>/i, wm + '</body>');
     }
     const typeName = this.DOCUMENT_TYPES[type]?.name || type;
+    // Digest of the document exactly as presented (the HTML uploaded below as the unsigned
+    // original). Sent with the in-person signing so the server can record it beside its own
+    // digest of the signed copy; flag docEvidenceFoundation only.
+    const _evidenceOn = this._docEvidenceOn();
+    const _presentedSha = _evidenceOn ? await this._sha256Hex(html) : null;
     // Route through the Universal Document Viewer so the user
     // can Save / Email / Print / PDF / Close without being dumped
     // into a blank popup with no way to persist the doc.
@@ -942,7 +1013,11 @@ window.NBDDocGen = {
           // already saved above: a failure here never blocks signing, it only
           // logs and tells the rep to move the card by hand.
           if (type === 'contract' && _signedSaved && _docMetaRef && _leadIdEarly) {
-            await this._recordInPersonSignature(_leadIdEarly, _docMetaRef.id);
+            await this._recordInPersonSignature(_leadIdEarly, _docMetaRef.id, { presentedSha256: _presentedSha });
+          } else if (_evidenceOn && _signedSaved && _docMetaRef && _leadIdEarly) {
+            // Any other signed document (flag docEvidenceFoundation): the server records the
+            // signing evidence only; it never moves the card for a non-contract.
+            await this._recordInPersonSignature(_leadIdEarly, _docMetaRef.id, { presentedSha256: _presentedSha, evidenceOnly: true });
           }
           // Repaint so the row picks up its '✓ Signed' state immediately.
           if (window.NBDCustomerDocs) {
@@ -1011,7 +1086,8 @@ window.NBDDocGen = {
    * Never throws and never blocks the signing UX: the contract is already
    * saved when this runs. Resolves to the callable's result, or null.
    */
-  async _recordInPersonSignature(leadId, docId) {
+  async _recordInPersonSignature(leadId, docId, extra) {
+    const opts = extra || {};
     try {
       if (!window._functions || !window._httpsCallable) {
         const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
@@ -1019,13 +1095,13 @@ window.NBDDocGen = {
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
       const fn = window._httpsCallable(window._functions, 'recordInPersonSignature');
-      const res = await fn({ leadId, docId });
+      const res = await fn(opts.presentedSha256 ? { leadId, docId, presentedSha256: opts.presentedSha256 } : { leadId, docId });
       const out = (res && res.data) || null;
       if (out && out.moved && typeof showToast === 'function') showToast('✓ Contract signed — card moved to Contract Signed', 'success');
       return out;
     } catch (e) {
       console.warn('recordInPersonSignature failed:', e && e.message);
-      if (typeof showToast === 'function') showToast('Contract saved — but the card did not move. Move it to Contract Signed by hand.', 'warning');
+      if (!opts.evidenceOnly && typeof showToast === 'function') showToast('Contract saved — but the card did not move. Move it to Contract Signed by hand.', 'warning');
       return null;
     }
   },

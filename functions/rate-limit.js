@@ -83,7 +83,11 @@ function parseXff(header) {
   return header.split(',').map(s => s.trim()).filter(Boolean);
 }
 
-function clientIp(req) {
+// { ip, source } — the same address clientIp returns, plus HOW it was derived, so a record that
+// stores the address can also say what it rests on (review 2026-11-18, finding 10):
+//   'xff:hops=<n>:chain=<len>'  taken from X-Forwarded-For, <n> trusted proxy hops, <len> entries
+//   'socket'                    no usable chain; the connection's own address
+function clientIpInfo(req) {
   const xff = req?.headers?.['x-forwarded-for'];
   const chain = parseXff(xff);
   if (chain.length > 0) {
@@ -93,11 +97,15 @@ function clientIp(req) {
     // still lands on the LB-stamped hop (their real IP) rather than
     // the spoofed prefix.
     const idx = chain.length - TRUSTED_PROXY_HOPS - 1;
-    if (idx >= 0) return chain[idx];
+    if (idx >= 0) return { ip: chain[idx], source: 'xff:hops=' + TRUSTED_PROXY_HOPS + ':chain=' + chain.length };
     // Chain shorter than trusted hop count → fall through to socket IP.
   }
   // Fallbacks — socket IP on direct invocation / tests.
-  return req?.ip || req?.socket?.remoteAddress || req?.rawRequest?.ip || 'unknown';
+  return { ip: req?.ip || req?.socket?.remoteAddress || req?.rawRequest?.ip || 'unknown', source: 'socket' };
+}
+
+function clientIp(req) {
+  return clientIpInfo(req).ip;
 }
 
 /**
@@ -200,4 +208,4 @@ async function httpRateLimit(req, res, namespace, limit, windowMs) {
   }
 }
 
-module.exports = { enforceRateLimit, httpRateLimit, clientIp, rateLimitIpKey, hashKey };
+module.exports = { enforceRateLimit, httpRateLimit, clientIp, clientIpInfo, rateLimitIpKey, hashKey };
