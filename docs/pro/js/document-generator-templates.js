@@ -471,6 +471,8 @@
   }
   function esc(s) { return String(s||'').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function money(n) { return '$' + (parseFloat(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  // A rep-set box: only an explicit yes counts. Absent, blank, false = unticked.
+  function isOn(v) { return v === true || v === 'true' || v === 1 || v === '1'; }
   // Cents helpers (2026-10-04): money math stays in integer cents (CLAUDE.md).
   // toCents reads a number or a "$1,234.50"-style string; a blank or
   // unreadable value is 0. The string is split at the point, never
@@ -723,7 +725,7 @@
       claimNumber:'[Claim #]', policyNumber:'[Policy #]', insuranceCompany:'[Insurance Company]',
       dateOfLoss:'[Date of Loss]', originalApproved:'0.00',
       supplementItems:[],
-      justification:'During the course of the approved roof replacement, additional damage was discovered that was not visible during the initial inspection. The following supplemental items are necessary to restore the roof system to its pre-loss condition and ensure compliance with local building codes.' }, data);
+      justification:'' }, data);
 
     let suppTotal = 0;
     const rows = d.supplementItems.map(i => {
@@ -775,19 +777,19 @@
         </table>
       </div>
 
-      <div class="section">
+      ${String(d.justification || '').trim() ? `<div class="section">
         <div class="section-title">Justification</div>
         <p style="font-size:14px;">${esc(d.justification)}</p>
-      </div>
+      </div>` : ''}
 
       <div class="section">
         <div class="section-title">Supporting Documentation</div>
         <div style="font-size:14px;line-height:2;">
-          <label><input type="checkbox" checked disabled> Photographs of additional damage</label><br>
-          <label><input type="checkbox" checked disabled> Revised scope of work</label><br>
-          <label><input type="checkbox" disabled> Manufacturer specifications</label><br>
-          <label><input type="checkbox" checked disabled> Code compliance documentation</label><br>
-          <label><input type="checkbox" disabled> Third-party assessment</label>
+          <label><input type="checkbox"${isOn(d.docPhotos) ? ' checked' : ''} disabled> Photographs of additional damage</label><br>
+          <label><input type="checkbox"${isOn(d.docRevisedScope) ? ' checked' : ''} disabled> Revised scope of work</label><br>
+          <label><input type="checkbox"${isOn(d.docManufacturerSpecs) ? ' checked' : ''} disabled> Manufacturer specifications</label><br>
+          <label><input type="checkbox"${isOn(d.docCodeCompliance) ? ' checked' : ''} disabled> Code compliance documentation</label><br>
+          <label><input type="checkbox"${isOn(d.docThirdParty) ? ' checked' : ''} disabled> Third-party assessment</label>
         </div>
       </div>
 
@@ -942,7 +944,7 @@
       <div class="section" style="background:#fff8f5;padding:20px;border-radius:8px;border:1px solid #f0d0c0;">
         <p style="font-size:13px;color:#555;margin:0;">
           <strong>Notice of Cancellation:</strong> You have the right to cancel this authorization within three (3) business
-          days of signing. To cancel, provide written notice to ${C.name} at ${C.email} or by calling ${C.phone}.
+          days of signing. To cancel, provide written notice to ${C.name} at ${C.email}.
         </p>
       </div>
 
@@ -961,15 +963,18 @@
       completionDate:today(), warrantyTier:'best',
       inspectorName:'' }, data);
 
+    // Every item starts UNchecked; the rep ticks what is true (pre-flight
+    // checkboxes chk*). The walkthrough line is an assertion about the
+    // homeowner, so it prints only when the rep has ticked it.
     const checklist = [
-      {item:'All materials installed per manufacturer specifications',checked:true},
-      {item:'Flashing and waterproofing completed at all penetrations',checked:true},
-      {item:'Ventilation system installed and verified',checked:true},
-      {item:'Property cleaned and all debris removed',checked:true},
-      {item:'Magnetic nail sweep of entire property completed',checked:true},
-      {item:'Final quality inspection completed by crew lead',checked:true},
-      {item:'Homeowner walkthrough and approval obtained',checked:true}
-    ];
+      {item:'All materials installed per manufacturer specifications',checked:isOn(d.chkMaterials)},
+      {item:'Flashing and waterproofing completed at all penetrations',checked:isOn(d.chkFlashing)},
+      {item:'Ventilation system installed and verified',checked:isOn(d.chkVentilation)},
+      {item:'Property cleaned and all debris removed',checked:isOn(d.chkCleanup)},
+      {item:'Magnetic nail sweep of entire property completed',checked:isOn(d.chkNailSweep)},
+      {item:'Final quality inspection completed by crew lead',checked:isOn(d.chkQualityInspection)},
+      {item:'Homeowner walkthrough and approval obtained',checked:isOn(d.chkWalkthrough),onlyWhenChecked:true}
+    ].filter(c => c.checked || !c.onlyWhenChecked);
 
     return page('Certificate of Completion', `
       <style>
@@ -979,6 +984,7 @@
         .check-icon { width:24px; height:24px; border-radius:50%; display:flex; align-items:center;
           justify-content:center; font-size:14px; flex-shrink:0; }
         .check-yes { background:#dcfce7; color:#16a34a; }
+        .check-no { border:1.5px solid #cbd5e1; }
       </style>
       ${letterhead()}
       <div class="comp-border">
@@ -999,7 +1005,7 @@
         <div class="section">
           <div class="section-title">Completion Verification</div>
           ${checklist.map(c => `<div class="check-item">
-            <div class="check-icon ${c.checked?'check-yes':''}">&#10003;</div>
+            <div class="check-icon ${c.checked?'check-yes':'check-no'}">${c.checked?'&#10003;':''}</div>
             <span>${esc(c.item)}</span>
           </div>`).join('')}
         </div>
@@ -1548,18 +1554,11 @@
     // Rep-entered "Services Offered" (DocPreflight `services` textarea) overrides
     // the companyProfile/hardcoded list. It arrives as a comma-separated string
     // (e.g. "Roofing, Siding, Gutters") → one name-only card per entry. Fallback
-    // chain when blank: companyProfile.services → hardcoded NBD default.
+    // chain when blank: companyProfile.services → nothing (no hard-coded rows).
     const servicesOverride = (typeof d.services === 'string' && d.services.trim())
       ? d.services.split(',').map(s => s.trim()).filter(Boolean).map(name => ({icon:'🔧',name:name,desc:''}))
       : null;
-    const services = servicesOverride || (Array.isArray(cp.services) && cp.services.length ? cp.services : !isNbdDoc() ? [] : [
-      {icon:'🏠',name:'Roofing',desc:'Full replacements, repairs, and storm damage restoration'},
-      {icon:'🧱',name:'Siding',desc:'Vinyl, fiber cement, LP SmartSide, and board & batten'},
-      {icon:'🌧️',name:'Gutters',desc:'Seamless gutters, guards, downspouts, and drainage'},
-      {icon:'🪟',name:'Windows & Doors',desc:'Energy-efficient upgrades and storm damage replacement'},
-      {icon:'🎨',name:'Interior',desc:'Water damage repair, paint, drywall, flooring'},
-      {icon:'⛈️',name:'Storm Damage',desc:'Full insurance claim management from inspection to completion'}
-    ]);
+    const services = servicesOverride || (Array.isArray(cp.services) && cp.services.length ? cp.services : []);
     const valueProps = Array.isArray(cp.valueProps) && cp.valueProps.length ? cp.valueProps : defaultValueProps();
     // NBD keeps the original resolution (cp.tagline, the editable shop-wide
     // marketing tagline, wins) → byte-identical. A non-NBD tenant uses ONLY its
@@ -1642,7 +1641,7 @@
 
       ${financePartner ? `<div class="finance-cta">
         <div style="font-size:20px;font-weight:700;">Flexible Financing Available</div>
-        <div style="font-size:14px;margin-top:8px;opacity:0.9;">Through our partnership with ${esc(financePartner)} — affordable monthly payments with quick approval.</div>
+        <div style="font-size:14px;margin-top:8px;opacity:0.9;">Through our partnership with ${esc(financePartner)} — affordable monthly payments.</div>
       </div>` : ''}
 
       ${affiliateRow()}
@@ -1746,11 +1745,12 @@
   // TEMPLATE 10: FINANCING OPTIONS
   // ═══════════════════════════════════════════════════════════════
   DG.renderFinancingOptions = function(data) {
-    const d = Object.assign({ homeownerName:'', totalPrice:10000 }, data);
+    const d = Object.assign({ homeownerName:'', totalPrice:'' }, data);
     const cp = tenantCp(d);
     // totalPrice arrives $-formatted from the preflight bridge (jobTotal→totalPrice),
-    // so strip non-numerics before parsing or it would NaN→fabricate the $10k default.
-    const price = parseFloat(String(d.totalPrice).replace(/[^0-9.]/g, '')) || 10000;
+    // so strip non-numerics before parsing. No real total passed = 0 = no
+    // Project Total box (never an invented figure).
+    const price = parseFloat(String(d.totalPrice == null ? '' : d.totalPrice).replace(/[^0-9.]/g, '')) || 0;
     // A company with no finance partner on file (every non-NBD company until
     // it enters one) gets a generic lender phrase, never NBD's Acorn Finance.
     const financePartner = cp.financePartner || defaultFinancePartner() || 'a third-party lender';
@@ -1772,7 +1772,7 @@
     const plans = tiers.map(t => {
       const months = Number(t.months) || 12;
       const apr = Number(t.apr) || 0;
-      const lenderSet = apr <= 0;
+      const lenderSet = apr <= 0 || !price; // no real total: nothing to compute a payment from
       let monthly = 0;
       if (!lenderSet) {
         const r = apr / 100 / 12;
@@ -1855,16 +1855,6 @@
           <div class="step-card"><div class="step-num">3</div>
             <div style="font-weight:700;font-size:15px;color:${S};margin-bottom:4px;">Choose Your Plan</div>
             <div style="font-size:13px;color:#666;">Pick the payment plan that works best for your budget. Start your project!</div></div>
-        </div>
-      </div>
-
-      <div class="section">
-        <div class="section-title">Benefits of Financing</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:14px;">
-          <div style="padding:12px;background:#f8f8f8;border-radius:6px;">No money down options available</div>
-          <div style="padding:12px;background:#f8f8f8;border-radius:6px;">Fixed monthly payments — no surprises</div>
-          <div style="padding:12px;background:#f8f8f8;border-radius:6px;">No prepayment penalties</div>
-          <div style="padding:12px;background:#f8f8f8;border-radius:6px;">Quick and easy application process</div>
         </div>
       </div>
 
@@ -1971,16 +1961,9 @@
     const d = Object.assign({ homeownerName:'[Homeowner Name]', address:'[Property Address]',
       deliveryDate:'[Delivery Date]', deliveryTime:'Between 7:00 AM and 12:00 PM',
       startDate:'[Project Start Date]',
-      materials:[
-        {item:'GAF Timberline HDZ Architectural Shingles',qty:'30 bundles',notes:'Color: Charcoal'},
-        {item:'GAF FeltBuster Synthetic Underlayment',qty:'6 rolls',notes:''},
-        {item:'GAF Cobra Ridge Vent',qty:'4 pieces',notes:''},
-        {item:'Drip Edge Flashing (Aluminum)',qty:'120 LF',notes:'Color-matched'},
-        {item:'Ice & Water Shield',qty:'2 rolls',notes:'Eaves and valleys'},
-        {item:'Pipe Boot Flashings',qty:'4 units',notes:''},
-        {item:'Starter Strip Shingles',qty:'6 bundles',notes:''},
-        {item:'Roofing Nails (1.25")',qty:'4 boxes',notes:''}
-      ] }, data);
+      materials:[] }, data);
+    // No invented product list: with nothing passed the table says so.
+    const matRows = (Array.isArray(d.materials) ? d.materials : []).filter(Boolean);
 
     return page('Material Delivery Notice', `
       ${letterhead()}
@@ -2021,9 +2004,9 @@
         <div class="section-title">Materials Being Delivered</div>
         <table class="items">
           <thead><tr><th>Material</th><th>Quantity</th><th>Notes</th></tr></thead>
-          <tbody>${d.materials.map(m =>
+          <tbody>${matRows.length ? matRows.map(m =>
             `<tr><td>${esc(m.item)}</td><td>${esc(m.qty)}</td><td>${esc(m.notes)}</td></tr>`
-          ).join('')}</tbody>
+          ).join('') : '<tr><td colspan="3">Materials list to be confirmed</td></tr>'}</tbody>
         </table>
       </div>
 
@@ -2397,8 +2380,7 @@
             'Roofing — replacements, repairs, storm damage',
             'Siding — vinyl, fiber cement, LP SmartSide',
             'Gutters — seamless systems and guards',
-            'Windows & Doors — energy-efficient upgrades',
-            'Insurance Claims — handled start to finish'
+            'Windows & Doors — energy-efficient upgrades'
           ]);
 
     return page('Door Hanger', `
@@ -2430,7 +2412,7 @@
         </div>
         <div class="hanger-body">
           <p style="font-size:13px;color:#555;margin:0 0 16px;line-height:1.6;">
-            Hi Neighbor! Our crew is working on a project nearby. While we are in the area, we would be happy
+            Hi Neighbor! ${String(d.nearbyJobAddress || '').trim() ? 'Our crew is working on a project nearby. While we are in the area, we would be happy' : 'We would be happy'}
             to provide a complimentary roof and exterior inspection at no cost to you.</p>
 
           <div style="font-size:11px;font-weight:700;color:${S};text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">
@@ -2438,7 +2420,7 @@
           ${hangerServices.map(s => `<div class="hanger-service"><div class="hanger-dot"></div>${esc(s)}</div>`).join('')}
 
           <div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee;">
-            <div style="font-size:12px;color:#666;">${isNbdDoc() ? 'Fully Insured' : 'Insured'} | Warranty-Backed</div>
+            <div style="font-size:12px;color:#666;">${isNbdDoc() ? 'Fully Insured' : 'Insured'}</div>
             ${affiliateRow()}
           </div>
         </div>
@@ -2457,19 +2439,19 @@
   // TEMPLATE 17: NEIGHBORHOOD MAILER
   // ═══════════════════════════════════════════════════════════════
   DG.renderNeighborhoodMailer = function(data) {
-    const d = Object.assign({ neighborhoodName:'[Your Neighborhood]', projectAddress:'[Nearby Project Address]' }, data);
+    const d = Object.assign({ neighborhoodName:'[Your Neighborhood]' }, data);
     const cp = d.companyProfile || window._companyProfile || (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
-    // Footer region tagline. NBD keeps its exact 'Lexington, KY & Surrounding
-    // Areas' literal (byte-identical). A non-NBD tenant drops the KY region: it
-    // shows its OWN serviceArea only when it has actually overridden the NBD
-    // default, otherwise no region at all (just the insurance line).
+    // Footer region tagline: the profile's own serviceArea (NBD's is on its
+    // profile; empty prints nothing). A non-NBD tenant shows its OWN
+    // serviceArea only when it has actually overridden the NBD default,
+    // otherwise no region at all (just the insurance line).
     let _mb = null;
     try { _mb = (typeof window !== 'undefined' && window._brand) ? window._brand() : null; } catch (_) { _mb = null; }
     const _isNbd = !_mb || !_mb.legalName || _mb.legalName === 'No Big Deal Home Solutions';
     const _svcArea = String((cp && cp.serviceArea) || '').trim();
     const _KY_DEFAULT = 'Greater Cincinnati & Northern Kentucky';
     const mailerRegion = _isNbd
-      ? ' | Lexington, KY & Surrounding Areas'
+      ? (_svcArea ? ' | ' + esc(_svcArea) : '')
       : (_svcArea && _svcArea !== _KY_DEFAULT ? ' | ' + esc(_svcArea) : '');
 
     return page('Neighborhood Mailer', `
@@ -2495,16 +2477,8 @@
             ATTENTION: ${esc(d.neighborhoodName)} RESIDENTS</div>
           <h1 style="margin:0;color:#fff;font-size:26px;line-height:1.3;">
             WE JUST COMPLETED A<br>PROJECT NEAR YOU</h1>
-          <p style="margin:12px 0 0;font-size:14px;opacity:0.85;">
-            Your neighbor at ${esc(d.projectAddress)} trusted ${C.name} — and so can you.</p>
         </div>
         <div class="mailer-body">
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;border-bottom:1px solid #eee;padding-bottom:24px;">
-            <div class="mailer-stat"><div class="mailer-stat-num">5★</div><div class="mailer-stat-label">Customer Rating</div></div>
-            <div class="mailer-stat"><div class="mailer-stat-num">100%</div><div class="mailer-stat-label">Satisfaction</div></div>
-            <div class="mailer-stat"><div class="mailer-stat-num">0</div><div class="mailer-stat-label">Cost for Inspection</div></div>
-          </div>
-
           <p style="font-size:14px;color:#333;line-height:1.7;margin:0 0 20px;">
             Whether your home was affected by the same storm or you have been thinking about an upgrade,
             we would love the opportunity to take a look. Our inspections are always free, and there is
@@ -2540,9 +2514,9 @@
 
     // Wire the rep-entered testimonials. Each preflight field is a free-text
     // "Customer quote + name" textarea, so the whole entry is the displayed
-    // text; rating1/2/3 (default 5) drives the stars. Only non-blank entries
-    // are included.
-    const clampRating = function(r) { const n = parseInt(r, 10); return (n >= 1 && n <= 5) ? n : 5; };
+    // text; rating1/2/3 drives the stars. A missing or out-of-range rating is
+    // 0 = no stars (never defaulted to 5). Only non-blank entries are included.
+    const clampRating = function(r) { const n = parseInt(r, 10); return (n >= 1 && n <= 5) ? n : 0; };
     const repEntries = [
       { text: d.testimonial1, rating: clampRating(d.rating1) },
       { text: d.testimonial2, rating: clampRating(d.rating2) },
@@ -2555,16 +2529,6 @@
     // entered the sheet prints a prompt for a real review instead.
     const testimonials = repEntries;
     const hasTestimonials = testimonials.length > 0;
-
-    // Hero stats: derived from the entries actually shown (never a made-up
-    // 5.0). Empty -> stats suppressed below.
-    const avgRating = hasTestimonials
-      ? testimonials.reduce(function(s, t) { return s + (t.rating || 5); }, 0) / testimonials.length
-      : 0;
-    const avgDisplay = avgRating.toFixed(1);
-    const recommendPct = hasTestimonials
-      ? Math.round((testimonials.filter(function(t) { return (t.rating || 5) >= 4; }).length / testimonials.length) * 100)
-      : 0;
 
     return page('Customer Testimonials', `
       <style>
@@ -2583,10 +2547,6 @@
       <div class="test-hero">
         <h1 style="margin:0;color:#fff;font-size:28px;">WHAT OUR CUSTOMERS SAY</h1>
         <p style="color:${A};margin:12px 0 0;font-size:16px;">Real Reviews From Real Homeowners</p>
-        ${hasTestimonials ? `<div style="display:flex;justify-content:center;gap:24px;margin-top:20px;">
-          <div><div style="font-size:28px;font-weight:700;">${avgDisplay}</div><div style="font-size:12px;opacity:0.8;">Average Rating</div></div>
-          <div><div style="font-size:28px;font-weight:700;">${recommendPct}%</div><div style="font-size:12px;opacity:0.8;">Would Recommend</div></div>
-        </div>` : ''}
       </div>
 
       ${hasTestimonials ? '' : `<div class="test-card">
@@ -2594,7 +2554,7 @@
       </div>`}
       ${testimonials.map(t => `<div class="test-card">
         <div class="test-quote">&ldquo;</div>
-        <div class="test-stars">${'★'.repeat(t.rating || 5)}</div>
+        ${t.rating ? `<div class="test-stars">${'★'.repeat(t.rating)}</div>` : ''}
         <div class="test-text">${esc(t.text)}</div>
         ${(t.name || t.location || t.project) ? `<div class="test-meta">
           <span>${(t.name || t.location) ? `<strong>${esc(t.name)}</strong>${t.location ? ' — ' + esc(t.location) : ''}` : ''}</span>
@@ -2814,7 +2774,7 @@
       storm_checklist: [],
       claim_guide: [],
       door_hanger: [],
-      neighborhood_mailer: ['neighborhoodName','projectAddress'],
+      neighborhood_mailer: ['neighborhoodName'],
       testimonial_sheet: [],
       thank_you: ['homeownerName','address','projectType','completionDate'],
       payment_agreement: ['homeownerName','address','totalAmount','depositAmount','depositDue','progressAmount','progressDue','finalAmount','finalDue','projectDescription'],
