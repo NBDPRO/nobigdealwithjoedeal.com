@@ -146,5 +146,26 @@ console.log('\nThe list by the company\'s own suppliers (materials-list.js)');
   ok('a supplier label is escaped where it is painted', PM.bodyHtml(evil, true, false).indexOf('<img src=x>') === -1 && PM.bodyHtml(evil, true, false).indexOf('&lt;img src=x&gt;') !== -1);
 }
 
-console.log('\n' + passed + ' passed, ' + failed + ' failed');
-if (failed) { console.log('FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }
+console.log('\nA rep\'s list is never repainted (2026-11-18: reps read no supplier price)');
+(async () => {
+  const run = async (canRecord) => {
+    const calls = [];
+    const overlay = { querySelector: () => null };
+    const win = { addEventListener() {}, NBDFlags: { enabled: () => true }, NBDXX: 1 };
+    win.window = win;
+    win.NBDPriceLogic = L;
+    win.NBDPriceLedger = { enabled: () => true, canRecord: () => canRecord, role: () => (canRecord ? 'admin' : 'none'), compareSettings: () => ({ taxBps: null }),
+      offersFor: async (ids) => { calls.push('offersFor'); return []; }, suppliers: async () => { calls.push('suppliers'); return []; } };
+    const ctx = vm.createContext({ window: win, document: { addEventListener() {}, getElementById: (id) => (id === 'mlOverlay' ? overlay : null) }, console, Math, JSON, Number, String, Array, Object, Date, Promise });
+    vm.runInContext(fs.readFileSync(path.join(ROOT, 'docs/pro/js/estimate-catalog-xactimate.js'), 'utf8'), ctx);
+    vm.runInContext(fs.readFileSync(path.join(ROOT, 'docs/pro/js/materials-list.js'), 'utf8'), ctx);
+    vm.runInContext(fs.readFileSync(path.join(ROOT, 'docs/pro/js/price-materials.js'), 'utf8'), ctx);
+    await win.NBDPriceMaterials.enrich({ rows: [{ code: 'RFG 240-GAF-HDZ', quantity: 25.4, unit: 'SQ', materialTotal: 2222, desc: 'Shingle' }] });
+    return calls;
+  };
+  const rep = await run(false), staff = await run(true);
+  ok('a sales rep: no supplier item or account is read, the list stays as drawn', rep.length === 0, rep);
+  ok('control: the owner or a manager does read them', staff.indexOf('offersFor') !== -1 && staff.indexOf('suppliers') !== -1, staff);
+  console.log('\n' + passed + ' passed, ' + failed + ' failed');
+  if (failed) { console.log('FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }
+})().catch((e) => { console.error(e); process.exit(1); });

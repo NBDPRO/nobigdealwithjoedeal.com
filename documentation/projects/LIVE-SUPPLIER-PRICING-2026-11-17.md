@@ -292,6 +292,42 @@ Jo, 2026-11-18, in chat (each the recommended answer):
   item's confirmed pack size; the company's own suppliers replace the two
   hard-coded store names; no price shows "No price yet". Next to build.
 
+## Update 2026-11-18 (later): Jo's plan from here, and reps locked out of supplier prices
+
+Slice 7 (the materials list at the company's suppliers) is built and merged:
+[LIVE-SUPPLIER-PRICING-SLICE-7-2026-11-18](LIVE-SUPPLIER-PRICING-SLICE-7-2026-11-18.md).
+
+Jo, 2026-11-18, in a grilling round (each the recommended answer):
+
+1. **Rollout:** `supplierPricing` stays on for Jo only until he has made about 10
+   real cost approvals and opened the Materials list on 5 real estimates; then he
+   decides the next group.
+2. **Reps never read a supplier price anywhere.** Built here: the rules for
+   `priceOffers` and `supplierAccounts` are owner / company_admin / manager
+   (`plStaff`); reps get no Stores & prices button and the plain materials list;
+   product photos stay visible to them (`productLinks`, Storage).
+3. **Next:** exact estimate-line to product links: a starter list of the 44
+   estimate codes that clearly name one product (codes and product ids only),
+   an "Estimate codes" box per product where the owner or an admin adds or removes
+   codes (their edits win), a code on more than one product counts as unlinked,
+   a line never borrows another product's price, no automatic unit conversion.
+4. **Then slice 9:** reading supplier PDFs (invoices, quotes), then photos of
+   paper receipts; owner and admins only; the reader pre-fills kind, date,
+   good-through and tax, never a number that is not on the document; rows land on
+   the Import prices preview and nothing saves without an OK; the original is kept
+   privately and linked to its rows; "Remove this document" voids its rows and
+   deletes the file; AI reading capped at $10 a month per company, adjustable;
+   originals erased with a solo owner's account.
+
+Not covered by the rep lock, and Jo's call (not changed here):
+
+- The legacy `priceBook/{companyId}` doc (Home Depot receipt prices, the old
+  "Price book" button) is readable by every company member, a rep included. Its
+  rule is pinned by `tests/price-book-2026-10-02.test.js`; changing it is a
+  deliberate re-pin.
+- `catalogCosts/{companyId}` (the cost book, where an approved supplier cost lands)
+  is readable by every company member, as it has been since 2026-07.
+
 ## Waiting on Jo
 
 Outside actions (none blocks slice 1):
