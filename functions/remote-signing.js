@@ -434,7 +434,10 @@ exports.createSignRequest = onCall(
     // stored document, the lead, the company profile and the locked price; the browser check is UX only.
     // The flag is read strictly: a read that FAILS refuses the send (retryable) instead of reading "off".
     const gateClass = DE.isContractClass(docMeta.type);
-    const gateOn = (CW.isContractDocType(docMeta.type) || gateClass) ? await DE.flagForGate(db, uid, HttpsError) : false;
+    // flagOnAtMint is ALSO what the sign page will do about consent: it is stamped on the token (consentAsked)
+    // so getSignDocument and submitSignature follow the decision made here and never re-read the flag (finding 7).
+    const flagOnAtMint = await DE.flagForGate(db, uid, HttpsError);
+    const gateOn = flagOnAtMint && (CW.isContractDocType(docMeta.type) || gateClass);
     let gateHtml = null;
     if (CW.isContractDocType(docMeta.type)) {
       let contractHtml = '';
@@ -546,6 +549,7 @@ exports.createSignRequest = onCall(
       // '' for NBD → sign.html keeps its NBD literals byte-identical.
       companyName: tenantName || '',
       docType: typeof docMeta.type === 'string' ? docMeta.type.slice(0, 60) : null,
+      consentAsked: flagOnAtMint === true,
       priceSnapshot,
       ...(isContract && !priceSnapshot ? { priceSnapshotMissing: true, priceLockReason } : {}),
       // Evidence parity (2026-11-18): the clause set this document was sent under.
@@ -704,7 +708,10 @@ exports.getSignDocument = onRequest(
     // Flag docEvidenceFoundation (default OFF): ask for the consent the e-sign envelope already
     // asks for, in the e-sign envelope's own words (never text from the wire). The page shows a
     // checkbox only when this is present.
-    const consent = (await DE.flagForUid(db, tok.mintedBy || tok.ownerUid)) ? { required: true, text: ESL.CONSENT_TEXT } : null;
+    // The decision was made when the link was minted (tok.consentAsked); only a link minted before that
+    // field existed reads the flag as it stands.
+    const consentOn = typeof tok.consentAsked === 'boolean' ? tok.consentAsked : await DE.flagForUid(db, tok.mintedBy || tok.ownerUid);
+    const consent = consentOn ? { required: true, text: ESL.CONSENT_TEXT } : null;
 
     // Only the minimum the sign page needs — no lead internals.
     res.status(200).json({
@@ -768,7 +775,7 @@ exports.submitSignature = onRequest(
       if (p.status === 'pending') {
         // Before the burn, like every gate below: a missing consent tick must not consume the
         // homeowner's one-shot link.
-        consentAsked = await DE.flagForUid(db, p.mintedBy || p.ownerUid);
+        consentAsked = typeof p.consentAsked === 'boolean' ? p.consentAsked : await DE.flagForUid(db, p.mintedBy || p.ownerUid);
         if (consentAsked && consent !== true) {
           res.status(422).json({ error: 'Please tick the box to agree to sign electronically, then submit again.', needsConsent: true });
           return;

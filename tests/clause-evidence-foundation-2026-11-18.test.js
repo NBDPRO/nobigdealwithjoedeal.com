@@ -331,6 +331,29 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
       x = await go(true, { consent: true, consentText: 'I forged this text' }, { ip: '198.51.100.9', ua: 'Real UA' });
       ev = x.doc.signatureEvidence || {};
       ok('flag ON + consent: signs, stores the SERVER copy of the text (never the body\'s)', x.sub.statusCode === 200 && ev.consent && ev.consent.agreed === true && ev.consent.text === ESL.CONSENT_TEXT && ev.consent.at > 0);
+      // finding 7b: the consent decision is snapshotted on the token, not re-read from the flag at POST
+      async function go2(tokExtra, flagAtSubmit, breakFlagRead) {
+        const db = kit.makeDb(world(flagAtSubmit, tokExtra)); const st = kit.makeStorage({ [GOOD_PATH]: ORIGINAL });
+        const L = kit.loadHandler('remote-signing.js', db, st, {
+          './cancel-window': require(path.join(FN, 'cancel-window.js')), './ky-insurance-law': K, './lead-artifact-paths': require(path.join(FN, 'lead-artifact-paths.js')),
+          './esign-logic': ESL, './doc-evidence': DE, './await-briefly': require(path.join(FN, 'await-briefly.js')), './signed-price': require(path.join(FN, 'signed-price.js')),
+        }, REAL);
+        if (breakFlagRead) { const o0 = db.doc; db.doc = (p) => (/^feature_flags\//.test(p) ? { get: async () => { throw new Error('down'); } } : o0(p)); }
+        const g = kit.reqRes({ token: 'TOKEVID00001' }, {});
+        await L.fns.getSignDocument(g.req, g.res);
+        const sub = kit.reqRes({ token: 'TOKEVID00001', signedHtml: signedPage }, {});
+        await L.fns.submitSignature(sub.req, sub.res);
+        return { get: g.res, sub: sub.res, doc: db._get('leads/L1/documents/d1') || {}, tok: db._get('doc_sign_tokens/TOKEVID00001') };
+      }
+      let y = await go2({ consentAsked: true }, false);
+      ok('7b: a link minted with the consent box keeps asking for it after the flag is turned off (no re-read)', y.get.body.consent && y.get.body.consent.required === true && y.sub.statusCode === 422 && y.sub.body.needsConsent === true);
+      y = await go2({ consentAsked: false }, true);
+      ok('7b: a link minted without the box is not asked at POST just because the flag came on since', !y.get.body.consent && y.sub.statusCode === 200 && ((y.doc.signatureEvidence || {}).consent || {}).agreed === null);
+      y = await go2({ consentAsked: true }, true, true);
+      ok('7b: with the token\'s snapshot, a flag read that FAILS at POST cannot switch the consent requirement off', y.sub.statusCode === 422 && y.sub.body.needsConsent === true);
+      y = await go2({}, true);
+      ok('7b: a link minted before the snapshot existed falls back to the flag as it stands', y.sub.statusCode === 422 && y.sub.body.needsConsent === true);
+      ok('7b: createSignRequest writes consentAsked on the token from the flag it just read', /consentAsked: flagOnAtMint/.test(read('functions/remote-signing.js') || ''));
       const sk = require('./lib/src-kit');
       const box = sk.parseTags(sk.read('docs/pro/sign.html')).$('#spConsent');
       ok('sign page: the consent label ships hidden', !!box && box.attrs.hidden !== undefined);
@@ -525,7 +548,10 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
       ok('2 remote: flag ON, a [Placeholder] left in the stored contract is refused', !!r.e && /placeholder/i.test(r.e.message) && tokens(r.db) === 0);
       r = await mint(true, { html: CONTRACT + 'x'.repeat(2 * 1024 * 1024 + 5) });
       ok('11 remote: flag ON, a contract over 2 MB is refused with the size message', !!r.e && /too large/i.test(r.e.message) && tokens(r.db) === 0, r.e && r.e.message);
+      r = await mint(true);
+      ok('7b: the token records consentAsked true when the flag was on at mint', (r.db._all('doc_sign_tokens')[0] || {}).consentAsked === true);
       r = await mint(false, { est: null, profile: null });
+      ok('7b: ...and false when it was off', (r.db._all('doc_sign_tokens')[0] || {}).consentAsked === false);
       ok('flag OFF: the same blank-price, no-profile contract still goes out (nothing changed)', !!r.v && tokens(r.db) === 1, r.e && r.e.message);
       r = await mint(false, {}, breakFlags);
       ok('7 remote: a flag read that FAILS refuses the contract send (retryable "unavailable"), no link minted', !!r.e && r.e.code === 'unavailable' && tokens(r.db) === 0, r.e && (r.e.code + ' ' + r.e.message));
