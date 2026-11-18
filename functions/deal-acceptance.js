@@ -297,18 +297,31 @@ exports.createDealAcceptToken = onCall(
     // no link is minted; a flag or page that cannot be read fails closed. Flag off: unchanged. The
     // acceptance (submit) is unchanged.
     const DE = require('./doc-evidence');
-    if (await DE.flagForGate(db, uid, HttpsError)) {
+    // Flag docClauseSetV1 (default off): the clause set this deal page carries. The token keeps what was minted.
+    const clauseOn = await DE.clauseFlagForGate(db, uid, HttpsError);
+    let clauseSetV1 = null;
+    if (clauseOn || await DE.flagForGate(db, uid, HttpsError)) {
       if (!pbuf) throw new HttpsError('unavailable', 'Could not read the deal page to check it. Nothing was sent. Try again in a moment.');
       let leadData = {};
       if (leadId) { try { const ls = await db.doc(`leads/${leadId}`).get(); leadData = ls.exists ? (ls.data() || {}) : {}; } catch (_) { leadData = {}; } }
       let profile = {};
       try { const cp = await db.doc(`companyProfile/${ownerCompanyId}`).get(); if (cp.exists) profile = cp.data() || {}; } catch (_) { profile = {}; }
       const bestTier = Math.max.apply(null, [0].concat(VALID_TIERS.map((t) => tierPrices[t])));
+      const dealAddress = leadData.address || deal.address || deal.customerAddress || deal.propertyAddress || '';
+      const dealOwner = deal.customerName || [leadData.firstName, leadData.lastName].filter(Boolean).join(' ') || leadData.name || '';
+      let cs = null;
+      if (clauseOn) {
+        cs = DE.buildClauseSet(KyLaw, leadData, {}, profile, ownerCompanyId, {
+          ownerNames: dealOwner, propertyAddress: dealAddress, date: KyLaw.formatDay(KyLaw.todayIn(KyLaw.resolveTimeZone(profile))),
+        });
+        clauseSetV1 = { version: cs.clauseSetVersion, refs: cs.refs.slice(), html: DE.clauseSetHtml(cs), variant: cs.variant };
+      }
       const gaps = DE.serverContractGaps({
-        type: 'proposal', html: pbuf.toString('utf8'), lead: leadData, profile, tenantKey: ownerCompanyId, KyLaw,
+        type: 'proposal', html: pbuf.toString('utf8') + (clauseSetV1 ? clauseSetV1.html : ''), lead: leadData, profile, tenantKey: ownerCompanyId, KyLaw,
         priceCents: bestTier > 0 ? Math.round(bestTier * 100) : null,
-        address: leadData.address || deal.address || deal.customerAddress || deal.propertyAddress || '',
-        homeownerName: deal.customerName || [leadData.firstName, leadData.lastName].filter(Boolean).join(' ') || leadData.name || '',
+        address: dealAddress,
+        homeownerName: dealOwner,
+        clauseConfigMissing: cs ? cs.missing : [],
       });
       if (gaps.length) throw new HttpsError('failed-precondition', DE.describeGaps(gaps));
     }
@@ -344,6 +357,7 @@ exports.createDealAcceptToken = onCall(
       customerName: String(deal.customerName || '').slice(0, 120),
       htmlPath,
       pageSha256, pageArchivePath, pageArchiveReason,
+      ...(clauseSetV1 ? { clauseSetV1 } : {}),
       tierPrices,
       estimateId,
       estimateFingerprint,
@@ -481,6 +495,8 @@ exports.getDealRoom = onRequest(
     // homeowner reads and signs it — not the day the rep made the link.
     try { html = KyLaw.restampCancelPacket(html, new Date()); } catch (_) { /* serve as stored */ }
     html = stripDealRoomHtml(html);
+    // Clause set v1 (minted onto the token under flag docClauseSetV1): flag off = no field = the page as stored.
+    if (tok.clauseSetV1 && typeof tok.clauseSetV1.html === 'string') html = require('./doc-evidence').injectClauseBlock(html, tok.clauseSetV1.html);
 
     // Packet (2026-10-04): a FULL packet's inspection photos go in where the
     // page left its marker, each one at /deal/<token>/photo/<n> (getDealPhoto
@@ -700,6 +716,7 @@ exports.submitDealAcceptance = onRequest(
         return {
           dealId: t.dealId, ownerUid: t.ownerUid, companyId: t.companyId || null, leadId: t.leadId || null,
           customerName: t.customerName || '', price: acceptedPrice, htmlPath: t.htmlPath || null,
+          clauseRefs: t.clauseSetV1 && Array.isArray(t.clauseSetV1.refs) ? t.clauseSetV1.refs : null,
         };
       });
     } catch (err) {
@@ -723,7 +740,7 @@ exports.submitDealAcceptance = onRequest(
         let stamp = { clauseIds: [] };
         try {
           const ls = info.leadId ? await db.doc(`leads/${info.leadId}`).get() : null;
-          stamp = require('./doc-evidence').stampFor(KyLaw, ls && ls.exists ? ls.data() : {}, {});
+          stamp = require('./doc-evidence').stampFor(KyLaw, ls && ls.exists ? ls.data() : {}, {}, { refs: info.clauseRefs });
         } catch (_) { /* the version is already on the record; ids are best-effort */ }
         await db.doc(`deal_rooms/${info.dealId}`).update({
           'acceptedEvidence.clauseIds': stamp.clauseIds,

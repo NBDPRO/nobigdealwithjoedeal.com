@@ -306,6 +306,65 @@ function section(name) { console.log('\n' + name); }
     ok('a tenant\'s PDF clause set: its own entity, no NBD name or phone, every number missing until set', /Oaks Roofing LLC/.test(tenantSet.partyBlock.nameLine) && !/NBD|No Big Deal|Joe Deal|420-7382/.test(JSON.stringify(tenantSet.sections) + JSON.stringify(tenantSet.party) + tenantSet.partyBlock.byLine) && tenantSet.missing.length === 10);
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('H. the deal page, flag ON (server side: mint, serve, accept)');
+  {
+    const kit = require('./lib/doc-evidence-kit');
+    const DE = require('../functions/doc-evidence.js');
+    const ESL = require('../functions/esign-logic.js');
+    const FN = path.join(H.ROOT, 'functions');
+    const DEAL_PATH = 'deal_rooms/U1/deal0001.html';
+    const REALD = ['./cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', './lead-artifact-paths', './await-briefly', './portal-after-signing', './signed-price', './customer-estimate-rows', './doc-send-checks', 'crypto'];
+    const stubs = () => ({
+      './deal-install-date': { fillLeadInstallDate: async () => null },
+      './deal-view-logic': { isPreviewBot: () => false, shouldNotifyView: () => false, viewMessage: () => ({ title: '', body: '' }) },
+      './estimate-send-logic': {}, './thursday-video-gate': { isNbdTenant: () => false, DEAL_ROOM_INJECT: '', DEAL_ROOM_SCRIPT_PATH: '/x.js' },
+      './deal-accepted-tier': { applyAcceptedTier: async () => {} },
+      './ky-insurance-law': K, './cancel-window': require(path.join(FN, 'cancel-window.js')), './esign-logic': ESL, './doc-evidence': DE,
+    });
+    const PAGE = '<html><head></head><body><p>Your roof, three packages.</p><div class="section-title">Sign &amp; Schedule</div><div class="sign-section">sign</div></body></html>';
+    const terms = Object.assign({}, CS.NBD_PAYMENT_TERMS_DEFAULTS, { deckingPerSheetCents: 10000 });
+    const world = (flags, termsOverride) => kit.makeDb({
+      'deal_rooms/deal0001': { status: 'sent', userId: 'U1', leadId: 'L1', customerName: 'Dana Whitfield', tiers: { better: { price: 13000 } } },
+      'leads/L1': { userId: 'U1', companyId: 'U1', address: '12 Oak St, Cincinnati, OH 45202', jobType: 'cash' },
+      'companyProfile/U1': { paymentTerms: termsOverride === undefined ? terms : termsOverride, brand: { legalName: 'Acme Roofing LLC', entityName: 'Acme Roofing LLC', signerTitle: 'Owner', contact: { mailingAddress: '1 Main St, Cincinnati, OH 45202', phone: '(513) 555-0100' } } },
+      'feature_flags/_default': flags,
+    });
+    const load = (db, st) => kit.loadHandler('deal-acceptance.js', db, st, stubs(), REALD);
+    const mint = async (db, st) => { const L = load(db, st); try { return { L, out: await L.fns.createDealAcceptToken({ auth: { uid: 'U1', token: {} }, data: { dealId: 'deal0001' } }) }; } catch (e) { return { L, err: e }; } };
+    const view = async (L, token) => {
+      const res = { statusCode: 200, headers: {}, sent: '', status(c) { this.statusCode = c; return this; }, set(k, v) { this.headers[k] = v; return this; }, send(b) { this.sent = b; return this; }, json(b) { this.sent = JSON.stringify(b); return this; } };
+      const c = kit.reqRes({}, {}); c.req.method = 'GET'; c.req.path = '/deal/' + token; await L.fns.getDealRoom(c.req, res); return res;
+    };
+    let db = world({ docClauseSetV1: true }); let st = kit.makeStorage({ [DEAL_PATH]: PAGE });
+    let m = await mint(db, st);
+    const tok = m.out ? (db._get('deal_accept_tokens/' + m.out.token) || {}) : {};
+    ok('mint, flag on: the token keeps the clause set it minted (refs, version, html)', !!m.out && !!tok.clauseSetV1 && tok.clauseSetV1.version === CS.CLAUSE_SET_VERSION && tok.clauseSetV1.refs.indexOf('PARTY-1_V1') !== -1 && /Acme Roofing LLC/.test(tok.clauseSetV1.html), m.err && m.err.message);
+    ok('the tenant\'s block names its own LLC and carries no NBD name', !!tok.clauseSetV1 && !/NBD|No Big Deal|Joe Deal/.test(tok.clauseSetV1.html));
+    const served = m.out ? await view(m.L, m.out.token) : { sent: '' };
+    const at = served.sent.indexOf('data-nbd-clause-set'), sign = served.sent.indexOf('<div class="section-title">Sign');
+    ok('serve, flag on: the clause block is on the page, before the signature section', at > 0 && sign > at && /within 15 days after its due date/.test(served.sent), String(at) + '/' + sign);
+    ok('serve: the stored page is otherwise untouched (injection only)', served.sent.replace(/<div data-nbd-clause-set[\s\S]*?<\/div>(?=<div class="section-title">)/, '').indexOf('Your roof, three packages.') > 0);
+    const acc = kit.reqRes({ token: m.out && m.out.token, tier: 'better', signature: 'data:image/png;base64,' + 'A'.repeat(400), financing: -1, consent: true }, { ip: '198.51.100.20', ua: 'Mozilla/5.0 DealPhone' });
+    if (m.out) await m.L.fns.submitDealAcceptance(acc.req, acc.res);
+    const ev = (db._get('deal_rooms/deal0001') || {}).acceptedEvidence || {};
+    ok('accept: the evidence records the version and every clause the page printed', acc.res.statusCode === 200 && ev.clauseSetVersion === CS.CLAUSE_SET_VERSION && ev.clauseIds.indexOf('PARTY-1_V1') !== -1 && ev.clauseIds.indexOf('PAY-4_V1') !== -1 && ev.clauseIds.indexOf('PAYMENT_V1') !== -1 && new Set(ev.clauseIds).size === ev.clauseIds.length, JSON.stringify(ev.clauseIds));
+    // missing number: refused, nothing minted
+    db = world({ docClauseSetV1: true }, Object.assign({}, terms, { deckingPerSheetCents: null }));
+    m = await mint(db, kit.makeStorage({ [DEAL_PATH]: PAGE }));
+    ok('mint, flag on, decking price unset: refused with the field name, no token', !!m.err && m.err.code === 'failed-precondition' && /Set deckingPerSheetCents in Company Profile/.test(m.err.message) && db._all('deal_accept_tokens').length === 0, m.err && m.err.message);
+    db = world({ docClauseSetV1: true }, {});
+    m = await mint(db, kit.makeStorage({ [DEAL_PATH]: PAGE }));
+    ok('mint, flag on, a tenant that has set none of its numbers: refused (never NBD\'s numbers)', !!m.err && /Set lateGraceDays in Company Profile/.test(m.err.message), m.err && m.err.message);
+    // flag off
+    db = world({}); m = await mint(db, kit.makeStorage({ [DEAL_PATH]: PAGE }));
+    const tok0 = m.out ? (db._get('deal_accept_tokens/' + m.out.token) || {}) : {};
+    const served0 = m.out ? await view(m.L, m.out.token) : { sent: '' };
+    ok('flag off: no clause field on the token, no block on the served page', !!m.out && tok0.clauseSetV1 === undefined && !/data-nbd-clause-set/.test(served0.sent) && served0.sent.indexOf('Your roof, three packages.') > 0);
+    ok('injectClauseBlock(html, null) is the page itself, byte for byte', DE.injectClauseBlock(PAGE, null) === PAGE && DE.injectClauseBlock(PAGE, '') === PAGE);
+    ok('a page with no sign section still gets the block (before the end)', /<div data-x><\/div><\/body>/.test(DE.injectClauseBlock('<html><body>x</body></html>', '<div data-x></div>')));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -203,6 +203,35 @@ function buildClauseSet(KyLaw, lead, est, profile, tenantKey, facts) {
   });
 }
 
+const _esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+/** The clause set as the HTML block the deal page carries: escaped, ids shown, bold lead-ins. */
+function clauseSetHtml(cs) {
+  const para = (t) => _esc(t).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  const items = (list) => (list || []).filter((x) => !x.byRef).map((x) => x.paragraphs.map((p) =>
+    '<p style="margin:6px 0;"><span style="color:#777;font-size:10px;">' + _esc(x.id) + '</span> ' + para(p) + '</p>').join('')).join('');
+  const parts = [];
+  if (cs.party) parts.push('<h3 style="margin:10px 0 4px;font-size:13px;">Parties</h3><p style="margin:6px 0;"><span style="color:#777;font-size:10px;">PARTY-1</span> ' + para(cs.party.paragraphs[0]) + '</p>');
+  (cs.sections || []).forEach((s) => {
+    const inner = items(s.items);
+    if (inner) parts.push('<h3 style="margin:10px 0 4px;font-size:13px;">' + _esc(s.title) + '</h3>' + inner);
+  });
+  if (cs.partyBlock) parts.push('<p style="margin:10px 0 4px;font-size:12px;"><strong>' + _esc(cs.partyBlock.nameLine) + '</strong><br>' + _esc(cs.partyBlock.byLine) + '</p>');
+  return '<div data-nbd-clause-set="' + _esc(cs.clauseSetVersion) + '" style="background:#fff;color:#111;border-radius:10px;padding:14px;margin:16px 0;font-size:12px;line-height:1.5;">' + parts.join('') + '</div>';
+}
+
+/** Put the clause block before the page's Sign & Schedule section (else the signature box, else the end). */
+function injectClauseBlock(html, block) {
+  const h = String(html == null ? '' : html);
+  if (!block) return h;
+  const marks = ['<div class="section-title">Sign & Schedule</div>', '<div class="section-title">Sign &amp; Schedule</div>', '<div class="sign-section">', '</body>'];
+  for (let k = 0; k < marks.length; k++) {
+    const at = h.indexOf(marks[k]);
+    if (at >= 0) return h.slice(0, at) + block + h.slice(at);
+  }
+  return h + block;
+}
+
 /** The flag as a send gate reads it (a read error is a retryable refusal, never "off"). */
 async function clauseFlagForGate(db, uid, HttpsError) {
   try { return await flagForUid(db, uid, { strict: true, flag: CLAUSE_FLAG_NAME }); }
@@ -246,6 +275,7 @@ function serverContractGaps(o) {
     entityName: entityNameFor(x.profile, x.tenantKey),
     startDate: 'not observable on the server', estimatedCompletion: 'not observable on the server',
     text: x.html == null ? '' : x.html,
+    clauseConfigMissing: x.clauseConfigMissing,
   });
 }
 
@@ -261,7 +291,7 @@ function clauseFlagForUid(db, uid) { return flagForUid(db, uid, { flag: CLAUSE_F
 module.exports = {
   CLAUSE_FLAG_NAME, clauseFlagForUid,
   FLAG_NAME, FLAG_DEFAULT, NBD_ENTITY_NAME, CLAUSE_SET_VERSION: ClauseSet.CLAUSE_SET_VERSION,
-  isNbdTenant, clauseContextFor, buildClauseSet, clauseFlagForGate, v1RefsFrom, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
+  clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, clauseFlagForGate, v1RefsFrom, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
   serverContractGaps, estimateCents, isContractClass: Checks.isContractClass,
   describeGaps: Checks.describeGaps,
 };
