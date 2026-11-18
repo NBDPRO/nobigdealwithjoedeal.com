@@ -857,6 +857,17 @@ exports.submitSignature = onRequest(
     // ATOMIC single-use burn: flip pending → signed inside a transaction
     // so two concurrent submits can't both sign (TOCTOU). Mirrors the
     // portal.js write-once pattern.
+    // Review 2 (2026-11-18), item 2: the homeowner's evidence is written onto the admin-only sign token
+    // INSIDE the burn transaction, so if the document-row stamp below fails for good the facts still exist
+    // somewhere durable and the row can be re-stamped from them. (doc_sign_tokens is write:false for clients.)
+    const signedAtNow = new Date();
+    const evidenceFacts = {
+      path: 'remote_link',
+      ...DE.requestFacts(req),
+      documentSha256: originalHtml ? DE.sha256Hex(originalHtml) : null,
+      consent: consentAsked ? { agreed: true, text: ESL.CONSENT_TEXT, at: signedAtNow.getTime() } : { agreed: null },
+      signedAtMs: signedAtNow.getTime(),
+    };
     let info;
     try {
       info = await db.runTransaction(async (tx) => {
@@ -873,7 +884,12 @@ exports.submitSignature = onRequest(
         if (!verifiedPath || t.htmlPath !== verifiedPath || record == null) {
           const e = new Error('unverified'); e._http = 409; e._msg = 'This document changed while you were signing. Please reload the page.'; throw e;
         }
-        tx.update(tokRef, { status: 'signed', signedAt: FieldValue.serverTimestamp() });
+        tx.update(tokRef, {
+          status: 'signed', signedAt: FieldValue.serverTimestamp(),
+          evidenceFacts: Object.assign({}, evidenceFacts, {
+            clauseSetVersion: t.clauseSetVersion || null, clauseIds: Array.isArray(t.clauseIds) ? t.clauseIds : [],
+          }),
+        });
         return { leadId: t.leadId, docId: t.docId, ownerUid: t.ownerUid, htmlPath: t.htmlPath, signerName: t.signerName || '',
           docType: t.docType || null,
           clauseSetVersion: t.clauseSetVersion || null, clauseIds: Array.isArray(t.clauseIds) ? t.clauseIds : [],
@@ -907,7 +923,6 @@ exports.submitSignature = onRequest(
     // the signing, never read back from a packet that kept an older date, and
     // a record whose packet could not be re-dated (or stored) is flagged
     // (cancelPacketStale) on the document and the lead for the rep.
-    const signedAtNow = new Date();
     let recordHtml = record;
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
@@ -1027,7 +1042,7 @@ exports.submitSignature = onRequest(
             const b = db.batch();
             b.set(docRef, { signedStampFailed: true, signedStampFailedAt: FieldValue.serverTimestamp() }, { merge: true });
             b.set(db.collection('notifications').doc(), note);
-            b.update(tokRef, { docStampFailed: true });
+            b.update(tokRef, { docStampFailed: true, signatureEvidence: docPatch.signatureEvidence });
             await b.commit();
             notified = true;
           } catch (e) {
@@ -1035,7 +1050,7 @@ exports.submitSignature = onRequest(
           }
         }
         if (!notified) {
-          try { await tokRef.update({ docStampFailed: true }); } catch (_) { /* the activity row below is the other channel */ }
+          try { await tokRef.update({ docStampFailed: true, signatureEvidence: docPatch.signatureEvidence }); } catch (_) { /* the activity row below is the other channel */ }
           try {
             await db.collection(`leads/${info.leadId}/activity`).add({
               userId: info.ownerUid, type: 'remote_signature_unstamped', label: 'Signed, document record incomplete',
