@@ -63,6 +63,9 @@ async function run() {
   await check('owner rewrites atticAckResult on a signed row', 'deny', updateDoc(d('signed'), { atticAckResult: Object.assign({}, RES, { declined: true }) }));
   await check('owner changes one nested atticAckResult field', 'deny', updateDoc(d('signed'), { 'atticAckResult.complete': false }));
   await check('owner removes atticAckResult from a signed row', 'deny', updateDoc(d('signed'), { atticAckResult: deleteField() }));
+  // Review 3 (item 5): atticGateUnverified (the in-person gate could not read the flag) is server-written like evidenceRefused.
+  await check('owner creates a row carrying atticGateUnverified', 'deny', setDoc(doc(owner, 'leads/L1/documents/new3'), { name: 'x', type: 'contract', status: 'draft', userId: 'owner1', atticGateUnverified: { at: 1 } }));
+  await check('owner plants atticGateUnverified on a draft', 'deny', updateDoc(d('draft'), { atticGateUnverified: { at: 1 } }));
 
   const ov = (db, id) => doc(db, 'attic_overrides/' + id);
   await check('owner cannot create an override event (write:false)', 'deny', setDoc(ov(owner, 'forged'), { leadId: 'L1', companyId: 'owner1', byUid: 'owner1', reason: 'forged event', at: 2 }));
