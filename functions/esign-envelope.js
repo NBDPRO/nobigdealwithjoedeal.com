@@ -1050,6 +1050,7 @@ exports.submitEsignEnvelope = onRequest(
     const evidence = ESL.buildSignerEvidence({
       typedName: (typeof signerName === 'string' ? signerName : '') || signer.name,
       ip, ua, consent: true, consentText: ESL.CONSENT_TEXT, at: when,
+      ipSource: require('./doc-evidence').requestFacts(req).ipSource,
       valuesSha256: sha256(valuesJson),
       clauseSetVersion: env.clauseSetVersion, clauseIds: env.clauseIds, documentSha256: env.sourceSha256,
       fieldIds: Object.keys(mine),

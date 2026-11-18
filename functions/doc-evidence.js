@@ -84,11 +84,16 @@ function sha256Hex(data) {
  */
 function requestFacts(req) {
   let ip = null;
-  try { ip = require('./integrations/upstash-ratelimit').clientIp(req || {}) || null; } catch (_) { ip = null; }
-  if (ip === 'unknown') ip = null; // clientIp's "no usable address" marker is not evidence
+  let ipSource = null;
+  try {
+    const rl = require('./integrations/upstash-ratelimit');
+    if (typeof rl.clientIpInfo === 'function') { const info = rl.clientIpInfo(req || {}); ip = info.ip || null; ipSource = info.source || null; }
+    else { ip = rl.clientIp(req || {}) || null; ipSource = ip ? 'unreported' : null; }
+  } catch (_) { ip = null; ipSource = null; }
+  if (ip === 'unknown') { ip = null; ipSource = null; } // clientIp's "no usable address" marker is not evidence
   let ua = null;
   try { ua = String((req && typeof req.get === 'function' && req.get('user-agent')) || '').slice(0, 300) || null; } catch (_) { ua = null; }
-  return { ip, ua };
+  return { ip, ua, ipSource };
 }
 
 function _s(v, max) { return typeof v === 'string' && v ? v.slice(0, max) : null; }
@@ -118,6 +123,9 @@ function buildEvidence(input) {
     },
     signedAtMs: at,
     ip: _s(i.ip, 64),
+    // How the address was derived ('xff:hops=1:chain=3' or 'socket'): the address is only as good as the
+    // proxy-hop count it assumes (functions/rate-limit.js NBD_TRUSTED_PROXY_HOPS, default 1).
+    ipSource: _s(i.ipSource, 80),
     ua: _s(i.ua, 300),
     recordedByUid: _s(i.recordedByUid, 128),
   };

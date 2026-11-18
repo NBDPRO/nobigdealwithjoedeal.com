@@ -202,6 +202,7 @@ function buildSignerEvidence(input) {
     signedAt: at,
     typedName: str(i.typedName, 200) || null,
     ip: i.ip ? String(i.ip).slice(0, 64) : null,
+    ipSource: i.ipSource ? String(i.ipSource).slice(0, 80) : null,
     ua: i.ua ? String(i.ua).slice(0, 300) : null,
     consent: {
       agreed: i.consent === true,

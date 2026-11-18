@@ -807,6 +807,29 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('R6. finding 10: the evidence says how its IP was derived');
+  {
+    const RL = tryReq(path.join(FN, 'rate-limit.js'));
+    ok('10: rate-limit exports clientIpInfo next to clientIp', !!RL && typeof RL.clientIpInfo === 'function');
+    if (RL && typeof RL.clientIpInfo === 'function') {
+      const a = RL.clientIpInfo({ headers: { 'x-forwarded-for': '6.6.6.6, 203.0.113.5, 35.1.1.1' }, ip: '10.0.0.1' });
+      ok('10: a 3-entry chain with the default one trusted hop reads the entry before the last, and says so', a.ip === '203.0.113.5' && /^xff:hops=\d+:chain=3$/.test(a.source), JSON.stringify(a));
+      ok('10: clientIp is still the same value (no behaviour change for the rate limiters)', RL.clientIp({ headers: { 'x-forwarded-for': '6.6.6.6, 203.0.113.5, 35.1.1.1' } }) === a.ip);
+      const b = RL.clientIpInfo({ headers: {}, ip: '10.0.0.1' });
+      ok('10: no usable chain falls back to the socket address and says so', b.ip === '10.0.0.1' && b.source === 'socket', JSON.stringify(b));
+      const c = RL.clientIpInfo({ headers: { 'x-forwarded-for': '1.2.3.4' }, ip: '10.0.0.1' });
+      ok('10: a one-entry chain is not trusted as the client: socket, labelled', c.ip === '10.0.0.1' && c.source === 'socket');
+    }
+    const UP = tryReq(path.join(FN, 'integrations/upstash-ratelimit.js'));
+    ok('10: the limiter module re-exports it', !!UP && typeof UP.clientIpInfo === 'function');
+    const facts = DE ? DE.requestFacts({ headers: { 'x-forwarded-for': '6.6.6.6, 203.0.113.5, 35.1.1.1' }, get: () => 'UA/1' }) : {};
+    ok('10: requestFacts carries ipSource with the ip', facts.ip === '203.0.113.5' && /^xff:hops=\d+:chain=3$/.test(facts.ipSource || ''), JSON.stringify(facts));
+    ok('10: buildEvidence always has an ipSource key (null when unknown)', !!DE && 'ipSource' in DE.buildEvidence({}) && DE.buildEvidence({}).ipSource === null && DE.buildEvidence({ ipSource: 'socket' }).ipSource === 'socket');
+    ok('10: the signer evidence on the e-sign envelope carries it too', 'ipSource' in ESL.buildSignerEvidence({ ip: '1.1.1.1', ipSource: 'socket' }) && ESL.buildSignerEvidence({ ip: '1.1.1.1', ipSource: 'socket' }).ipSource === 'socket');
+    ok('10: the deal-room evidence carries it', /ipSource/.test(read('functions/deal-acceptance.js') || ''));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join('; ')); process.exit(1); }
 })().catch((e) => { console.error('FATAL', e); process.exit(1); });

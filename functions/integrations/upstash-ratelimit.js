@@ -49,6 +49,7 @@ module.exports = {
   enforceRateLimit,
   httpRateLimit,
   clientIp: firestoreLimiter.clientIp,
+  clientIpInfo: firestoreLimiter.clientIpInfo,
   hashKey,
   provider,                      // R-01: always 'firestore'
 };

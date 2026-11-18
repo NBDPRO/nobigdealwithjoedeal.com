@@ -547,11 +547,18 @@ exports.submitDealAcceptance = onRequest(
     // (deal-room.js), and a digest of the signature itself. Recorded in the
     // SAME transaction as the acceptance. The consent text is the server's
     // own copy — never free text from the wire.
+    // ip and how it was derived (review 2026-11-18, finding 10) come from the one shared reader.
     let ip = null;
-    try { ip = require('./integrations/upstash-ratelimit').clientIp(req) || null; } catch (_) { ip = null; }
+    let ipSource = null;
+    try {
+      const rl = require('./integrations/upstash-ratelimit');
+      ip = rl.clientIp(req) || null;
+      ipSource = ip ? (typeof rl.clientIpInfo === 'function' ? rl.clientIpInfo(req).source : 'unreported') : null;
+    } catch (_) { ip = null; ipSource = null; }
     const evidence = {
       at: Date.now(),
       ip,
+      ipSource,
       ua: String((typeof req.get === 'function' && req.get('user-agent')) || '').slice(0, 300) || null,
       consent: b.consent === true,
       consentText: b.consent === true ? DEAL_CONSENT_TEXT : null,
