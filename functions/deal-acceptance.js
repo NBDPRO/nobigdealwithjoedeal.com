@@ -274,6 +274,28 @@ exports.createDealAcceptToken = onCall(
       }
     }
 
+    // Review 2026-11-18 (finding 5): the page this link serves is digested and archived NOW, so the
+    // acceptance evidence is read from this token and never from a live Storage read after the fact
+    // (the rep can re-upload the page, or Storage can fail, between sending and accepting).
+    // A page that cannot be read leaves the digest null with a reason code, never a guess.
+    let pageSha256 = null;
+    let pageArchivePath = null;
+    let pageArchiveReason = null;
+    try {
+      const [pbuf] = await getStorage().bucket().file(htmlPath).download();
+      pageSha256 = require('crypto').createHash('sha256').update(pbuf).digest('hex');
+      try {
+        pageArchivePath = htmlPath.replace(/(.html?)?$/i, '') + '.minted-' + Date.now() + '.html';
+        await getStorage().bucket().file(pageArchivePath).save(pbuf, { contentType: 'text/html', resumable: false });
+      } catch (e) {
+        pageArchivePath = null; pageArchiveReason = 'archive_save_failed';
+        logger.warn('[createDealAcceptToken] page archive failed', { dealId, msg: e && e.message });
+      }
+    } catch (e) {
+      pageSha256 = null; pageArchiveReason = 'page_unreadable_at_mint';
+      logger.warn('[createDealAcceptToken] page unreadable at mint', { dealId, msg: e && e.message });
+    }
+
     const now = Date.now();
     // Link life is a company setting since 2026-10-03
     // (companyProfile/{tenant}.salesLinks.dealLinkDays, 1–90, default still
@@ -294,6 +316,7 @@ exports.createDealAcceptToken = onCall(
       leadId,
       customerName: String(deal.customerName || '').slice(0, 120),
       htmlPath,
+      pageSha256, pageArchivePath, pageArchiveReason,
       tierPrices,
       estimateId,
       estimateFingerprint,
@@ -415,6 +438,14 @@ exports.getDealRoom = onRequest(
     try {
       const [buf] = await getStorage().bucket().file(tok.htmlPath).download();
       html = buf.toString('utf8');
+      // The digest of the stored page a HUMAN was just served (a link-preview bot does not count),
+      // kept on the token: the acceptance evidence reads it from here. Best-effort.
+      if (!isBot) {
+        pendingWrites.push(db.doc(`deal_accept_tokens/${token}`).update({
+          servedPageSha256: require('crypto').createHash('sha256').update(buf).digest('hex'),
+          servedPageAt: FieldValue.serverTimestamp(),
+        }).catch(() => {}));
+      }
     } catch (e) {
       logger.error('[getDealRoom] html fetch failed', { token: token.slice(0, 6), err: e.message });
       errPage(500, 'We could not load this deal right now. Please try again shortly.'); return;
@@ -524,6 +555,9 @@ exports.submitDealAcceptance = onRequest(
       ua: String((typeof req.get === 'function' && req.get('user-agent')) || '').slice(0, 300) || null,
       consent: b.consent === true,
       consentText: b.consent === true ? DEAL_CONSENT_TEXT : null,
+      // The tick is the page's own checkbox, sent in the request body: the server cannot see it.
+      // Recorded as what it is (review 2026-11-18, finding 6); acceptance behaviour is unchanged.
+      consentSource: 'client_asserted',
       signatureSha256: require('crypto').createHash('sha256').update(signature, 'utf8').digest('hex'),
       // Evidence parity (2026-11-18): the clause-set version in force when they accepted.
       clauseSetVersion: require('./doc-evidence').CLAUSE_SET_VERSION,
@@ -596,6 +630,20 @@ exports.submitDealAcceptance = onRequest(
         const accepted = await staleDealPrice(db, tx, t, dealRoomSnap.data() || {}, tier, price, confirmPrice);
         const acceptedPrice = accepted.price;
         if (accepted.changedFrom != null) evidence.priceChangedFrom = accepted.changedFrom;
+        // The page digest comes from the token (finding 5): what the homeowner was last served, else
+        // the page as minted, else null with the reason. No Storage read happens after this commits.
+        const hex = (v) => (typeof v === 'string' && /^[a-f0-9]{64}$/.test(v) ? v : null);
+        const served = hex(t.servedPageSha256);
+        const minted = hex(t.pageSha256);
+        const pageDigest = served || minted;
+        evidence.documentSha256 = pageDigest;
+        evidence.pageSha256 = pageDigest;
+        evidence.documentSha256Source = served ? 'served_at_view' : (minted ? 'minted' : null);
+        evidence.documentSha256Reason = pageDigest ? null : (typeof t.pageArchiveReason === 'string' && t.pageArchiveReason ? t.pageArchiveReason : 'no_archive_at_mint');
+        evidence.mintedPageSha256 = minted;
+        evidence.pageChangedSinceMint = !!(served && minted && served !== minted);
+        evidence.pagePath = t.htmlPath || null;
+        evidence.pageArchivePath = t.pageArchivePath || null;
         tx.update(tokRef, { status: 'accepted', acceptedAt: FieldValue.serverTimestamp() });
         // update(), not set(merge) — the existence check above means this must
         // modify an existing doc, never create one.
@@ -627,13 +675,11 @@ exports.submitDealAcceptance = onRequest(
     // and the lead. Best-effort — the acceptance is already committed.
     const cancelBy = await recordDealCancelWindow(db, info, new Date());
 
-    // The digest of the deal page as stored when they accepted — what they
-    // were shown (after the re-date above, so it matches the stored record).
-    // Best-effort: the acceptance is already committed.
+    // The page digest is already in the evidence (read from the token inside the transaction; review
+    // 2026-11-18, finding 5): nothing is read from Storage here any more. What is added after the
+    // commit is only the clause refs for this property and payment source, best-effort.
     if (info.htmlPath) {
       try {
-        const [buf] = await getStorage().bucket().file(info.htmlPath).download();
-        const pageSha = require('crypto').createHash('sha256').update(buf).digest('hex');
         // The clauses this property and payment source carry (clause-set.js), read from the lead.
         let stamp = { clauseIds: [] };
         try {
@@ -641,12 +687,9 @@ exports.submitDealAcceptance = onRequest(
           stamp = require('./doc-evidence').stampFor(KyLaw, ls && ls.exists ? ls.data() : {}, {});
         } catch (_) { /* the version is already on the record; ids are best-effort */ }
         await db.doc(`deal_rooms/${info.dealId}`).update({
-          'acceptedEvidence.pageSha256': pageSha,
-          'acceptedEvidence.documentSha256': pageSha,
           'acceptedEvidence.clauseIds': stamp.clauseIds,
-          'acceptedEvidence.pagePath': info.htmlPath,
         });
-      } catch (e) { logger.warn('[submitDealAcceptance] page digest failed', { msg: e && e.message }); }
+      } catch (e) { logger.warn('[submitDealAcceptance] clause refs failed', { msg: e && e.message }); }
     }
 
     // Token is burned AND the deal is recorded — both committed together

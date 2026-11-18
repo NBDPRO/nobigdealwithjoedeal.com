@@ -346,7 +346,7 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
       const DEAL_PATH = 'deal_rooms/U1/d1.html';
       const REAL = ['./ky-insurance-law', './cancel-window', './cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', './lead-artifact-paths', './esign-logic', './doc-evidence', './await-briefly', './portal-after-signing', './signed-price', 'crypto'];
       const db = kit.makeDb({
-        'deal_accept_tokens/TOKDEAL00001': { status: 'pending', dealId: 'd1', ownerUid: 'U1', leadId: 'L1', htmlPath: DEAL_PATH, tierPrices: { better: 13000 } },
+        'deal_accept_tokens/TOKDEAL00001': { status: 'pending', dealId: 'd1', ownerUid: 'U1', leadId: 'L1', htmlPath: DEAL_PATH, tierPrices: { better: 13000 }, pageSha256: kit.sha256('<html><body><p>Deal page</p></body></html>') },
         'deal_rooms/d1': { status: 'sent', userId: 'U1' },
         'leads/L1': { userId: 'U1', address: '9 Elm St, Louisville, KY 40202', jobType: 'insurance' },
       });
@@ -365,7 +365,7 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
       ok('deal path: the acceptance succeeds', dealCall.res.statusCode === 200, JSON.stringify(dealCall.res.body));
       ok('deal path: clauseSetVersion stamped in the acceptance transaction', !!CS && ev.clauseSetVersion === CS.CLAUSE_SET_VERSION);
       ok('deal path: clause refs for a Kentucky insurance job (all six)', Array.isArray(ev.clauseIds) && ev.clauseIds.length === 6, JSON.stringify(ev.clauseIds));
-      ok('deal path: documentSha256 = digest of the stored page (and still pageSha256)', ev.documentSha256 === kit.sha256(page) && ev.pageSha256 === ev.documentSha256);
+      ok('deal path: documentSha256 = digest of the page, read from the token (and still pageSha256)', ev.documentSha256 === kit.sha256(page) && ev.pageSha256 === ev.documentSha256);
       ok('deal path: consent text, IP, UA and time were already recorded (reused, not reinvented)', ev.consent === true && /electronically/.test(ev.consentText || '') && ev.ip === '198.51.100.20' && /DealPhone/.test(ev.ua) && ev.at > 0);
     }
   }
@@ -665,6 +665,85 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
       ok('4: evidence a signing path wrote is never replaced (the precondition is "absent", not a client flag)', db._get('leads/L1/documents/d1').signatureEvidence.ip === '9.9.9.9' && db.evidenceWrites.length === 0);
       const src = read('functions/in-person-signing-logic.js') || '';
       ok('4: recordEvidence uses a transaction that reads signatureEvidence before writing', /runTransaction/.test(src) && !/signedRemotely === true\) return null/.test(src));
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  section('R4. findings 5 and 6: deal-room digest comes from the token, not from a live read after acceptance');
+  {
+    if (!kit || !DE) ok('R4 harness available', false);
+    else {
+      const DEAL_PATH = 'deal_rooms/U1/deal0001.html';
+      const SIG = 'data:image/png;base64,' + 'A'.repeat(400);
+      const PAGE1 = '<html><body><p>Deal page as minted</p></body></html>';
+      const PAGE2 = '<html><body><p>Deal page, re-uploaded by the rep after minting</p></body></html>';
+      const stubs = () => ({
+        './deal-install-date': { fillLeadInstallDate: async () => null },
+        './deal-view-logic': { isPreviewBot: () => false, shouldNotifyView: () => false, viewMessage: () => ({ title: '', body: '' }) },
+        './estimate-send-logic': {}, './thursday-video-gate': { isNbdTenant: () => false, DEAL_ROOM_INJECT: '', DEAL_ROOM_SCRIPT_PATH: '/x.js' },
+        './deal-accepted-tier': { applyAcceptedTier: async () => {} },
+        './ky-insurance-law': K, './cancel-window': require(path.join(FN, 'cancel-window.js')), './esign-logic': ESL, './doc-evidence': DE,
+      });
+      const REALD = ['./cancel-notice-pdf', './job-spine-logic', './deal-packet-logic', './lead-artifact-paths', './await-briefly', './portal-after-signing', './signed-price', './customer-estimate-rows', 'crypto'];
+      const world = () => kit.makeDb({
+        'deal_rooms/deal0001': { status: 'sent', userId: 'U1', leadId: 'L1', tiers: { better: { price: 13000 } } },
+        'leads/L1': { userId: 'U1', companyId: 'U1', address: '9 Elm St, Louisville, KY 40202', jobType: 'insurance' },
+      });
+      async function mintToken(db, st) {
+        const L = kit.loadHandler('deal-acceptance.js', db, st, stubs(), REALD);
+        const out = await L.fns.createDealAcceptToken({ auth: { uid: 'U1', token: {} }, data: { dealId: 'deal0001' } });
+        return { L, out };
+      }
+      const tokIdOf = (out) => out.token;
+      const accept = async (L, token, body) => { const c = kit.reqRes(Object.assign({ token, tier: 'better', signature: SIG, financing: -1, consent: true }, body || {}), { ip: '198.51.100.20', ua: 'Mozilla/5.0 DealPhone' }); await L.fns.submitDealAcceptance(c.req, c.res); return c.res; };
+      const view = async (L, token) => { const c = kit.reqRes({}, {}); c.req.method = 'GET'; c.req.path = '/deal/' + token; await L.fns.getDealRoom(c.req, c.res); return c.res; };
+
+      // (a) mint archives the page and records its digest
+      let db = world(); let st = kit.makeStorage({ [DEAL_PATH]: PAGE1 });
+      let m = await mintToken(db, st);
+      let tok = db._get('deal_accept_tokens/' + tokIdOf(m.out)) || {};
+      ok('5: the token carries the sha256 of the page as it was at mint time', tok.pageSha256 === kit.sha256(PAGE1), JSON.stringify(Object.keys(tok)));
+      ok('5: the page is archived at mint time and the token names the archive', !!tok.pageArchivePath && st.files.has(tok.pageArchivePath) && st.files.get(tok.pageArchivePath).toString() === PAGE1);
+      // (b) the rep re-uploads after mint, the homeowner views, accepts; storage then fails
+      st.files.set(DEAL_PATH, Buffer.from(PAGE2));
+      await view(m.L, tokIdOf(m.out));
+      tok = db._get('deal_accept_tokens/' + tokIdOf(m.out)) || {};
+      ok('5: serving the page records the digest of the page the homeowner was actually served', tok.servedPageSha256 === kit.sha256(PAGE2));
+      const origDl = st.getStorage;
+      const files = st.files;
+      files.delete(DEAL_PATH); files.delete(tok.pageArchivePath);   // storage no longer has either, as after a clean-up or an outage
+      const res = await accept(m.L, tokIdOf(m.out));
+      let ev = (db._get('deal_rooms/deal0001') || {}).acceptedEvidence || {};
+      ok('5: acceptance still succeeds with the page gone from storage (no read after acceptance)', res.statusCode === 200, JSON.stringify(res.body));
+      ok('5: documentSha256 is the digest of what was served, taken from the token, inside the acceptance', ev.documentSha256 === kit.sha256(PAGE2) && ev.pageSha256 === ev.documentSha256 && ev.documentSha256Source === 'served_at_view');
+      ok('5: the digest at mint is kept and a later re-upload is flagged', ev.mintedPageSha256 === kit.sha256(PAGE1) && ev.pageChangedSinceMint === true);
+      // (c) never viewed: falls back to the mint digest, labelled
+      db = world(); st = kit.makeStorage({ [DEAL_PATH]: PAGE1 }); m = await mintToken(db, st);
+      await accept(m.L, tokIdOf(m.out));
+      ev = (db._get('deal_rooms/deal0001') || {}).acceptedEvidence || {};
+      ok('5: with no recorded view, the mint digest is used and says so', ev.documentSha256 === kit.sha256(PAGE1) && ev.documentSha256Source === 'minted' && ev.pageChangedSinceMint === false);
+      // (d) no page at mint: null with a reason code, never a guess
+      db = world(); st = kit.makeStorage({}); m = await mintToken(db, st);
+      tok = db._get('deal_accept_tokens/' + tokIdOf(m.out)) || {};
+      ok('5: a page that could not be read at mint is recorded as such on the token (reason code)', tok.pageSha256 === null && tok.pageArchiveReason === 'page_unreadable_at_mint');
+      await accept(m.L, tokIdOf(m.out));
+      ev = (db._get('deal_rooms/deal0001') || {}).acceptedEvidence || {};
+      ok('5: ...and the evidence has documentSha256 null with documentSha256Reason, not a post-hoc live read', ev.documentSha256 === null && ev.documentSha256Reason === 'page_unreadable_at_mint' && ev.documentSha256Source === null);
+      // (e) an older token with no digest fields at all
+      db = kit.makeDb({ 'deal_accept_tokens/TOKOLD000001': { status: 'pending', dealId: 'd1', ownerUid: 'U1', leadId: 'L1', htmlPath: DEAL_PATH, tierPrices: { better: 13000 } }, 'deal_rooms/d1': { status: 'sent', userId: 'U1' }, 'leads/L1': { userId: 'U1', jobType: 'insurance', address: '9 Elm St, Louisville, KY 40202' } });
+      st = kit.makeStorage({ [DEAL_PATH]: PAGE1 });
+      const Lold = kit.loadHandler('deal-acceptance.js', db, st, stubs(), REALD);
+      await accept(Lold, 'TOKOLD000001');
+      ev = (db._get('deal_rooms/d1') || {}).acceptedEvidence || {};
+      ok('5: a token minted before this change gets documentSha256 null and reason no_archive_at_mint (still no live read)', ev.documentSha256 === null && ev.documentSha256Reason === 'no_archive_at_mint');
+      // finding 6
+      ok('6: consent is labelled client_asserted (the server cannot see the tick)', ev.consentSource === 'client_asserted');
+      ok('6: acceptance behaviour is unchanged: an unticked box is still recorded as false and still accepted', await (async () => {
+        db = world(); st = kit.makeStorage({ [DEAL_PATH]: PAGE1 }); m = await mintToken(db, st);
+        const r2 = await accept(m.L, tokIdOf(m.out), { consent: false });
+        const e2 = (db._get('deal_rooms/deal0001') || {}).acceptedEvidence || {};
+        return r2.statusCode === 200 && e2.consent === false && e2.consentText === null && e2.consentSource === 'client_asserted';
+      })());
     }
   }
 

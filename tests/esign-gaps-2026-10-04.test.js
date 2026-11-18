@@ -614,7 +614,7 @@ const tokenFor = (db, envelopeId, signerId) => {
     const SIG = 'data:image/png;base64,' + 'A'.repeat(400);
     const PAGE = Buffer.from('<!doctype html><html><body>deal page</body></html>');
     const dbA = makeDb({
-      'deal_accept_tokens/DEALTOKEN0001': { dealId: 'DEAL1', ownerUid: UID, leadId: 'LEAD1', status: 'pending', htmlPath: `deal_rooms/${UID}/DEAL1.html`,
+      'deal_accept_tokens/DEALTOKEN0001': { dealId: 'DEAL1', ownerUid: UID, leadId: 'LEAD1', status: 'pending', htmlPath: `deal_rooms/${UID}/DEAL1.html`, pageSha256: sha256(PAGE),
         tierPrices: { better: 13000 }, customerName: 'Pat', expiresAt: { toMillis: () => Date.now() + 86_400_000 } },
       'deal_rooms/DEAL1': { userId: UID, status: 'sent', customerName: 'Pat' },
     });
