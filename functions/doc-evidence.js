@@ -37,6 +37,7 @@ const CLAUSE_FLAG_NAME = 'docClauseSetV1';
 // other tenant must set its own — never inherited.
 const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const NBD_ENTITY_NAME = 'No Big Deal Solutions LLC';
+const NBD_PHONE = '(859) 420-7382';
 
 /** Only the boolean true turns the flag on; per-person overrides the default doc. */
 function flagOn(flagsDefault, flagsMine, name) {
@@ -172,6 +173,42 @@ function stampFor(KyLaw, lead, est, opts) {
   return out;
 }
 
+/** Is this tenant key the NBD platform tenant (or key-less, which reads as NBD like entityNameFor)? */
+function isNbdTenant(tenantKey) { return !tenantKey || String(tenantKey) === NBD_OWNER_UID; }
+
+/** { state, paymentSource } the clause set reads for a lead (+ estimate): unreadable state keeps the source unknown (strict). */
+function clauseContextFor(KyLaw, lead, est) {
+  let j = null;
+  try { j = KyLaw.classifyLead(lead || {}, est || {}); } catch (_) { j = null; }
+  if (!j || !j.state) return { state: '', paymentSource: '' };
+  const jt = typeof KyLaw.normJobType === 'function' ? KyLaw.normJobType((lead || {}).jobType) : '';
+  return { state: j.state, paymentSource: j.insurance ? 'insurance' : (jt === 'finance' ? 'financed' : 'cash') };
+}
+
+/**
+ * The clause set v1 for a server-built document (flag docClauseSetV1): renderV1 with this tenant's numbers
+ * (NBD's own only for the NBD tenant), its party block and the job facts. Pure; the caller reads the flag.
+ */
+function buildClauseSet(KyLaw, lead, est, profile, tenantKey, facts) {
+  const nbd = isNbdTenant(tenantKey);
+  const p = profile || {};
+  const brand = p.brand || {};
+  const ctx = clauseContextFor(KyLaw, lead, est);
+  const phone = String(((brand.contact || {}).phone) || '').trim() || (nbd ? NBD_PHONE : '');
+  return ClauseSet.renderV1({
+    state: ctx.state, paymentSource: ctx.paymentSource,
+    terms: ClauseSet.paymentTermsFor(p.paymentTerms, nbd),
+    party: ClauseSet.partyFor(brand, nbd),
+    facts: Object.assign({ companyPhone: phone }, facts || {}),
+  });
+}
+
+/** The flag as a send gate reads it (a read error is a retryable refusal, never "off"). */
+async function clauseFlagForGate(db, uid, HttpsError) {
+  try { return await flagForUid(db, uid, { strict: true, flag: CLAUSE_FLAG_NAME }); }
+  catch (_) { throw new HttpsError('unavailable', FLAG_UNREADABLE_MSG); }
+}
+
 /** The legal entity a tenant's contracts name: its own, else NBD's for the NBD tenant only. */
 function entityNameFor(profile, tenantKey) {
   const own = String(((profile || {}).brand || {}).entityName || '').trim();
@@ -224,7 +261,7 @@ function clauseFlagForUid(db, uid) { return flagForUid(db, uid, { flag: CLAUSE_F
 module.exports = {
   CLAUSE_FLAG_NAME, clauseFlagForUid,
   FLAG_NAME, FLAG_DEFAULT, NBD_ENTITY_NAME, CLAUSE_SET_VERSION: ClauseSet.CLAUSE_SET_VERSION,
-  v1RefsFrom, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
+  isNbdTenant, clauseContextFor, buildClauseSet, clauseFlagForGate, v1RefsFrom, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
   serverContractGaps, estimateCents, isContractClass: Checks.isContractClass,
   describeGaps: Checks.describeGaps,
 };

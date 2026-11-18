@@ -684,13 +684,21 @@ exports.sendEstimateEnvelope = onCall(
     // Fail-closed send check (flag docEvidenceFoundation, default OFF): no blank price,
     // address, homeowner name, mailing address or legal entity name goes out on a contract.
     const DE = require('./doc-evidence');
-    const checkSend = await DE.flagForGate(db, uid, HttpsError);
+    const clauseOn = await DE.clauseFlagForGate(db, uid, HttpsError);
+    const checkSend = (await DE.flagForGate(db, uid, HttpsError)) || clauseOn;
     const entityName = DE.entityNameFor(profile, lead.companyId || lead.userId);
+    // Clause set v1 (flag docClauseSetV1): the clauses this contract prints, from this tenant's own numbers.
+    // A number it needs and lacks refuses the send with the field's name; flag off, none of this runs.
+    const clauseSet = clauseOn ? DE.buildClauseSet(KyLaw, lead, est, profile, lead.companyId || lead.userId, {
+      ownerNames: signers.map((s) => s.name).join(' and '), propertyAddress: address,
+      date: KyLaw.formatDay(KyLaw.todayIn(timeZone)),
+    }) : null;
     if (checkSend) {
       const gaps = DE.serverGaps({
         type: 'estimate_esign', priceCents: Math.round(price * 100), address,
         homeownerName: signers.map((s) => s.name).join(' & '),
         mailingAddress: KyLaw.contractorMailingAddress(profile), needsMailingAddress: true, entityName,
+        clauseConfigMissing: clauseSet ? clauseSet.missing : [],
       });
       if (gaps.length) throw new HttpsError('failed-precondition', DE.describeGaps(gaps));
     }
@@ -710,7 +718,7 @@ exports.sendEstimateEnvelope = onCall(
         totalCents: Math.round(price * 100),
         depositPlan: safeDepositPlan(est),
         signers: signers.map((s) => ({ id: s.id, name: s.name })),
-        failClosed: checkSend, entityName,
+        failClosed: checkSend, entityName, clauseSet,
       });
     } catch (e) {
       if (e && e.gaps) throw new HttpsError('failed-precondition', DE.describeGaps(e.gaps));
@@ -763,7 +771,7 @@ exports.sendEstimateEnvelope = onCall(
       sourceBytes: buf.length,
       // Evidence parity (2026-11-18): the clause set this contract carries, stamped on
       // the envelope and copied onto every signer's evidence when they sign.
-      ...DE.stampFor(KyLaw, lead, est),
+      ...DE.stampFor(KyLaw, lead, est, { refs: pdf.clauseRefs }),
       pages: pdf.pages,
       pageCount: pdf.pages.length,
       fields: pdf.fields,

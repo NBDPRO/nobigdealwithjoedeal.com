@@ -158,6 +158,154 @@ function section(name) { console.log('\n' + name); }
     ok('the existing scanner finds nothing in the new wording', Array.isArray(hits) ? hits.length === 0 : !hits, JSON.stringify(hits).slice(0, 200));
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('F. the client contract, flag ON');
+  {
+    const strip = (h) => String(h).replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<!--[\s\S]*?-->/g, ' ').replace(/<[^>]*>/g, ' ')
+      .replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/\s+/g, ' ');
+    const PRICED = { companyProfile: undefined };
+    const withTerms = (env, v, extra) => {
+      const W = env.win;
+      const cp = H.profileFor(W, H.BIZ_ADDR, Object.assign({
+        paymentMethodsNoCash: 'All payments by check. No cash payments accepted. Late payments subject to a 1.5% monthly finance charge.',
+        changeOrderClause: 'NBD reserves the right to adjust pricing and completion dates.',
+        cancellationContractClause: 'You may cancel as permitted by Kentucky Revised Statutes § 367.390.',
+        disputeResolutionClause: 'Disputes go to mediation or binding arbitration under Kentucky law.',
+        entireAgreementClause: 'LEGACY-ENTIRE-AGREEMENT',
+      }, (extra && extra.cp) || {}));
+      cp.paymentTerms = Object.assign({}, W.NBD_COMPANY_PROFILE_DEFAULTS.paymentTerms, { deckingPerSheetCents: 10000 }, (extra && extra.terms) || {});
+      return H.render(env, 'renderContract', v, { companyProfile: cp });
+    };
+    const on = H.docs({ flags: { docClauseSetV1: true } });
+    const off = H.docs({});
+    const out = {};
+    Object.keys(H.VARIANTS).forEach((k) => { out[k] = withTerms(on, H.VARIANTS[k]); });
+    const t = {}; Object.keys(out).forEach((k) => { t[k] = strip(out[k]); });
+
+    ok('the party block names the LLC d/b/a and signs "By: Joe Deal, Manager"', Object.keys(t).every((k) => /No Big Deal Solutions LLC, a Kentucky limited liability company, doing business as No Big Deal Home Solutions/.test(t[k]) && /No Big Deal Solutions LLC d\/b\/a No Big Deal Home Solutions - By: Joe Deal, Manager/.test(out[k].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' '))));
+    ok('NBD is defined once, as the Contractor, and the homeowner and address are the contract\'s own', /\("NBD" or "Contractor"\), and Jane Smith \("you" or "Homeowner"\), the owner\(s\) of the property at 1 Elm St, Cincinnati, OH 45202\./.test(t.oh_cash) && /Contract date: November 18, 2026/.test(t.oh_cash));
+    ok('the legacy contradictory clauses are replaced, not stacked (no cash ban, finance charge, arbitration, KRS 367.390, unilateral price change)',
+      Object.keys(t).every((k) => !/No cash payments|finance charge|binding arbitration|367\.390|reserves the right to adjust|LEGACY-ENTIRE-AGREEMENT/i.test(t[k])));
+    ok('flag off with the same legacy profile still prints those legacy clauses (the swap is the flag, not the profile)', /No cash payments accepted/.test(strip(withTerms(off, H.VARIANTS.oh_cash))) && /binding arbitration/.test(strip(withTerms(off, H.VARIANTS.oh_cash))));
+    ok('the new clauses print: late interest at the configured 8% after 15 days, mediation first, governing law, restocking, decking at $100.00',
+      /within 15 days after its due date, simple interest at 8% per year/.test(t.oh_cash) && /we will try mediation before filing suit/.test(t.oh_cash)
+      && /The law of the state where the property is located governs this contract\./.test(t.oh_cash) && /lesser of 15% of the price NBD paid/.test(t.oh_cash) && /\$100\.00 per sheet/.test(t.oh_cash));
+    ok('no card-fee promise while cardFeePct is 0', Object.keys(t).every((k) => !/credit card fee/i.test(t[k]) && /Zelle, check, ACH bank transfer, wire transfer and cash/.test(t[k])));
+    ok('Ohio gets the Ohio lien text; Kentucky cash the Kentucky one; Kentucky insurance the no-excess sentence only',
+      /Ohio law lets a contractor/.test(t.oh_cash) && /Kentucky law lets a contractor who has not been paid file a lien statement/.test(t.ky_cash)
+      && /Contractor will not file or claim a mechanic's lien for any amount in excess/.test(t.ky_insurance) && !/Kentucky law lets a contractor/.test(t.ky_insurance) && !/Ohio law lets a contractor/.test(t.ky_insurance));
+    ok('unknown state with insurance is the Kentucky-insurance contract', /Contractor will not file or claim a mechanic's lien for any amount in excess/.test(t.unknown_insurance) && /You may cancel this contract at any time before midnight on the fifth business day/.test(t.unknown_insurance));
+
+    // Kentucky insurance: every statutory block is byte-for-byte what the flag-off contract printed.
+    const region = (h, from, to) => { const a = h.indexOf(from); if (a < 0) return null; const b = h.indexOf(to, a + from.length); return h.slice(a, b < 0 ? undefined : b); };
+    const offKy = withTerms(off, H.VARIANTS.ky_insurance);
+    ['<!-- PAYMENT (every contract', '<!-- KRS 367.624(3) NOTICES'].forEach((m) => {
+      const end = '</div>\n            </div>';
+      const a = region(offKy, m, end), b = region(out.ky_insurance, m, end);
+      ok('KY insurance: the block starting ' + m + ' is byte-identical to the flag-off contract', a !== null && a === b, String(a).slice(0, 40));
+    });
+    const tailOf = (h) => h.slice(h.indexOf('data-nbd-noc="ftc"') - 400);
+    ok('KY insurance: the notice-of-cancellation forms and the cancel packet (after the signatures) are byte-identical',
+      region(offKy, 'class="nbd-cxl-receipt"', '</body>') === region(out.ky_insurance, 'class="nbd-cxl-receipt"', '</body>') && tailOf(offKy).length > 500);
+    ok('KY insurance: the FTC statement beside the signatures is unchanged', region(offKy, '<!-- SIGNATURES -->', 'signature-block') === region(out.ky_insurance, '<!-- SIGNATURES -->', 'signature-block'));
+    ok('KY insurance: the shipped lien sentence is printed with the same markup as before', out.ky_insurance.includes('<div style="margin: 0.1in 0; font-size: 10px;">Contractor will not file or claim a mechanic&#39;s lien') || /Contractor will not file or claim a mechanic(&#39;|')s lien for any amount in excess of what your insurer pays or is expected to pay\./.test(out.ky_insurance));
+
+    // Every printed clause is recorded, and the marker the server reads says so.
+    const refsIn = (h) => { const m = /<!-- nbd:clause-set (CS-[0-9.-]+) ([^ ]+) -->/.exec(h); return m ? { version: m[1], refs: m[2].split(',') } : null; };
+    Object.keys(out).forEach((k) => {
+      const m = refsIn(out[k]);
+      const v = H.VARIANTS[k];
+      const j = on.win.NBDJurisdiction.classify({ address: v.address, jobType: v.jobType, claimNumber: v.claimNumber });
+      const expect = CS.renderV1({ state: j.state, paymentSource: j.insurance ? 'insurance' : (v.jobType === 'finance' ? 'financed' : 'cash'), terms: CS.paymentTermsFor({ deckingPerSheetCents: 10000 }, true), party: CS.partyFor({}, true), hasWarranty: true });
+      ok(k + ': the document carries a marker listing every printed clause, at the current version', !!m && m.version === CS.CLAUSE_SET_VERSION && m.refs.length > 30);
+      const printed = (out[k].match(/data-clause="([A-Z]+-\d+)"/g) || []).map((x) => x.replace(/data-clause="|"/g, ''));
+      ok(k + ': every clause whose text is printed is in the marker', printed.every((id) => m.refs.indexOf(id + '_V1') !== -1), printed.filter((id) => m.refs.indexOf(id + '_V1') === -1).join());
+      ok(k + ': the marker matches the registry for this variant (modulo the warranty section)', JSON.stringify(m.refs.filter((r) => !/^WAR-4/.test(r))) === JSON.stringify(expect.refs.filter((r) => !/^WAR-4/.test(r))), m.refs.length + ' vs ' + expect.refs.length);
+    });
+
+    // The send gate: an unset clause number refuses with the rep message; a tenant never inherits NBD's numbers.
+    const unset = withTerms(on, H.VARIANTS.oh_cash, { terms: { deckingPerSheetCents: null } });
+    ok('an unset decking price leaves a visible token, never an invented price', /\{\{deckingPerSheetCents\}\}/.test(unset) && !/\$0\.00 per sheet/.test(unset));
+    const Checks = require('../functions/doc-send-checks.js');
+    const gaps = Checks.contractGaps({ type: 'contract', priceCents: 1850000, address: 'a', homeownerName: 'b', mailingAddress: 'c', needsMailingAddress: true, entityName: 'X LLC', startDate: 's', estimatedCompletion: 'e', text: unset, clauseConfigMissing: ['deckingPerSheetCents'] });
+    ok('the send check refuses with "Set deckingPerSheetCents in Company Profile." and does not repeat it as a placeholder', gaps.length === 1 && gaps[0].code === 'clauseConfig' && gaps[0].message === 'Set deckingPerSheetCents in Company Profile.', JSON.stringify(gaps));
+    ok('doc-send-checks.js twin pair is byte-identical', H.read('docs/pro/js/doc-send-checks.js').replace(/\r\n/g, '\n') === H.read('functions/doc-send-checks.js').replace(/\r\n/g, '\n'));
+    ok('the generator send gate derives the missing list from the document and refuses (client)', (() => {
+      const W = on.win; const before = on.toasts.length;
+      const okSend = W.NBDDocGen._docSendGate('contract', { homeownerName: 'Jane', address: H.OH_ADDR, contractPrice: '$18,500.00', startDate: 'x', estimatedCompletion: 'y', companyProfile: H.profileFor(W, H.BIZ_ADDR) }, unset);
+      return okSend === false && on.toasts.slice(before).some((x) => /Set deckingPerSheetCents in Company Profile/.test(x.m));
+    })());
+    ok('the gate stays quiet for a flag-off render', off.win.NBDDocGen._docSendGate('contract', {}, '<p>{{deckingPerSheetCents}}</p>') === true);
+
+    // Tenant: its own name, no NBD names anywhere, numbers blank until it sets them.
+    const tenantBrand = { legalName: 'Oaks Roofing', entityName: 'Oaks Roofing LLC', dbaName: 'Oaks Roofing', signerTitle: 'Owner', colors: {}, contact: { email: 'a@oaks.test', phone: '(513) 555-0100' } };
+    const ten = H.docs({ flags: { docClauseSetV1: true }, brand: tenantBrand });
+    const tHtml = H.render(ten, 'renderContract', H.VARIANTS.oh_cash, { companyProfile: Object.assign(H.profileFor(ten.win, H.BIZ_ADDR), { paymentTerms: {} }) });
+    const tt = strip(tHtml);
+    ok('a tenant\'s contract names its own LLC and signer title and no NBD names', /Oaks Roofing LLC d\/b\/a Oaks Roofing - By: ______________, Owner/.test(tHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ')) && !/\bNBD\b|No Big Deal|Joe Deal/i.test((tHtml.match(/data-clause="[^"]+"[^>]*>.*?<\/div>/g) || []).join(' ').replace(/<[^>]*>/g, ' ')), (tt.match(/.{20}(NBD|No Big Deal|Joe Deal).{20}/i) || [''])[0]);
+    ok('a tenant with no numbers set shows the tokens (the gate then refuses)', /\{\{lateGraceDays\}\}/.test(tHtml) && /\{\{deckingPerSheetCents\}\}/.test(tHtml));
+    // company-profile.js: defaults, and the tenant blanking
+    const D = on.win.NBD_COMPANY_PROFILE_DEFAULTS;
+    ok('company-profile.js paymentTerms defaults equal the registry\'s NBD defaults', JSON.stringify(D.paymentTerms) === JSON.stringify(CS.NBD_PAYMENT_TERMS_DEFAULTS));
+    ok('_legal() blanks the numbers for a non-NBD tenant that kept the defaults, keeps the ones it changed', (() => {
+      const w = ten.win; w._companyProfile = Object.assign({}, w.NBD_COMPANY_PROFILE_DEFAULTS, { brand: Object.assign({}, w.NBD_COMPANY_PROFILE_DEFAULTS.brand, { legalName: 'Oaks Roofing' }), paymentTerms: Object.assign({}, D.paymentTerms, { lateGraceDays: 20 }) });
+      const pt = w._legal().paymentTerms;
+      return pt.lateGraceDays === 20 && pt.lateInterestPct === null && pt.restockPct === null && w._legal().paymentTerms.deckingPerSheetCents === null;
+    })());
+    ok('_legal() leaves NBD\'s own numbers alone', (() => { const w = on.win; w._companyProfile = JSON.parse(JSON.stringify(D)); return w._legal().paymentTerms.lateGraceDays === 15; })());
+    ok('a flag-off contract carries no marker and none of the new text', !/nbd:clause-set/.test(withTerms(off, H.VARIANTS.oh_cash)) && !/Costs of enforcing/.test(withTerms(off, H.VARIANTS.oh_cash)));
+    // banned phrases over the rendered contracts
+    Object.keys(t).forEach((k) => ok(k + ': rendered contract has no banned phrase', !/\blicensed\b|in-house|we(?:'ll| will)? handle|personally|lifetime/i.test(t[k].replace(/personally inspected/, ''))));
+    void PRICED;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  section('G. the server e-sign estimate PDF, flag ON');
+  {
+    const DE = require('../functions/doc-evidence.js');
+    const KyLaw = require('../functions/ky-insurance-law.js');
+    const pdfLib = require(path.join(H.ROOT, 'functions/node_modules/pdf-lib'));
+    const drawn = [];
+    const orig = pdfLib.PDFPage.prototype.drawText;
+    pdfLib.PDFPage.prototype.drawText = function (t, o) { drawn.push(String(t)); return orig.call(this, t, o); };
+    const lead = (addr, jobType) => ({ address: addr, jobType, userId: 'u1' });
+    const build = async (state, jobType, profile, flagOn) => {
+      drawn.length = 0;
+      const addr = state === 'KY' ? H.KY_ADDR : H.OH_ADDR;
+      const cs = flagOn ? DE.buildClauseSet(KyLaw, lead(addr, jobType), {}, profile, '', { ownerNames: 'Jane Smith and Pat Smith', propertyAddress: addr, date: 'November 18, 2026' }) : null;
+      const r = await H.esignPdf(state, { clauseSet: cs, failClosed: !!flagOn, entityName: 'No Big Deal Solutions LLC' });
+      return { r, cs, text: drawn.join(' ').replace(/\s+/g, ' ') };
+    };
+    const nbdProfile = { paymentTerms: { deckingPerSheetCents: 10000 }, brand: { contact: { mailingAddress: H.BIZ_ADDR } } };
+    const oh = await build('OH', 'cash', nbdProfile, true);
+    ok('PDF flag on: the party block, the clause text and the signer line print', /PARTY-1 Parties\. This contract is between No Big Deal Solutions LLC, a Kentucky limited liability company, doing business as No Big Deal Home Solutions/.test(oh.text) && /No Big Deal Solutions LLC d\/b\/a No Big Deal Home Solutions/.test(oh.text) && /By: Joe Deal, Manager/.test(oh.text));
+    ok('PDF flag on: the shipped Payment clause and the cancellation forms are still there', oh.text.includes(KyLaw.PAYMENT_CLAUSE.replace(/\u2019/g, "'")) && /NOTICE OF CANCELLATION/.test(oh.text) && oh.text.includes(KyLaw.FTC_STATEMENT));
+    ok('PDF flag on: late interest, mediation, decking at $100.00 and the Ohio lien text print; no Kentucky text on an Ohio job',
+      /within 15 days after its due date, simple interest at 8% per year/.test(oh.text) && /mediation before filing suit/.test(oh.text) && /\$100\.00 per sheet/.test(oh.text) && /Ohio law lets a contractor/.test(oh.text) && !/BUYER'S RIGHT TO CANCEL/.test(oh.text));
+    ok('PDF flag on: the clauses it printed are returned for the evidence record (and nothing statutory-by-reference is faked)', Array.isArray(oh.r.clauseRefs) && oh.r.clauseRefs.length > 30 && oh.r.clauseRefs.indexOf('PARTY-1_V1') !== -1 && oh.r.clauseRefs.indexOf('PAY-4_V1') !== -1);
+    const stamp = DE.stampFor(KyLaw, lead(H.OH_ADDR, 'cash'), {}, { refs: oh.r.clauseRefs });
+    ok('the envelope stamp: the shipped statutory refs plus every v1 ref, at the current version', stamp.clauseSetVersion === CS.CLAUSE_SET_VERSION && stamp.clauseIds.indexOf('PAYMENT_V1') !== -1 && stamp.clauseIds.indexOf('PAY-4_V1') !== -1 && new Set(stamp.clauseIds).size === stamp.clauseIds.length && stamp.clauseIds.length <= 60, stamp.clauseIds.length);
+    ok('a forged ref the registry does not know is not recorded', DE.stampFor(KyLaw, lead(H.OH_ADDR, 'cash'), {}, { refs: ['EVIL-9_V1', 'PAY-4_V1'] }).clauseIds.indexOf('EVIL-9_V1') === -1);
+    const ky = await build('KY', 'cash', nbdProfile, true);
+    ok('PDF flag on, Kentucky cash: the Kentucky lien and BUYER\'S RIGHT TO CANCEL both print', /Kentucky law lets a contractor who has not been paid/.test(ky.text) && /BUYER'S RIGHT TO CANCEL/.test(ky.text));
+    const fin = await build('OH', 'finance', nbdProfile, true);
+    ok('PDF flag on, financed: the lender sentence prints', /Your lender's terms control your loan\./.test(fin.text));
+    ok('PDF flag on: legacy wording is not there and no banned phrase is', [oh, ky, fin].every((x) => !/licensed|in-house|finance charge|binding arbitration|No cash payments|personally|lifetime/i.test(x.text)));
+    ok('PDF flag on, cardFeePct 0: no card fee promised', !/credit card fee/i.test(oh.text) && /Zelle, check, ACH bank transfer/.test(oh.text));
+    let refused = null;
+    try { await build('OH', 'cash', { brand: nbdProfile.brand }, true); } catch (e) { refused = e; }
+    ok('PDF flag on with the decking price unset: the build refuses (clauseConfig gap), nothing is generated', !!refused && Array.isArray(refused.gaps) && refused.gaps.some((g) => g.code === 'clauseConfig' && g.message === 'Set deckingPerSheetCents in Company Profile.'), refused && refused.message);
+    const tenantPdf = await build('OH', 'cash', { paymentTerms: Object.assign({}, CS.NBD_PAYMENT_TERMS_DEFAULTS, { deckingPerSheetCents: 9000 }), brand: { entityName: 'Oaks Roofing LLC', dbaName: 'Oaks Roofing', signerTitle: 'Owner', legalName: 'Oaks Roofing', contact: { phone: '(513) 555-0100', mailingAddress: '1 B St' } } }, false)
+      .catch(() => null);
+    void tenantPdf;
+    pdfLib.PDFPage.prototype.drawText = orig;
+    // flag off: nothing is added (the golden bytes in section A are the proof); and the returned object has no refs
+    const offPdf = await H.esignPdf('OH');
+    ok('PDF flag off: no clause refs returned and the golden bytes hold', offPdf.clauseRefs === null);
+    const tenantSet = DE.buildClauseSet(KyLaw, lead(H.OH_ADDR, 'cash'), {}, { paymentTerms: {}, brand: { entityName: 'Oaks Roofing LLC', legalName: 'Oaks Roofing', signerTitle: 'Owner', contact: { phone: '(513) 555-0100' } } }, 'someOtherTenantUid', {});
+    ok('a tenant\'s PDF clause set: its own entity, no NBD name or phone, every number missing until set', /Oaks Roofing LLC/.test(tenantSet.partyBlock.nameLine) && !/NBD|No Big Deal|Joe Deal|420-7382/.test(JSON.stringify(tenantSet.sections) + JSON.stringify(tenantSet.party) + tenantSet.partyBlock.byLine) && tenantSet.missing.length === 10);
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

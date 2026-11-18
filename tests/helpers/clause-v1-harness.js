@@ -103,6 +103,8 @@ function docs(opts) {
   files.forEach((f) => load(env, f));
   // company-profile.js after the deposit rule, so window.NBD_COMPANY_PROFILE_DEFAULTS exists for _legal()
   load(env, 'docs/pro/js/company-profile.js');
+  // company-profile.js defines its own _brand; a test that passes a brand gets that brand (the goldens use the default path)
+  if (o.brand) env.win._brand = () => brand;
   return env;
 }
 

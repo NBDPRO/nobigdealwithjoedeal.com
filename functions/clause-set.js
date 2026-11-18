@@ -273,7 +273,7 @@
       });
       if (items.length) sections.push({ title: sec[0], items: items });
     });
-    return { clauseSetVersion: CLAUSE_SET_VERSION, variant: v.key, failClosed: v.failClosed, refs: refs, missing: missing, party: partyItem, sections: sections };
+    return { clauseSetVersion: CLAUSE_SET_VERSION, variant: v.key, failClosed: v.failClosed, refs: refs, missing: missing, party: partyItem, partyBlock: party, sections: sections };
   }
 
   /** The fields a document of this kind still needs from Company Profile (empty = ready). */
