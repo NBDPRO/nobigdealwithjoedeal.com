@@ -3,7 +3,8 @@
  * (2026-11-17, flag supplierPricing; design section 2.4, the "slice 1" cases).
  *
  * Every write is a Cloud Function (admin SDK); a browser only reads. Offers and supplier
- * accounts: owner, company_admin, manager, sales_rep. Observations and meters: owner,
+ * accounts: owner, company_admin, manager (a sales_rep was dropped 2026-11-18, Jo: reps never
+ * read a supplier price; productLinks stay readable by a rep). Observations and meters: owner,
  * company_admin, manager. Audit: owner, company_admin. A viewer, the access-code role
  * `member`, a token with no role and another tenant read nothing.
  *
@@ -93,14 +94,14 @@ async function run() {
     await setDoc(doc(db, 'integrations/pricing/companies/co-a'), { enabled: false });
   });
 
-  // 1. offers and supplier accounts
+  // 1. offers and supplier accounts. A sales_rep reads neither (Jo, 2026-11-18: reps never read a supplier price)
   const members = ['solo owner (uid is the company)', 'company_admin', 'manager', 'sales_rep'];
   const outsiders = ['viewer', 'member (access code)', 'role-less token with the claim', 'another company'];
-  for (const w of members) {
+  for (const w of ['solo owner (uid is the company)', 'company_admin', 'manager']) {
     await check('1. ' + w + ' reads an offer', 'allow', getDoc(doc(WHO[w], PATHS.offer)));
     await check('1. ' + w + ' reads a supplier account', 'allow', getDoc(doc(WHO[w], PATHS.account)));
   }
-  for (const w of outsiders) {
+  for (const w of ['sales_rep'].concat(outsiders)) {
     await check('1. ' + w + ' can not read an offer', 'deny', getDoc(doc(WHO[w], PATHS.offer)));
     await check('1. ' + w + ' can not read a supplier account', 'deny', getDoc(doc(WHO[w], PATHS.account)));
   }
@@ -138,7 +139,7 @@ async function run() {
   await check('5. a removed former owner (no claims) can not read an offer', 'deny', getDoc(doc(removed, H + 'priceOffers/other_testco_TEST-0001')));
   await check('5. a removed former owner can not read an observation', 'deny', getDoc(doc(removed, H + 'priceObservations/o_1')));
   await check('5. a removed former owner can not read audit', 'deny', getDoc(doc(removed, H + 'priceAudit/a_1')));
-  await check('5. a former owner demoted to sales_rep reads offers', 'allow', getDoc(doc(demoted, H + 'priceOffers/other_testco_TEST-0001')));
+  await check('5. a former owner demoted to sales_rep can not read offers', 'deny', getDoc(doc(demoted, H + 'priceOffers/other_testco_TEST-0001')));
   await check('5. a former owner demoted to sales_rep can not read an observation', 'deny', getDoc(doc(demoted, H + 'priceObservations/o_1')));
   await check('5. a former owner demoted to sales_rep can not read audit', 'deny', getDoc(doc(demoted, H + 'priceAudit/a_1')));
   await check('5. a former owner kept as company_admin reads an observation', 'allow', getDoc(doc(kept, H + 'priceObservations/o_1')));

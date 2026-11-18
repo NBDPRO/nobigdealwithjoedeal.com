@@ -14,8 +14,9 @@
  *     else the cheapest fresh price; the quantity is whole purchase units from the
  *     item's confirmed pack size
  *   - the company's own suppliers replace the list's two built-in store names
- *   - supplier prices are shown to the owner, admins and managers only; a rep sees
- *     the quantities and where to buy
+ *   - for the owner, admins and managers only: a sales_rep reads no supplier item
+ *     or price (rules, Jo 2026-11-18), so a rep's list stays exactly as
+ *     materials-list.js draws it
  *   - the copied text never carries a price
  *
  * Every store or supplier string goes through esc(). No inline handlers.
@@ -114,7 +115,8 @@ var microsText = function (m) { var L = w.NBDPriceLogic; return L ? L.microsToTe
     var ready = w.NBDPriceLedger ? Promise.resolve() : (w.ScriptLoader && typeof w.ScriptLoader.loadBundle === 'function' ? w.ScriptLoader.loadBundle('estimates') : Promise.resolve());
     return ready.then(function () {
       var PL = w.NBDPriceLedger, LG = w.NBDPriceLogic, cat = w.NBD_XACT_CATALOG;
-      if (!PL || !LG || !PL.enabled()) return null;
+      // A sales_rep reads no supplier item or price (rules, Jo 2026-11-18): the list stays as materials-list.js drew it.
+      if (!PL || !LG || !PL.enabled() || !PL.canRecord()) return null;
       var products = (w._productLib && typeof w._productLib.getProducts === 'function') ? w._productLib.getProducts() : (w.NBD_PRODUCTS || []);
       var items = [];
       list.groups.forEach(function (g) { g.items.forEach(function (i) { items.push(i); }); });
