@@ -453,6 +453,27 @@ let kit = null; try { kit = require('./lib/doc-evidence-kit'); } catch (_) { kit
     ok('the code agrees: doc-evidence.js exports the same name and default', !!DE && DE.FLAG_NAME === 'docEvidenceFoundation' && DE.FLAG_DEFAULT === false);
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('R. security review 2026-11-18 follow-ups');
+  {
+    // finding 11: the visible-text scan is linear, bounded, and a stray '<' cannot hide a placeholder.
+    const slow = (fn) => { const t0 = Date.now(); const r = fn(); return { ms: Date.now() - t0, r }; };
+    const a = CHK ? slow(() => CHK.placeholdersIn('<a '.repeat(150000) + ' [Homeowner Name] ')) : { ms: 1e9 };
+    ok('11: 450 KB of unclosed "<a " scans in well under a second (was quadratic)', a.ms < 1500, a.ms + ' ms');
+    const b = CHK ? slow(() => CHK.visibleText('<script>x'.repeat(100000) + '[Price]')) : { ms: 1e9 };
+    ok('11: 900 KB of unclosed <script> openers scans in well under a second', b.ms < 1500, b.ms + ' ms');
+    const c = CHK ? slow(() => CHK.visibleText('<!--'.repeat(150000))) : { ms: 1e9 };
+    ok('11: 600 KB of unclosed comment openers scans in well under a second', c.ms < 1500, c.ms + ' ms');
+    ok('11: a stray "<" before a placeholder does not hide it', !!CHK && CHK.placeholdersIn('<p>a < b</p> [Homeowner Name] <p>done</p>').indexOf('[Homeowner Name]') !== -1);
+    ok('11: a stray "<" in text with a later tag does not hide a {{token}}', !!CHK && CHK.placeholdersIn('x <3 you {{price}} <b>ok</b>').indexOf('{{price}}') !== -1);
+    ok('11: a placeholder inside an attribute is found by the raw scan', !!CHK && CHK.placeholdersIn('<input value="[Price]">').indexOf('[Price]') !== -1);
+    ok('11: a placeholder inside <script> or a comment is not reported', !!CHK && CHK.placeholdersIn('<script>var a="[Price]"</script><!-- [Price] --><p>ok</p>').length === 0);
+    const full = { type: 'contract', priceCents: 1200000, address: 'a', homeownerName: 'b', entityName: 'X LLC', startDate: 'x', estimatedCompletion: 'y' };
+    const g = CHK ? CHK.contractGaps(Object.assign({}, full, { text: 'x'.repeat(2 * 1024 * 1024 + 1) })) : [];
+    ok('11: a document over 2 MB is refused with a clear gap, not scanned', g.some((x) => x.code === 'tooLarge' && /too large/i.test(x.message)), JSON.stringify(g.map((x) => x.code)));
+    ok('11: a document under 2 MB passes the size gate', !!CHK && !CHK.contractGaps(Object.assign({}, full, { text: 'x'.repeat(1024 * 1024) })).some((x) => x.code === 'tooLarge'));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join('; ')); process.exit(1); }
 })().catch((e) => { console.error('FATAL', e); process.exit(1); });

@@ -39,15 +39,64 @@
 
   function _blank(v) { return v == null || String(v).replace(/[\s\u00a0]+/g, '') === ''; }
 
+  // A document longer than this is refused, not scanned (review 2026-11-18): the check is
+  // linear now, but an unbounded body on the send path is still a cost nobody asked for.
+  var MAX_TEXT = 2 * 1024 * 1024;
+  function tooLarge(html) { return String(html == null ? '' : html).length > MAX_TEXT; }
+
+  var ENT = [[/&nbsp;/g, ' '], [/&amp;/g, '&'], [/&#39;/g, "'"], [/&quot;/g, '"']];
+
+  // The text of a rendered document with the markup, <script>/<style> bodies and comments
+  // removed, in ONE linear pass (review 2026-11-18). A '<' only opens a tag when a tag
+  // follows (letter, '/', '!' or '?') AND a '>' closes it; a stray '<' ("a < b") is text, so
+  // it can no longer swallow a later [Placeholder]. keepTags leaves the tags in (a raw scan
+  // that still skips script/style/comments).
+  function strip(html, keepTags) {
+    var src = String(html == null ? '' : html);
+    var low = src.toLowerCase();
+    var out = [];
+    var i = 0, n = src.length;
+    var gtGone = false;            // no '>' left anywhere ahead: every later '<' is text
+    var noClose = { script: false, style: false };
+    while (i < n) {
+      var lt = src.indexOf('<', i);
+      if (lt < 0) { out.push(src.slice(i)); break; }
+      if (lt > i) out.push(src.slice(i, lt));
+      var c = src.charAt(lt + 1);
+      if (src.substr(lt, 4) === '<!--') {
+        var ce = src.indexOf('-->', lt + 4);
+        out.push(' ');
+        if (ce < 0) { i = n; } else { i = ce + 3; }
+        continue;
+      }
+      var isTagStart = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '/' || c === '!' || c === '?';
+      if (!isTagStart || gtGone) { out.push('<'); i = lt + 1; continue; }
+      var gt = src.indexOf('>', lt + 1);
+      if (gt < 0) { gtGone = true; out.push('<'); i = lt + 1; continue; }
+      var block = '';
+      if (low.substr(lt, 7) === '<script' && /[\s>\/]/.test(low.charAt(lt + 7))) block = 'script';
+      else if (low.substr(lt, 6) === '<style' && /[\s>\/]/.test(low.charAt(lt + 6))) block = 'style';
+      if (block && !noClose[block]) {
+        var close = low.indexOf('</' + block, gt + 1);
+        if (close >= 0) {
+          var cgt = src.indexOf('>', close);
+          out.push(' ');
+          i = cgt < 0 ? n : cgt + 1;
+          continue;
+        }
+        noClose[block] = true;   // no closer ahead: later ones have none either (keeps this linear)
+      }
+      out.push(keepTags ? src.slice(lt, gt + 1) : ' ');
+      i = gt + 1;
+    }
+    return out.join('');
+  }
+
   // Visible text of a rendered document: no <script>/<style>, no tags.
   function visibleText(html) {
-    return String(html == null ? '' : html)
-      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<!--[\s\S]*?-->/g, ' ')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"')
-      .replace(/\s+/g, ' ');
+    var t = strip(html, false);
+    for (var k = 0; k < ENT.length; k++) t = t.replace(ENT[k][0], ENT[k][1]);
+    return t.replace(/\s+/g, ' ');
   }
 
   // {{token}} and [Capitalised Words] (a template's "fill me in" marker). "[ ]" and
@@ -55,12 +104,18 @@
   var BRACE_RE = /\{\{[^{}]{1,60}\}\}/g;
   var BRACKET_RE = /\[[A-Z][A-Za-z0-9 #\/.'&-]{1,40}\]/g;
 
-  /** The distinct placeholder tokens left in rendered text or HTML. */
+  /**
+   * The distinct placeholder tokens left in rendered text or HTML: in the visible text, and
+   * in the raw markup with only script/style/comments removed (so a token in an attribute is
+   * not missed). Over MAX_TEXT it returns [] and contractGaps reports the size instead.
+   */
   function placeholdersIn(htmlOrText) {
-    var t = visibleText(htmlOrText);
+    if (tooLarge(htmlOrText)) return [];
     var found = [];
-    (t.match(BRACE_RE) || []).concat(t.match(BRACKET_RE) || []).forEach(function (m) {
-      if (found.indexOf(m) === -1) found.push(m);
+    [visibleText(htmlOrText), strip(htmlOrText, true)].forEach(function (t) {
+      (t.match(BRACE_RE) || []).concat(t.match(BRACKET_RE) || []).forEach(function (m) {
+        if (found.indexOf(m) === -1) found.push(m);
+      });
     });
     return found;
   }
@@ -98,6 +153,7 @@
       if (_blank(x.startDate)) gap('startDate', 'The start date is blank.');
       if (_blank(x.estimatedCompletion)) gap('estimatedCompletion', 'The estimated completion is blank.');
     }
+    if (tooLarge(x.text)) gap('tooLarge', 'The document is too large to check (over 2 MB). Shorten it or remove embedded images, then try again.');
     placeholdersIn(x.text).forEach(function (tok) {
       gap('placeholder', 'The document still has a placeholder: ' + tok);
     });
@@ -114,6 +170,8 @@
     CONTRACT_CLASS: CONTRACT_CLASS.slice(),
     isContractClass: isContractClass,
     carriesPrice: carriesPrice,
+    tooLarge: tooLarge,
+    MAX_TEXT: MAX_TEXT,
     visibleText: visibleText,
     placeholdersIn: placeholdersIn,
     contractGaps: contractGaps,
