@@ -37,6 +37,11 @@
  * Drive request appended: a list of the top folder's non-folder files. Every
  * write, Storage call, model prompt and push is byte-identical.
  *
+ * Regenerated 2026-11-18 (later) with Jo's OK for reading day folders a
+ * backfill creates behind the cursor: the day-folder list request now asks
+ * for createdTime ("files(id, name)" -> "files(id, name, createdTime)").
+ * Nothing else changed.
+ *
  * It runs twice: once as before (no multi-tenant env), once with
  * CALL_CENTER_MULTI_TENANT_ENABLED=true and an enabled tenant config sitting
  * in Firestore; NBD's own pass must write exactly the same either way.
