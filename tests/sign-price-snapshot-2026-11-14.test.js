@@ -145,7 +145,7 @@ function makeStorage(files) {
 // remote-signing.js with real module code and fake I/O (the loader from
 // tests/contract-cancel-forms.test.js); its job-spine hand-off is the REAL
 // spine on the same fake Firestore.
-const REAL = ['./ky-insurance-law', './cancel-window', './cancel-notice-pdf', './job-spine-logic', './lead-artifact-paths', './esign-logic',
+const REAL = ['./ky-insurance-law', './cancel-window', './cancel-notice-pdf', './job-spine-logic', './lead-artifact-paths', './esign-logic', './doc-evidence',
   './await-briefly', './customer-estimate-rows', './signed-price', 'crypto'];
 function loadRemoteSigning(db, storage, spy) {
   const file = path.join(FN, 'remote-signing.js');

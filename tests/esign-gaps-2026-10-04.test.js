@@ -214,6 +214,7 @@ function load(db, storage, extraStubs) {
     './job-spine': { spineAfterEsign: async (_db, env, id) => { spine.push(id); return {}; } },
     './esign-stamp': require(path.join(FN, 'esign-stamp.js')),
     './esign-logic': require(path.join(FN, 'esign-logic.js')),
+    './doc-evidence': require(path.join(FN, 'doc-evidence.js')),
     './estimate-esign-pdf': require(path.join(FN, 'estimate-esign-pdf.js')),
     './ky-insurance-law': require(path.join(FN, 'ky-insurance-law.js')),
     './customer-estimate-rows': require(path.join(FN, 'customer-estimate-rows.js')),

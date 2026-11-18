@@ -35,6 +35,7 @@ const { Timestamp, getFirestore } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const { FieldValue } = require('firebase-admin/firestore');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
+const DE = require('./doc-evidence');
 const { callableRateLimit, assertNotViewer } = require('./shared');
 const EVA = require('./estimate-view-alert');
 
@@ -442,6 +443,14 @@ exports.createSignRequest = onCall(
         throw new HttpsError('failed-precondition',
           'This contract was made before the 3-day cancellation forms were added. Generate the contract again, then send that one.');
       }
+      // Fail closed (flag docEvidenceFoundation, default OFF): the server re-reads the stored
+      // contract, so a placeholder the client check missed (or a client that skipped it) stops here.
+      if (await DE.flagForUid(db, uid)) {
+        const left = require('./doc-send-checks').placeholdersIn(contractHtml);
+        if (left.length) {
+          throw new HttpsError('failed-precondition', DE.describeGaps(left.map((t) => ({ message: 'The document still has a placeholder: ' + t }))));
+        }
+      }
     }
 
     // The price this contract is sent at (money review 2026-11-14, finding 8):
@@ -510,6 +519,8 @@ exports.createSignRequest = onCall(
       docType: typeof docMeta.type === 'string' ? docMeta.type.slice(0, 60) : null,
       priceSnapshot,
       ...(isContract && !priceSnapshot ? { priceSnapshotMissing: true, priceLockReason } : {}),
+      // Evidence parity (2026-11-18): the clause set this document was sent under.
+      ...DE.stampFor(KyLaw, lead, {}),
       status: 'pending',
       mintedAt: FieldValue.serverTimestamp(),
       expiresAt,
@@ -661,9 +672,15 @@ exports.getSignDocument = onRequest(
     }
     await awaitBriefly(pendingWrites);
 
+    // Flag docEvidenceFoundation (default OFF): ask for the consent the e-sign envelope already
+    // asks for, in the e-sign envelope's own words (never text from the wire). The page shows a
+    // checkbox only when this is present.
+    const consent = (await DE.flagForUid(db, tok.mintedBy || tok.ownerUid)) ? { required: true, text: ESL.CONSENT_TEXT } : null;
+
     // Only the minimum the sign page needs — no lead internals.
     res.status(200).json({
       html,
+      ...(consent ? { consent } : {}),
       docTypeName: tok.docTypeName || 'Document',
       signerName: tok.signerName || '',
       // '' for NBD (page keeps its NBD chrome); tenant name for white-label.
@@ -688,7 +705,7 @@ exports.submitSignature = onRequest(
     if (req.method !== 'POST') { res.status(405).end(); return; }
     if (!(await httpRateLimit(req, res, 'docsign-submit:ip', 20, 60_000))) return;
 
-    const { token, signedHtml } = req.body || {};
+    const { token, signedHtml, consent } = req.body || {};
     if (typeof token !== 'string' || !/^[A-Za-z0-9]{10,64}$/.test(token)) {
       res.status(400).json({ error: 'Invalid link' }); return;
     }
@@ -714,11 +731,19 @@ exports.submitSignature = onRequest(
     let originalHtml = null;
     let record = null;        // the executed record, rebuilt from the original
     let verifiedPath = null;  // the htmlPath the checks below ran against
+    let consentAsked = false; // flag docEvidenceFoundation: the page showed the consent checkbox
     {
       const pre = await tokRef.get();
       if (!pre.exists) { res.status(404).json({ error: 'Invalid link' }); return; }
       const p = pre.data();
       if (p.status === 'pending') {
+        // Before the burn, like every gate below: a missing consent tick must not consume the
+        // homeowner's one-shot link.
+        consentAsked = await DE.flagForUid(db, p.mintedBy || p.ownerUid);
+        if (consentAsked && consent !== true) {
+          res.status(422).json({ error: 'Please tick the box to agree to sign electronically, then submit again.', needsConsent: true });
+          return;
+        }
         // Fail CLOSED on a path outside the lead (or none at all): that token
         // used to skip every gate below, burn, and write the counterparty's
         // bytes to whatever it named.
@@ -815,6 +840,7 @@ exports.submitSignature = onRequest(
         tx.update(tokRef, { status: 'signed', signedAt: FieldValue.serverTimestamp() });
         return { leadId: t.leadId, docId: t.docId, ownerUid: t.ownerUid, htmlPath: t.htmlPath, signerName: t.signerName || '',
           docType: t.docType || null,
+          clauseSetVersion: t.clauseSetVersion || null, clauseIds: Array.isArray(t.clauseIds) ? t.clauseIds : [],
           priceSnapshot: (t.priceSnapshot && typeof t.priceSnapshot === 'object') ? t.priceSnapshot : null,
           priceSnapshotMissing: t.priceSnapshotMissing === true, priceLockReason: t.priceLockReason || null };
       });
@@ -918,6 +944,18 @@ exports.submitSignature = onRequest(
         ? { signedSha256: sha(recordHtml), signedSaveFailed: FieldValue.delete() }
         : { signedSha256: null, unsavedRecordSha256: sha(recordHtml), signedSaveFailed: true }),
       ...(cancelBy && recordSaved ? Object.assign({ cancelBy }, CW.staleRecordPatch(cxl)) : {}),
+      // Evidence parity (2026-11-18). IP and user agent come from THIS request, never the body.
+      // Consent is recorded only when the page asked for it (flag docEvidenceFoundation), with
+      // the server's own copy of the text.
+      signatureEvidence: DE.buildEvidence({
+        path: 'remote_link',
+        clauseSetVersion: info.clauseSetVersion, clauseIds: info.clauseIds,
+        documentSha256: originalHtml ? sha(originalHtml) : null,
+        signedSha256: recordSaved ? sha(recordHtml) : null,
+        consent: consentAsked ? { agreed: true, text: ESL.CONSENT_TEXT, at: signedAtNow.getTime() } : { agreed: null },
+        signedAtMs: signedAtNow.getTime(),
+        ...DE.requestFacts(req),
+      }),
     };
     const who = info.signerName ? info.signerName + ' ' : 'A homeowner ';
     const note = {

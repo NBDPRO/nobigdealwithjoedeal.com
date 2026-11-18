@@ -525,6 +525,8 @@ exports.submitDealAcceptance = onRequest(
       consent: b.consent === true,
       consentText: b.consent === true ? DEAL_CONSENT_TEXT : null,
       signatureSha256: require('crypto').createHash('sha256').update(signature, 'utf8').digest('hex'),
+      // Evidence parity (2026-11-18): the clause-set version in force when they accepted.
+      clauseSetVersion: require('./doc-evidence').CLAUSE_SET_VERSION,
     };
 
     const db = getFirestore();
@@ -631,8 +633,17 @@ exports.submitDealAcceptance = onRequest(
     if (info.htmlPath) {
       try {
         const [buf] = await getStorage().bucket().file(info.htmlPath).download();
+        const pageSha = require('crypto').createHash('sha256').update(buf).digest('hex');
+        // The clauses this property and payment source carry (clause-set.js), read from the lead.
+        let stamp = { clauseIds: [] };
+        try {
+          const ls = info.leadId ? await db.doc(`leads/${info.leadId}`).get() : null;
+          stamp = require('./doc-evidence').stampFor(KyLaw, ls && ls.exists ? ls.data() : {}, {});
+        } catch (_) { /* the version is already on the record; ids are best-effort */ }
         await db.doc(`deal_rooms/${info.dealId}`).update({
-          'acceptedEvidence.pageSha256': require('crypto').createHash('sha256').update(buf).digest('hex'),
+          'acceptedEvidence.pageSha256': pageSha,
+          'acceptedEvidence.documentSha256': pageSha,
+          'acceptedEvidence.clauseIds': stamp.clauseIds,
           'acceptedEvidence.pagePath': info.htmlPath,
         });
       } catch (e) { logger.warn('[submitDealAcceptance] page digest failed', { msg: e && e.message }); }

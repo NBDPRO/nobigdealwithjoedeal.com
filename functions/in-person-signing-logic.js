@@ -48,6 +48,40 @@ function notSignedReason(docMeta) {
 }
 
 /**
+ * Write signatureEvidence on the signed document, once. Write-once: a second call (a retry,
+ * or a rep calling again) never replaces the first record, and a document the remote link
+ * already signed keeps the evidence that path wrote. Best-effort: a failure here is logged
+ * by the caller's catch-all and never blocks the signing, which is already saved.
+ * evidence = { enabled, ip, ua, readBytes(path) -> Buffer | null }
+ */
+async function recordEvidence(db, ctx, evidence) {
+  const { leadId, docId, lead, docMeta, uid, data } = ctx;
+  if (docMeta.signatureEvidence || docMeta.signedRemotely === true) return null;
+  const DE = require('./doc-evidence');
+  const htmlPath = typeof docMeta.htmlPath === 'string' ? docMeta.htmlPath : '';
+  let signedSha256 = null;
+  // The same shape firestore.rules enforces on a client write of htmlPath.
+  if (evidence.readBytes && htmlPath.split('/').length === 4 && htmlPath.split('/')[0] === 'documents'
+      && htmlPath.split('/')[2] === leadId && /^[A-Za-z0-9._-]+\.html$/.test(htmlPath.split('/')[3])) {
+    try { const buf = await evidence.readBytes(htmlPath); if (buf) signedSha256 = DE.sha256Hex(buf); } catch (_) { signedSha256 = null; }
+  }
+  const stamp = DE.stampFor(require('./ky-insurance-law'), lead, {});
+  const at = docMeta.signedAt && typeof docMeta.signedAt.toMillis === 'function' ? docMeta.signedAt.toMillis() : Date.now();
+  const record = DE.buildEvidence({
+    path: 'in_person', clauseSetVersion: stamp.clauseSetVersion, clauseIds: stamp.clauseIds,
+    documentSha256: signedSha256, signedSha256,
+    // No consent step on the rep's phone today (phase 2): recorded as "not asked", never as agreed.
+    consent: { agreed: null },
+    signedAtMs: at, ip: evidence.ip, ua: evidence.ua, recordedByUid: uid,
+  });
+  // The pre-signing digest is the CLIENT's own report (the unsigned original is overwritten in
+  // place by the signed copy); the server's digest above is the authority.
+  record.presentedSha256ClientReported = /^[a-f0-9]{64}$/.test(String(data.presentedSha256 || '')) ? data.presentedSha256 : null;
+  await db.doc('leads/' + leadId + '/documents/' + docId).set({ signatureEvidence: record }, { merge: true });
+  return record;
+}
+
+/**
  * The whole check-then-record, with the database injected (testable with a
  * fake Firestore; the E2E drives it against the emulator).
  * auth = { uid, token }. Throws RefusalError(code, message) to refuse.
@@ -72,6 +106,14 @@ async function handleInPersonSignature(db, auth, data, deps) {
   const docMeta = docSnap.data() || {};
   const why = notSignedReason(docMeta);
   if (why) throw new RefusalError('failed-precondition', 'This document is not signed (' + why + ')');
+  // Evidence parity (2026-11-18, flag docEvidenceFoundation): the signing evidence is written
+  // HERE, by the admin SDK, from this request — a client cannot attest its own IP or digest.
+  const evidence = deps && deps.evidence;
+  if (evidence && evidence.enabled === true) {
+    // Never blocks the card move below: the contract is saved either way.
+    try { await recordEvidence(db, { leadId, docId, lead, docMeta, uid, data: d }, evidence); }
+    catch (e) { if (typeof evidence.onError === 'function') evidence.onError(e); }
+  }
   if (String(docMeta.type || '') !== 'contract') return { ok: true, skipped: 'not_a_contract' };
 
   const recordJobEvent = (deps && deps.recordJobEvent) || require('./job-spine').recordJobEvent;
@@ -91,4 +133,4 @@ async function handleInPersonSignature(db, auth, data, deps) {
   };
 }
 
-module.exports = { handleInPersonSignature, notSignedReason, sameCompany, RefusalError, ID_RE };
+module.exports = { handleInPersonSignature, recordEvidence, notSignedReason, sameCompany, RefusalError, ID_RE };

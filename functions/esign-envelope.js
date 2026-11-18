@@ -669,6 +669,20 @@ exports.sendEstimateEnvelope = onCall(
     const address = est.addr || est.address || lead.address || '';
     const title = ('Roofing Contract — ' + (address || signers[0].name)).slice(0, 200);
 
+    // Fail-closed send check (flag docEvidenceFoundation, default OFF): no blank price,
+    // address, homeowner name, mailing address or legal entity name goes out on a contract.
+    const DE = require('./doc-evidence');
+    const checkSend = await DE.flagForUid(db, uid);
+    const entityName = DE.entityNameFor(profile, lead.companyId || lead.userId);
+    if (checkSend) {
+      const gaps = DE.serverGaps({
+        type: 'estimate_esign', priceCents: Math.round(price * 100), address,
+        homeownerName: signers.map((s) => s.name).join(' & '),
+        mailingAddress: KyLaw.contractorMailingAddress(profile), needsMailingAddress: true, entityName,
+      });
+      if (gaps.length) throw new HttpsError('failed-precondition', DE.describeGaps(gaps));
+    }
+
     let pdf;
     try {
       pdf = await require('./estimate-esign-pdf').buildEstimateContractPdf({
@@ -684,8 +698,10 @@ exports.sendEstimateEnvelope = onCall(
         totalCents: Math.round(price * 100),
         depositPlan: safeDepositPlan(est),
         signers: signers.map((s) => ({ id: s.id, name: s.name })),
+        failClosed: checkSend, entityName,
       });
     } catch (e) {
+      if (e && e.gaps) throw new HttpsError('failed-precondition', DE.describeGaps(e.gaps));
       logger.error('[sendEstimateEnvelope] contract PDF build failed', { estimateId, err: e.message });
       throw new HttpsError('internal', 'Could not build the contract PDF. Try again.');
     }
@@ -733,6 +749,9 @@ exports.sendEstimateEnvelope = onCall(
       sourcePath,
       sourceSha256: sha256(buf),
       sourceBytes: buf.length,
+      // Evidence parity (2026-11-18): the clause set this contract carries, stamped on
+      // the envelope and copied onto every signer's evidence when they sign.
+      ...DE.stampFor(KyLaw, lead, est),
       pages: pdf.pages,
       pageCount: pdf.pages.length,
       fields: pdf.fields,
@@ -1020,6 +1039,7 @@ exports.submitEsignEnvelope = onRequest(
       typedName: (typeof signerName === 'string' ? signerName : '') || signer.name,
       ip, ua, consent: true, consentText: ESL.CONSENT_TEXT, at: when,
       valuesSha256: sha256(valuesJson),
+      clauseSetVersion: env.clauseSetVersion, clauseIds: env.clauseIds, documentSha256: env.sourceSha256,
       fieldIds: Object.keys(mine),
       viewedAt: env.viewedBy && env.viewedBy[signer.id],
     });

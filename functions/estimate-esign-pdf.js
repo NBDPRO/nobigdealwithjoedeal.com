@@ -106,6 +106,20 @@ class Layout {
  */
 async function buildEstimateContractPdf(input) {
   const i = input || {};
+  // Fail closed (flag docEvidenceFoundation, set by the caller): a blank price, address,
+  // homeowner or mailing address would print as $0.00 or underscore blanks on a contract.
+  if (i.failClosed === true) {
+    const gaps = require('./doc-send-checks').contractGaps({
+      type: 'estimate_esign', priceCents: i.totalCents == null ? null : Number(i.totalCents),
+      address: (i.customer || {}).address, homeownerName: (i.customer || {}).name,
+      mailingAddress: i.sellerAddress, needsMailingAddress: true, entityName: i.entityName,
+    });
+    if (gaps.length) {
+      const err = new Error('contract has blanks: ' + gaps.map((g) => g.code).join(','));
+      err.gaps = gaps;
+      throw err;
+    }
+  }
   const signers = Array.isArray(i.signers) && i.signers.length ? i.signers : [{ id: 'signer', name: '' }];
   const { PDFDocument, StandardFonts, rgb } = pdfLib();
   const doc = await PDFDocument.create();

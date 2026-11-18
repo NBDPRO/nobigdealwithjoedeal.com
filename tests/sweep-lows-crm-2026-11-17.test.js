@@ -81,6 +81,7 @@ function loadEsign(db, storedBytes) {
       FIELD_TYPES: ['signature', 'initials', 'date', 'text', 'checkbox'],
     },
     './esign-logic': require(path.join(ROOT, 'functions', 'esign-logic.js')),
+    './doc-evidence': require(path.join(ROOT, 'functions', 'doc-evidence.js')),
     './integrations/_shared': { secretOr: (_s, d) => d },
     './messaging-controls': require('./lib/messaging-controls-stub'),
     './resend-guard': { resendRejected: () => false, resendErrorMessage: () => 'rejected' },
