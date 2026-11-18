@@ -836,6 +836,7 @@
     "tenant-brand.test.js",
     "clause-evidence-foundation-2026-11-18.test.js",
     "clause-evidence-review2-2026-11-18.test.js",
+    "clause-set-v1-2026-11-18.test.js",
     "tenant-hardening.test.js",
     "tenant-legal.test.js",
     "admin-tenants-site-address-2026-10-23.test.js",
