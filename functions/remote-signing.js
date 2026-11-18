@@ -710,7 +710,17 @@ exports.getSignDocument = onRequest(
     // checkbox only when this is present.
     // The decision was made when the link was minted (tok.consentAsked); only a link minted before that
     // field existed reads the flag as it stands.
-    const consentOn = typeof tok.consentAsked === 'boolean' ? tok.consentAsked : await DE.flagForUid(db, tok.mintedBy || tok.ownerUid);
+    // Review 2 (item 8): for such a legacy link a flag read that FAILS is not "off": the page is not served
+    // without knowing whether consent is required (retryable 503). A flag that is simply off still serves.
+    let consentOn;
+    if (typeof tok.consentAsked === 'boolean') consentOn = tok.consentAsked;
+    else {
+      try { consentOn = await DE.flagForUid(db, tok.mintedBy || tok.ownerUid, { strict: true }); }
+      catch (e) {
+        logger.warn('[getSignDocument] consent flag unreadable for a link minted before the snapshot — not served', { msg: e && e.message });
+        res.status(503).json({ error: 'Could not load the document right now. Please try again shortly.' }); return;
+      }
+    }
     const consent = consentOn ? { required: true, text: ESL.CONSENT_TEXT } : null;
 
     // Only the minimum the sign page needs — no lead internals.
@@ -775,7 +785,15 @@ exports.submitSignature = onRequest(
       if (p.status === 'pending') {
         // Before the burn, like every gate below: a missing consent tick must not consume the
         // homeowner's one-shot link.
-        consentAsked = typeof p.consentAsked === 'boolean' ? p.consentAsked : await DE.flagForUid(db, p.mintedBy || p.ownerUid);
+        if (typeof p.consentAsked === 'boolean') consentAsked = p.consentAsked;
+        else {
+          // A legacy link (no snapshot): an unreadable flag must not read "off" and skip the consent tick.
+          try { consentAsked = await DE.flagForUid(db, p.mintedBy || p.ownerUid, { strict: true }); }
+          catch (e) {
+            logger.warn('[submitSignature] consent flag unreadable for a link minted before the snapshot — refusing before the burn', { msg: e && e.message });
+            res.status(503).json({ error: 'Could not record your signature right now. Nothing was used up; please try again shortly.' }); return;
+          }
+        }
         if (consentAsked && consent !== true) {
           res.status(422).json({ error: 'Please tick the box to agree to sign electronically, then submit again.', needsConsent: true });
           return;

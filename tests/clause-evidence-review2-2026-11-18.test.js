@@ -272,6 +272,22 @@ const failDocSets = (db) => {
     ok('7: control: an ordinary row gets the remote evidence on the row, none on the token beyond the facts', x.doc.signatureEvidence && x.doc.signatureEvidence.path === 'remote_link' && !x.tok.signatureEvidence);
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  section('8. a link minted before the consent snapshot existed fails closed on an unreadable flag');
+  if (!kit || !DE) ok('harness available', false);
+  else {
+    const breakFlags = (db) => { const o0 = db.doc; db.doc = (p) => (/^feature_flags\//.test(p) ? { get: async () => { throw new Error('down'); } } : o0(p)); };
+    let x = await remoteRun({ flag: true, hook: breakFlags });
+    ok('8: legacy token + flag read fails: the page is NOT served as "no consent needed" (503, retryable)', x.get.statusCode === 503 && !x.get.body.html, x.get.statusCode + ' ' + JSON.stringify(x.get.body).slice(0, 120));
+    ok('8: ...and the submit is refused before the burn (503), the link stays pending, nothing signed', x.sub.statusCode === 503 && x.tok.status === 'pending' && x.doc.status !== 'signed', x.sub.statusCode + ' ' + x.tok.status);
+    x = await remoteRun({ flag: false });
+    ok('8: legacy token + flag simply OFF: signs as before (not blocked)', x.get.statusCode === 200 && x.sub.statusCode === 200 && x.tok.status === 'signed');
+    x = await remoteRun({ flag: true, consent: true });
+    ok('8: legacy token + flag ON and readable: the consent box is asked and honoured, as before', x.get.body.consent && x.sub.statusCode === 200);
+    x = await remoteRun({ flag: true, tok: { consentAsked: false }, hook: breakFlags });
+    ok('8: a token WITH the snapshot is unaffected by a failing flag read (no re-read)', x.get.statusCode === 200 && x.sub.statusCode === 200);
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join('; ')); process.exit(1); }
 })().catch((e) => { console.error('FATAL', e); process.exit(1); });
