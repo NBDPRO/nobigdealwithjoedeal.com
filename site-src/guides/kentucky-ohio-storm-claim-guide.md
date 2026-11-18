@@ -63,7 +63,7 @@ Our free [5-Year Storm Report](https://nobigdealwithjoedeal.com/storm-report) sh
 You don't have to file a claim to find out whether you have damage. A free inspection first tells you whether there's storm damage at all, and roughly how much. Some roofs have wear, not storm damage, and filing on wear can count against you without paying anything.
 
 > [!NOTE] What I tell every homeowner
-> Whether insurance covers it depends on your policy and the damage. I'll tell you honestly if it's worth a claim.
+> Whether insurance covers it depends on your policy and the damage. I document the damage with photos so you can decide whether to file a claim.
 
 My inspection is free and takes 45 to 60 minutes. I get on the roof myself and photograph every hit, and you get the photos. If you want a formal written report with photos, a condition rating and repair recommendations (for your records, a real-estate deal or your insurer), that's $150.
 
@@ -176,6 +176,6 @@ I check the whole roof, the flashing, the vents and pipe boots, the gutters and 
 
 # Next step
 
-If you've had hail or high wind, book a free inspection at nobigdealwithjoedeal.com/inspect, or call or text me at (859) 420-7382. I'll tell you straight whether it's storm damage, and whether it's worth a claim.
+If you've had hail or high wind, book a free inspection at nobigdealwithjoedeal.com/inspect, or call or text me at (859) 420-7382. I'll tell you straight whether it's storm damage. I document it with photos so you can decide whether to file a claim.
 
 Joe Deal, No Big Deal Home Solutions
