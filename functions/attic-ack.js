@@ -194,7 +194,7 @@
   }
   /** Did the homeowner answer "No" to any ventilation recommendation? */
   function declinedAny(list) {
-    return (Array.isArray(list) ? list : []).some(function (x) { return x.checked && /^rec:.+:no$/.test(x.id); });
+    return (Array.isArray(list) ? list : []).some(function (x) { return x.checked && /^rec:(?!third_party).+:no$/.test(x.id); });
   }
 
   // ── The gate (step 5) ────────────────────────────────────────────

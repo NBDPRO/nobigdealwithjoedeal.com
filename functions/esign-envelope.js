@@ -684,6 +684,13 @@ exports.sendEstimateEnvelope = onCall(
     // Fail-closed send check (flag docEvidenceFoundation, default OFF): no blank price,
     // address, homeowner name, mailing address or legal entity name goes out on a contract.
     const DE = require('./doc-evidence');
+    // Phase 3 (flag docAtticAckV1, strict read): a re-roof contract is not sent for e-signature without the signed attic form.
+    if (await DE.atticFlagForGate(db, uid, HttpsError)) {
+      const AG = require('./attic-gate');
+      let dec;
+      try { dec = await AG.decide(db, leadId, lead); } catch (_) { throw new HttpsError('unavailable', 'Could not check the attic acknowledgment just now. Nothing was sent. Try again in a moment.'); }
+      if (!dec.satisfied) throw new HttpsError('failed-precondition', dec.message);
+    }
     const clauseOn = await DE.clauseFlagForGate(db, uid, HttpsError);
     const checkSend = (await DE.flagForGate(db, uid, HttpsError)) || clauseOn;
     const entityName = DE.entityNameFor(profile, lead.companyId || lead.userId);

@@ -51,6 +51,8 @@ const { uidInLeadTenant } = require('./lead-artifact-paths');
 const ESL = require('./esign-logic');
 const { awaitBriefly } = require('./await-briefly');
 const SP = require('./signed-price');
+const AA = require('./attic-ack');
+const AG = require('./attic-gate');
 
 /** Cents → "$14,500.00" for the rep's bell. */
 const usd = (cents) => '$' + (Number(cents) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -540,6 +542,18 @@ exports.createSignRequest = onCall(
       if (gaps.length) throw new HttpsError('failed-precondition', DE.describeGaps(gaps));
     }
 
+    // Phase 3 (flag docAtticAckV1, read strictly: a read error refuses): a re-roof contract does not go out for
+    // signature until the signed attic form (or the signed not-inspected page, or a recorded owner override) exists.
+    if (AG.gated(docMeta.type) && await DE.atticFlagForGate(db, uid, HttpsError)) {
+      let dec;
+      try { dec = await AG.decide(db, leadId, lead); }
+      catch (e) {
+        logger.warn('[createSignRequest] attic gate unreadable', { leadId, err: e.message });
+        throw new HttpsError('unavailable', 'Could not check the attic acknowledgment just now. Nothing was sent. Try again in a moment.');
+      }
+      if (!dec.satisfied) throw new HttpsError('failed-precondition', dec.message);
+    }
+
     await db.doc(`doc_sign_tokens/${token}`).set({
       leadId,
       docId,
@@ -781,6 +795,8 @@ exports.submitSignature = onRequest(
     let record = null;        // the executed record, rebuilt from the original
     let verifiedPath = null;  // the htmlPath the checks below ran against
     let consentAsked = false; // flag docEvidenceFoundation: the page showed the consent checkbox
+    let atticResult = null;   // a document with tick controls (the attic acknowledgment): what the homeowner ticked, read back server-side
+    let signedDocType = null;
     {
       const pre = await tokRef.get();
       if (!pre.exists) { res.status(404).json({ error: 'Invalid link' }); return; }
@@ -872,6 +888,19 @@ exports.submitSignature = onRequest(
           return;
         }
         record = rebuilt.html;
+        // Phase 3 (attic acknowledgment): a document with tick controls is recorded with the ticks the signer made,
+        // taken from the submission for the controls the ORIGINAL has and nothing else. Every required tick and a
+        // Yes or No on every line is enforced here, not only in the page. Before the burn.
+        if (AA.parseAcks(originalHtml).length) {
+          const applied = AG.applyAcks(rebuilt.html, signedHtml);
+          if (!applied.complete) {
+            res.status(422).json({ error: 'Please tick every box and choose Yes or No on every line, then sign again.', missingAcks: true });
+            return;
+          }
+          record = applied.html;
+          signedDocType = typeof p.docType === 'string' ? p.docType : null;
+          atticResult = AG.resultFor(signedDocType, applied.html, null);
+        }
       }
     }
 
@@ -1030,6 +1059,12 @@ exports.submitSignature = onRequest(
         ...DE.requestFacts(req),
       }),
     };
+    // The tick states travel with the evidence (acknowledgments: [{ id, checked }]); atticAckResult is what the
+    // warranty and the contract gate read, server-written (server-owned in firestore.rules).
+    if (atticResult) {
+      docPatch.signatureEvidence.acknowledgments = atticResult.acknowledgments;
+      docPatch.atticAckResult = Object.assign({}, atticResult, { formDateMs: signedAtNow.getTime() });
+    }
     // Review 2 (2026-11-18), item 7: the row write REPLACES signatureEvidence as a whole (mergeFields lists the
     // top-level keys), so the new record can never deep-merge into an older one and read as a hybrid. And a row
     // that already carries evidence from ANOTHER path (an in-person record) keeps it untouched: the homeowner's

@@ -141,6 +141,7 @@ section('E. the tick controls and reading a signed copy back');
   ok('a form with no controls is never complete', !AA.acksComplete([]).ok);
   ok('a "No" on a ventilation line is a decline', AA.declinedAny(a1) && !AA.declinedAny(a0));
   ok('"checked" in another attribute value does not count', AA.parseAcks('<input type="checkbox" data-nbd-ack="ack:x" title="checked box">')[0].checked === false);
+  ok('a "No" on a third-party line (a mold or HVAC professional) is not a ventilation decline', !AA.declinedAny([{ id: 'rec:third_party_1:no', checked: true }]));
   ok('evidence is [{id, checked}]', JSON.stringify(AA.evidenceAcks(a1)[0]) === '{"id":"ack:saw","checked":true}');
 }
 

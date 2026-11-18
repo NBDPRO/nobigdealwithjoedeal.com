@@ -695,10 +695,10 @@ service cloud.firestore {
     // not stamped" warning) and evidenceRefused (the in-person evidence gate refused the row) are
     // server-owned the same way, so a rep cannot clear or forge them on a not-yet-signed row.
     function documentEvidenceCreateOk() {
-      return !request.resource.data.keys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused']);
+      return !request.resource.data.keys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused', 'atticAckResult']);
     }
     function documentEvidenceUpdateOk() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused']);
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused', 'atticAckResult']);
     }
     function signedDocumentUpdateOk(leadId) {
       let keys = request.resource.data.diff(resource.data).affectedKeys();
@@ -4649,6 +4649,15 @@ service cloud.firestore {
     // touches this collection — same lockdown as doc_sign_tokens.
     match /deal_accept_tokens/{token} {
       allow read, write: if false;
+    }
+
+    // Phase 3 (docAtticAckV1, 2026-11-18): the owner/admin "proceed without a signed attic page" event (Q18). Written by
+    // recordAtticOverride only (admin SDK): name, uid, time, reason. A rep cannot forge it; the tenant's own people can read it.
+    match /attic_overrides/{id} {
+      allow read: if isAuth() && (isAdmin()
+        || (resource.data.companyId == myCompanyId() && isCompanyReader())
+        || resource.data.byUid == request.auth.uid);
+      allow write: if false;
     }
 
     // Inspection report sharing. createReportShareToken mints these; the

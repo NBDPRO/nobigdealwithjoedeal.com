@@ -287,7 +287,7 @@ async function docRow(row) {
   {
     const signDoc = kit.parseTags(kit.read('docs/pro/sign.html'));
     const sp = signDoc.$$('script').find((e) => /^js\/sign-page\.js/.test(e.attr('src') || ''));
-    ok('sign.html cache-busts the changed sign-page.js (v=6)', !!sp && sp.attr('src') === 'js/sign-page.js?v=6', sp && sp.attr('src'));
+    ok('sign.html cache-busts the changed sign-page.js (v=7)', !!sp && sp.attr('src') === 'js/sign-page.js?v=7', sp && sp.attr('src'));
   }
 
   section('6. Joe\'s decisions (2026-11-14)');

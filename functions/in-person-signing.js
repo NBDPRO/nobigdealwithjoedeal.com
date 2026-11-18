@@ -87,7 +87,16 @@ exports.recordInPersonSignature = onCall(
         },
         onError: (err) => logger.warn('[recordInPersonSignature] evidence write failed', { uid, err: err && err.message }),
       }, DE.requestFacts(request.rawRequest)) : null;
-      return await handleInPersonSignature(db, { uid, token: request.auth.token || {} }, request.data, evidence ? { evidence } : undefined);
+      // Phase 3 (flag docAtticAckV1, strict read): the attic acknowledgment is read back and the re-roof gate runs.
+      const atticOn = await DE.atticFlagForGate(db, uid, HttpsError);
+      const attic = atticOn ? { on: true, readBytes: async (p, max) => {
+        const f = getStorage().bucket().file(p);
+        const [md] = await f.getMetadata();
+        if (Number(md && md.size) > max) { const er = new Error('document over the read cap'); er.code = 'too_large'; throw er; }
+        const [buf] = await f.download();
+        return buf;
+      } } : null;
+      return await handleInPersonSignature(db, { uid, token: request.auth.token || {} }, request.data, (evidence || attic) ? Object.assign({}, evidence ? { evidence } : {}, attic ? { attic } : {}) : undefined);
     } catch (e) {
       if (e instanceof RefusalError) throw new HttpsError(e.code, e.message);
       if (e instanceof HttpsError) throw e;
