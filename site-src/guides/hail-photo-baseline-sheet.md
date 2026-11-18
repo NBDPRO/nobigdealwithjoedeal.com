@@ -51,6 +51,6 @@ Before storm season, spend 20 minutes walking around your house with your phone.
 
 ## After a storm
 
-Take the same photos again from the same spots, and add our free 5-Year Storm Report for your address at nobigdealwithjoedeal.com/storm-report. Then book a free inspection at nobigdealwithjoedeal.com/inspect or call or text (859) 420-7382. Whether insurance covers it depends on your policy and the damage. I'll tell you honestly if it's worth a claim.
+Take the same photos again from the same spots, and add our free 5-Year Storm Report for your address at nobigdealwithjoedeal.com/storm-report. Then book a free inspection at nobigdealwithjoedeal.com/inspect or call or text (859) 420-7382. Whether insurance covers it depends on your policy and the damage. I document the damage with photos so you can decide whether to file a claim.
 
 Joe Deal, No Big Deal Home Solutions
