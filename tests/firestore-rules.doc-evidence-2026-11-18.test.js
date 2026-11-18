@@ -2,7 +2,10 @@
  * Firestore rules, evidence and clause foundation (2026-11-18):
  *  - leads/{leadId}/documents.signatureEvidence is server-owned: no client creates
  *    a row with it, changes it or removes it, on a draft, a sent or a signed row;
- *  - deal_rooms.acceptedEvidence cannot be rewritten once the deal is closed.
+ *  - deal_rooms.acceptedEvidence cannot be rewritten once the deal is closed, and (review
+ *    2026-11-18) no client write, create or update, sets or changes any accepted* field on a
+ *    deal that is not yet accepted: only the admin SDK (deal-acceptance.js) records an acceptance;
+ *  - the legacy top-level /documents rows cannot carry signatureEvidence either.
  * Every deny is paired with an allow, so a rule that denies everything cannot pass.
  *
  * RUN (proxy env scrubbed, throwaway emulator):
@@ -50,6 +53,12 @@ async function run() {
     await setDoc(doc(db, 'deal_rooms/closed'), { userId: 'owner1', status: 'accepted', acceptedTier: 'better', acceptedPrice: 100, acceptedEvidence: { ip: '1.1.1.1', clauseSetVersion: 'CS-REAL' } });
   });
 
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'documents/legacyA'), { userId: 'owner1', name: 'old', status: 'draft' });
+    await setDoc(doc(db, 'documents/legacyB'), { userId: 'owner1', name: 'old', status: 'draft', signatureEvidence: { path: 'remote_link', ip: '1.1.1.1' } });
+  });
+
   const d = (id) => doc(owner, 'leads/L1/documents/' + id);
   await check('control: owner creates an ordinary document row', 'allow', setDoc(doc(owner, 'leads/L1/documents/new1'), { name: 'x', status: 'draft', userId: 'owner1' }));
   await check('owner creates a row carrying signatureEvidence', 'deny', setDoc(doc(owner, 'leads/L1/documents/new2'), { name: 'x', status: 'draft', userId: 'owner1', signatureEvidence: EV }));
@@ -68,6 +77,25 @@ async function run() {
   await check('owner rewrites acceptedEvidence on a closed deal room', 'deny', updateDoc(doc(owner, 'deal_rooms/closed'), { acceptedEvidence: { ip: '6.6.6.6', clauseSetVersion: 'CS-FORGED' } }));
   await check('owner changes one nested acceptedEvidence field on a closed deal room', 'deny', updateDoc(doc(owner, 'deal_rooms/closed'), { 'acceptedEvidence.ip': '6.6.6.6' }));
   await check('owner deletes acceptedEvidence from a closed deal room', 'deny', updateDoc(doc(owner, 'deal_rooms/closed'), { acceptedEvidence: deleteField() }));
+
+  // review 2026-11-18, finding 1: an acceptance cannot be forged by the rep on a not-yet-accepted deal.
+  const FORGED = { acceptedTier: 'better', acceptedPrice: 1, acceptedSignature: 'x', acceptedAt: new Date(), acceptedVia: 'remote', acceptedEvidence: { ip: '6.6.6.6', clauseSetVersion: 'CS-FORGED' } };
+  await check('control: owner creates an ordinary open deal room', 'allow', setDoc(doc(owner, 'deal_rooms/new1'), { userId: 'owner1', status: 'draft' }));
+  await check('owner creates a deal room already accepted, with forged evidence', 'deny', setDoc(doc(owner, 'deal_rooms/new2'), Object.assign({ userId: 'owner1', status: 'accepted' }, FORGED)));
+  await check('owner creates an open deal room carrying acceptedEvidence', 'deny', setDoc(doc(owner, 'deal_rooms/new3'), { userId: 'owner1', status: 'draft', acceptedEvidence: FORGED.acceptedEvidence }));
+  await check('owner creates an open deal room carrying acceptedSignature', 'deny', setDoc(doc(owner, 'deal_rooms/new4'), { userId: 'owner1', status: 'draft', acceptedSignature: 'x' }));
+  await check('owner closes an open deal in one write with forged accepted* fields', 'deny', updateDoc(doc(owner, 'deal_rooms/open'), Object.assign({ status: 'accepted' }, FORGED)));
+  await check('owner plants acceptedEvidence on an open deal', 'deny', updateDoc(doc(owner, 'deal_rooms/open'), { acceptedEvidence: FORGED.acceptedEvidence }));
+  await check('owner plants acceptedSignature on an open deal', 'deny', updateDoc(doc(owner, 'deal_rooms/open'), { acceptedSignature: 'x' }));
+  await check('control: owner still marks an open deal signed (no accepted* fields touched)', 'allow', updateDoc(doc(owner, 'deal_rooms/open'), { status: 'signed' }));
+
+  // finding 9: the legacy top-level /documents collection.
+  await check('control: owner creates an ordinary legacy document', 'allow', setDoc(doc(owner, 'documents/legacyNew'), { userId: 'owner1', name: 'x', status: 'draft' }));
+  await check('owner creates a legacy document carrying signatureEvidence', 'deny', setDoc(doc(owner, 'documents/legacyNew2'), { userId: 'owner1', name: 'x', status: 'draft', signatureEvidence: EV }));
+  await check('control: owner edits an ordinary field on a legacy document', 'allow', updateDoc(doc(owner, 'documents/legacyA'), { name: 'renamed' }));
+  await check('owner plants signatureEvidence on a legacy document', 'deny', updateDoc(doc(owner, 'documents/legacyA'), { signatureEvidence: EV }));
+  await check('owner rewrites signatureEvidence on a legacy document', 'deny', updateDoc(doc(owner, 'documents/legacyB'), { 'signatureEvidence.ip': '6.6.6.6' }));
+  await check('owner deletes signatureEvidence from a legacy document', 'deny', updateDoc(doc(owner, 'documents/legacyB'), { signatureEvidence: deleteField() }));
 
   await env.cleanup();
   const bad = results.filter((r) => !r.ok);

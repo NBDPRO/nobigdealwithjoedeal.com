@@ -2487,10 +2487,12 @@ service cloud.firestore {
     match /documents/{docId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
       allow update: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
-        && (!documentIsSigned() || legacySignedDocumentUpdateOk());
+        && (!documentIsSigned() || legacySignedDocumentUpdateOk())
+        && documentEvidenceUpdateOk();
       allow delete: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
         && !documentIsSigned();
-      allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid
+        && documentEvidenceCreateOk();
     }
 
     // ── NOTES ─────────────────────────────────────────
@@ -4559,12 +4561,21 @@ service cloud.firestore {
     function dealIsClosed(d) {
       return d.get('status', '') in ['accepted', 'signed', 'scheduled'];
     }
+    // Review 2026-11-18: the acceptance fields are written ONLY by the admin SDK
+    // (submitDealAcceptance). Nothing a client sends, on a deal that is open or one
+    // that is closed, creates or changes them, and no client creates a deal room that
+    // already carries them: a rep is an interested party and must not be able to
+    // forge the homeowner's acceptance, signature or evidence.
+    function dealAcceptanceKeys() {
+      return ['acceptedTier', 'acceptedPrice', 'acceptedFinancing',
+              'acceptedSignature', 'acceptedAt', 'acceptedVia', 'acceptedEvidence'];
+    }
     function dealAcceptanceIntact() {
-      return !dealIsClosed(resource.data)
-        || (dealIsClosed(request.resource.data)
-            && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-              'acceptedTier', 'acceptedPrice', 'acceptedFinancing',
-              'acceptedSignature', 'acceptedAt', 'acceptedVia', 'acceptedEvidence']));
+      return (!dealIsClosed(resource.data) || dealIsClosed(request.resource.data))
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(dealAcceptanceKeys());
+    }
+    function dealCreateHasNoAcceptance() {
+      return !request.resource.data.keys().hasAny(dealAcceptanceKeys());
     }
     // deal_rooms.leadId (2026-10-05): a deal names only the writer's own lead
     // or one in the writer's company. The accepted deal writes to that lead
@@ -4591,6 +4602,7 @@ service cloud.firestore {
       allow delete: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
         && !dealIsClosed(resource.data);
       allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid
+        && dealCreateHasNoAcceptance()
         && dealLeadOk(request.resource.data);
     }
 
