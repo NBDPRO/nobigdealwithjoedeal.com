@@ -55,7 +55,7 @@ const RAW_ELEMENTS = { script: 1, style: 1, template: 1, title: 1, noscript: 1, 
 const ATTR_RE = /([^\s"'<>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
 
 /**
- * One linear pass over the markup -> { text, tags: [{ name, closing, attrs }], styles: [css text], unterminated }.
+ * One linear pass over the markup -> { text, tags: [{ name, closing, attrs }], styles: [{ body: css text, attrs }], unterminated }.
  * text is the page text only (comments, tags and the content of RAW_ELEMENTS removed). A comment, tag, quote or raw element that
  * never closes swallows the rest of the document, as a browser does: what follows it is not read as wording.
  */
@@ -105,7 +105,7 @@ function _scan(html) {
     if (nm && nm[1] === '' && RAW_ELEMENTS[nm[2]] === 1 && raw.charAt(raw.length - 2) !== '/') {
       const close = low.indexOf('</' + nm[2], i);
       const body = close === -1 ? s.slice(i) : s.slice(i, close);
-      if (nm[2] === 'style') styles.push(body);
+      if (nm[2] === 'style') styles.push({ body, attrs });
       if (close === -1) { unterminated = true; break; }
       const gt = s.indexOf('>', close);
       if (gt === -1) { unterminated = true; break; }
@@ -124,30 +124,98 @@ function _norm(t) {
 function _plain(s) { return _norm(_scan(s).text); }
 
 // Review 2 (2026-11-18), item 3: wording that is in the markup but not on the page. The form the server issues has no template element,
-// no hidden attribute, and no inline style except a margin; its own CSS hides nothing but the print button. Anything else fails.
+// no hidden attribute, and no inline style except a margin; its style blocks are the allowlist below. Anything else fails.
 const SAFE_STYLE_RE = /^(?:\s*margin(?:-(?:top|bottom|left|right))?\s*:\s*[0-9.]+(?:px|em|rem|pt)?\s*;?)+\s*$/i;
 const SIG_IMG_STYLE = 'max-width:100%;height:auto;display:block;background:#fff;';
-const BENIGN_CSS ='.no-print { display:none!important; }';
 const HIDING_CSS_RES = [
   /display:none/, /visibility:(?:hidden|collapse)/, /content-visibility:hidden/, /font-size:(?:0+(?:\.0*)?|\.0+)(?:px|pt|em|rem|ex|%)?(?![0-9.])/, /opacity:(?:0+(?:\.0*)?|\.0+)(?![0-9.])/,
   /color:transparent/, /text-indent:-/, /(?<![a-z-])(?:max-)?(?:height|width):(?:0+(?:\.0*)?|\.0+)(?:px|pt|em|rem|ex|%)?(?![0-9.])/, /(?<![a-z-])line-height:(?:0+(?:\.0*)?|\.0+)(?![0-9.])/,
-  /clip(?:-path)?:/, /transform:[^;}]*scale\(0/, /@import/, /(?:left|top|right|bottom|margin-left|margin-top):-[0-9]{3,}/,
+  /clip(?:-path)?:/, /@import/, /(?:left|top|right|bottom|margin-left|margin-top):-[0-9]{3,}/,
 ];
 const WORDING_TAGS = { p: 1, label: 1, span: 1, strong: 1, em: 1, td: 1, th: 1, tr: 1, tbody: 1, thead: 1, table: 1, li: 1, ul: 1, ol: 1, h1: 1, h2: 1, h3: 1, input: 1 };
 
-/** The CSS of the page's own style blocks, lower-cased, with comments and white space removed and the print button's one rule taken out. */
-function _cssFlat(blocks) {
-  return blocks.map((b) => {
-    const t = String(b).toLowerCase(); let out = ''; let i = 0;
-    for (;;) {   // /* */ comments, linear
-      const a = t.indexOf('/*', i);
-      if (a === -1) { out += t.slice(i); break; }
-      out += t.slice(i, a); const e = t.indexOf('*/', a + 2);
-      if (e === -1) break;
-      i = e + 2;
+/** The CSS text lower-cased, with comments and white space removed (linear: indexOf, no backtracking regex). */
+function _cssFlat(css) {
+  const t = String(css).toLowerCase(); let out = ''; let i = 0;
+  for (;;) {   // /* */ comments
+    const a = t.indexOf('/*', i);
+    if (a === -1) { out += t.slice(i); break; }
+    out += t.slice(i, a); const e = t.indexOf('*/', a + 2);
+    if (e === -1) break;
+    i = e + 2;
+  }
+  return out.replace(/\s+/g, '').replace(/!important/g, '');
+}
+
+/** transform:...scale(0 inside one declaration (no ';' or '}' between). One pass: the old /transform:[^;}]*scale(0/ rescanned the rest for every 'transform:'. */
+function _scaleZero(flat) {
+  let t = -1;
+  for (let i = 0; i < flat.length; i++) {
+    const ch = flat.charAt(i);
+    if (ch === ';' || ch === '}') { t = -1; continue; }
+    if (t === -1 && ch === 't' && flat.startsWith('transform:', i)) { t = i; continue; }
+    if (t !== -1 && ch === 's' && flat.startsWith('scale(0', i)) return true;
+  }
+  return false;
+}
+function _hidingCss(css) {
+  const flat = _cssFlat(css);
+  return HIDING_CSS_RES.some((re) => re.test(flat)) || _scaleZero(flat);
+}
+
+// Review 3 (2026-11-18), item 1: the form may carry only the style blocks the server knows. The generator injects <style id="nbd-sig-styles">
+// (its print rule hides the signing controls), the form has its own block, and the page has its own block, which opens with the print rule
+// (that rule hides the print button). An allowlist: each block must EQUAL a known one (white space normalised), or - the page block, whose
+// colours and fonts follow the tenant's brand - open with the exact print rule and then hold only rules from the property allowlist below.
+// Anything else is a style_block; hiding constructs in it are also named css_hidden.
+const _ws = (t) => String(t).replace(/\s+/g, ' ').trim();
+const CSS_PROPS = {};
+('font-family font-size font-weight font-style line-height letter-spacing text-transform text-align color background box-sizing display flex flex-wrap flex-direction flex-shrink justify-content align-items gap ' +
+  'position left bottom top right content width height max-width min-width min-height max-height object-fit object-position cursor border border-radius border-collapse font-variant-numeric opacity ' +
+  'border-top border-bottom border-left border-right margin margin-top margin-bottom margin-left margin-right padding padding-top padding-bottom padding-left padding-right').split(' ').forEach((p) => { CSS_PROPS[p] = 1; });
+const SEL_RE = /^[a-z0-9_.#:>+~*(), -]+$/i;
+const VAL_RE = /^[a-z0-9#%.,()'" _:\/!-]*$/i;
+function _pageCssOk(css) {
+  if (css.indexOf('/*') !== -1 || css.indexOf('@') !== -1 || css.indexOf('\\') !== -1) return false;
+  const n = css.length; let i = 0;
+  while (i < n) {
+    while (css.charAt(i) === ' ') i++;
+    if (i >= n) break;
+    const ob = css.indexOf('{', i); if (ob === -1) return false;
+    if (!SEL_RE.test(css.slice(i, ob).trim())) return false;
+    const cb = css.indexOf('}', ob + 1); if (cb === -1) return false;
+    const body = css.slice(ob + 1, cb);
+    if (body.indexOf('{') !== -1) return false;
+    const decls = body.split(';');
+    for (let k = 0; k < decls.length; k++) {
+      const d = decls[k].trim(); if (!d) continue;
+      const c = d.indexOf(':'); if (c < 1) return false;
+      const prop = d.slice(0, c).trim().toLowerCase(); const val = d.slice(c + 1).trim();
+      if (CSS_PROPS[prop] !== 1 || !VAL_RE.test(val)) return false;
+      const lv = val.toLowerCase();
+      if (lv.indexOf('url(') !== -1 || lv.indexOf('expression') !== -1 || lv.indexOf('attr(') !== -1) return false;
+      if (prop === 'display' && lv.indexOf('none') === 0) return false;
+      if (prop === 'content' && val !== '""') return false;
     }
-    return out.split(BENIGN_CSS).join('').replace(/\s+/g, '').replace(/!important/g, '');
-  }).join('\n');
+    i = cb + 1;
+  }
+  return true;
+}
+/** Reason codes for the page's style blocks (empty when every block is one the server knows). */
+function _styleReasons(blocks) {
+  const bad = []; const add = (c) => { if (bad.indexOf(c) === -1) bad.push(c); };
+  const sig = _ws(AA.SIG_STYLES_CSS); const attic = _ws(AA.ATTIC_FORM_CSS); const pr = _ws(AA.PRINT_RULE_CSS);
+  const seen = { sig: 0, attic: 0, page: 0 };
+  blocks.forEach((b) => {
+    const body = _ws(b.body); const names = Object.keys(b.attrs || {});
+    if (body === sig && names.length === 1 && names[0] === 'id' && b.attrs.id === 'nbd-sig-styles') { seen.sig++; return; }
+    if (body === attic && names.length === 0) { seen.attic++; return; }
+    if (names.length === 0 && body.indexOf(pr) === 0 && _pageCssOk(body.slice(pr.length).trim()) && !_hidingCss(body.slice(pr.length))) { seen.page++; return; }
+    add('style_block');
+    if (_hidingCss(body)) add('css_hidden');
+  });
+  Object.keys(seen).forEach((k) => { if (seen[k] > 1) add('style_block'); });
+  return bad;
 }
 
 /**
@@ -174,8 +242,7 @@ function _risks(scan, parsed, opts) {
     }
   });
   if (opts.signed !== true && parsed.some((c) => c.checked === true)) add('preticked');
-  const css = _cssFlat(scan.styles);
-  if (HIDING_CSS_RES.some((re) => re.test(css))) add('css_hidden');
+  _styleReasons(scan.styles).forEach(add);
   return bad;
 }
 

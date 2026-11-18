@@ -153,8 +153,14 @@
   //      because a receipt is proof of payment and must not read as a bill.
   // Stripping at the boundary means neither can happen again, and it trims
   // every generated document a little as well.
+  // The opening print rule is the twinned attic module's constant when it is loaded (functions/attic-gate.js accepts a stored attic form's
+  // page style block only when it opens with exactly this rule); the literal is the same text for a page without attic-ack.js.
+  function printRule() {
+    var AA = (typeof window !== 'undefined' && window.NBDAtticAck) || null;
+    return AA && typeof AA.PRINT_RULE_CSS === 'string' ? AA.PRINT_RULE_CSS : '@media print { .no-print { display:none!important; } body { margin:0; } @page { margin:0.5in; } }';
+  }
   function printCSS() { return stripCssComments(`
-    @media print { .no-print { display:none!important; } body { margin:0; } @page { margin:0.5in; } }
+    ${printRule()}
     * { box-sizing:border-box; }
     body { font-family:${FB}; color:${INK}; line-height:1.55; margin:0; padding:0; background:#fff; }
     h1,h2,h3,h4 { font-family:${FD}; color:${P}; margin:0 0 12px 0; }
