@@ -7,16 +7,17 @@
 
 **Shipped since this note was written (merged; flags dark except where noted):** phase 2 clause wording on every signing path (flag `docClauseSetV1`, **ON for Jo's account only**, with `docEvidenceFoundation`), phase 3 attic acknowledgment and gate (`docAtticAckV1`, **OFF**), the payment-terms settings panel, the sign-link panel with QR, text and copy (#3207, flag `docSignPanelV1`, **OFF**), contract and e-sign PDF layout fixes, and the CI budget raise (#3191). Docs: [CLAUSE-SET-V1](CLAUSE-SET-V1-2026-11-18.md), [ATTIC-ACK-V1](ATTIC-ACK-V1-2026-11-18.md), [SIGN-LINK-PANEL](SIGN-LINK-PANEL-2026-11-18.md), [attorney packet](ATTORNEY-REVIEW-PACKET-2026-11-18.md) and [answer sheet](OPEN-ITEMS-ANSWER-SHEET-2026-11-18.md).
 
-**In flight when the session crashed (each resumed from its own worktree; nothing is pushed):**
+**Merged 2026-11-19 (all dark, nothing turned on for anyone):**
 
-| Branch | Work | State when this was written |
-| --- | --- | --- |
-| `feat/card-fee-v1` | Phase 4: 3% fee on credit cards only, flag `docCardFeeV1`; the Stripe feasibility note was committed first | research committed, build continuing |
-| `feat/phase5-templates` | Property condition, decking authorization, emergency request, final walkthrough, Ohio insurance acknowledgment (behind `docClauseSetV1`) | no commits yet |
-| `feat/paper-cert-signers` | Paper-upload certification, signable supplement, inspection and warranty docs, co-owner role, in-person consent tick | no commits yet |
-| `fix/attic-gate-review3` | Fixes for the third attic-gate review: style allowlist can hide wording (High), raw-element end mismatch (High), entity-encoded class (Medium), stub-estimate binding (Medium), tag cap (Low), plus an emulator rules test for `atticGateUnverified` | no commits yet |
+| PR | What |
+| --- | --- |
+| #3207 | Sign-link panel (QR, text, copy, email, new link), flag `docSignPanelV1` |
+| #3209 | Card fee rules (`computeCardFee`, receipt and invoice line, refund math), flag `docCardFeeV1`. **No fee is charged:** Stripe cannot tell credit from debit before the card is entered, so a funding-aware path needs a PaymentIntent and Payment Element pay page (about 5 to 8 working days); `cardFeePct` must stay 0. See [CARD-FEE-V1](CARD-FEE-V1-2026-11-18.md) |
+| #3210 | Attic gate security fixes, seven review rounds. The form is now parsed with parse5 (direct dependency) and every check runs on the tree. Accepted residual: extra wording not in the canonical list, and mismatched label wording. See [ATTIC-ACK-V1](ATTIC-ACK-V1-2026-11-18.md) |
+| #3212 | Five templates (property condition, decking authorization, emergency request, final walkthrough, Ohio insurance acknowledgment) behind `docClauseSetV1`, with server verification. Every new sentence is marked DRAFTER WORDING. See [PHASE5-TEMPLATES](PHASE5-TEMPLATES-2026-11-18.md) |
+| #3213 | Paper-upload certification (`attestWetSigned`), signable supplement/inspection/warranty docs, co-owner signer, in-person consent tick, behind `docClauseSetV1`. See [PAPER-CERT-SIGNERS](PAPER-CERT-SIGNERS-2026-11-18.md) |
 
-**Hard gate:** do **not** write `docAtticAckV1` for any account until `fix/attic-gate-review3` is merged and re-reviewed. The reviewer's verdict: an owner-only dry run on test leads is reasonable; the gate guards against mistakes, not against a rep who hand-writes the form HTML, until those findings are fixed.
+**Hard gate (unchanged):** `docAtticAckV1` stays OFF until Jo says go. The last review's verdict: an owner-only dry run on the Kentucky cash and Kentucky insurance test leads is reasonable; residual risk is a rep hiding wording through styling or padding extra wording, not forging a tick. Before turning on `docClauseSetV1`-gated paper certification for any other account, note the reviewer's flag-off residual: a user with the flag explicitly false can still upload a paper copy as `signed`.
 
 **Still open, in order:**
 
