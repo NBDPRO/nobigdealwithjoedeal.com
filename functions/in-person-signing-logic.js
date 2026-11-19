@@ -237,7 +237,22 @@ async function handleInPersonSignature(db, auth, data, deps) {
   }
   // Phase 5 forms (flag docClauseSetV1; such a document exists only under it): the stored signed copy is read back and verified against
   // the server's spec for the type, and its result is written (server-owned field). An incomplete copy is refused and marked.
-  if (attic && typeof attic.readBytes === 'function' && require('./p5-forms').isP5Doc(docMeta.type)) {
+  // Security review 2026-11-19: with the flag on and no way to read the stored copy, the form is refused (fail closed); with the flag off nothing changes.
+  const isP5 = require('./p5-forms').isP5Doc(docMeta.type);
+  let p5FlagOn = false;
+  if (isP5 && !(attic && typeof attic.readBytes === 'function')) {
+    const DE5 = require('./doc-evidence');
+    try {
+      const co5 = typeof lead.companyId === 'string' ? lead.companyId : '';
+      p5FlagOn = (await DE5.clauseFlagForUid(db, uid)) === true || (!!co5 && co5 !== String(uid || '') && (await DE5.clauseFlagForUid(db, co5)) === true);
+    } catch (_) { p5FlagOn = false; }
+    if (p5FlagOn) {
+      const msg = 'Could not read the signed form to check it. Try again in a moment.';
+      try { await db.doc('leads/' + leadId + '/documents/' + docId).set({ evidenceRefused: { reasons: [{ code: 'p5Form', message: msg }], at: Date.now() } }, { merge: true }); } catch (_) { /* the refusal is the signal */ }
+      throw new RefusalError('failed-precondition', msg);
+    }
+  }
+  if (attic && typeof attic.readBytes === 'function' && isP5) {
     const AG5 = require('./attic-gate');
     const refuse5 = async (message) => {
       try { await db.doc('leads/' + leadId + '/documents/' + docId).set({ evidenceRefused: { reasons: [{ code: 'p5Form', message }], at: Date.now() } }, { merge: true }); } catch (_) { /* the refusal is the signal */ }
@@ -249,7 +264,14 @@ async function handleInPersonSignature(db, auth, data, deps) {
     if (!buf5) throw new RefusalError('unavailable', 'Could not read the signed form. Try again in a moment.');
     const stored5 = Buffer.from(buf5).toString('utf8');
     if (stored5.length > AG5.MAX_HTML) await refuse5(AG5.TOO_LARGE_MSG);
-    const res5 = AG5.resultFor(docMeta.type, stored5, Date.now());
+    // The figures and the state are re-derived from the company's own terms and the lead, not taken from the stored copy.
+    let prof5 = {};
+    const tk5 = lead.companyId || lead.userId;
+    try { const cp5 = tk5 ? await db.doc('companyProfile/' + tk5).get() : null; prof5 = cp5 && cp5.exists ? (cp5.data() || {}) : {}; }
+    catch (_) { throw new RefusalError('unavailable', 'Could not check the form just now. Try again in a moment.'); }
+    const chk5 = AG5.p5Check(docMeta.type, stored5, { profile: prof5, tenantKey: tk5, isNbd: require('./doc-evidence').isNbdTenant(tk5), lead, KyLaw: require('./ky-insurance-law') });
+    if (!chk5.ok) await refuse5(chk5.reasons.indexOf('not_ohio') !== -1 ? 'This acknowledgment is for Ohio properties only.' : 'The figures on this form do not match the company\'s terms.');
+    const res5 = AG5.resultFor(docMeta.type, stored5, Date.now(), chk5.derived);
     if (!res5.complete) await refuse5('Every box on this form must be ticked before it counts as signed.');
     res5.attests = 'rep_device_and_time_only';
     await db.doc('leads/' + leadId + '/documents/' + docId).set({ atticAckResult: res5 }, { merge: true });

@@ -100,7 +100,7 @@ const generated = async (docType, extra) => {
       './esign-logic': ESL, './doc-evidence': DE, './await-briefly': require(path.join(FN, 'await-briefly.js')), './signed-price': require(path.join(FN, 'signed-price.js')), './attic-gate': AG, './attic-ack': AA, './p5-forms': P5 });
     const lead = { userId: 'REP', companyId: 'CO', firstName: 'Jane', lastName: 'Smith', email: 'jane@example.test', address: H.OH_ADDR, jobType: 'cash' };
     const run = async (token, html, submitted) => {
-      const db = kit.makeDb({ 'leads/L1': lead, 'leads/L1/documents/d1': { name: 'F', status: 'sent', type, htmlPath: GP },
+      const db = kit.makeDb({ 'leads/L1': lead, 'companyProfile/CO': { paymentTerms: TERMS }, 'leads/L1/documents/d1': { name: 'F', status: 'sent', type, htmlPath: GP },
         ['doc_sign_tokens/' + token]: { status: 'pending', leadId: 'L1', docId: 'd1', ownerUid: 'REP', mintedBy: 'REP', htmlPath: GP, signerName: 'Jane Smith', docType: type, consentAsked: false } });
       const Lr = kit.loadHandler('remote-signing.js', db, kit.makeStorage({ [GP]: html }), stubs(), REAL);
       const sub = kit.reqRes({ token, signedHtml: submitted });
@@ -118,7 +118,7 @@ const generated = async (docType, extra) => {
     // in person: the stored signed copy is read back
     const Lg = require(path.join(FN, 'in-person-signing-logic.js'));
     const IP = 'documents/REP/L1/d-2.html';
-    const world = () => kit.makeDb({ 'leads/L1': lead, 'companyProfile/CO': {},
+    const world = () => kit.makeDb({ 'leads/L1': lead, 'companyProfile/CO': { paymentTerms: TERMS },
       'leads/L1/documents/d1': { type, status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner' }], htmlPath: IP, userId: 'REP' } });
     const inPerson = async (html) => { const db = world(); let e = null; try { await Lg.handleInPersonSignature(db, { uid: 'REP', token: { companyId: 'CO' } }, { leadId: 'L1', docId: 'd1' }, { attic: { on: false, readBytes: async () => Buffer.from(html, 'utf8') }, recordJobEvent: async () => ({}) }); } catch (x) { e = x; } return { db, e }; };
     let ip = await inPerson(sg);
@@ -143,6 +143,95 @@ const generated = async (docType, extra) => {
     const ky = await generated('emergency_services_request', { address: H.KY_ADDR });
     ok('emergency request, Kentucky variant passes', AG.verifyManifest('emergency_services_request', ky).ok === true, JSON.stringify(AG.verifyManifest('emergency_services_request', ky).reasons));
     ok('...and cannot pass as the Ohio variant with the Kentucky wording (instruction line differs)', AG.verifyManifest('emergency_services_request', ky.replace('emergency_services_request ky', 'emergency_services_request oh')).ok === false);
+  }
+
+  // ═══════════════════════════════════════════════════════
+  section('4. security review: a form with no controls, the decking figures, approve vs decline, the in-person reader, Ohio at signing');
+  {
+    const Lg = require(path.join(FN, 'in-person-signing-logic.js'));
+    const GP = 'documents/REP/L1/d-1.html';
+    const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './doc-evidence', './await-briefly', './signed-price', './attic-gate', './attic-ack', './p5-forms', 'crypto'];
+    const stubs = () => ({ './cancel-window': require(path.join(FN, 'cancel-window.js')), './ky-insurance-law': K, './lead-artifact-paths': require(path.join(FN, 'lead-artifact-paths.js')),
+      './esign-logic': ESL, './doc-evidence': DE, './await-briefly': require(path.join(FN, 'await-briefly.js')), './signed-price': require(path.join(FN, 'signed-price.js')), './attic-gate': AG, './attic-ack': AA, './p5-forms': P5 });
+    const L = (extra) => Object.assign({ userId: 'REP', companyId: 'CO', firstName: 'Jane', lastName: 'Smith', email: 'jane@example.test', address: H.OH_ADDR, jobType: 'cash' }, extra || {});
+    const remote = async (type, tok, html, submitted, o) => {
+      const opt = o || {};
+      const docs = { 'leads/L1': opt.lead || L(), 'leads/L1/documents/d1': { name: 'F', status: 'sent', type, htmlPath: GP },
+        ['doc_sign_tokens/' + tok]: { status: 'pending', leadId: 'L1', docId: 'd1', ownerUid: 'REP', mintedBy: 'REP', htmlPath: GP, signerName: 'Jane Smith', docType: type, consentAsked: false } };
+      if (opt.profile !== null) docs['companyProfile/CO'] = opt.profile || { paymentTerms: TERMS };
+      const db = kit.makeDb(docs);
+      const Lr = kit.loadHandler('remote-signing.js', db, kit.makeStorage({ [GP]: html }), stubs(), REAL);
+      const sub = kit.reqRes({ token: tok, signedHtml: submitted });
+      await Lr.fns.submitSignature(sub.req, sub.res);
+      return { code: sub.res.statusCode, row: db._get('leads/L1/documents/d1') || {}, tok: db._get('doc_sign_tokens/' + tok) || {} };
+    };
+    const tickNo = (h) => h.replace(/<input\b[^>]*>/gi, (t) => (/type="radio"/.test(t) ? (/:no"/.test(t) ? t.replace(/>$/, ' checked="">') : t) : t.replace(/>$/, ' checked="">')));
+
+    // HIGH 1: a phase 5 form with no tick controls at all is never signed
+    const FW = await generated('final_walkthrough');
+    const bare = FW.replace(/<input\b[^>]*>/gi, '');
+    let r = await remote('final_walkthrough', 'TOKSEC000001', bare, sign(bare));
+    ok('HIGH1: a final walkthrough with NO tick controls is refused (422) and the link is not burned', r.code === 422 && r.tok.status === 'pending' && !r.row.atticAckResult, r.code + ' ' + JSON.stringify(r.tok.status));
+    const bareDk = (await generated('decking_authorization')).replace(/<input\b[^>]*>/gi, '');
+    r = await remote('decking_authorization', 'TOKSEC000002', bareDk, sign(bareDk));
+    ok('HIGH1: ...a decking authorization with no controls too', r.code === 422 && r.tok.status === 'pending');
+
+    // HIGH 2: the decking sheets, price and total are re-derived on the server, in integer cents
+    const DK = await generated('decking_authorization');
+    const ok200 = await remote('decking_authorization', 'TOKSEC000003', DK, tick(sign(DK)));
+    const res = ok200.row.atticAckResult || {};
+    ok('HIGH2: the real form is accepted and the result stores sheets, perSheetCents and totalCents (4, 10000, 40000)', ok200.code === 200 && res.sheets === 4 && res.perSheetCents === 10000 && res.totalCents === 40000, ok200.code + ' ' + JSON.stringify(res));
+    const bad = async (name, html, tok, o) => { const x = await remote('decking_authorization', tok, html, tick(sign(html)), o); ok(name, x.code === 422 && x.tok.status === 'pending' && !x.row.atticAckResult, x.code); };
+    ok('(the real form shows $100.00 per sheet and a $400.00 total)', /Price per sheet<\/dt><dd>\$100\.00/.test(DK) && /Total for these sheets<\/dt><dd>\$400\.00/.test(DK));
+    await bad('HIGH2: a tampered total ($400.00 -> $40.00) is refused', DK.replace('<dd>$400.00</dd>', '<dd>$40.00</dd>'), 'TOKSEC000004');
+    await bad('HIGH2: tampered sheets (4 -> 5, total left) is refused', DK.replace('<dt>Sheets to replace</dt><dd>4</dd>', '<dt>Sheets to replace</dt><dd>5</dd>'), 'TOKSEC000005');
+    await bad('HIGH2: a tampered price per sheet ($100.00 -> $1.00, total left) is refused', DK.replace('<dd>$100.00</dd>', '<dd>$1.00</dd>'), 'TOKSEC000006');
+    await bad('HIGH2: the CO-2 paragraph\'s own price edited is refused', DK.replace('charged at $100.00 per sheet', 'charged at $1.00 per sheet'), 'TOKSEC000007');
+    await bad('HIGH2: a form priced at the stored $100.00 while the company\'s price is $125.00 is refused', DK, 'TOKSEC000008', { profile: { paymentTerms: Object.assign({}, TERMS, { deckingPerSheetCents: 12500 }) } });
+    await bad('HIGH2: no per-sheet price on file for the company is refused', DK, 'TOKSEC000009', { profile: { paymentTerms: { deckingSheetsBeforeChangeOrder: 10 } } });
+    await bad('HIGH2: no company profile at all is refused (fail closed)', DK, 'TOKSEC000010', { profile: null });
+    await bad('HIGH2: more sheets than the contract allows without a change order is refused', DK, 'TOKSEC000011', { profile: { paymentTerms: Object.assign({}, TERMS, { deckingSheetsBeforeChangeOrder: 3 }) } });
+
+    // MED 3: approve and decline are told apart
+    ok('MED3: approved = true, declined = false when the homeowner ticks Approve', res.approved === true && res.declined === false, JSON.stringify([res.approved, res.declined]));
+    const dec = await remote('decking_authorization', 'TOKSEC000012', DK, tickNo(sign(DK)));
+    const dr = dec.row.atticAckResult || {};
+    ok('MED3: a Decline is recorded as declined = true, approved = false (never read as approval)', dec.code === 200 && dr.declined === true && dr.approved === false && dr.complete === true, dec.code + ' ' + JSON.stringify([dr.approved, dr.declined]));
+    ok('MED3: the other forms carry no approval (approved is null)', AG.resultFor('property_condition', tick(sign(await generated('property_condition'))), null).approved === null);
+
+    // MED 4: in person, a phase 5 form with no reader is refused under the flag (and left alone with it off)
+    const IPW = (flags) => kit.makeDb(Object.assign({ 'leads/L1': L(), 'companyProfile/CO': { paymentTerms: TERMS },
+      'leads/L1/documents/d1': { type: 'final_walkthrough', status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner' }], htmlPath: 'documents/REP/L1/d-2.html', userId: 'REP' } }, flags || {}));
+    const ipNo = async (db, att) => { let e = null; try { await Lg.handleInPersonSignature(db, { uid: 'REP', token: { companyId: 'CO' } }, { leadId: 'L1', docId: 'd1' }, { attic: att, recordJobEvent: async () => ({}) }); } catch (x) { e = x; } return e; };
+    let e4 = await ipNo(IPW({ 'feature_flags/_default': {}, 'feature_flags/CO': { docClauseSetV1: true } }), { on: false });
+    ok('MED4: flag on, no reader: refused (fail closed)', !!e4 && /^(failed-precondition|unavailable)$/.test(e4.code), e4 && e4.code);
+    const dbOff = IPW({ 'feature_flags/_default': {} });
+    e4 = await ipNo(dbOff, { on: false });
+    ok('MED4: flag off, no reader: nothing changes (no refusal, no mark)', !e4 && !(dbOff._get('leads/L1/documents/d1') || {}).evidenceRefused, e4 && e4.code);
+    e4 = await ipNo(IPW({ 'feature_flags/_default': {}, 'feature_flags/CO': { docClauseSetV1: true } }), undefined);
+    ok('MED4: flag on, no attic deps at all: refused too', !!e4, e4 && e4.code);
+
+    // in person: the decking figures are checked on the stored copy too
+    const ipHtml = async (html, flags) => { const db = IPW(flags); db._set && 0; let e = null; try { await Lg.handleInPersonSignature(db, { uid: 'REP', token: { companyId: 'CO' } }, { leadId: 'L1', docId: 'd1' }, { attic: { on: false, readBytes: async () => Buffer.from(html, 'utf8') }, recordJobEvent: async () => ({}) }); } catch (x) { e = x; } return { db, e }; };
+    const ipDock = (html) => { const db = kit.makeDb({ 'leads/L1': L(), 'companyProfile/CO': { paymentTerms: TERMS }, 'leads/L1/documents/d1': { type: 'decking_authorization', status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner' }], htmlPath: 'documents/REP/L1/d-2.html', userId: 'REP' } }); return Lg.handleInPersonSignature(db, { uid: 'REP', token: { companyId: 'CO' } }, { leadId: 'L1', docId: 'd1' }, { attic: { on: false, readBytes: async () => Buffer.from(html, 'utf8') }, recordJobEvent: async () => ({}) }).then(() => ({ db, e: null }), (e) => ({ db, e })); };
+    let ip = await ipDock(tick(sign(DK)));
+    ok('in person: the real decking copy is accepted with the derived figures', !ip.e && ((ip.db._get('leads/L1/documents/d1') || {}).atticAckResult || {}).totalCents === 40000, ip.e && ip.e.message);
+    ip = await ipDock(tick(sign(DK.replace('<dd>$400.00</dd>', '<dd>$40.00</dd>'))));
+    ok('in person: a tampered total is refused and marked', !!ip.e && !!(ip.db._get('leads/L1/documents/d1') || {}).evidenceRefused);
+
+    // MED 5: Ohio only is re-checked when the signature is submitted (and in person), not only at the send
+    const OI = await generated('ohio_insurance_ack');
+    r = await remote('ohio_insurance_ack', 'TOKSEC000013', OI, tick(sign(OI)));
+    ok('MED5: an Ohio lead signs', r.code === 200, r.code);
+    r = await remote('ohio_insurance_ack', 'TOKSEC000014', OI, tick(sign(OI)), { lead: L({ address: H.KY_ADDR }) });
+    ok('MED5: the lead became Kentucky after the send: refused at signing (422), link not burned', r.code === 422 && r.tok.status === 'pending', r.code);
+    r = await remote('ohio_insurance_ack', 'TOKSEC000015', OI, tick(sign(OI)), { lead: L({ address: '9 Somewhere Rd' }) });
+    ok('MED5: an unreadable state is refused at signing (fail closed)', r.code === 422 && r.tok.status === 'pending', r.code);
+    const ipOi = async (addr) => { const db = kit.makeDb({ 'leads/L1': L({ address: addr }), 'companyProfile/CO': { paymentTerms: TERMS }, 'leads/L1/documents/d1': { type: 'ohio_insurance_ack', status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner' }], htmlPath: 'documents/REP/L1/d-2.html', userId: 'REP' } }); let e = null; try { await Lg.handleInPersonSignature(db, { uid: 'REP', token: { companyId: 'CO' } }, { leadId: 'L1', docId: 'd1' }, { attic: { on: false, readBytes: async () => Buffer.from(tick(sign(OI)), 'utf8') }, recordJobEvent: async () => ({}) }); } catch (x) { e = x; } return { db, e }; };
+    ok('MED5: in person, an Ohio lead is read back and accepted', !(await ipOi(H.OH_ADDR)).e);
+    const kyIp = await ipOi(H.KY_ADDR);
+    ok('MED5: in person, a Kentucky lead is refused and marked', !!kyIp.e && !!(kyIp.db._get('leads/L1/documents/d1') || {}).evidenceRefused);
+    ok('MED5: in person, an unreadable state is refused', !!(await ipOi('9 Somewhere Rd')).e);
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

@@ -61,3 +61,21 @@ Every string below is new text in `p5-forms.js` `TEXT` (marked `// DRAFTER WORDI
 - **Result field:** phase 5 results share `atticAckResult` (rules already make it server-owned). A dedicated field needs a rules change.
 - **No signing-packet inclusion** (Q73's default packet order is not changed), no booking text, no estimate-bound gate: these forms gate nothing.
 - Tests: [phase5-templates-2026-11-19](../../tests/phase5-templates-2026-11-19.test.js) (client: flag, registry wording, party, ticks, refusals, tenant) and [phase5-templates-server-2026-11-19](../../tests/phase5-templates-server-2026-11-19.test.js) (twins, manifest, tampering, remote link, in-person, server send check).
+
+## Security review fixes, 2026-11-19 (PR 3212)
+
+Tests (red first): section 4 of `phase5-templates-server-2026-11-19`.
+
+1. **HIGH1.** `submitSignature` now verifies any phase 5 doc type (`AG.isP5Doc`), not only a form that happens to carry tick controls. A copy with zero controls is refused (422) before the burn.
+2. **HIGH2.** `AG.p5Check` re-derives the decking figures on the server: sheets x the company's own `paymentTerms.deckingPerSheetCents`, in integer cents, compared with the stored price per sheet, total and the CO-2 paragraph's price. An unset price, a missing profile, a stored price that differs from the company's, a tampered total, sheet count or price, or more sheets than `deckingSheetsBeforeChangeOrder` refuses (remote: 422 before the burn; in person: refused and marked). `atticAckResult` now stores `sheets`, `perSheetCents`, `totalCents`.
+3. **MED3.** `declined` and the new `approved` come from the ticked `rec:decking:no` / `:yes`; other forms carry `approved: null`.
+4. **MED4.** In person, a phase 5 form with no way to read the stored copy is refused and marked when `docClauseSetV1` is on for the person or the tenant owner (an unreadable flag reads off, as for the other phase 5 reads); flag off, nothing changes.
+5. **MED5.** The Ohio-only check re-runs at signing (remote and in person) from the lead as it is then; Kentucky or an unreadable state is refused.
+
+Residual (not done):
+- The decking figures are derived from the form's text and the company profile; the homeowner sees them before signing, but the server cannot know the sheet count is true (the rep enters it).
+- The in-person copy is still the rep's device and time only.
+- `atticAckResult` is still shared with the attic form (a dedicated field needs a rules change).
+- The unreadable-flag read in the in-person path reads off, so an unreadable flag doc can skip the fail-closed refusal (same as the attic path).
+- No browser check.
+- `attic-gate.js` edits are kept to the phase 5 functions (`isP5Doc`, `p5Check`, the P5 branch of `resultFor`, one export line) to merge cleanly with PR 3210.

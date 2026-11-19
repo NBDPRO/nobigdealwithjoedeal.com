@@ -339,6 +339,49 @@ function verifyP5(docType, html, o) {
   return { ok: bad.length === 0, reasons: bad.slice(0, 12) };
 }
 
+// ── Phase 5 checks beyond the manifest (security review 2026-11-19) ─────────────────────────────────────────────
+function isP5Doc(type) { return P5.isP5Doc(type); }
+function _p5Money(c) { return '$' + Math.floor(c / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + ('0' + (c % 100)).slice(-2); }
+function _p5Cents(s) { const m = /^([0-9][0-9,]*)\.([0-9]{2})$/.exec(String(s)); return m ? Number(m[1].replace(/,/g, '')) * 100 + Number(m[2]) : null; }
+/**
+ * What the server re-derives for a phase 5 form, from the company's own terms and the lead, never from the form's text alone.
+ * ctx = { profile, tenantKey, isNbd, lead, KyLaw }. Decking: sheets x paymentTerms.deckingPerSheetCents in integer cents, compared with the
+ * stored figures and the CO-2 paragraph's price; an unset price, no profile, or more sheets than CO-2 allows refuses. Ohio insurance: the lead's
+ * state must read OH now (not only at the send); unreadable refuses. -> { ok, reasons, derived }
+ */
+function p5Check(docType, html, ctx) {
+  const c = ctx || {};
+  const bad = []; let derived = null;
+  if (docType === 'decking_authorization') {
+    const CS = require('./clause-set');
+    const terms = CS.paymentTermsFor((c.profile || {}).paymentTerms, c.isNbd === true);
+    const price = terms.deckingPerSheetCents;
+    const limit = terms.deckingSheetsBeforeChangeOrder;
+    const T = P5.TEXT;
+    const t = _norm(_scan(html).text);
+    const sm = new RegExp(T.DK_SHEETS + '\\s*([0-9]+)(?![0-9])').exec(t);
+    const pm = new RegExp(T.DK_PRICE + '\\s*\\$([0-9,]+\\.[0-9]{2})').exec(t);
+    const tm = new RegExp(T.DK_TOTAL + '\\s*\\$([0-9,]+\\.[0-9]{2})').exec(t);
+    const priceOk = CS.numOk(price, 'deckingPerSheetCents') && price > 0;
+    if (!priceOk) bad.push('price_unset');
+    const sheets = sm ? Number(sm[1]) : null;
+    if (!(sheets > 0)) bad.push('sheets');
+    if (sheets > 0 && !(CS.numOk(limit, 'deckingSheetsBeforeChangeOrder') && sheets <= limit)) bad.push('sheets_over_limit');
+    if (priceOk) {
+      if (!pm || _p5Cents(pm[1]) !== price) bad.push('price_mismatch');
+      if (t.indexOf('charged at ' + _p5Money(price) + ' per sheet') === -1) bad.push('co2_price');
+      if (sheets > 0 && (!tm || _p5Cents(tm[1]) !== sheets * price)) bad.push('total_mismatch');
+    }
+    if (!bad.length) derived = { sheets, perSheetCents: price, totalCents: sheets * price };
+  }
+  if (docType === 'ohio_insurance_ack') {
+    let st = '';
+    try { st = String((c.KyLaw && c.KyLaw.classifyLead ? c.KyLaw.classifyLead(c.lead || {}, {}) : {}).state || ''); } catch (_) { st = ''; }
+    if (st !== 'OH') bad.push('not_ohio');
+  }
+  return { ok: bad.length === 0, reasons: bad, derived };
+}
+
 function verifyManifest(docType, html, opts) {
   const o = opts || {};
   if (P5.isP5Doc(docType)) return verifyP5(String(docType), html, o);
@@ -425,18 +468,22 @@ function applyAcks(originalHtml, signedHtml, docType) {
 }
 
 /** What a signed attic form records, from the stored signed copy. */
-function resultFor(docType, signedHtml, formDateMs) {
+function resultFor(docType, signedHtml, formDateMs, derived) {
   const manifest = verifyManifest(docType, signedHtml, { signed: true });
   const acks = manifest.reasons.indexOf('too_large') === -1 ? AA.parseAcks(signedHtml) : [];
   if (P5.isP5Doc(docType)) {
     // A phase 5 form: stored in the same server-owned field (atticAckResult), told apart by version and formType. It never counts as an attic form.
-    return {
-      version: P5.VERSION, formType: String(docType), notInspected: false, declined: false,
+    // The decking authorization's answer is read from its Yes/No pair: declined is true only for a ticked "no", approved only for a ticked "yes".
+    const isDk = String(docType) === 'decking_authorization';
+    const yes = acks.some((a) => a.id === 'rec:decking:yes' && a.checked === true);
+    const no = acks.some((a) => a.id === 'rec:decking:no' && a.checked === true);
+    return Object.assign({
+      version: P5.VERSION, formType: String(docType), notInspected: false, declined: isDk ? (no && !yes) : false, approved: isDk ? (yes && !no) : null,
       manifestOk: manifest.ok,
       complete: manifest.ok && acks.length > 0 && AA.acksComplete(acks).ok,
       acknowledgments: AA.evidenceAcks(acks),
       formDateMs: Number.isFinite(Number(formDateMs)) ? Number(formDateMs) : null,
-    };
+    }, derived && typeof derived === 'object' ? { sheets: derived.sheets, perSheetCents: derived.perSheetCents, totalCents: derived.totalCents } : {});
   }
   return {
     version: AA.VERSION,
@@ -641,4 +688,4 @@ async function recordOverride(db, auth, data, fail, deps) {
 
 const TOO_LARGE_MSG = 'This attic acknowledgment is too large to verify. Open the customer, create a fresh copy of the form and try again.';
 
-module.exports = { estimateStamp, manifestFor, verifyManifest, OVERRIDES, MAX_HTML, TOO_LARGE_MSG, formBasis, gated, isAtticDoc, applyAcks, resultFor, decide, recordOverride };
+module.exports = { estimateStamp, manifestFor, verifyManifest, OVERRIDES, MAX_HTML, TOO_LARGE_MSG, formBasis, gated, isAtticDoc, isP5Doc, p5Check, applyAcks, resultFor, decide, recordOverride };
