@@ -190,7 +190,8 @@
       return Promise.resolve().then(function () { return o.mint({ sendEmail: false }); }).then(function (r) {
         if (!r || !r.signLink) throw new Error('No link came back. Try again.');
         setLink(r.signLink);
-        say(isRemake && r.supersededOld === true ? 'New link ready. The old link no longer works.' : (isRemake ? 'New link ready.' : 'Link ready. The homeowner can scan the code.'));
+        if (isRemake && r.supersedeError === true) say('New link ready, but we could not confirm the old link was turned off. Make another link if unsure.', true);
+        else say(isRemake && r.supersededOld === true ? 'New link ready. The old link no longer works.' : (isRemake ? 'New link ready.' : 'Link ready. The homeowner can scan the code.'));
       }).catch(function (e) {
         setLink('');
         fail(e, 'Making the link');

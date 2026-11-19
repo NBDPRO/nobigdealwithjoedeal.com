@@ -197,6 +197,34 @@ const DAY = 86400000;
     const ts2 = tokens(db);
     ok('any document type, flag on: making a new link retires the old link of the SAME document', ts2.length === 2 && ts2.filter((t) => t.status === 'pending').length === 1 && ts2.some((t) => t.status === 'superseded'), JSON.stringify(ts2.map((t) => t.status)));
     ok('the answer says the old link was retired (the panel tells the rep so)', !!b.v && b.v.supersededOld === true);
+    // security review 2026-11-18, item 5
+    db = world({ [FLAG]: true }, { type: 'attic_acknowledgment' });
+    const [c1, c2] = await Promise.all([mint(db, { sendEmail: false }), mint(db, { sendEmail: false })]);
+    const cts = tokens(db), live = cts.filter((t) => t.status === 'pending');
+    const newest = cts.slice().sort((x, y) => (y.mintedAtMs - x.mintedAtMs) || (x.supersededBy ? 1 : -1))[0];
+    ok('5: two concurrent mints leave exactly ONE live link, and it is a link that was returned to a caller', !!c1.v && !!c2.v && cts.length === 2 && live.length === 1 && [c1.v.token, c2.v.token].some((t) => !!t) && cts.filter((t) => t.status === 'superseded').length === 1, JSON.stringify(cts.map((t) => t.status)));
+    ok('5: the survivor is the NEWEST mint (the retired one is older, never the other way round)', live.length === 1 && cts.every((t) => typeof t.mintedAtMs === 'number') && cts.filter((t) => t.status === 'superseded').every((t) => (t.mintedAtMs < live[0].mintedAtMs) || (t.mintedAtMs === live[0].mintedAtMs && live[0].supersededBy === undefined)), JSON.stringify(cts.map((t) => [t.status, t.mintedAtMs])));
+    db = world({ [FLAG]: true }, { type: 'attic_acknowledgment' });
+    await db.doc('doc_sign_tokens/NEWERTOK').set({ leadId: 'L1', docId: 'd1', ownerUid: 'U1', status: 'pending', mintedAtMs: Date.now() + 60000 });
+    a = await mint(db, { sendEmail: false });
+    {
+      const cdb = world({ [FLAG]: true });
+      const [k1, k2] = await Promise.all([mint(cdb, { sendEmail: false }), mint(cdb, { sendEmail: false })]);
+      const cs = tokens(cdb);
+      ok('5: two concurrent CONTRACT mints (flag on) also leave exactly one live link', !!k1.v && !!k2.v && cs.length === 2 && cs.filter((t) => t.status === 'pending').length === 1, JSON.stringify(cs.map((t) => t.status)));
+    }
+    ok('5: a mint never retires a link that is NEWER than itself (the newer one stays live)', !!a.v && (db._get('doc_sign_tokens/NEWERTOK') || {}).status === 'pending' && a.v.supersededOld === false);
+    await db.doc('doc_sign_tokens/OLDERTOK').set({ leadId: 'L1', docId: 'd1', ownerUid: 'U1', status: 'pending', mintedAtMs: Date.now() - 60000 });
+    b = await mint(db, { sendEmail: false });
+    ok('5: ...while an older pending link of the same document is still retired', !!b.v && (db._get('doc_sign_tokens/OLDERTOK') || {}).status === 'superseded' && b.v.supersededOld === true);
+    db = world({ [FLAG]: true }, { type: 'attic_acknowledgment' });
+    const oc = db.collection;
+    db.collection = (n) => { if (n === 'doc_sign_tokens') return { where: () => ({ where: () => ({ get: async () => { throw new Error('index missing'); } }) }) }; return oc(n); };
+    a = await mint(db, { sendEmail: false });
+    ok('5: the retire query fails: the link is still minted, but the answer says supersededOld null + supersedeError (never "false")', !!a.v && !!a.v.signLink && a.v.supersededOld === null && a.v.supersedeError === true, JSON.stringify(a.v) + (a.e && a.e.message));
+    db = world({ [FLAG]: true }, { type: 'attic_acknowledgment' });
+    a = await mint(db, { sendEmail: false });
+    ok('5: a clean retire carries no supersedeError field', !!a.v && a.v.supersededOld === false && !('supersedeError' in a.v));
     db = world(null, { type: 'attic_acknowledgment', lead: { email: 'dana@example.test' } });
     a = await mint(db, { signerEmail: 'dana@example.test' });
     b = await mint(db, { signerEmail: 'dana@example.test' });
@@ -342,6 +370,11 @@ const DAY = 86400000;
 
     // new link
     fire(el, 'click', byAction(el, 'new')); await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0));
+    {
+      const mS = mkMint(); const orig = mS; const wr = env(); const pr = wr.NBDSignLinkPanel.open({ host: mkEl('div'), mint: async (o2) => { const v = await orig(o2); return Object.assign({}, v, { supersededOld: null, supersedeError: true }); }, phone: '', leadId: 'L1' }); await pr.ready;
+      fire(pr.el, 'click', byAction(pr.el, 'new')); await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0));
+      ok('5: when the server could not confirm the old link was retired, the panel does NOT say it no longer works', !/old link no longer works/i.test(pr.el.textContent) && /could not confirm/i.test(pr.el.textContent));
+    }
     ok('Make a new link: one tap mints another link-only link, the QR is redrawn, the old link is said to be retired', m.calls.length === 3 && m.calls[2].sendEmail === false && qrHtml().indexOf('<svg') !== -1 && /old link no longer works/i.test(el.textContent));
     fire(el, 'click', byAction(el, 'copy')); await new Promise((r) => setTimeout(r, 0));
     ok('after a new link, Copy and Text use the NEW link', win._copied === 'https://app.test/sign.html?t=TOKEN3' && byAction(el, 'text').attrs.href === undefined);

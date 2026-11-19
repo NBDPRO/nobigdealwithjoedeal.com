@@ -227,7 +227,7 @@ function signablePathUid(htmlPath, leadId) {
  * this misses one.
  */
 const SUPERSEDED_MSG = 'This signing link was replaced by a newer one. Use the latest link from your rep.';
-async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why) {
+async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why, mintedAtMs) {
   let n = 0;
   try {
     const snap = await db.collection('doc_sign_tokens').where('leadId', '==', leadId).where('status', '==', 'pending').get();
@@ -240,6 +240,8 @@ async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why) {
         try { const ds = await db.doc(`leads/${leadId}/documents/${t.docId}`).get(); type = ds.exists ? (ds.data() || {}).type : null; } catch (_) { type = null; }
       }
       if (!CW.isContractDocType(type)) continue;
+      // Flag docSignPanelV1 only (mintedAtMs given): never retire a link newer than this mint (concurrent mints, review item 5).
+      if (Number.isFinite(mintedAtMs) && Number.isFinite(t.mintedAtMs) && (t.mintedAtMs > mintedAtMs || (t.mintedAtMs === mintedAtMs && String(d.id) > String(keepToken)))) continue;
       await db.doc(`doc_sign_tokens/${d.id}`).update({ status: 'superseded', supersededBy: keepToken || null, supersededWhy: why, supersededAt: FieldValue.serverTimestamp() });
       n++;
     }
@@ -252,9 +254,12 @@ async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why) {
 /**
  * Flag docSignPanelV1: retire this lead's other pending links for the SAME document (any type), the one-tap "make a new
  * link" (Q60). Only the lead owner's tokens. Best-effort like the contract version: a miss never blocks the new link.
- * Returns how many were retired.
+ * Security review 2026-11-18, item 5: only a link OLDER than this mint (mintedAtMs, then the token id as the tie-break) is
+ * retired, never a newer one, so two concurrent mints cannot retire each other and leave no live link. A link with no
+ * mintedAtMs (minted before this field, or with the flag off) counts as older.
+ * Returns { n: how many were retired, error: true when the query or an update failed }.
  */
-async function supersedeDocTokens(db, leadId, ownerUid, docId, keepToken, why) {
+async function supersedeDocTokens(db, leadId, ownerUid, docId, keepToken, why, mintedAtMs) {
   let n = 0;
   try {
     const snap = await db.collection('doc_sign_tokens').where('leadId', '==', leadId).where('status', '==', 'pending').get();
@@ -262,13 +267,16 @@ async function supersedeDocTokens(db, leadId, ownerUid, docId, keepToken, why) {
       if (d.id === keepToken) continue;
       const t = d.data() || {};
       if (t.ownerUid !== ownerUid || t.docId !== docId) continue;
+      const theirs = Number.isFinite(t.mintedAtMs) ? t.mintedAtMs : -Infinity;
+      if (theirs > mintedAtMs || (theirs === mintedAtMs && String(d.id) > String(keepToken))) continue; // newer than this mint: leave it live
       await db.doc(`doc_sign_tokens/${d.id}`).update({ status: 'superseded', supersededBy: keepToken || null, supersededWhy: why, supersededAt: FieldValue.serverTimestamp() });
       n++;
     }
   } catch (e) {
     logger.warn('[remoteSigning] supersede older document links failed', { leadId, err: e && e.message });
+    return { n, error: true };
   }
-  return n;
+  return { n, error: false };
 }
 
 async function signableHtmlPathOk(db, htmlPath, leadId, lead) {
@@ -609,7 +617,7 @@ exports.createSignRequest = onCall(
       docType: typeof docMeta.type === 'string' ? docMeta.type.slice(0, 60) : null,
       consentAsked: flagOnAtMint === true,
       // Flag docSignPanelV1 only (security review item 3): how this bearer link was delivered; the signing evidence carries it.
-      ...(signPanelOn ? { deliveryChannel: noEmailMint ? 'link_only' : 'email' } : {}),
+      ...(signPanelOn ? { deliveryChannel: noEmailMint ? 'link_only' : 'email', mintedAtMs: now } : {}),
       priceSnapshot,
       ...(isContract && !priceSnapshot ? { priceSnapshotMissing: true, priceLockReason } : {}),
       // Evidence parity (2026-11-18): the clause set this document was sent under.
@@ -625,8 +633,13 @@ exports.createSignRequest = onCall(
     // Flag docSignPanelV1 (Q60, "make a new link"): a new link also retires the older pending link of the SAME document, whatever
     // its type, so only one link per document is ever live. Flag off: only the contract rule above, as before.
     let supersededOld = false;
-    if (isContract) supersededOld = (await supersedeContractTokens(db, leadId, lead.userId, token, 'new_link')) > 0;
-    if (signPanelOn && (await supersedeDocTokens(db, leadId, lead.userId, docId, token, 'new_link')) > 0) supersededOld = true;
+    let supersedeError = false;
+    if (isContract) supersededOld = (await supersedeContractTokens(db, leadId, lead.userId, token, 'new_link', signPanelOn ? now : undefined)) > 0;
+    if (signPanelOn) {
+      const sr = await supersedeDocTokens(db, leadId, lead.userId, docId, token, 'new_link', now);
+      if (sr.error) supersedeError = true;
+      else if (sr.n > 0) supersededOld = true;
+    }
 
     // Document lifecycle: draft -> sent. Best-effort and separate from the
     // token above (doc_sign_tokens.status is the token's own pending/signed/
@@ -682,7 +695,8 @@ exports.createSignRequest = onCall(
     logger.info('[createSignRequest] minted', { leadId, docId, emailed });
     return {
       token, expiresAt: expiresAt.toMillis(), emailed, signLink: SIGN_URL_BASE + token,
-      ...(signPanelOn ? { supersededOld } : {}),
+      // supersededOld is null (not false) with supersedeError:true when the old links could not be checked.
+      ...(signPanelOn ? { supersededOld: supersedeError ? null : supersededOld, ...(supersedeError ? { supersedeError: true } : {}) } : {}),
       // null = not a contract (nothing to lock); false = sent without a
       // locked price, with why (the viewer warns the rep).
       priceLocked: isContract ? !!priceSnapshot : null,
