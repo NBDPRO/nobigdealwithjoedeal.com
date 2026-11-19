@@ -362,7 +362,7 @@
   // replaces the window.prompt below.
   async function openSignPanel() {
     const ctx = currentContext;
-    if (!window.NBDSignLinkPanel && window.ScriptLoader) await window.ScriptLoader.load('js/sign-link-panel.js?v=1');
+    if (!window.NBDSignLinkPanel && window.ScriptLoader) await window.ScriptLoader.load('js/sign-link-panel.js?v=7');
     if (!window.NBDSignLinkPanel) flashStatus('Could not open the signing panel');
     else if (currentContext === ctx) await window.NBDSignLinkPanel.openFor(ctx, currentOverlay);
   }

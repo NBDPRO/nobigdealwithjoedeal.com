@@ -200,12 +200,13 @@ const DAY = 86400000;
     const head = mkEl('head'), body = mkEl('body');
     const win = { document: { head, body, createElement: mkEl, getElementById: () => null, execCommand: (c) => { win._exec.push(c); return true; } }, NBDQr, _exec: [], _toasts: [], _opened: [] };
     win.window = win;
-    win.location = { href: 'https://crm.test/pro/customer.html' };
+    win._navs = []; win._checks = []; win._logged = [];
+    { let h = 'https://crm.test/pro/customer.html'; win.location = { get href() { return h; }, set href(v) { h = v; win._navs.push(v); } }; }
     win.showToast = (m, k) => win._toasts.push({ m, k });
     win.prompt = () => { win._prompted = true; return null; };
     win.navigator = { clipboard: x.noClipboard ? undefined : { writeText: async (t) => { win._copied = t; } } };
     win.setTimeout = setTimeout; win.clearTimeout = clearTimeout;
-    if (x.checkText !== null) win.NBDPhoneShare = { checkText: x.checkText || (async () => ({ ok: true })), digits: (p) => String(p || '').replace(/\D/g, '') };
+    if (x.checkText !== null) win.NBDPhoneShare = { checkText: async (a) => { win._checks.push(a); return x.checkText ? x.checkText(a) : { ok: true }; }, logSent: (a, b) => { win._logged.push([a, b]); }, digits: (p) => String(p || '').replace(/\D/g, '') };
     const ctx = vm.createContext(Object.assign({ console }, win, { window: win }));
     // run the module with window === the same object it reads
     vm.runInContext(PANEL_SRC, Object.assign(ctx, { window: win }));
@@ -239,22 +240,25 @@ const DAY = 86400000;
       });
       return good;
     })());
-    ok('the text action is an sms: anchor to the lead\'s phone with the link written in', (() => {
+    ok('Text link is a plain button with NO href, so no path (long-press, middle-click, Open) can reach Messages without the check', (() => {
       const a = byAction(el, 'text');
-      return !!a && a.tagName === 'A' && /^sms:8595550142\?&body=/.test(a.attrs.href || '') && decodeURIComponent(a.attrs.href).indexOf('https://app.test/sign.html?t=TOKEN1') !== -1;
+      let anyHref = false; walk(el, (n) => { if (n.attrs.href !== undefined) anyHref = true; });
+      return !!a && a.tagName === 'BUTTON' && a.attrs.type === 'button' && a.attrs.href === undefined && !anyHref && win._navs.length === 0;
     })());
     ok('the panel itself has no window.prompt in its source', !rx(/\bprompt\s*\(/, PANEL_SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')));
 
     // text: allowed
     let ev = fire(el, 'click', byAction(el, 'text'));
     await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0));
-    ok('Text link: the click is held (preventDefault), asked of checkText with this lead, and opens Messages only on a yes', ev.prevented === true && /^sms:8595550142/.test(win.location.href));
+    ok('Text link: asked of checkText with this lead and the sign_link source, then Messages opens ONCE with the link written in', win._checks.length >= 1 && win._checks[win._checks.length - 1].leadId === 'L1' && win._checks[win._checks.length - 1].source === 'sign_link'
+      && win._navs.length === 1 && /^sms:8595550142\?&body=/.test(win._navs[0]) && decodeURIComponent(win._navs[0]).indexOf('https://app.test/sign.html?t=TOKEN1') !== -1);
+    ok('Text link: the send is logged to the Comm Log once, as sign_link, WITHOUT the bearer link in the stored body', win._logged.length === 1 && win._logged[0][0].leadId === 'L1' && win._logged[0][0].source === 'sign_link' && win._logged[0][1].indexOf('TOKEN') === -1 && /Roofing Contract/.test(win._logged[0][1]));
 
     // text: blocked fails closed
     const w2 = env({ checkText: async () => ({ ok: false, reason: 'This customer replied STOP.' }) });
     const m2 = mkMint(); const p2 = w2.NBDSignLinkPanel.open({ host: mkEl('div'), mint: m2, phone: '8595550142', leadId: 'L1', firstName: 'Dana' }); await p2.ready;
     fire(p2.el, 'click', byAction(p2.el, 'text')); await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0));
-    ok('texting blocked: nothing opens, the panel says why and "Use Email or Copy link instead."', w2.location.href === 'https://crm.test/pro/customer.html' && /STOP/.test(p2.el.textContent) && p2.el.textContent.indexOf('Use Email or Copy link instead.') !== -1);
+    ok('texting blocked: nothing opens, nothing is logged, the panel says why and "Use Email or Copy link instead."', w2.location.href === 'https://crm.test/pro/customer.html' && w2._navs.length === 0 && w2._logged.length === 0 && /STOP/.test(p2.el.textContent) && p2.el.textContent.indexOf('Use Email or Copy link instead.') !== -1);
     const w3 = env({ checkText: null });
     const p3 = w3.NBDSignLinkPanel.open({ host: mkEl('div'), mint: mkMint(), phone: '8595550142', leadId: 'L1' }); await p3.ready;
     fire(p3.el, 'click', byAction(p3.el, 'text')); await new Promise((r) => setTimeout(r, 0));
@@ -292,7 +296,9 @@ const DAY = 86400000;
     fire(el, 'click', byAction(el, 'new')); await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0));
     ok('Make a new link: one tap mints another link-only link, the QR is redrawn, the old link is said to be retired', m.calls.length === 3 && m.calls[2].sendEmail === false && qrHtml().indexOf('<svg') !== -1 && /old link no longer works/i.test(el.textContent));
     fire(el, 'click', byAction(el, 'copy')); await new Promise((r) => setTimeout(r, 0));
-    ok('after a new link, Copy and Text use the NEW link', win._copied === 'https://app.test/sign.html?t=TOKEN3' && decodeURIComponent(byAction(el, 'text').attrs.href).indexOf('TOKEN3') !== -1);
+    ok('after a new link, Copy and Text use the NEW link', win._copied === 'https://app.test/sign.html?t=TOKEN3' && byAction(el, 'text').attrs.href === undefined);
+    fire(el, 'click', byAction(el, 'text')); await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0));
+    ok('and the Text tap after a new link texts the NEW link', win._navs.length === 2 && decodeURIComponent(win._navs[1]).indexOf('TOKEN3') !== -1);
 
     // a refusal from the server (gate) is shown, no QR is left for a dead link
     const m7 = mkMint(); m7.fail = 'This contract is missing the property address.';
@@ -356,7 +362,8 @@ const DAY = 86400000;
       const pnl = await winP.NBDSignLinkPanel.openFor(ctx, host); await pnl.ready;
       ok('openFor loads the QR encoder and the text check lazily, then draws the QR', loaded.length === 2 && /<svg/.test((() => { let h = ''; walk(pnl.el, (n) => { h += n.innerHTML; }); return h; })()));
       ok('openFor mints a link with sendEmail:false and no address; the Email it path sends the typed address', minted.length === 1 && minted[0][0] === '' && minted[0][1] && minted[0][1].sendEmail === false);
-      ok('the text link carries the first name, the document and the link', (() => { const a = byAction(pnl.el, 'text'); const b = decodeURIComponent(a.attrs.href); return /Hi Dana, here is your Roofing Contract/.test(b) && b.indexOf('T1') !== -1; })());
+      fire(pnl.el, 'click', byAction(pnl.el, 'text')); await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0));
+      ok('the text carries the first name, the document and the link', (() => { const b = decodeURIComponent(winP._navs[0] || ''); return /Hi Dana, here is your Roofing Contract/.test(b) && b.indexOf('T1') !== -1; })());
     }
     // the few wording pins that have no behaviour to run here
     const g = src('docs/pro/js/document-generator.js');

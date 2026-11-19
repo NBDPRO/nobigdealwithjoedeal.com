@@ -5,7 +5,7 @@
  *
  * What the rep sees: a QR code of the single-use signing link (the homeowner scans it and signs on
  * their own phone), plus
- *   Text link        an sms: link from the rep's own phone, held until the server's "ok to text?"
+ *   Text link        a button (no href) that opens Messages from the rep's own phone only after the server's "ok to text?"
  *                    (NBDPhoneShare.checkText) says yes; any other answer, or a check that cannot
  *                    run, opens nothing and says "Use Email or Copy link instead."
  *   Copy link        the link on the clipboard
@@ -31,6 +31,7 @@
   var TAIL = ' Use Email or Copy link instead.';
   var COULD_NOT_CHECK = 'Couldn’t check whether this customer can be texted — nothing was sent.';
   var EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  var SOURCE = 'sign_link'; // not a reply label: the declined-consent rule applies in full (functions/sms-consent-declined.js)
   var current = null;
 
   function digits(phone) {
@@ -117,9 +118,10 @@
     status.setAttribute('aria-live', 'polite');
 
     var hasPhone = !!digits(o.phone);
-    var textBtn = act(hasPhone ? 'a' : 'button', 'text', 'Text link', 'slp-primary');
-    if (hasPhone) textBtn.setAttribute('href', 'sms:' + digits(o.phone));
-    else textBtn.setAttribute('aria-disabled', 'true');
+    // A <button>, never an <a href="sms:">: with a real href, long-press / middle-click / "Open" reach Messages without the
+    // "ok to text?" check (security review 2026-11-18, item 2). The sms: URL is built and opened only after the check says yes.
+    var textBtn = act('button', 'text', 'Text link', 'slp-primary');
+    if (!hasPhone) textBtn.setAttribute('aria-disabled', 'true');
     var copyBtn = act('button', 'copy', 'Copy link');
     var emailBtn = act('button', 'email', 'Email it');
     var newBtn = act('button', 'new', 'Make a new link');
@@ -175,7 +177,6 @@
     function setLink(next) {
       link = String(next || '');
       linkInput.value = link;
-      if (hasPhone && link) textBtn.setAttribute('href', smsHref(o.phone, smsBody(o, link)));
       drawQr();
     }
     function fail(e, what) {
@@ -228,12 +229,18 @@
       if (!link) { say('There is no link to text yet.' + TAIL, true); return Promise.resolve(); }
       if (!hasPhone) { say('No phone number on file for this customer.' + TAIL, true); return Promise.resolve(); }
       var PS = root.NBDPhoneShare;
+      var chkOpts = { phone: o.phone, leadId: o.leadId, source: SOURCE };
       return Promise.resolve().then(function () {
-        return (PS && typeof PS.checkText === 'function') ? PS.checkText({ phone: o.phone, leadId: o.leadId }) : null;
+        return (PS && typeof PS.checkText === 'function') ? PS.checkText(chkOpts) : null;
       }).catch(function () { return null; }).then(function (chk) {
         if (!chk || chk.ok !== true) { say(((chk && chk.reason) || COULD_NOT_CHECK) + TAIL, true); return; }
+        if (closed || !link) return; // closed (or the link was dropped) while the check ran
+        var href = smsHref(o.phone, smsBody(o, link));
+        if (!href) { say('No phone number on file for this customer.' + TAIL, true); return; }
+        // The record of the send, like the estimate flow's Comm Log entry: the words without the bearer link.
+        try { if (PS && typeof PS.logSent === 'function') PS.logSent(chkOpts, smsBody(o, '[signing link]')); } catch (_) { /* the log is best effort */ }
         say('Messages is opening with the link written in.');
-        try { root.location.href = smsHref(o.phone, smsBody(o, link)); } catch (_) { say('Could not open Messages.' + TAIL, true); }
+        try { root.location.href = href; } catch (_) { say('Could not open Messages.' + TAIL, true); }
       });
     }
 
@@ -279,7 +286,7 @@
       } catch (_) { watcher = null; }
     }
     // Start the server's "ok to text?" now so the Text tap stays inside the tap (phone-share.js caches a yes).
-    try { if (hasPhone && root.NBDPhoneShare && typeof root.NBDPhoneShare.precheck === 'function') root.NBDPhoneShare.precheck({ phone: o.phone, leadId: o.leadId }); } catch (_) { /* the tap asks again */ }
+    try { if (hasPhone && root.NBDPhoneShare && typeof root.NBDPhoneShare.precheck === 'function') root.NBDPhoneShare.precheck({ phone: o.phone, leadId: o.leadId, source: SOURCE }); } catch (_) { /* the tap asks again */ }
     try { closeBtn.focus(); } catch (_) { /* focus is best effort */ }
 
     var api = { el: scrim, close: close };
@@ -296,7 +303,7 @@
   /** The viewer's entry point: load the QR encoder and the text check on first use, then open for this document's context. */
   function openFor(ctx, host) {
     return loadFile('js/qr-code.js?v=1', function () { return !!root.NBDQr; })
-      .then(function () { return loadFile('js/phone-share.js?v=3', function () { return !!root.NBDPhoneShare; }); })
+      .then(function () { return loadFile('js/phone-share.js?v=9', function () { return !!root.NBDPhoneShare; }); })
       .then(function () {
         var p = ctx.signPanelOpts || {}, brand = '';
         try { var b = (typeof root._brand === 'function') ? root._brand() : null; brand = (b && (b.legalName || b.name)) || ''; } catch (_) { brand = ''; }
