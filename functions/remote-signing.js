@@ -227,7 +227,7 @@ function signablePathUid(htmlPath, leadId) {
  * this misses one.
  */
 const SUPERSEDED_MSG = 'This signing link was replaced by a newer one. Use the latest link from your rep.';
-async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why, mintedAtMs) {
+async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why, linkSeq) {
   let n = 0;
   try {
     const snap = await db.collection('doc_sign_tokens').where('leadId', '==', leadId).where('status', '==', 'pending').get();
@@ -240,8 +240,8 @@ async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why, min
         try { const ds = await db.doc(`leads/${leadId}/documents/${t.docId}`).get(); type = ds.exists ? (ds.data() || {}).type : null; } catch (_) { type = null; }
       }
       if (!CW.isContractDocType(type)) continue;
-      // Flag docSignPanelV1 only (mintedAtMs given): never retire a link newer than this mint (concurrent mints, review item 5).
-      if (Number.isFinite(mintedAtMs) && Number.isFinite(t.mintedAtMs) && (t.mintedAtMs > mintedAtMs || (t.mintedAtMs === mintedAtMs && String(d.id) > String(keepToken)))) continue;
+      // Flag docSignPanelV1 only (linkSeq given): never retire a link with a higher sequence number than this mint (review item 5).
+      if (Number.isFinite(linkSeq) && Number.isFinite(t.linkSeq) && (t.linkSeq > linkSeq || (t.linkSeq === linkSeq && String(d.id) > String(keepToken)))) continue;
       await db.doc(`doc_sign_tokens/${d.id}`).update({ status: 'superseded', supersededBy: keepToken || null, supersededWhy: why, supersededAt: FieldValue.serverTimestamp() });
       n++;
     }
@@ -254,12 +254,12 @@ async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why, min
 /**
  * Flag docSignPanelV1: retire this lead's other pending links for the SAME document (any type), the one-tap "make a new
  * link" (Q60). Only the lead owner's tokens. Best-effort like the contract version: a miss never blocks the new link.
- * Security review 2026-11-18, item 5: only a link OLDER than this mint (mintedAtMs, then the token id as the tie-break) is
+ * Security review 2026-11-18, item 5: only a link OLDER than this mint (a lower linkSeq: a per-document counter bumped in a transaction, so the mint now running always outranks every link made before it) is
  * retired, never a newer one, so two concurrent mints cannot retire each other and leave no live link. A link with no
- * mintedAtMs (minted before this field, or with the flag off) counts as older.
+ * linkSeq (minted before this field, or with the flag off) counts as older. Equal sequence numbers (only possible if two transactions raced) fall back to the token id.
  * Returns { n: how many were retired, error: true when the query or an update failed }.
  */
-async function supersedeDocTokens(db, leadId, ownerUid, docId, keepToken, why, mintedAtMs) {
+async function supersedeDocTokens(db, leadId, ownerUid, docId, keepToken, why, linkSeq) {
   let n = 0;
   try {
     const snap = await db.collection('doc_sign_tokens').where('leadId', '==', leadId).where('status', '==', 'pending').get();
@@ -267,8 +267,8 @@ async function supersedeDocTokens(db, leadId, ownerUid, docId, keepToken, why, m
       if (d.id === keepToken) continue;
       const t = d.data() || {};
       if (t.ownerUid !== ownerUid || t.docId !== docId) continue;
-      const theirs = Number.isFinite(t.mintedAtMs) ? t.mintedAtMs : -Infinity;
-      if (theirs > mintedAtMs || (theirs === mintedAtMs && String(d.id) > String(keepToken))) continue; // newer than this mint: leave it live
+      const theirs = Number.isFinite(t.linkSeq) ? t.linkSeq : -Infinity;
+      if (theirs > linkSeq || (theirs === linkSeq && String(d.id) > String(keepToken))) continue; // newer than this mint: leave it live
       await db.doc(`doc_sign_tokens/${d.id}`).update({ status: 'superseded', supersededBy: keepToken || null, supersededWhy: why, supersededAt: FieldValue.serverTimestamp() });
       n++;
     }
@@ -551,6 +551,24 @@ exports.createSignRequest = onCall(
     const ttlDays = signPanelOn ? 14 : 7; // Q61: 14 days, only for a caller with docSignPanelV1
     const expiresAt = Timestamp.fromMillis(now + ttlDays * 86_400_000);
     const token = mintSignToken();
+    // Flag docSignPanelV1 (security review item 5): a strictly increasing per-document sequence number, taken in a transaction on
+    // the document row. The mint now running always outranks every link made before it, whatever the clock says.
+    let linkSeq = null;
+    if (signPanelOn) {
+      try {
+        linkSeq = await db.runTransaction(async (tx) => {
+          const ref = db.doc(`leads/${leadId}/documents/${docId}`);
+          const s = await tx.get(ref);
+          const cur = s.exists ? Number((s.data() || {}).linkSeq) : 0;
+          const next = (Number.isFinite(cur) ? cur : 0) + 1;
+          tx.set(ref, { linkSeq: next }, { merge: true });
+          return next;
+        });
+      } catch (e) {
+        logger.warn('[createSignRequest] link sequence failed', { leadId, docId, err: e && e.message });
+        throw new HttpsError('unavailable', 'Could not make the link just now. Nothing was sent. Try again in a moment.');
+      }
+    }
 
     // Multi-tenant branding: resolve the tenant's legal name so the signing
     // email AND the sign-page chrome announce THEIR company, not NBD. Keyed
@@ -617,7 +635,7 @@ exports.createSignRequest = onCall(
       docType: typeof docMeta.type === 'string' ? docMeta.type.slice(0, 60) : null,
       consentAsked: flagOnAtMint === true,
       // Flag docSignPanelV1 only (security review item 3): how this bearer link was delivered; the signing evidence carries it.
-      ...(signPanelOn ? { deliveryChannel: noEmailMint ? 'link_only' : 'email', mintedAtMs: now } : {}),
+      ...(signPanelOn ? { deliveryChannel: noEmailMint ? 'link_only' : 'email', mintedAtMs: now, linkSeq } : {}),
       priceSnapshot,
       ...(isContract && !priceSnapshot ? { priceSnapshotMissing: true, priceLockReason } : {}),
       // Evidence parity (2026-11-18): the clause set this document was sent under.
@@ -634,9 +652,9 @@ exports.createSignRequest = onCall(
     // its type, so only one link per document is ever live. Flag off: only the contract rule above, as before.
     let supersededOld = false;
     let supersedeError = false;
-    if (isContract) supersededOld = (await supersedeContractTokens(db, leadId, lead.userId, token, 'new_link', signPanelOn ? now : undefined)) > 0;
+    if (isContract) supersededOld = (await supersedeContractTokens(db, leadId, lead.userId, token, 'new_link', signPanelOn ? linkSeq : undefined)) > 0;
     if (signPanelOn) {
-      const sr = await supersedeDocTokens(db, leadId, lead.userId, docId, token, 'new_link', now);
+      const sr = await supersedeDocTokens(db, leadId, lead.userId, docId, token, 'new_link', linkSeq);
       if (sr.error) supersedeError = true;
       else if (sr.n > 0) supersededOld = true;
     }

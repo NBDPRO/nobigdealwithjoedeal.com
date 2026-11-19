@@ -197,15 +197,28 @@ const DAY = 86400000;
     const ts2 = tokens(db);
     ok('any document type, flag on: making a new link retires the old link of the SAME document', ts2.length === 2 && ts2.filter((t) => t.status === 'pending').length === 1 && ts2.some((t) => t.status === 'superseded'), JSON.stringify(ts2.map((t) => t.status)));
     ok('the answer says the old link was retired (the panel tells the rep so)', !!b.v && b.v.supersededOld === true);
-    // security review 2026-11-18, item 5
+    // security review 2026-11-18, item 5: the clock is frozen, so the order can only come from the sequence number
+    {
+      const realNow = Date.now; Date.now = () => 1800000000000;
+      try {
+        const fdb = world({ [FLAG]: true }, { type: 'attic_acknowledgment' });
+        let prev = null, allOk = true;
+        for (let k = 0; k < 6; k++) {
+          const m1 = await mint(fdb, { sendEmail: false });
+          const livek = tokens(fdb).filter((t) => t.status === 'pending');
+          if (!m1.v || livek.length !== 1 || livek[0]._id !== m1.v.token || (k > 0 && m1.v.supersededOld !== true)) allOk = false;
+          prev = m1;
+        }
+        ok('5: with the clock frozen, each new link retires the previous one every time (the sequence number, not ms or token id, decides)', allOk && !!prev && tokens(fdb).length === 6);
+      } finally { Date.now = realNow; }
+    }
     db = world({ [FLAG]: true }, { type: 'attic_acknowledgment' });
     const [c1, c2] = await Promise.all([mint(db, { sendEmail: false }), mint(db, { sendEmail: false })]);
     const cts = tokens(db), live = cts.filter((t) => t.status === 'pending');
-    const newest = cts.slice().sort((x, y) => (y.mintedAtMs - x.mintedAtMs) || (x.supersededBy ? 1 : -1))[0];
-    ok('5: two concurrent mints leave exactly ONE live link, and it is a link that was returned to a caller', !!c1.v && !!c2.v && cts.length === 2 && live.length === 1 && [c1.v.token, c2.v.token].some((t) => !!t) && cts.filter((t) => t.status === 'superseded').length === 1, JSON.stringify(cts.map((t) => t.status)));
-    ok('5: the survivor is the NEWEST mint (the retired one is older, never the other way round)', live.length === 1 && cts.every((t) => typeof t.mintedAtMs === 'number') && cts.filter((t) => t.status === 'superseded').every((t) => (t.mintedAtMs < live[0].mintedAtMs) || (t.mintedAtMs === live[0].mintedAtMs && live[0].supersededBy === undefined)), JSON.stringify(cts.map((t) => [t.status, t.mintedAtMs])));
+        ok('5: two concurrent mints leave exactly ONE live link, and it is a link that was returned to a caller', !!c1.v && !!c2.v && cts.length === 2 && live.length === 1 && [c1.v.token, c2.v.token].some((t) => !!t) && cts.filter((t) => t.status === 'superseded').length === 1, JSON.stringify(cts.map((t) => t.status)));
+    ok('5: the survivor is the NEWEST mint (the retired one is older, never the other way round)', live.length === 1 && cts.every((t) => typeof t.linkSeq === 'number') && cts.filter((t) => t.status === 'superseded').every((t) => (t.linkSeq < live[0].linkSeq) || (t.linkSeq === live[0].linkSeq && live[0].supersededBy === undefined)), JSON.stringify(cts.map((t) => [t.status, t.linkSeq])));
     db = world({ [FLAG]: true }, { type: 'attic_acknowledgment' });
-    await db.doc('doc_sign_tokens/NEWERTOK').set({ leadId: 'L1', docId: 'd1', ownerUid: 'U1', status: 'pending', mintedAtMs: Date.now() + 60000 });
+    await db.doc('doc_sign_tokens/NEWERTOK').set({ leadId: 'L1', docId: 'd1', ownerUid: 'U1', status: 'pending', linkSeq: 1000000 });
     a = await mint(db, { sendEmail: false });
     {
       const cdb = world({ [FLAG]: true });
@@ -214,7 +227,7 @@ const DAY = 86400000;
       ok('5: two concurrent CONTRACT mints (flag on) also leave exactly one live link', !!k1.v && !!k2.v && cs.length === 2 && cs.filter((t) => t.status === 'pending').length === 1, JSON.stringify(cs.map((t) => t.status)));
     }
     ok('5: a mint never retires a link that is NEWER than itself (the newer one stays live)', !!a.v && (db._get('doc_sign_tokens/NEWERTOK') || {}).status === 'pending' && a.v.supersededOld === false);
-    await db.doc('doc_sign_tokens/OLDERTOK').set({ leadId: 'L1', docId: 'd1', ownerUid: 'U1', status: 'pending', mintedAtMs: Date.now() - 60000 });
+    await db.doc('doc_sign_tokens/OLDERTOK').set({ leadId: 'L1', docId: 'd1', ownerUid: 'U1', status: 'pending', linkSeq: 0 });
     b = await mint(db, { sendEmail: false });
     ok('5: ...while an older pending link of the same document is still retired', !!b.v && (db._get('doc_sign_tokens/OLDERTOK') || {}).status === 'superseded' && b.v.supersededOld === true);
     db = world({ [FLAG]: true }, { type: 'attic_acknowledgment' });
