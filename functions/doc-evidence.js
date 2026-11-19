@@ -33,6 +33,8 @@ const FLAG_DEFAULT = false;
 const CLAUSE_FLAG_NAME = 'docClauseSetV1';
 // Phase 3 (2026-11-18): the attic acknowledgment and the gate behind it. Per person, default OFF.
 const ATTIC_FLAG_NAME = 'docAtticAckV1';
+// Signing-ease lane (2026-11-18, Q48/Q59/Q60): a sign link without an email (QR / text / copy panel), 14-day expiry. Per person, default OFF.
+const SIGN_PANEL_FLAG_NAME = 'docSignPanelV1';
 
 // The platform tenant's legal entity (company-profile.js brand.entityName default,
 // the same string). A tenant key-less record, or the NBD owner's, is NBD's; any
@@ -323,6 +325,12 @@ async function clauseFlagForGate(db, uid, HttpsError) {
   catch (_) { throw new HttpsError('unavailable', FLAG_UNREADABLE_MSG); }
 }
 
+/** The sign-link panel flag as createSignRequest reads it (a read error is a retryable refusal, never "off"). */
+async function signPanelFlagForGate(db, uid, HttpsError) {
+  try { return await flagForUid(db, uid, { strict: true, flag: SIGN_PANEL_FLAG_NAME }); }
+  catch (_) { throw new HttpsError('unavailable', FLAG_UNREADABLE_MSG); }
+}
+
 /** The attic flag as a send gate reads it (a read error is a retryable refusal, never "off"). */
 async function atticFlagForGate(db, uid, HttpsError) {
   try { return await flagForUid(db, uid, { strict: true, flag: ATTIC_FLAG_NAME }); }
@@ -396,7 +404,7 @@ function clauseFlagForUid(db, uid) { return flagForUid(db, uid, { flag: CLAUSE_F
 module.exports = {
   CLAUSE_FLAG_NAME, clauseFlagForUid, ATTIC_FLAG_NAME, atticFlagForGate, atticGateOn,
   FLAG_NAME, FLAG_DEFAULT, NBD_ENTITY_NAME, CLAUSE_SET_VERSION: ClauseSet.CLAUSE_SET_VERSION,
-  NBD_OWNER_UID_FOR_TESTS: NBD_OWNER_UID, clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, buildClauseSetFor, clauseFlagForGate, printedByRef, expectedV1Refs, pdfByRef, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
+  NBD_OWNER_UID_FOR_TESTS: NBD_OWNER_UID, clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, buildClauseSetFor, clauseFlagForGate, signPanelFlagForGate, printedByRef, expectedV1Refs, pdfByRef, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
   serverContractGaps, estimateCents, isContractClass: Checks.isContractClass,
   describeGaps: Checks.describeGaps,
 };

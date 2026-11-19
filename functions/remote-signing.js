@@ -228,6 +228,7 @@ function signablePathUid(htmlPath, leadId) {
  */
 const SUPERSEDED_MSG = 'This signing link was replaced by a newer one. Use the latest link from your rep.';
 async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why) {
+  let n = 0;
   try {
     const snap = await db.collection('doc_sign_tokens').where('leadId', '==', leadId).where('status', '==', 'pending').get();
     for (const d of snap.docs) {
@@ -240,10 +241,34 @@ async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why) {
       }
       if (!CW.isContractDocType(type)) continue;
       await db.doc(`doc_sign_tokens/${d.id}`).update({ status: 'superseded', supersededBy: keepToken || null, supersededWhy: why, supersededAt: FieldValue.serverTimestamp() });
+      n++;
     }
   } catch (e) {
     logger.warn('[remoteSigning] supersede older contract links failed', { leadId, err: e && e.message });
   }
+  return n;
+}
+
+/**
+ * Flag docSignPanelV1: retire this lead's other pending links for the SAME document (any type), the one-tap "make a new
+ * link" (Q60). Only the lead owner's tokens. Best-effort like the contract version: a miss never blocks the new link.
+ * Returns how many were retired.
+ */
+async function supersedeDocTokens(db, leadId, ownerUid, docId, keepToken, why) {
+  let n = 0;
+  try {
+    const snap = await db.collection('doc_sign_tokens').where('leadId', '==', leadId).where('status', '==', 'pending').get();
+    for (const d of snap.docs) {
+      if (d.id === keepToken) continue;
+      const t = d.data() || {};
+      if (t.ownerUid !== ownerUid || t.docId !== docId) continue;
+      await db.doc(`doc_sign_tokens/${d.id}`).update({ status: 'superseded', supersededBy: keepToken || null, supersededWhy: why, supersededAt: FieldValue.serverTimestamp() });
+      n++;
+    }
+  } catch (e) {
+    logger.warn('[remoteSigning] supersede older document links failed', { leadId, err: e && e.message });
+  }
+  return n;
 }
 
 async function signableHtmlPathOk(db, htmlPath, leadId, lead) {
@@ -392,7 +417,12 @@ exports.createSignRequest = onCall(
     const signerEmail = typeof d.signerEmail === 'string' ? d.signerEmail.trim() : '';
     const signerName = typeof d.signerName === 'string' ? d.signerName.trim().slice(0, 120) : '';
     if (!leadId || !docId) throw new HttpsError('invalid-argument', 'leadId and docId required');
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(signerEmail)) {
+    // Signing-ease lane (flag docSignPanelV1, Jo's Q48): sendEmail:false asks for a link with NO email, for the QR / text /
+    // copy panel. It relaxes the email-required and on-record checks below ONLY when that flag is on for the caller; with the
+    // flag off the parameter is ignored and every check is exactly the old one.
+    const linkOnlyAsked = d.sendEmail === false;
+    const emailShapeOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(signerEmail);
+    if (!linkOnlyAsked && !emailShapeOk) {
       throw new HttpsError('invalid-argument', 'A valid signer email is required');
     }
 
@@ -405,7 +435,13 @@ exports.createSignRequest = onCall(
     if (lead.userId !== uid && !isAdmin) throw new HttpsError('permission-denied', 'Not your lead');
     // R3-11: the link goes only to an email on this lead's record (its email,
     // or a saved alternate) — never to any address the caller types.
-    if (!ESL.recipientOnRecord(lead, signerEmail)) {
+    // The flag is read strictly (a read that fails refuses, retryable): it decides the link-only mint and the 14-day expiry.
+    const signPanelOn = await DE.signPanelFlagForGate(db, uid, HttpsError);
+    const noEmailMint = linkOnlyAsked && signPanelOn;
+    if (linkOnlyAsked && !signPanelOn && !emailShapeOk) {
+      throw new HttpsError('invalid-argument', 'A valid signer email is required');
+    }
+    if (!noEmailMint && !ESL.recipientOnRecord(lead, signerEmail)) {
       throw new HttpsError('failed-precondition', ESL.SIGN_EMAIL_NOT_ON_RECORD);
     }
 
@@ -499,7 +535,7 @@ exports.createSignRequest = onCall(
     }
 
     const now = Date.now();
-    const ttlDays = 7;
+    const ttlDays = signPanelOn ? 14 : 7; // Q61: 14 days, only for a caller with docSignPanelV1
     const expiresAt = Timestamp.fromMillis(now + ttlDays * 86_400_000);
     const token = mintSignToken();
 
@@ -562,7 +598,7 @@ exports.createSignRequest = onCall(
       htmlPath,
       docTypeName: docMeta.typeName || docMeta.type || 'Document',
       signerName: signerName || (lead.firstName ? `${lead.firstName} ${lead.lastName || ''}`.trim() : ''),
-      signerEmail,
+      signerEmail: noEmailMint ? '' : signerEmail,
       // '' for NBD → sign.html keeps its NBD literals byte-identical.
       companyName: tenantName || '',
       docType: typeof docMeta.type === 'string' ? docMeta.type.slice(0, 60) : null,
@@ -579,7 +615,11 @@ exports.createSignRequest = onCall(
     // One live contract link per customer (review H1, 2026-11-14): a new
     // contract link retires the older pending ones, so a homeowner can't sign
     // yesterday's price after today's (the e-sign envelope does the same).
-    if (isContract) await supersedeContractTokens(db, leadId, lead.userId, token, 'new_link');
+    // Flag docSignPanelV1 (Q60, "make a new link"): a new link also retires the older pending link of the SAME document, whatever
+    // its type, so only one link per document is ever live. Flag off: only the contract rule above, as before.
+    let supersededOld = false;
+    if (isContract) supersededOld = (await supersedeContractTokens(db, leadId, lead.userId, token, 'new_link')) > 0;
+    if (signPanelOn && (await supersedeDocTokens(db, leadId, lead.userId, docId, token, 'new_link')) > 0) supersededOld = true;
 
     // Document lifecycle: draft -> sent. Best-effort and separate from the
     // token above (doc_sign_tokens.status is the token's own pending/signed/
@@ -595,7 +635,7 @@ exports.createSignRequest = onCall(
     // as email-functions.js). Best-effort — the token is already minted,
     // so a transient mail failure surfaces to the rep without losing it.
     let emailed = false;
-    try {
+    if (!noEmailMint) try {
       const { Resend } = require('resend');
       const resend = new Resend(RESEND_API_KEY.value());
       const fromEmail = secretOr(EMAIL_FROM, 'noreply@nobigdealwithjoedeal.com');
@@ -615,7 +655,7 @@ exports.createSignRequest = onCall(
           <p style="text-align:center;margin:28px 0;">
             <a href="${escHtml(link)}" style="background:#bd5728;color:#fff;text-decoration:none;padding:13px 26px;border-radius:8px;font-weight:700;display:inline-block;">Review &amp; Sign</a>
           </p>
-          <p style="font-size:12px;color:#666;">This secure link expires in 7 days and can only be used once. If you didn't expect this, you can ignore the email.</p>
+          <p style="font-size:12px;color:#666;">This secure link expires in ${ttlDays} days and can only be used once. If you didn't expect this, you can ignore the email.</p>
         </div>`,
       });
       // Resend resolves { data: null, error } on an API-level rejection
@@ -634,6 +674,7 @@ exports.createSignRequest = onCall(
     logger.info('[createSignRequest] minted', { leadId, docId, emailed });
     return {
       token, expiresAt: expiresAt.toMillis(), emailed, signLink: SIGN_URL_BASE + token,
+      ...(signPanelOn ? { supersededOld } : {}),
       // null = not a contract (nothing to lock); false = sent without a
       // locked price, with why (the viewer warns the rep).
       priceLocked: isContract ? !!priceSnapshot : null,

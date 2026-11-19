@@ -1070,7 +1070,7 @@ window.NBDDocGen = {
         // Signatures PR4: remote signing. Only for signable docs tied to a
         // lead. Awaits the doc's persist (so it has a real docId/htmlPath),
         // then mints + emails a doc_sign_tokens link via createSignRequest.
-        onSendForSignature: (hasSigners && _leadIdEarly) ? (async (signerEmail) => {
+        onSendForSignature: (hasSigners && _leadIdEarly) ? (async (signerEmail, sendOpts) => {
           if (_persistPromise) { try { await _persistPromise; } catch (_) {} }
           const docId = _docMetaRef && _docMetaRef.id;
           if (!docId) throw new Error('Document is still saving — try again in a moment.');
@@ -1080,10 +1080,17 @@ window.NBDDocGen = {
             window._httpsCallable = window._httpsCallable || mod.httpsCallable;
           }
           const fn = window._httpsCallable(window._functions, 'createSignRequest');
-          const res = await fn({ leadId: _leadIdEarly, docId, signerEmail, signerName: (data.customer && data.customer.name) || '' });
+          const payload = { leadId: _leadIdEarly, docId, signerEmail, signerName: (data.customer && data.customer.name) || '' };
+          // Flag docSignPanelV1: the panel asks for a link with no email. Only then does the call carry sendEmail.
+          if (sendOpts && sendOpts.sendEmail === false) payload.sendEmail = false;
+          const res = await fn(payload);
           return res && res.data;
         }) : null,
         signerEmailDefault: (data.customer && data.customer.email) || '',
+        signerPhoneDefault: (data.customer && data.customer.phone) || '',
+        signerNameDefault: (data.customer && data.customer.name) || '',
+        docLabel: typeName,
+        leadId: _leadIdEarly,
         onSave: async () => {
           // Persistence already kicked off in the background via
           // _persistPromise above \u2014 wait for it (no-op if already
