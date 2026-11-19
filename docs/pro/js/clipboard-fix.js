@@ -95,7 +95,7 @@
                 if (typeof showToast === 'function') {
                   showToast('Link generated — tap and hold to copy', 'info');
                 }
-                prompt('Portal link:', url);
+                window.nbdPrompt('Portal link:', url);
               }
             } else {
               if (typeof showToast === 'function') {

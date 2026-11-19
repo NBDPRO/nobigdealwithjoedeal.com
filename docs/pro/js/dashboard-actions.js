@@ -2724,7 +2724,7 @@ async function _prospectPrompt(message) {
   if (typeof window.uiPrompt === 'function') {
     return await window.uiPrompt(message);
   }
-  return prompt(message);
+  return window.nbdPrompt(message);
 }
 
 // Confirm-then-promote. Single confirm dialog before flipping isProspect.

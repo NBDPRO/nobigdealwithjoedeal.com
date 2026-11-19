@@ -539,14 +539,16 @@ function _renderCustPanel(counts) {
       const save = e.target && e.target.closest && e.target.closest('[data-cust-saveview]');
       if (save) {
         if (!_custCanEditViews()) { if (typeof showToast === 'function') showToast('Only an owner/admin can save shared views', 'info'); return; }
-        const name = (typeof prompt === 'function') ? (prompt('Name this view — shared with your team (color-by + filters + value range):') || '').trim() : '';
-        if (!name) return;
         const snap = _custSnapshot(); // the panel state the user is saving, taken at click time
+        Promise.resolve(window.nbdPrompt('Name this view — shared with your team (color-by + filters + value range):')).then(function (v) {
+        const name = (v || '').trim();
+        if (!name) return;
         _custViewsReady().then(function (ready) {
           if (!ready) { if (typeof showToast === 'function') showToast(_CUST_VIEWS_LOADING_MSG, 'error'); return; }
           const list = _loadCustViews().slice(); // read AFTER hydration, never before
           list.push(Object.assign({ name: name.slice(0, 40) }, snap));
           _saveCustViews(list).then(function (okSave) { if (okSave && typeof showToast === 'function') showToast('View saved (shared)', 'ok'); _renderCustPanel(); });
+        });
         });
         return;
       }

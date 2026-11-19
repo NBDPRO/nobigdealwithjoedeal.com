@@ -327,8 +327,8 @@ const WIDGETS = [
       }
       const goalEl = el.querySelector('.w-goal-edit');
       if (goalEl) {
-        goalEl.addEventListener('click', () => {
-          const raw = prompt(
+        goalEl.addEventListener('click', async () => {
+          const raw = await window.nbdPrompt(
             'Set your monthly revenue goal (USD)',
             String(goal)
           );
