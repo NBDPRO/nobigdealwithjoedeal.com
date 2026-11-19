@@ -66,7 +66,15 @@
     DK_READ: 'I have read the notice above and seen the photos listed.',
     DK_FOUND: 'Found on', DK_WHERE: 'Where', DK_SHEETS: 'Sheets to replace', DK_PRICE: 'Price per sheet', DK_TOTAL: 'Total for these sheets',
     DK_PHOTOS: 'Photos on file:',
-    DK_YES: 'Approve replacing these sheets at the price shown.', DK_NO: 'Decline.'
+    DK_YES: 'Approve replacing these sheets at the price shown.', DK_NO: 'Decline.',
+    // emergency_services_request
+    EM_INTRO: 'This is a separate request. It is not part of your contract or your Notice of Right to Cancel.',
+    EM_WORK_H: 'Work I am asking for',
+    EM_REQUEST: 'I am asking the Contractor to start the work described above now, before the cancellation period ends, to protect my home from the weather.',
+    EM_NOTICE: 'I received the Notice of Right to Cancel.',
+    EM_OH: 'Ohio property: sign this request by hand and write the date yourself.',
+    EM_KY: 'Kentucky property: sign and date this request.',
+    EM_PAPER: 'If you sign on paper, write the date here:'
   };
 
   var PC_KEYS = ['driveway', 'landscaping', 'gutters', 'satellite_dish', 'solar', 'skylights', 'wall_items', 'attic_items', 'ceilings', 'pets', 'utilities', 'parking'];
@@ -82,6 +90,15 @@
       refs: ['CO-2'],
       variants: { base: { required: ['ack:decking_read'], lines: ['decking'] } },
       statics: ['DK_INTRO', 'DK_READ', 'TICK_NOTE_LINE']
+    },
+    // Ohio (and an unreadable state, the stricter reading) and Kentucky differ only in the instruction line (EM_OH / EM_KY).
+    emergency_services_request: {
+      refs: ['SCH-1'],
+      variants: {
+        oh: { required: ['ack:em_request', 'ack:em_notice'], lines: [], statics: ['EM_OH'] },
+        ky: { required: ['ack:em_request', 'ack:em_notice'], lines: [], statics: ['EM_KY'] }
+      },
+      statics: ['EM_INTRO', 'EM_REQUEST', 'EM_NOTICE', 'TICK_NOTE']
     }
   };
 
@@ -103,6 +120,7 @@
   var FORM_CSS = (AA.ATTIC_FORM_CSS || '') +
     '.lib-h1{text-align:center;font-size:24px;letter-spacing:.04em;text-transform:uppercase;margin:22px 0 4px;}' +
     '.lib-sub{text-align:center;font-size:13px;margin:0 0 18px;}.lib-fine{font-size:11px;line-height:1.5;}' +
+    '.p5-blank{border-bottom:1px solid #14181f;height:22px;margin:4px 0 14px;max-width:260px;}' +
     '.p5-item{border-bottom:1px solid #dfe2e7;padding:6px 0 4px;}.p5-note{font-size:12px;margin:0 0 6px 27px;}' +
     '.p5-kv{margin:0 0 14px;font-size:13px;}.p5-kv div{display:flex;flex-wrap:wrap;gap:6px 14px;padding:3px 0;}' +
     '.p5-kv dt{flex:0 0 190px;font-weight:700;}.p5-kv dd{margin:0;flex:1 1 200px;}' +
@@ -114,16 +132,17 @@
       .filter(function (r) { return r.length >= 20; });
   }
   /** Every wording fragment a stored copy of this type must carry (registry runs and this module's own static strings). */
-  function fragments(type) {
+  function fragments(type, variant) {
     var s = SPECS[type];
     if (!s) return [];
+    var vs = (s.variants[variant || 'base'] || {}).statics || [];
     var out = [];
     var CL = (CT && CT.CLAUSES) || {};
     s.refs.forEach(function (id) {
       var c = CL[id];
       if (c && c.parts) c.parts.forEach(function (p) { if (!p.only) runs(p.text).forEach(function (r) { out.push(r); }); });
     });
-    (s.statics || []).forEach(function (k) { runs(TEXT[k]).forEach(function (r) { out.push(r); }); });
+    (s.statics || []).concat(vs).forEach(function (k) { runs(TEXT[k]).forEach(function (r) { out.push(r); }); });
     return out;
   }
 

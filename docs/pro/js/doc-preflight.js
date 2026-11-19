@@ -3789,6 +3789,17 @@
       ] }
     ]
   };
+  P5_SCHEMAS.emergency_services_request = {
+    title: 'Emergency Services Request',
+    subtitle: 'A separate request the homeowner signs and dates, for tarp or dry-in work before the cancellation period ends.',
+    sections: [
+      CUSTOMER_SECTION,
+      { id: 'work', title: 'Work requested', collapsed: false, fields: [
+        { key: 'emergencyWork', label: 'Work the homeowner is asking for', type: 'textarea', rows: 3, required: true, source: 'literal:', persist: PERSIST.DOCUMENT,
+          placeholder: 'e.g., tarp the north slope and dry in the opening over the kitchen' }
+      ] }
+    ]
+  };
   function syncPhase5(on) {
     Object.keys(P5_SCHEMAS).forEach(function (t) { if (on) DOC_SCHEMAS[t] = P5_SCHEMAS[t]; else delete DOC_SCHEMAS[t]; });
   }

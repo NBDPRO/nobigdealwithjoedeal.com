@@ -171,6 +171,48 @@ const ackIds = (html) => [...html.matchAll(/<input\b[^>]*data-nbd-ack="([^"]+)"/
     ok('tenant with no payment terms: refused (NBD defaults never leak)', !rn.html, rn.toasts.join('|'));
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  section('3. Emergency Services Request (homeowner only, separate from the contract)');
+  {
+    const T = 'emergency_services_request';
+    const HO = [{ role: 'homeowner', label: 'Homeowner', required: true }];
+    const env = stack({ flags: { docClauseSetV1: true } });
+    const DG = syncOn(env);
+    const CS = env.win.NBDClauseSet;
+    ok('registered with the homeowner as the only (required) signer', !!DG.DOCUMENT_TYPES[T] && DG.DOCUMENT_TYPES[T].defaultSigners.map((s) => s.role + ':' + s.required).join() === 'homeowner:true');
+    ok('pre-flight schema registered under the flag', !!(env.win.DocPreflight && env.win.DocPreflight.DOC_SCHEMAS[T]));
+    const data = { emergencyWork: 'Tarp the north slope and dry in the opening over the kitchen.', signers: HO };
+    const r = await gen(env, T, data);
+    const h = r.html || '';
+    const tx = textOf(h);
+    ok('generate() produced the form', h.length > 4000, r.toasts.join('|'));
+    const party = CS.partyFor(env.win._brand(), true);
+    const sch1 = CS.textV1('SCH-1', { terms: CS.paymentTermsFor(TERMS, true), party })[0];
+    ok('SCH-1 (the emergency-request sentence, by reference to CANC-1) prints verbatim from the registry', sch1 && /separate emergency request/.test(sch1) && tx.indexOf(sch1.replace(/\*\*/g, '')) !== -1);
+    ok('the work being requested is on the form', tx.indexOf('Tarp the north slope and dry in the opening over the kitchen.') !== -1);
+    ok('party block names the legal party', tx.indexOf(NBD_PARTY) !== -1);
+    ok('exactly one signature block (the homeowner), and no contractor By-line', (h.match(/data-nbd-sig="/g) || []).length === 1 && /data-nbd-sig="homeowner"/.test(h) && h.indexOf('By: Joe Deal') === -1);
+    ok('two required recorded ticks (the request, the notice received), no initials', reqIds(h).join() === 'ack:em_request,ack:em_notice' && ackIds(h).length === 2 && !/initial/i.test(h), ackIds(h).join());
+    ok('Ohio property: the sign-by-hand and write-the-date instruction, and a date line for a paper copy', /sign this request by hand and write the date yourself/i.test(tx) && h.indexOf('class="p5-blank"') !== -1);
+    ok('the marker names the Ohio variant and SCH-1', /<!-- nbd:p5 P5_FORMS_V1 emergency_services_request oh SCH-1_V1 -->/.test(h));
+    ok('no claim of what the law requires beyond the memo; no "waive" wording on the customer copy', !/waive|waiver/i.test(tx));
+    ok('never "licensed" or a claim promise; no placeholder on the good copy', !/licensed|we handle|guarantee/i.test(tx) && !/\{\{|\[[A-Z][A-Za-z ]+\]/.test(tx));
+    const ky = await gen(env, T, Object.assign({ address: H.KY_ADDR }, data));
+    const kt = textOf(ky.html || '');
+    ok('Kentucky property: the Kentucky line instead, same two ticks', /Kentucky property: sign and date this request/.test(kt) && !/by hand/.test(kt) && /emergency_services_request ky SCH-1_V1/.test(ky.html || ''), ky.toasts.join('|'));
+    const unk = await gen(env, T, Object.assign({ address: '9 Somewhere Rd' }, data));
+    ok('unreadable state: the stricter Ohio form (fail closed)', /emergency_services_request oh /.test(unk.html || ''), unk.toasts.join('|'));
+    const noWork = await gen(env, T, { signers: HO });
+    ok('no work described: refused (placeholder)', !noWork.html && noWork.toasts.some((m) => /placeholder/i.test(m)), noWork.toasts.join('|'));
+    const noName = await gen(env, T, Object.assign({}, data, { homeownerName: '' }));
+    ok('a blank homeowner name is refused', !noName.html && noName.toasts.some((m) => /name/i.test(m)));
+    const oaks = stack({ flags: { docClauseSetV1: true }, brand: OAKS });
+    syncOn(oaks);
+    const ro = await gen(oaks, T, data);
+    const to = textOf(ro.html || '');
+    ok('tenant: its own entity name, no NBD names', to.indexOf('Oaks Roofing LLC') !== -1 && !/No Big Deal|Joe Deal|\bNBD\b/.test(to), ro.toasts.join('|'));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

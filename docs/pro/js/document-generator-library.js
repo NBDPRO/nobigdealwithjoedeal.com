@@ -693,11 +693,14 @@
   // ═════════════════════════════════════════════════════════════════
   var P5_ENTRIES = {
     property_condition: { name: 'Property Condition & Access Acknowledgment', template: 'renderPropertyCondition', defaultSigners: [HOMEOWNER, REP] },
-    decking_authorization: { name: 'Hidden Conditions / Decking Authorization', template: 'renderDeckingAuthorization', defaultSigners: [HOMEOWNER, REP] }
+    decking_authorization: { name: 'Hidden Conditions / Decking Authorization', template: 'renderDeckingAuthorization', defaultSigners: [HOMEOWNER, REP] },
+    // The homeowner only: the request is the homeowner's, separate from the contract.
+    emergency_services_request: { name: 'Emergency Services Request', template: 'renderEmergencyServicesRequest', defaultSigners: [HOMEOWNER] }
   };
   var P5_FIELDS = {
     property_condition: ['homeownerName', 'address', 'walkedOn', 'pcPhotoIds'],
-    decking_authorization: ['homeownerName', 'address', 'deckingSheets', 'deckingFoundOn', 'deckingWhere', 'deckingPhotoIds']
+    decking_authorization: ['homeownerName', 'address', 'deckingSheets', 'deckingFoundOn', 'deckingWhere', 'deckingPhotoIds'],
+    emergency_services_request: ['homeownerName', 'address', 'emergencyWork']
   };
   function p5Wanted() {
     var w = typeof window !== 'undefined' ? window : null;
@@ -832,6 +835,33 @@
       '<p class="aa-note">' + esc(X.TICK_NOTE_LINE) + '</p></div>');
     parts.push(p5Sig(c, d), T.affiliateRow() + T.footer(X.NAMES.decking_authorization));
     return T.page(X.NAMES.decking_authorization, parts.join(''));
+  };
+
+  // ── 3. EMERGENCY SERVICES REQUEST ──
+  // A SEPARATE request the homeowner signs and dates (tarp / dry-in inside the cancellation window). Homeowner only: no contractor line.
+  // Only what the law memo (KY-OH-CONTRACTOR-LAW-RESEARCH-2026-10-13) says is stated: Ohio, a separate handwritten, dated, signed request
+  // (ORC 1345.21); Kentucky, an exception for work the buyer asks to start without delay (KRS 367.420). Whether a drawn signature on a
+  // screen is "handwritten", and what else the request must say, is open (packet question 9): attorney to confirm. An unreadable state
+  // prints the stricter Ohio line.
+  DG.renderEmergencyServicesRequest = function (data) {
+    T.refresh();
+    var d = Object.assign({ homeownerName: '[Homeowner Name]', address: '[Property Address]', emergencyWork: '[Emergency Work]' }, data);
+    var work = String(d.emergencyWork == null ? '' : d.emergencyWork).trim() || '[Emergency Work]';
+    var c = p5Ctx('emergency_services_request', d), X = c.X;
+    var variant = c.state === 'KY' ? 'ky' : 'oh';
+    var parts = [];
+    parts.push(p5Head(c, d, ''));
+    parts.push(c.P.marker('emergency_services_request', variant, ['SCH-1']));
+    parts.push('<div class="section"><p class="aa-p">' + esc(X.EM_INTRO) + '</p>' + p5Paras(c, 'SCH-1').map(function (p) { return '<p class="aa-p">' + p5Words(p) + '</p>'; }).join('') + '</div>');
+    parts.push('<div class="section"><p class="aa-note">' + esc(X.EM_WORK_H) + '</p><p class="aa-p">' + esc(work) + '</p>' +
+      p5Tick('ack:em_request', esc(X.EM_REQUEST), true) + p5Tick('ack:em_notice', esc(X.EM_NOTICE), true) +
+      '<p class="aa-p">' + esc(variant === 'ky' ? X.EM_KY : X.EM_OH) + '</p>' +
+      '<p class="aa-note">' + esc(X.EM_PAPER) + '</p><div class="p5-blank"></div>' +
+      '<p class="aa-note">' + esc(X.TICK_NOTE) + '</p></div>');
+    var own = Array.isArray(d.signers) && d.signers.length ? d.signers : null;
+    parts.push(own ? '<div class="section">' + DG.renderSignatureBlock(own.filter(function (s) { return !(s && typeof s === 'object' && s.role === 'rep'); })) + '</div>' : T.sigBlock(['Homeowner'], d));
+    parts.push(T.affiliateRow() + T.footer(X.NAMES.emergency_services_request));
+    return T.page(X.NAMES.emergency_services_request, parts.join(''));
   };
 
   // Brand refresh is done inside each renderer (T.refresh()), so these are

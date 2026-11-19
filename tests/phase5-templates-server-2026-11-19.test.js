@@ -40,7 +40,8 @@ const SIGNERS = [{ role: 'homeowner', label: 'Homeowner', required: true }, { ro
 // type -> the data a rep would give it
 const FORMS = {
   property_condition: { propertyCondition: { notes: { driveway: 'Crack by the garage' }, photos: [{ id: 'ph1', item: 'driveway' }] } },
-  decking_authorization: { deckingSheets: 4, deckingPhotos: ['dk1'], deckingWhere: 'North slope' }
+  decking_authorization: { deckingSheets: 4, deckingPhotos: ['dk1'], deckingWhere: 'North slope' },
+  emergency_services_request: { emergencyWork: 'Tarp the north slope.', signers: [{ role: 'homeowner', label: 'Homeowner', required: true }] }
 };
 
 const generated = async (docType, extra) => {

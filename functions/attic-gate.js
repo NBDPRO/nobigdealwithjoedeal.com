@@ -334,7 +334,7 @@ function verifyP5(docType, html, o) {
   sp.lines.forEach((g) => { if (!(groups[g] && groups[g].yes && groups[g].no)) bad.push('missing_line:' + g); });
   if (scan.unterminated) bad.push('unterminated');
   const text = _norm(scan.text);
-  P5.fragments(docType).forEach((p, i) => { if (text.indexOf(_norm(p)) === -1) bad.push('wording:' + i); });
+  P5.fragments(docType, sp.variant).forEach((p, i) => { if (text.indexOf(_norm(p)) === -1) bad.push('wording:' + i); });
   _risks(scan, parsed, o).forEach((c) => bad.push(c));
   return { ok: bad.length === 0, reasons: bad.slice(0, 12) };
 }
