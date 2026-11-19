@@ -245,7 +245,9 @@
       // 2026-11-18 attic acknowledgment (flag docAtticAckV1): wording, then logic. Same group, loaded together.
       'js/attic-ack-text.js?v=1',
       'js/attic-ack.js?v=5',
-      'js/attic-panel.js?v=6'
+      'js/attic-panel.js?v=6',
+      // 2026-11-18 card fee v1 (flag docCardFeeV1): pure fee rules, read by the invoice and receipt at call time. No fee is charged.
+      'js/card-fee.js?v=1'
     ],
     // Estimate engine (PR 2c). The revenue-critical builder + its product/
     // catalog data. Only needed when the rep builds an estimate, opens the

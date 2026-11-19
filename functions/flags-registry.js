@@ -291,6 +291,10 @@ const FIRESTORE_FLAGS = [
     meaning: 'Prints the clause set v1 (payment, late, change-order, lien, warranty, dispute and party text) on new contracts and refuses a send that lacks a Company Profile payment term. Off = every document is byte-identical. Per person.' },
   { name: 'docAtticAckV1', default: false, dark: true, file: 'doc-evidence.js', doc: 'documentation/projects/ATTIC-ACK-V1-2026-11-18.md',
     meaning: 'Attic, Ventilation & Moisture Acknowledgment: the rep attic panel, the signed form or not-inspected page, and the gate that stops a re-roof contract being sent or signed without one. Off = nothing changes. Per person. New contracts only.' },
+  { name: 'docSignPanelV1', default: false, dark: true, file: 'doc-evidence.js', doc: 'documentation/projects/SIGN-LINK-PANEL-2026-11-18.md',
+    meaning: 'Sign-link panel: Send for Signature shows a QR, Text link, Copy link, Email it and Make a new link; a link can be made with no email and lasts 14 days. Off = the old prompt and 7-day email link. Per person.' },
+  { name: 'docCardFeeV1', default: false, dark: true, file: 'card-fee.js', doc: 'documentation/projects/CARD-FEE-V1-2026-11-18.md',
+    meaning: 'Credit-card fee rules (3% credit only, never debit or prepaid, none on Kentucky insurance), the fee line on receipt and invoice, the pay-page sentence. Off = nothing changes. No fee is charged yet: no funding-aware charge path exists.' },
 ];
 
 module.exports = { buildResponse, FLAGS, GROUPS, ENV_DOC, FIRESTORE_FLAGS, flagStatus, parseCommitted, isSafeName, safeValue, stateFor, SECRET_NAME_RE };

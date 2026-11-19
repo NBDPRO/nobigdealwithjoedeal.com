@@ -227,7 +227,8 @@ function signablePathUid(htmlPath, leadId) {
  * this misses one.
  */
 const SUPERSEDED_MSG = 'This signing link was replaced by a newer one. Use the latest link from your rep.';
-async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why) {
+async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why, linkSeq) {
+  let n = 0;
   try {
     const snap = await db.collection('doc_sign_tokens').where('leadId', '==', leadId).where('status', '==', 'pending').get();
     for (const d of snap.docs) {
@@ -239,11 +240,44 @@ async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why) {
         try { const ds = await db.doc(`leads/${leadId}/documents/${t.docId}`).get(); type = ds.exists ? (ds.data() || {}).type : null; } catch (_) { type = null; }
       }
       if (!CW.isContractDocType(type)) continue;
+      // Flag docSignPanelV1 only (linkSeq given): never retire a link with a higher sequence number than this mint (review item 5).
+      if (Number.isFinite(linkSeq) && Number.isFinite(t.linkSeq) && (t.linkSeq > linkSeq || (t.linkSeq === linkSeq && String(d.id) > String(keepToken)))) continue;
       await db.doc(`doc_sign_tokens/${d.id}`).update({ status: 'superseded', supersededBy: keepToken || null, supersededWhy: why, supersededAt: FieldValue.serverTimestamp() });
+      n++;
     }
   } catch (e) {
     logger.warn('[remoteSigning] supersede older contract links failed', { leadId, err: e && e.message });
+    return { n, error: true };
   }
+  return { n, error: false };
+}
+
+/**
+ * Flag docSignPanelV1: retire this lead's other pending links for the SAME document (any type), the one-tap "make a new
+ * link" (Q60). Only the lead owner's tokens. Best-effort like the contract version: a miss never blocks the new link.
+ * Security review 2026-11-18, item 5: only a link OLDER than this mint (a lower linkSeq: a per-document counter bumped in a transaction, so the mint now running always outranks every link made before it) is
+ * retired, never a newer one, so two concurrent mints cannot retire each other and leave no live link. A link with no
+ * linkSeq (minted before this field, or with the flag off) counts as older. Equal sequence numbers (only possible if two transactions raced) fall back to the token id.
+ * Returns { n: how many were retired, error: true when the query or an update failed }.
+ */
+async function supersedeDocTokens(db, leadId, ownerUid, docId, keepToken, why, linkSeq) {
+  let n = 0;
+  try {
+    const snap = await db.collection('doc_sign_tokens').where('leadId', '==', leadId).where('status', '==', 'pending').get();
+    for (const d of snap.docs) {
+      if (d.id === keepToken) continue;
+      const t = d.data() || {};
+      if (t.ownerUid !== ownerUid || t.docId !== docId) continue;
+      const theirs = Number.isFinite(t.linkSeq) ? t.linkSeq : -Infinity;
+      if (theirs > linkSeq || (theirs === linkSeq && String(d.id) > String(keepToken))) continue; // newer than this mint: leave it live
+      await db.doc(`doc_sign_tokens/${d.id}`).update({ status: 'superseded', supersededBy: keepToken || null, supersededWhy: why, supersededAt: FieldValue.serverTimestamp() });
+      n++;
+    }
+  } catch (e) {
+    logger.warn('[remoteSigning] supersede older document links failed', { leadId, err: e && e.message });
+    return { n, error: true };
+  }
+  return { n, error: false };
 }
 
 async function signableHtmlPathOk(db, htmlPath, leadId, lead) {
@@ -382,17 +416,26 @@ exports.createSignRequest = onCall(
     // A compromised rep session could otherwise mint tokens / send mail
     // in a loop. 20/min/uid is far above any real workflow.
     await callableRateLimit(request, 'createSignRequest', 20, 60_000);
+    const d = request.data || {};
+    // Signing-ease lane (flag docSignPanelV1, Jo's Q48): sendEmail:false asks for a link with NO email, for the QR / text /
+    // copy panel. It relaxes the email-required and on-record checks below ONLY when that flag is on for the caller; with the
+    // flag off the parameter is ignored and every check is exactly the old one. Only this request reads the flag strictly.
+    const linkOnlyAsked = d.sendEmail === false;
+    const linkOnlyFlag = linkOnlyAsked ? await DE.signPanelFlagForGate(getFirestore(), uid, HttpsError) : false;
     // R3-11: and a daily cap, shared with the e-sign envelope sends — this
     // mails from the platform domain and sign-up is open.
-    await callableRateLimit(request, 'signLinkEmailDaily', ESL.SIGN_EMAIL_DAILY_CAP, 86_400_000);
+    // Security review 2026-11-18, item 4: a link-only mint sends no email, so it draws its OWN, larger counter and cannot
+    // starve the email sends. A flag-off caller who sends sendEmail:false still emails, so it still draws the email counter.
+    if (linkOnlyAsked && linkOnlyFlag) await callableRateLimit(request, 'signLinkOnlyDaily', ESL.SIGN_LINK_ONLY_DAILY_CAP, 86_400_000);
+    else await callableRateLimit(request, 'signLinkEmailDaily', ESL.SIGN_EMAIL_DAILY_CAP, 86_400_000);
 
-    const d = request.data || {};
     const leadId = typeof d.leadId === 'string' ? d.leadId : null;
     const docId = typeof d.docId === 'string' ? d.docId : null;
     const signerEmail = typeof d.signerEmail === 'string' ? d.signerEmail.trim() : '';
     const signerName = typeof d.signerName === 'string' ? d.signerName.trim().slice(0, 120) : '';
     if (!leadId || !docId) throw new HttpsError('invalid-argument', 'leadId and docId required');
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(signerEmail)) {
+    const emailShapeOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(signerEmail);
+    if (!linkOnlyAsked && !emailShapeOk) {
       throw new HttpsError('invalid-argument', 'A valid signer email is required');
     }
 
@@ -405,7 +448,14 @@ exports.createSignRequest = onCall(
     if (lead.userId !== uid && !isAdmin) throw new HttpsError('permission-denied', 'Not your lead');
     // R3-11: the link goes only to an email on this lead's record (its email,
     // or a saved alternate) — never to any address the caller types.
-    if (!ESL.recipientOnRecord(lead, signerEmail)) {
+    // Only the link-only request (sendEmail:false) reads the flag strictly (a read that fails refuses, retryable). Every other
+    // caller reads it loosely (a failed read = off), so a flag-read problem never changes the ordinary email mint.
+    const signPanelOn = linkOnlyAsked ? linkOnlyFlag : await DE.signPanelFlagLoose(db, uid);
+    const noEmailMint = linkOnlyAsked && signPanelOn;
+    if (linkOnlyAsked && !signPanelOn && !emailShapeOk) {
+      throw new HttpsError('invalid-argument', 'A valid signer email is required');
+    }
+    if (!noEmailMint && !ESL.recipientOnRecord(lead, signerEmail)) {
       throw new HttpsError('failed-precondition', ESL.SIGN_EMAIL_NOT_ON_RECORD);
     }
 
@@ -506,9 +556,35 @@ exports.createSignRequest = onCall(
     }
 
     const now = Date.now();
-    const ttlDays = 7;
+    const ttlDays = signPanelOn ? 14 : 7; // Q61: 14 days, only for a caller with docSignPanelV1
     const expiresAt = Timestamp.fromMillis(now + ttlDays * 86_400_000);
     const token = mintSignToken();
+    // Flag docSignPanelV1 (security review item 5): a strictly increasing per-document sequence number, taken in a transaction on
+    // the document row. The mint now running always outranks every link made before it, whatever the clock says.
+    // The row counter is rules-protected, but a tampered or missing value is still safe: it counts as 0 unless it is a sane
+    // non-negative integer, and the number is never below the highest live link of this document, so a reset cannot keep one alive.
+    let linkSeq = null;
+    if (signPanelOn) {
+      try {
+        let liveMax = 0;
+        try {
+          const live = await db.collection('doc_sign_tokens').where('leadId', '==', leadId).where('status', '==', 'pending').get();
+          live.docs.forEach((x) => { const t = x.data() || {}; if (t.docId === docId && Number.isSafeInteger(t.linkSeq) && t.linkSeq > liveMax) liveMax = t.linkSeq; });
+        } catch (_) { liveMax = 0; /* the retire step below reports a failed query */ }
+        linkSeq = await db.runTransaction(async (tx) => {
+          const ref = db.doc(`leads/${leadId}/documents/${docId}`);
+          const s = await tx.get(ref);
+          const raw = s.exists ? (s.data() || {}).linkSeq : 0;
+          const cur = Number.isSafeInteger(raw) && raw >= 0 ? raw : 0;
+          const next = Math.max(cur, liveMax) + 1;
+          tx.set(ref, { linkSeq: next }, { merge: true });
+          return next;
+        });
+      } catch (e) {
+        logger.warn('[createSignRequest] link sequence failed', { leadId, docId, err: e && e.message });
+        throw new HttpsError('unavailable', 'Could not make the link just now. Nothing was sent. Try again in a moment.');
+      }
+    }
 
     // Multi-tenant branding: resolve the tenant's legal name so the signing
     // email AND the sign-page chrome announce THEIR company, not NBD. Keyed
@@ -572,11 +648,13 @@ exports.createSignRequest = onCall(
       htmlPath,
       docTypeName: docMeta.typeName || docMeta.type || 'Document',
       signerName: signerName || (lead.firstName ? `${lead.firstName} ${lead.lastName || ''}`.trim() : ''),
-      signerEmail,
+      signerEmail: noEmailMint ? '' : signerEmail,
       // '' for NBD → sign.html keeps its NBD literals byte-identical.
       companyName: tenantName || '',
       docType: typeof docMeta.type === 'string' ? docMeta.type.slice(0, 60) : null,
       consentAsked: flagOnAtMint === true,
+      // Flag docSignPanelV1 only (security review item 3): how this bearer link was delivered; the signing evidence carries it.
+      ...(signPanelOn ? { deliveryChannel: noEmailMint ? 'link_only' : 'email', mintedAtMs: now, linkSeq } : {}),
       priceSnapshot,
       ...(isContract && !priceSnapshot ? { priceSnapshotMissing: true, priceLockReason } : {}),
       // Evidence parity (2026-11-18): the clause set this document was sent under.
@@ -589,14 +667,28 @@ exports.createSignRequest = onCall(
     // One live contract link per customer (review H1, 2026-11-14): a new
     // contract link retires the older pending ones, so a homeowner can't sign
     // yesterday's price after today's (the e-sign envelope does the same).
-    if (isContract) await supersedeContractTokens(db, leadId, lead.userId, token, 'new_link');
+    // Flag docSignPanelV1 (Q60, "make a new link"): a new link also retires the older pending link of the SAME document, whatever
+    // its type, so only one link per document is ever live. Flag off: only the contract rule above, as before.
+    let supersededOld = false;
+    let supersedeError = false;
+    if (isContract) {
+      const cr = await supersedeContractTokens(db, leadId, lead.userId, token, 'new_link', signPanelOn ? linkSeq : undefined);
+      supersededOld = cr.n > 0;
+      if (cr.error && signPanelOn) supersedeError = true; // flag off: best-effort and silent, as on main
+    }
+    if (signPanelOn) {
+      const sr = await supersedeDocTokens(db, leadId, lead.userId, docId, token, 'new_link', linkSeq);
+      if (sr.error) supersedeError = true;
+      else if (sr.n > 0) supersededOld = true;
+    }
 
     // Document lifecycle: draft -> sent. Best-effort and separate from the
     // token above (doc_sign_tokens.status is the token's own pending/signed/
     // expired state) — a failure here must not stop the mint+email below,
     // it only means the CRM's "awaiting signature" label doesn't light up.
+    // A link-only link delivered nothing, so it does not mark the document "sent" (security review item 4); it records the mint.
     try {
-      await db.doc(`leads/${leadId}/documents/${docId}`).set({ status: 'sent' }, { merge: true });
+      await db.doc(`leads/${leadId}/documents/${docId}`).set(noEmailMint ? { linkMintedAt: FieldValue.serverTimestamp() } : { status: 'sent' }, { merge: true });
     } catch (e) {
       logger.warn('[createSignRequest] status stamp failed', { leadId, docId, err: e.message });
     }
@@ -605,7 +697,7 @@ exports.createSignRequest = onCall(
     // as email-functions.js). Best-effort — the token is already minted,
     // so a transient mail failure surfaces to the rep without losing it.
     let emailed = false;
-    try {
+    if (!noEmailMint) try {
       const { Resend } = require('resend');
       const resend = new Resend(RESEND_API_KEY.value());
       const fromEmail = secretOr(EMAIL_FROM, 'noreply@nobigdealwithjoedeal.com');
@@ -625,7 +717,7 @@ exports.createSignRequest = onCall(
           <p style="text-align:center;margin:28px 0;">
             <a href="${escHtml(link)}" style="background:#bd5728;color:#fff;text-decoration:none;padding:13px 26px;border-radius:8px;font-weight:700;display:inline-block;">Review &amp; Sign</a>
           </p>
-          <p style="font-size:12px;color:#666;">This secure link expires in 7 days and can only be used once. If you didn't expect this, you can ignore the email.</p>
+          <p style="font-size:12px;color:#666;">This secure link expires in ${ttlDays} days and can only be used once. If you didn't expect this, you can ignore the email.</p>
         </div>`,
       });
       // Resend resolves { data: null, error } on an API-level rejection
@@ -644,6 +736,8 @@ exports.createSignRequest = onCall(
     logger.info('[createSignRequest] minted', { leadId, docId, emailed });
     return {
       token, expiresAt: expiresAt.toMillis(), emailed, signLink: SIGN_URL_BASE + token,
+      // supersededOld is null (not false) with supersedeError:true when the old links could not be checked.
+      ...(signPanelOn ? { supersededOld: supersedeError ? null : supersededOld, ...(supersedeError ? { supersedeError: true } : {}) } : {}),
       // null = not a contract (nothing to lock); false = sent without a
       // locked price, with why (the viewer warns the rep).
       priceLocked: isContract ? !!priceSnapshot : null,
@@ -964,12 +1058,14 @@ exports.submitSignature = onRequest(
           evidenceFacts: Object.assign({}, evidenceFacts, {
             clauseSetVersion: t.clauseSetVersion || null, clauseIds: Array.isArray(t.clauseIds) ? t.clauseIds : [],
             clauseRefsMismatch: t.clauseRefsMismatch === true,
+            ...(DE.DELIVERY_CHANNELS.indexOf(t.deliveryChannel) !== -1 ? { deliveryChannel: t.deliveryChannel, mintedBy: t.mintedBy || null } : {}),
           }),
         });
         return { leadId: t.leadId, docId: t.docId, ownerUid: t.ownerUid, htmlPath: t.htmlPath, signerName: t.signerName || '',
           docType: t.docType || null,
           clauseSetVersion: t.clauseSetVersion || null, clauseIds: Array.isArray(t.clauseIds) ? t.clauseIds : [],
           clauseRefsMismatch: t.clauseRefsMismatch === true,
+          deliveryChannel: t.deliveryChannel || null, mintedBy: t.mintedBy || null,
           priceSnapshot: (t.priceSnapshot && typeof t.priceSnapshot === 'object') ? t.priceSnapshot : null,
           priceSnapshotMissing: t.priceSnapshotMissing === true, priceLockReason: t.priceLockReason || null };
       });
@@ -1078,6 +1174,7 @@ exports.submitSignature = onRequest(
       signatureEvidence: DE.buildEvidence({
         path: 'remote_link',
         clauseSetVersion: info.clauseSetVersion, clauseIds: info.clauseIds, clauseRefsMismatch: info.clauseRefsMismatch === true,
+        deliveryChannel: info.deliveryChannel, mintedBy: info.mintedBy,
         documentSha256: originalHtml ? sha(originalHtml) : null,
         signedSha256: recordSaved ? sha(recordHtml) : null,
         consent: consentAsked ? { agreed: true, text: ESL.CONSENT_TEXT, at: signedAtNow.getTime() } : { agreed: null },

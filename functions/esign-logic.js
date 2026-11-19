@@ -355,6 +355,7 @@ function signedCopyEmail(o) {
 // the lead as an alternate (lead.altEmails — e.g. a co-owner). Compared
 // trimmed and case-insensitive. Pure.
 const SIGN_EMAIL_DAILY_CAP = 50;          // sign-link sends per user per day, both flows together
+const SIGN_LINK_ONLY_DAILY_CAP = 200;     // link-only mints (docSignPanelV1, no email sent) per user per day: their own counter
 const SIGN_EMAIL_NOT_ON_RECORD = "That email isn't on this customer's record. Save it on the customer first (their email, or an alternate email), then send.";
 
 function emailsOnRecord(lead) {
@@ -372,7 +373,7 @@ function recipientOnRecord(lead, email) {
 }
 
 module.exports = {
-  SIGN_EMAIL_DAILY_CAP, SIGN_EMAIL_NOT_ON_RECORD, emailsOnRecord, recipientOnRecord,
+  SIGN_EMAIL_DAILY_CAP, SIGN_LINK_ONLY_DAILY_CAP, SIGN_EMAIL_NOT_ON_RECORD, emailsOnRecord, recipientOnRecord,
   MAX_SIGNERS, DEFAULT_SIGNER_ID, CONSENT_TEXT, REMINDER_EVERY_MS, REMINDER_MAX, REQUIRED_EVIDENCE, EMAIL_RE,
   normalizeSigners, fieldsForSigner, nextPendingSigner, signerForToken, sanitizeSignerInput,
   validateSignerLayout, pickSignerValues, buildSignerEvidence, missingEvidence, estimateStatusFor,
