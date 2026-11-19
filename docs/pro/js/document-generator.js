@@ -327,6 +327,38 @@ window.NBDDocGen = {
     return false;
   },
 
+  /**
+   * Paper copies (flag docClauseSetV1, default off; Jo's decision Q49): a printed contract-class document carries its
+   * document id and a short digest in a footer line, so a paper-signed copy can be linked back to the original it
+   * came from. The digest is the SHA-256 of the stored document (the one the signing paths record), which is why the
+   * footer is added to the copy the viewer shows and prints, never to the stored original.
+   */
+  _paperFooterWanted(type) {
+    try {
+      if (!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('docClauseSetV1'))) return false;
+      const C = window.NBDDocSendChecks;
+      return !!(C && typeof C.isContractClass === 'function' && C.isContractClass(type));
+    } catch (_) { return false; }
+  },
+
+  /** The footer line, added before </body>. docId is sanitised; sha is the full hex digest (12 characters print). */
+  _withPaperFooter(html, docId, sha) {
+    const id = String(docId || '').replace(/[^A-Za-z0-9_-]/g, '');
+    const short = String(sha || '').replace(/[^a-f0-9]/g, '').slice(0, 12);
+    if (!id || short.length !== 12) return html;
+    const line = '<div data-nbd-paper-footer="1" style="margin:18px 0 0;padding-top:6px;border-top:1px solid #DFE2E7;font:9px/1.3 Lato,Arial,sans-serif;color:#4C4C4D;text-align:center;">Document ID ' + id + ' &middot; Digest ' + short + '</div>';
+    const s = String(html || '');
+    const at = s.toLowerCase().lastIndexOf('</body>');
+    return at === -1 ? s + line : s.slice(0, at) + line + s.slice(at);
+  },
+
+  /** For a stored, unsigned document being reopened: its html with the footer, or '' when the flag is off or the type does not carry one. */
+  async paperFooterForStored(html, docId, type) {
+    if (!this._paperFooterWanted(type)) return '';
+    const sha = await this._sha256Hex(html);
+    return sha ? this._withPaperFooter(html, docId, sha) : '';
+  },
+
   /** SHA-256 hex of a string (the digest of the document as presented), or null when unavailable. */
   async _sha256Hex(text) {
     try {
@@ -945,6 +977,22 @@ window.NBDDocGen = {
     // digest of the signed copy; flag docEvidenceFoundation only.
     const _evidenceOn = this._docEvidenceOn();
     const _presentedSha = _evidenceOn ? await this._sha256Hex(html) : null;
+    // Paper copy footer (flag docClauseSetV1, contract class): the document's id is minted now, so the printed copy can
+    // carry it; the row is saved under that id below. _viewHtml is what the viewer shows and prints; the stored original
+    // (and so every digest) stays exactly `html`. Flag off: _viewHtml === html and the row is created by addDoc as before.
+    let _paperRef = null;
+    let _viewHtml = html;
+    {
+      const _lid = data.leadId || (data.customer && data.customer.id) || window._customerId || null;
+      if (_lid && !data._isBlankPreview && window.db && window.collection && window.doc && window.setDoc && this._paperFooterWanted(type)) {
+        try {
+          const ref = window.doc(window.collection(window.db, 'leads', _lid, 'documents'));
+          const sha = await this._sha256Hex(html);
+          const withFooter = (ref && ref.id && sha) ? this._withPaperFooter(html, ref.id, sha) : html;
+          if (withFooter !== html) { _paperRef = ref; _viewHtml = withFooter; }
+        } catch (_) { _paperRef = null; _viewHtml = html; }
+      }
+    }
     // Route through the Universal Document Viewer so the user
     // can Save / Email / Print / PDF / Close without being dumped
     // into a blank popup with no way to persist the doc.
@@ -1009,8 +1057,7 @@ window.NBDDocGen = {
             console.warn('Document HTML upload failed:', e && e.message);
           }
           try {
-            _docMetaRef = await window.addDoc(
-              window.collection(window.db, 'leads', _leadIdEarly, 'documents'),
+            const _docRow =
               {
                 type: type,
                 typeName: typeName,
@@ -1035,8 +1082,10 @@ window.NBDDocGen = {
                   total: (data.estimate && data.estimate.grandTotal) || data.total || null,
                   address: (data.customer && data.customer.address) || null
                 }
-              }
-            );
+              };
+            // Flag on + contract class: created under the id the printed footer carries. Otherwise addDoc, as always.
+            if (_paperRef) { await window.setDoc(_paperRef, _docRow); _docMetaRef = _paperRef; }
+            else { _docMetaRef = await window.addDoc(window.collection(window.db, 'leads', _leadIdEarly, 'documents'), _docRow); }
           } catch (e) {
             console.warn('Document metadata persist failed:', e && e.message);
           }
@@ -1063,7 +1112,7 @@ window.NBDDocGen = {
       // fetched when the doc actually has signers — zero cost otherwise.
       const _savedSigs = hasSigners ? await this._fetchSavedSignatures(_leadIdEarly) : null;
       window.NBDDocViewer.open({
-        html: html,
+        html: _viewHtml,
         title: typeName + (customerName ? ' — ' + customerName : ''),
         filename: _filename,
         savedSigs: _savedSigs,

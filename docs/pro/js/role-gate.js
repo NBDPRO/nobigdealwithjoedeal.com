@@ -74,7 +74,7 @@
     // documents (generate, upload, signed upload, delete) + photo reports.
     // generateCustomerDoc tiles and docgen rows are BLOCK_ONLY below, not here.
     'openDocCreateModal', 'openDocUploadModal', 'uploadDocuments', 'uploadSignedDoc',
-    '_pickCustomerDoc', 'deleteCustomerDoc',
+    '_pickCustomerDoc', 'deleteCustomerDoc', 'certifyPaperDoc',
     'openPhotoReportPicker', 'generatePhotoReport',
     // estimates
     'openEstimateModal', 'saveEstimate', '_openInDashboardEstimate', '_openInDashboardJobTemplates',

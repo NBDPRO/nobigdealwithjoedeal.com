@@ -360,6 +360,8 @@ const CASES = [
   { fn: 'createSignRequest', file: 'remote-signing.js', kind: 'call', data: { leadId: 'lead-1', docId: 'doc-1', signerEmail: 'sam@example.com', signerName: 'Sam' } },
   // 2026-10-03: in-person signing moves the card + drafts the deposit invoice.
   { fn: 'recordInPersonSignature', file: 'in-person-signing.js', kind: 'call', data: { leadId: 'lead-1', docId: 'doc-1' } },
+  // 2026-11-18: paper certification (a viewer is refused before anything else).
+  { fn: 'attestWetSigned', file: 'paper-cert.js', kind: 'call', data: { leadId: 'lead-1', docId: 'doc-1' } },
   // 2026-11-18: the owner/admin attic override (a viewer is refused before anything else).
   { fn: 'recordAtticOverride', file: 'attic-override.js', kind: 'call', data: { leadId: 'lead-1', reason: 'Homeowner would not sign the page' } },
   // 2026-10-04: BoldSign's sendEstimateForSignature retired; the estimate's
@@ -471,6 +473,8 @@ const VERDICTS = {
   createReportShareToken: 'refused', createSignRequest: 'refused', createTeamInvite: 'role-gated',
   recordInPersonSignature: 'refused',
   recordAtticOverride: 'refused',
+  // 2026-11-18: paper certification (a viewer is read-only; the lead's owner or same-company staff certify).
+  attestWetSigned: 'refused',
   // "Use it" on the homeowner's accepted tier (2026-10-07, R6-2-4): rebuilds the estimate.
   useAcceptedTier: 'refused',
   // Send for review / Fresh link (2026-10-03, estimate-send.js): mint or revoke a homeowner link.

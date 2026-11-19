@@ -124,6 +124,147 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
       ok('original of a different type is refused', !!e && e.code === 'failed-precondition', e && e.code); }
   }
 
+  // ───────────────────────── 1b. paper certification: the browser side ─────────────────────────
+  section('1b. upload writer (flag off = today\'s record, flag on = waits for certification)');
+  const vm = require('vm');
+  const H = require('./helpers/clause-v1-harness');
+  const runUpload = async (flagOn, paperCert, loadBundle) => {
+    const added = []; const toasts = [];
+    const sb = { console: { log() {}, warn() {}, error() {} }, setTimeout, Date, Promise };
+    sb.window = sb;
+    Object.assign(sb, {
+      auth: { currentUser: { uid: 'REP' } }, _customerId: 'L1', db: {}, storage: {},
+      ref: (_s, p) => ({ p }), uploadBytes: async () => {}, getDownloadURL: async () => 'https://x.test/scan.jpg',
+      collection: (_d, ...parts) => ({ path: parts.join('/') }), serverTimestamp: () => 'TS',
+      addDoc: async (c, payload) => { added.push({ c: c.path, payload }); return { id: 'NEW' }; },
+      showToast: (m) => toasts.push(String(m)),
+      NBDFlags: { enabled: (n) => flagOn && n === 'docClauseSetV1' },
+      NBDCustomerDocs: { refresh: async () => {} },
+    });
+    if (paperCert) sb.NBDPaperCert = paperCert;
+    if (loadBundle) sb.ScriptLoader = { loadBundle: async (n) => { loadBundle(sb, n); } };
+    vm.createContext(sb);
+    vm.runInContext(src('docs/pro/js/customer-signed-doc-upload.js'), sb, { filename: 'customer-signed-doc-upload.js' });
+    const input = { files: [{ name: 'scan 1.jpg', size: 1000, type: 'image/jpeg' }], value: 'x' };
+    await sb.handleSignedDocUpload(input);
+    return { added, toasts };
+  };
+  { const r = await runUpload(false, null);
+    ok('flag off: one row, the exact record shape main writes',
+      r.added.length === 1 && Object.keys(r.added[0].payload).sort().join(',') === 'name,size,source,status,type,uploadedAt,uploadedBy,url'
+      && r.added[0].payload.status === 'signed' && r.added[0].payload.source === 'signed_upload', JSON.stringify(r.added[0] && Object.keys(r.added[0].payload))); }
+  { const form = { docType: 'contract', originalDocId: 'ORIG', signedOn: '2026-11-17', witnessName: 'Pat' };
+    const r = await runUpload(true, { collect: async () => form });
+    const p = r.added[0] && r.added[0].payload;
+    ok('flag on: the row waits (status wet_signed_uploaded), never signed', !!p && p.status === 'wet_signed_uploaded' && p.source === 'signed_upload', JSON.stringify(p));
+    ok('flag on: type, link to the original, signing date and witness are recorded',
+      p.wetSignedDocType === 'contract' && p.originalDocId === 'ORIG' && p.wetSignedOn === '2026-11-17' && p.witnessName === 'Pat');
+    ok('flag on: the upload writes no attestation field (server-owned)', !('wetSignedAttestation' in p) && !('wetSignedEvidence' in p) && !('signedAt' in p)); }
+  { const r = await runUpload(true, { collect: async () => ({ docType: 'other', originalDocId: '', signedOn: '2026-11-17', witnessName: '' }) });
+    const p = r.added[0].payload;
+    ok('flag on: no original and no witness leaves those keys out', !('originalDocId' in p) && !('witnessName' in p) && p.wetSignedDocType === 'other'); }
+  { const r = await runUpload(true, { collect: async () => null });
+    ok('flag on: cancelling the form uploads nothing', r.added.length === 0); }
+  { const r = await runUpload(true, null, null);
+    ok('flag on but the certification form did not load: nothing is written (never falls back to "signed")', r.added.length === 0 && r.toasts.some((t) => /could not|did not load|try again/i.test(t)), JSON.stringify(r.toasts)); }
+  { const r = await runUpload(true, null, (sb, n) => { if (n === 'docgen') sb.NBDPaperCert = { collect: async () => ({ docType: 'contract', originalDocId: '', signedOn: '2026-11-17', witnessName: '' }) }; });
+    ok('flag on: the form is loaded on demand from the docgen bundle', r.added.length === 1 && r.added[0].payload.status === 'wet_signed_uploaded'); }
+
+  section('1b. documents list: "Uploaded, not certified"');
+  const loadDocs = async (rows) => {
+    const els = {};
+    const sb = { console: { log() {}, warn() {}, error() {} }, setTimeout, clearTimeout, Date, document: { addEventListener() {}, getElementById(id) { return (els[id] = els[id] || { id, innerHTML: '' }); } } };
+    sb.window = sb; sb._customerId = 'L1'; sb.db = {}; sb.auth = { currentUser: { uid: 'REP' } };
+    sb.collection = (_d, ...p) => ({ path: p.join('/') }); sb.query = (c) => ({ legacy: true, ref: c }); sb.where = () => ({}); sb.doc = (_d, ...p) => ({ path: p.join('/') });
+    sb.getDocs = async (ref) => (ref && ref.legacy ? { docs: [] } : { docs: rows.map((d) => ({ id: d.id, data: () => d })) });
+    vm.runInNewContext(src('docs/pro/js/customer-documents.js'), sb, { filename: 'customer-documents.js' });
+    await sb.NBDCustomerDocs.load('L1');
+    return { sb, html: els.signedDocsList.innerHTML };
+  };
+  const day = (iso) => ({ toDate: () => new Date(iso) });
+  { const r = await loadDocs([{ id: 'W1', name: 'scan.jpg', url: 'https://x.test/s.jpg', source: 'signed_upload', status: 'wet_signed_uploaded', type: 'image/jpeg', wetSignedDocType: 'contract', uploadedAt: day('2026-11-17T10:00:00Z') }]);
+    ok('a waiting upload says "Uploaded, not certified"', /Uploaded, not certified/.test(r.html), r.html.slice(0, 300));
+    ok('a waiting upload is NOT marked signed (the old inference read "signed_upload" as signed)', !/✓ Signed/.test(r.html));
+    ok('a waiting upload offers the certify button', /data-action="certifyPaperDoc"[^>]*data-arg="W1"/.test(r.html));
+    ok('the document-type chip does not read the MIME type', r.sb._customerDocs[0].signed === false); }
+  { const r = await loadDocs([{ id: 'W2', name: 'scan.jpg', url: 'https://x.test/s.jpg', source: 'signed_upload', status: 'signed', signedAt: day('2026-11-17T12:00:00Z'), wetSignedAttestation: { byUid: 'REP' }, uploadedAt: day('2026-11-17T10:00:00Z') }]);
+    ok('a certified upload reads Signed and offers no certify button', /✓ Signed/.test(r.html) && !/certifyPaperDoc/.test(r.html) && !/not certified/.test(r.html)); }
+  { const r = await loadDocs([{ id: 'U9', name: 'old.jpg', url: 'https://x.test/o.jpg', source: 'signed_upload', status: 'signed', uploadedAt: day('2026-11-01T10:00:00Z') }]);
+    ok('a pre-existing signed upload is unchanged (no certify button, still Signed)', /✓ Signed/.test(r.html) && !/certifyPaperDoc|not certified/.test(r.html)); }
+
+  section('1b. paper-cert.js (the on-demand form and the certify call)');
+  { const pcSrc = (() => { try { return src('docs/pro/js/paper-cert.js'); } catch (e) { return null; } })();
+    ok('docs/pro/js/paper-cert.js exists', !!pcSrc);
+    if (pcSrc) {
+      const calls = []; const toasts = [];
+      const sb = { console: { log() {}, warn() {}, error() {} }, setTimeout, Date, Promise };
+      sb.window = sb; sb._customerId = 'L1';
+      sb._customerDocs = [
+        { id: 'C1', generated: true, docType: 'contract', htmlPath: 'documents/REP/L1/a.html', name: 'c1' },
+        { id: 'C2', generated: true, docType: 'work_authorization', htmlPath: 'documents/REP/L1/b.html', name: 'wa' },
+        { id: 'U1', generated: false, docType: null, name: 'scan' },
+      ];
+      sb._functions = {}; sb._httpsCallable = (_f, name) => async (payload) => { calls.push({ name, payload }); return { data: { ok: true } }; };
+      sb.showToast = (m) => toasts.push(String(m));
+      sb.NBDCustomerDocs = { refresh: async () => { calls.push({ name: 'refresh' }); } };
+      vm.createContext(sb);
+      vm.runInContext(pcSrc, sb, { filename: 'paper-cert.js' });
+      const PC = sb.NBDPaperCert;
+      ok('exports collect, certify and the attestation sentence', !!PC && typeof PC.collect === 'function' && typeof PC.certify === 'function');
+      ok('the sentence shown is the one the server writes', !!PC && PC.ATTEST_TEXT === L.ATTEST_TEXT);
+      ok('the originals offered are this customer\'s generated documents of that type',
+        JSON.stringify(PC.originalsFor('contract').map((d) => d.id)) === '["C1"]' && PC.originalsFor('other').length === 0);
+      ok('the form check: a date is required and cannot be in the future',
+        PC.checkForm({ docType: 'contract', signedOn: '' }) !== '' && PC.checkForm({ docType: 'contract', signedOn: '2099-01-01' }) !== ''
+        && PC.checkForm({ docType: 'contract', signedOn: '2026-11-17' }) === '' && PC.checkForm({ docType: 'wire', signedOn: '2026-11-17' }) !== '');
+      PC._setPrompt(async () => ({ witnessName: ' Chris ' }));
+      await PC.certify('W1');
+      const c = calls.find((x) => x.name === 'attestWetSigned');
+      ok('certify calls attestWetSigned with the ids and the trimmed witness', !!c && c.payload.leadId === 'L1' && c.payload.docId === 'W1' && c.payload.witnessName === 'Chris', JSON.stringify(c));
+      ok('certify refreshes the list afterwards', calls.some((x) => x.name === 'refresh'));
+      calls.length = 0;
+      PC._setPrompt(async () => null);
+      await PC.certify('W1');
+      ok('declining the attestation calls nothing', calls.length === 0);
+    } }
+
+  section('1b. printed copies carry the document id and a short digest (flag on, contract class)');
+  const genWith = async (flagOn, type) => {
+    const brand = { legalName: 'No Big Deal Home Solutions', entityName: 'No Big Deal Solutions LLC', dbaName: 'No Big Deal Home Solutions', signerTitle: 'Manager', colors: {},
+      contact: { email: 'info@nobigdealwithjoedeal.com', phone: '(859) 420-7382', mailingAddress: H.BIZ_ADDR } };
+    const env = H.docs({ flags: flagOn ? { docClauseSetV1: true } : {}, brand });
+    const W = env.win;
+    env.sandbox.Blob = Blob; env.sandbox.TextEncoder = TextEncoder; W.crypto = require('crypto').webcrypto;
+    const stored = []; const rows = []; let viewer = null;
+    W.db = {}; W.storage = {}; W._user = { uid: 'REP', email: 'rep@x.test' }; W.auth = { currentUser: { uid: 'REP', email: 'rep@x.test' } };
+    W.collection = (_d, ...p) => ({ path: p.join('/') });
+    W.doc = (c) => ({ id: 'AUTO1234', path: c.path + '/AUTO1234' });
+    W.serverTimestamp = () => 'TS';
+    W.ref = (_s, p) => ({ p }); W.uploadBytes = async (r, blob) => { stored.push({ p: r.p, text: await blob.text() }); };
+    W.addDoc = async (c, row) => { rows.push({ via: 'addDoc', c: c.path, row }); return { id: 'ADDED1' }; };
+    W.setDoc = async (r, row) => { rows.push({ via: 'setDoc', path: r.path, row }); };
+    W.NBDDocViewer = { open: (o) => { viewer = o; return {}; } };
+    const cp = Object.assign({}, H.profileFor(W, H.BIZ_ADDR), { paymentTerms: { deckingPerSheetCents: 10000 } });
+    const v = H.VARIANTS.oh_cash;
+    W._legal = () => cp;
+    W._leadDoc = { id: 'L1', address: v.address, jobType: v.jobType };
+    await W.NBDDocGen.generate(type, Object.assign(H.contractData(W, v), { companyProfile: cp }));
+    await new Promise((r) => setTimeout(r, 30));
+    return { viewer, stored, rows, W };
+  };
+  { const on = await genWith(true, 'contract');
+    const sha12 = kit.sha256(on.stored[0] ? on.stored[0].text : '').slice(0, 12);
+    ok('flag on: the viewer copy carries "Document ID" with the id the row is saved under', !!on.viewer && /Document ID[^<]*AUTO1234/.test(on.viewer.html), on.viewer && on.viewer.html.slice(-400));
+    ok('flag on: the short digest is the first 12 hex of the stored document\'s SHA-256 (the digest the signing paths use)', !!on.stored[0] && on.viewer.html.indexOf('Digest ' + sha12) !== -1, sha12);
+    ok('flag on: the stored original has no footer (so its digest is the same one)', !!on.stored[0] && !/Document ID/.test(on.stored[0].text));
+    ok('flag on: the row is created under the id the footer printed', on.rows.length === 1 && on.rows[0].via === 'setDoc' && on.rows[0].path.endsWith('/AUTO1234') && on.rows[0].row.type === 'contract'); }
+  { const off = await genWith(false, 'contract');
+    ok('flag off: no footer in the viewer copy', !!off.viewer && !/Document ID/.test(off.viewer.html));
+    ok('flag off: the viewer copy is byte-identical to the stored original', !!off.stored[0] && off.viewer.html === off.stored[0].text);
+    ok('flag off: the row is still created with addDoc', off.rows.length === 1 && off.rows[0].via === 'addDoc'); }
+  { const wa = await genWith(true, 'testimonial_sheet').catch((e) => ({ err: e }));
+    ok('flag on: a document that is not contract class gets no footer', !wa.err && !!wa.viewer && !/Document ID/.test(wa.viewer.html), wa.err && wa.err.message); }
+
   console.log('\npaper-cert-signers: ' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log(fails.join('\n')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

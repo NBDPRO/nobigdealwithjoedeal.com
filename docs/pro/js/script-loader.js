@@ -221,7 +221,7 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=34',
+      'js/document-generator.js?v=44',
       'js/document-generator-templates.js?v=23',
       'js/document-generator-library.js?v=12', // 2026-10-04 template library; needs -templates' _tpl
       'js/doc-preflight.js?v=18',
@@ -229,11 +229,11 @@
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
       // fetch/normalize logic. Version matches customer.html's own tag.
-      'js/customer-documents.js?v=11',
+      'js/customer-documents.js?v=21',
       // Same tab's "scan/upload a signed document" rows (2026-09-17) —
       // uploadSignedDoc/handleSignedDocUpload are the exact functions
       // customer.html's Documents tab uses; no second upload path.
-      'js/customer-signed-doc-upload.js?v=3',
+      'js/customer-signed-doc-upload.js?v=13',
       // 2026-11-18: the fail-closed contract check (flag docEvidenceFoundation); the generator
       // reads window.NBDDocSendChecks at call time, so load order does not matter.
       'js/doc-send-checks.js?v=2',
@@ -245,7 +245,10 @@
       // 2026-11-18 attic acknowledgment (flag docAtticAckV1): wording, then logic. Same group, loaded together.
       'js/attic-ack-text.js?v=1',
       'js/attic-ack.js?v=5',
-      'js/attic-panel.js?v=6'
+      'js/attic-panel.js?v=6',
+      // 2026-11-18 paper certification (flag docClauseSetV1): the paper-signed form and the certify call, loaded on demand
+      // (customer-signed-doc-upload.js loads this bundle when the flag is on), never on the customer page's boot path.
+      'js/paper-cert.js?v=1'
     ],
     // Estimate engine (PR 2c). The revenue-critical builder + its product/
     // catalog data. Only needed when the rep builds an estimate, opens the
