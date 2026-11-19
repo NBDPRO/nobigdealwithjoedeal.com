@@ -45,6 +45,9 @@
     "card-prefs-2026-10-15.test.js",
     "layout-offer-field-bar-2026-10-15.test.js",
     "layout-offer-banner-no-transform-2026-11-19.test.js",
+    "layout-field-header-wraps-2026-11-19.test.js",
+
+    "push-optin-waits-for-calm-2026-11-19.test.js",
     "ky-home-solicitation-notice-2026-10-16.test.js",
     "home-strips-2026-10-16.test.js",
     "storm-strip-app-badge-2026-10-16.test.js",
