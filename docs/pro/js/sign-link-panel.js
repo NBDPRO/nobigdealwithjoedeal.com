@@ -238,10 +238,11 @@
         if (closed || !link) return; // closed (or the link was dropped) while the check ran
         var href = smsHref(o.phone, smsBody(o, link));
         if (!href) { say('No phone number on file for this customer.' + TAIL, true); return; }
-        // The record of the send, like the estimate flow's Comm Log entry: the words without the bearer link.
-        try { if (PS && typeof PS.logSent === 'function') PS.logSent(chkOpts, smsBody(o, '[signing link]')); } catch (_) { /* the log is best effort */ }
         say('Messages is opening with the link written in.');
-        try { root.location.href = href; } catch (_) { say('Could not open Messages.' + TAIL, true); }
+        try { root.location.href = href; } catch (_) { say('Could not open Messages.' + TAIL, true); return; }
+        // The record of the send, like the estimate flow's Comm Log entry: written after the hand-off is started (a page that
+        // is already leaving must not lose the tap), with the words but not the bearer link.
+        try { if (PS && typeof PS.logSent === 'function') PS.logSent(chkOpts, smsBody(o, '[signing link]')); } catch (_) { /* the log is best effort */ }
       });
     }
 

@@ -306,13 +306,13 @@ const DAY = 86400000;
     const head = mkEl('head'), body = mkEl('body');
     const win = { document: { head, body, createElement: mkEl, getElementById: () => null, execCommand: (c) => { win._exec.push(c); return true; } }, NBDQr, _exec: [], _toasts: [], _opened: [] };
     win.window = win;
-    win._navs = []; win._checks = []; win._logged = [];
-    { let h = 'https://crm.test/pro/customer.html'; win.location = { get href() { return h; }, set href(v) { h = v; win._navs.push(v); } }; }
+    win._navs = []; win._checks = []; win._logged = []; win._order = [];
+    { let h = 'https://crm.test/pro/customer.html'; win.location = { get href() { return h; }, set href(v) { h = v; win._navs.push(v); win._order.push('nav'); } }; }
     win.showToast = (m, k) => win._toasts.push({ m, k });
     win.prompt = () => { win._prompted = true; return null; };
     win.navigator = { clipboard: x.noClipboard ? undefined : { writeText: async (t) => { win._copied = t; } } };
     win.setTimeout = setTimeout; win.clearTimeout = clearTimeout;
-    if (x.checkText !== null) win.NBDPhoneShare = { checkText: async (a) => { win._checks.push(a); return x.checkText ? x.checkText(a) : { ok: true }; }, logSent: (a, b) => { win._logged.push([a, b]); }, digits: (p) => String(p || '').replace(/\D/g, '') };
+    if (x.checkText !== null) win.NBDPhoneShare = { checkText: async (a) => { win._checks.push(a); return x.checkText ? x.checkText(a) : { ok: true }; }, logSent: (a, b) => { win._logged.push([a, b]); win._order.push('log'); }, digits: (p) => String(p || '').replace(/\D/g, '') };
     const ctx = vm.createContext(Object.assign({ console }, win, { window: win }));
     // run the module with window === the same object it reads
     vm.runInContext(PANEL_SRC, Object.assign(ctx, { window: win }));
@@ -358,6 +358,7 @@ const DAY = 86400000;
     await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0));
     ok('Text link: asked of checkText with this lead and the sign_link source, then Messages opens ONCE with the link written in', win._checks.length >= 1 && win._checks[win._checks.length - 1].leadId === 'L1' && win._checks[win._checks.length - 1].source === 'sign_link'
       && win._navs.length === 1 && /^sms:8595550142\?&body=/.test(win._navs[0]) && decodeURIComponent(win._navs[0]).indexOf('https://app.test/sign.html?t=TOKEN1') !== -1);
+    ok('C: the Comm Log entry is written AFTER the sms: navigation is initiated, never before', win._order.join(',') === 'nav,log', win._order.join(','));
     ok('Text link: the send is logged to the Comm Log once, as sign_link, WITHOUT the bearer link in the stored body', win._logged.length === 1 && win._logged[0][0].leadId === 'L1' && win._logged[0][0].source === 'sign_link' && win._logged[0][1].indexOf('TOKEN') === -1 && /Roofing Contract/.test(win._logged[0][1]));
 
     // text: blocked fails closed
