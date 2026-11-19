@@ -985,7 +985,7 @@ exports.submitSignature = onRequest(
         // Phase 3 (attic acknowledgment): a document with tick controls is recorded with the ticks the signer made,
         // taken from the submission for the controls the ORIGINAL has and nothing else. Every required tick and a
         // Yes or No on every line is enforced here, not only in the page. Before the burn.
-        if (AG.isAtticDoc(p.docType) || AA.parseAcks(originalHtml).length) {
+        if (AG.isAtticDoc(p.docType) || AG.isP5Doc(p.docType) || AA.parseAcks(originalHtml).length) {
           // Review 2026-11-18 (finding 2): the ORIGINAL is rep-authored. It must be the server's own attic form for this document
           // type (same controls, required flags, marker and wording) or the submission is refused, before the burn.
           const mf = AG.verifyManifest(typeof p.docType === 'string' ? p.docType : '', originalHtml);
@@ -993,6 +993,22 @@ exports.submitSignature = onRequest(
             logger.error('[submitSignature] attic form does not match the server manifest - refusing', { token: token.slice(0, 6), leadId: p.leadId || null, docId: p.docId || null, reasons: mf.reasons });
             res.status(422).json({ error: mf.reasons.indexOf('too_large') !== -1 ? AG.TOO_LARGE_MSG : 'This acknowledgment could not be verified. Please contact your rep for a corrected copy.' });
             return;
+          }
+          // Phase 5 (security review 2026-11-19): the figures and the state are re-derived HERE, from the company's own terms and the lead as
+          // they stand now, before the burn. A profile that cannot be read refuses (retryable); one that is missing leaves the price unset.
+          let p5Derived = null;
+          if (AG.isP5Doc(p.docType)) {
+            let prof = {};
+            const tk = lead && (lead.companyId || lead.userId);
+            try { const cs = tk ? await db.doc(`companyProfile/${tk}`).get() : null; prof = cs && cs.exists ? (cs.data() || {}) : {}; }
+            catch (_) { res.status(503).json({ error: 'Could not record your signature right now. Nothing was used up; please try again shortly.' }); return; }
+            const chk = AG.p5Check(p.docType, originalHtml, { profile: prof, tenantKey: tk, isNbd: DE.isNbdTenant(tk), lead, KyLaw });
+            if (!chk.ok) {
+              logger.error('[submitSignature] phase 5 form failed the server check - refusing', { token: token.slice(0, 6), leadId: p.leadId || null, docId: p.docId || null, reasons: chk.reasons });
+              res.status(422).json({ error: chk.reasons.indexOf('not_ohio') !== -1 ? 'This acknowledgment is for Ohio properties only. Please contact your rep.' : 'This form could not be verified. Please contact your rep for a corrected copy.' });
+              return;
+            }
+            p5Derived = chk.derived;
           }
           const applied = AG.applyAcks(rebuilt.html, signedHtml, typeof p.docType === 'string' ? p.docType : '');
           if (!applied.complete && (applied.manifestReasons || []).indexOf('too_large') !== -1) {
@@ -1006,7 +1022,7 @@ exports.submitSignature = onRequest(
           }
           record = applied.html;
           signedDocType = typeof p.docType === 'string' ? p.docType : null;
-          atticResult = AG.resultFor(signedDocType, applied.html, null);
+          atticResult = AG.resultFor(signedDocType, applied.html, null, p5Derived);
           // Review 2 (item 4): the form is bound to the estimate it covers (id and stamp), read before the burn; a read that fails refuses.
           try { const dm = await db.doc(`leads/${p.leadId}/documents/${p.docId}`).get(); const b = await AG.formBasis(db, p.leadId, lead || {}, { estimateId: dm && dm.exists ? (dm.data() || {}).estimateId : undefined }); atticResult.estimateId = b.id; atticResult.estimateStamp = b.stamp; }
           catch (_) { res.status(503).json({ error: 'Could not record your signature right now. Nothing was used up; please try again shortly.' }); return; }

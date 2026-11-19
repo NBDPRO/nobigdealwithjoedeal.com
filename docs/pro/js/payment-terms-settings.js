@@ -185,7 +185,7 @@
       if (!loadAsked && W.ScriptLoader && typeof W.ScriptLoader.load === 'function') {
         loadAsked = true;
         try {
-          Promise.resolve(W.ScriptLoader.load('js/clause-set-text.js?v=3')).then(function () { return W.ScriptLoader.load('js/clause-set.js?v=5'); })
+          Promise.resolve(W.ScriptLoader.load('js/clause-set-text.js?v=3')).then(function () { return W.ScriptLoader.load('js/clause-set.js?v=13'); })
             .then(function () { try { render(); } catch (e) { /* the tab hook paints it later */ } }, function () { loadAsked = false; });
         } catch (e) { loadAsked = false; }
       }

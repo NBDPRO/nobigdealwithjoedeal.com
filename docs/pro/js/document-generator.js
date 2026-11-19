@@ -317,6 +317,7 @@ window.NBDDocGen = {
       mailingAddress: this._contractorPhysicalAddress(d.companyProfile),
       needsMailingAddress: type === 'contract' || type === 'proposal' || !!(J && html && J.hasCancelPacket && J.hasCancelPacket(html)),
       entityName: brand.entityName,
+      state: (() => { try { const jj = this._jurisdiction(d); return (jj && jj.state) || ''; } catch (_) { return ''; } })(),
       startDate: set('startDate'), estimatedCompletion: set('estimatedCompletion'),
       text: html || '',
       clauseConfigMissing: this._clauseV1On() && window.NBDClauseSet.PT_FIELDS.filter((f) => String(html || '').indexOf('{{' + f + '}}') !== -1),
