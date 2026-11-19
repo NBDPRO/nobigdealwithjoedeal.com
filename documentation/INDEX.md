@@ -698,6 +698,7 @@ Campaign folders (each has its own STATUS / BUG-LOG / CLEANUP):
 - [seo-hardening-2026-07](qa/seo-hardening-2026-07/REVISED-PLAN.md) — includes [MANUAL-FOR-JO](qa/seo-hardening-2026-07/MANUAL-FOR-JO.md)
 - [crm-intense-sweep-2026-09-27](qa/crm-intense-sweep-2026-09-27/BUG-LOG.md) — emulator click-through of the whole CRM + fix session; read its resolution table first (several findings were seed-script artifacts, now fixed in the seed)
 - [homeowner-money-path-2026-10-07](qa/homeowner-money-path-2026-10-07/README.md) — numbers + visual audit of estimate link → deal room → e-sign → portal → invoice → receipt, four job shapes on the real functions emulator; the invoice email never foots (tax hidden), KY bills the whole job after release, "Licensed" still on the deal room
+- [phone-layout-sweep-2026-11-19](qa/phone-layout-sweep-2026-11-19/README.md) — all 9 CRM layouts x 8 views at 393 px: overlays stack at the bottom, shared undersized targets, seven layouts identical off Home; ranked findings, no fixes yet
 - [crm-phone-audit-2026-10-07](qa/crm-phone-audit-2026-10-07/README.md) — speed/friction walk of Jo's daily CRM tasks on the installed app at 390 (taps, seconds, thumb reach, keyboard, sun contrast); the customer page is 15 screens with Record payment 12 down, the Record-payment sheet is see-through on customer.html, the D2D knock Save sits 2 screens down the sheet
 
 ## Dev notes elsewhere in the repo
