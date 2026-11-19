@@ -696,11 +696,13 @@ service cloud.firestore {
     // Review 2 (2026-11-18): signedStampFailed / signedStampFailedAt (the "signed but the row was
     // not stamped" warning) and evidenceRefused (the in-person evidence gate refused the row) are
     // server-owned the same way, so a rep cannot clear or forge them on a not-yet-signed row.
+    // linkSeq / linkMintedAt (sign-link panel, 2026-11-18): createSignRequest's per-document link sequence number and mint stamp, server-owned
+    // so a rep cannot reset the counter and keep an old signing link alive when making a new one.
     function documentEvidenceCreateOk() {
-      return !request.resource.data.keys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused', 'atticAckResult', 'atticGateUnverified']);
+      return !request.resource.data.keys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused', 'atticAckResult', 'atticGateUnverified', 'linkSeq', 'linkMintedAt']);
     }
     function documentEvidenceUpdateOk() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused', 'atticAckResult', 'atticGateUnverified']);
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused', 'atticAckResult', 'atticGateUnverified', 'linkSeq', 'linkMintedAt']);
     }
     function signedDocumentUpdateOk(leadId) {
       let keys = request.resource.data.diff(resource.data).affectedKeys();
