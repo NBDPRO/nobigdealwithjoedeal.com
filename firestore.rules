@@ -4143,6 +4143,40 @@ service cloud.firestore {
         }
       }
 
+      // ── SUB JOBS (agreed sub pay, 2026-11-19, flag subJobBoard) ──
+      // companies/{companyId}/subJobs/{leadId}: what the company agreed to pay the
+      // sub on ONE job (pay basis, rate, quantity, agreed total, all in cents), the
+      // "no sub needed" toggle and a short note. This is COST DATA: it lives here,
+      // not on the lead, so the customer-facing lead record never carries it and
+      // the lead update rule (at Firestore's 1000-expression limit) is untouched.
+      // Read AND write: the solo owner or the company's company_admin / manager.
+      // Never a viewer, never a sales_rep, never another tenant. The doc id is the
+      // lead id. No other key may ride along; a tax ID in the note is refused.
+      match /subJobs/{leadId} {
+        function subJobAccess() {
+          return isAuth() && notViewer()
+            && (ownsTenantByUid(companyId)
+                || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId));
+        }
+        function subJobOk() {
+          let d = request.resource.data;
+          return leadId.matches('^[A-Za-z0-9_-]{1,128}$')
+            && d.keys().hasOnly(['subId', 'basis', 'rateCents', 'qty', 'agreedCents', 'noSubNeeded', 'note', 'updatedAt', 'updatedBy'])
+            && d.keys().hasAll(['updatedAt', 'updatedBy'])
+            && d.updatedBy == request.auth.uid
+            && d.updatedAt is timestamp
+            && (!('subId' in d) || d.subId == null || (d.subId is string && d.subId.size() > 0 && d.subId.size() <= 128))
+            && (!('basis' in d) || d.basis in ['sq', 'job', 'hour', 'day'])
+            && (!('rateCents' in d) || (d.rateCents is int && d.rateCents >= 0 && d.rateCents <= 9999999))
+            && (!('qty' in d) || (d.qty is number && d.qty >= 0 && d.qty <= 100000))
+            && (!('agreedCents' in d) || (d.agreedCents is int && d.agreedCents >= 0 && d.agreedCents <= 99999999))
+            && (!('noSubNeeded' in d) || d.noSubNeeded is bool)
+            && _subTextOk(d, 'note', 300);
+        }
+        allow read, delete: if subJobAccess();
+        allow create, update: if subJobAccess() && subJobOk();
+      }
+
       // ── COMPANY DOCUMENTS (own-document expiry, 2026-10-18) ──
       // companies/{companyId}/companyDocs/{docId}: the company's OWN papers that
       // expire (GL certificate, workers' comp, licenses, manufacturer certs,
