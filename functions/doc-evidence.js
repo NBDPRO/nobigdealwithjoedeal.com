@@ -115,6 +115,8 @@ function _s(v, max) { return typeof v === 'string' && v ? v.slice(0, max) : null
  *   signedSha256    digest of the executed record, when there is one
  *   consent         { agreed: true | false | null, text, at } — null = no consent step on this path
  */
+const DELIVERY_CHANNELS = ['email', 'link_only'];
+
 function buildEvidence(input) {
   const i = input || {};
   const at = Number.isFinite(Number(i.signedAtMs)) ? Number(i.signedAtMs) : Date.now();
@@ -139,6 +141,9 @@ function buildEvidence(input) {
     ipSource: _s(i.ipSource, 80),
     ua: _s(i.ua, 300),
     recordedByUid: _s(i.recordedByUid, 128),
+    // Security review 2026-11-18, item 3 (flag docSignPanelV1 only; absent otherwise, so the earlier shape is untouched): how the
+    // signing link reached the signer and who minted it. A link-only link has no email on it: this records that the rep held the link.
+    ...(DELIVERY_CHANNELS.indexOf(i.deliveryChannel) !== -1 ? { deliveryChannel: i.deliveryChannel, mintedBy: _s(i.mintedBy, 128) } : {}),
   };
 }
 
@@ -412,7 +417,7 @@ function clauseFlagForUid(db, uid) { return flagForUid(db, uid, { flag: CLAUSE_F
 module.exports = {
   CLAUSE_FLAG_NAME, clauseFlagForUid, ATTIC_FLAG_NAME, atticFlagForGate, atticGateOn,
   FLAG_NAME, FLAG_DEFAULT, NBD_ENTITY_NAME, CLAUSE_SET_VERSION: ClauseSet.CLAUSE_SET_VERSION,
-  NBD_OWNER_UID_FOR_TESTS: NBD_OWNER_UID, clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, buildClauseSetFor, clauseFlagForGate, signPanelFlagForGate, signPanelFlagLoose, printedByRef, expectedV1Refs, pdfByRef, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
+  NBD_OWNER_UID_FOR_TESTS: NBD_OWNER_UID, clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, buildClauseSetFor, clauseFlagForGate, signPanelFlagForGate, signPanelFlagLoose, DELIVERY_CHANNELS, printedByRef, expectedV1Refs, pdfByRef, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
   serverContractGaps, estimateCents, isContractClass: Checks.isContractClass,
   describeGaps: Checks.describeGaps,
 };

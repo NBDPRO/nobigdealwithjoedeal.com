@@ -604,6 +604,8 @@ exports.createSignRequest = onCall(
       companyName: tenantName || '',
       docType: typeof docMeta.type === 'string' ? docMeta.type.slice(0, 60) : null,
       consentAsked: flagOnAtMint === true,
+      // Flag docSignPanelV1 only (security review item 3): how this bearer link was delivered; the signing evidence carries it.
+      ...(signPanelOn ? { deliveryChannel: noEmailMint ? 'link_only' : 'email' } : {}),
       priceSnapshot,
       ...(isContract && !priceSnapshot ? { priceSnapshotMissing: true, priceLockReason } : {}),
       // Evidence parity (2026-11-18): the clause set this document was sent under.
@@ -996,12 +998,14 @@ exports.submitSignature = onRequest(
           evidenceFacts: Object.assign({}, evidenceFacts, {
             clauseSetVersion: t.clauseSetVersion || null, clauseIds: Array.isArray(t.clauseIds) ? t.clauseIds : [],
             clauseRefsMismatch: t.clauseRefsMismatch === true,
+            ...(DE.DELIVERY_CHANNELS.indexOf(t.deliveryChannel) !== -1 ? { deliveryChannel: t.deliveryChannel, mintedBy: t.mintedBy || null } : {}),
           }),
         });
         return { leadId: t.leadId, docId: t.docId, ownerUid: t.ownerUid, htmlPath: t.htmlPath, signerName: t.signerName || '',
           docType: t.docType || null,
           clauseSetVersion: t.clauseSetVersion || null, clauseIds: Array.isArray(t.clauseIds) ? t.clauseIds : [],
           clauseRefsMismatch: t.clauseRefsMismatch === true,
+          deliveryChannel: t.deliveryChannel || null, mintedBy: t.mintedBy || null,
           priceSnapshot: (t.priceSnapshot && typeof t.priceSnapshot === 'object') ? t.priceSnapshot : null,
           priceSnapshotMissing: t.priceSnapshotMissing === true, priceLockReason: t.priceLockReason || null };
       });
@@ -1110,6 +1114,7 @@ exports.submitSignature = onRequest(
       signatureEvidence: DE.buildEvidence({
         path: 'remote_link',
         clauseSetVersion: info.clauseSetVersion, clauseIds: info.clauseIds, clauseRefsMismatch: info.clauseRefsMismatch === true,
+        deliveryChannel: info.deliveryChannel, mintedBy: info.mintedBy,
         documentSha256: originalHtml ? sha(originalHtml) : null,
         signedSha256: recordSaved ? sha(recordHtml) : null,
         consent: consentAsked ? { agreed: true, text: ESL.CONSENT_TEXT, at: signedAtNow.getTime() } : { agreed: null },

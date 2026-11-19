@@ -135,6 +135,43 @@ const DAY = 86400000;
     ok('the email copy states the real expiry (7 stays 7)', rx(/expires in \$\{ttlDays\} days/, rs) && !rx(/expires in 7 days/, rs));
   }
 
+  // ─── security review 2026-11-18, item 3: a bearer link records HOW it was delivered
+  {
+    let r = await mint(world({ [FLAG]: true }), { sendEmail: false });
+    ok('3: a link-only mint stamps deliveryChannel link_only and who minted it on the token', !!r.v && (tokens(r.db)[0] || {}).deliveryChannel === 'link_only' && (tokens(r.db)[0] || {}).mintedBy === 'U1', r.e && r.e.message);
+    r = await mint(world({ [FLAG]: true }, { lead: { email: 'dana@example.test' } }), { signerEmail: 'dana@example.test' });
+    ok('3: an emailed mint (flag on) stamps deliveryChannel email', !!r.v && (tokens(r.db)[0] || {}).deliveryChannel === 'email');
+    r = await mint(world(null, { lead: { email: 'dana@example.test' } }), { signerEmail: 'dana@example.test' });
+    ok('3: FLAG OFF: the token has no deliveryChannel field at all (stored token unchanged)', !!r.v && !('deliveryChannel' in (tokens(r.db)[0] || {})));
+    // the evidence the signing writes: the real getSignDocument + submitSignature on a token that carries the stamp
+    const ORIG = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Roofing Agreement</title></head><body><h1>Roofing Agreement</h1><p>Prepared for <strong>Dana Whitfield</strong>.</p>'
+      + '<div class="nbd-sig-block" data-nbd-sig="homeowner" data-label="Homeowner" data-required="true"><div class="nbd-sig-label">Homeowner</div><canvas class="nbd-sig-canvas"></canvas><div class="nbd-sig-controls"><button type="button" data-nbd-sig-action="clear">Clear</button><span class="nbd-sig-state"></span></div><div class="nbd-sig-print-name">Print Name &amp; Date</div></div><script src="/pro/js/signature-widget.js"></script></body></html>';
+    const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const SIGNED = ORIG.replace(/<canvas class="nbd-sig-canvas"><\/canvas>/, '<img src="' + PNG + '" alt="Homeowner" class="nbd-sig-img" style="max-width:100%;height:auto;display:block;background:#fff;">')
+      .replace(/<div class="nbd-sig-controls">[\s\S]*?<\/span>\s*<\/div>/, '<div class="nbd-sig-date">Signed November 18, 2026</div>')
+      .replace('data-nbd-sig="homeowner"', 'data-nbd-sig="homeowner" data-nbd-sig-finalized="1" data-nbd-sig-signed-at="2026-11-18T15:00:00.000Z"');
+    const sign = async (tokExtra) => {
+      const db = kit.makeDb({
+        'leads/L1': { userId: 'U1', companyId: 'C1', firstName: 'Dana', email: 'dana@example.test', address: '12 Oak St, Cincinnati, OH 45202', jobType: 'cash' },
+        'leads/L1/documents/d1': { name: 'Roofing Agreement', status: 'sent', type: 'contract', htmlPath: P },
+        'doc_sign_tokens/TOKSLP000001': Object.assign({ status: 'pending', leadId: 'L1', docId: 'd1', ownerUid: 'U1', mintedBy: 'U1', htmlPath: P, signerName: 'Dana Whitfield' }, tokExtra || {}),
+      });
+      const L = kit.loadHandler('remote-signing.js', db, kit.makeStorage({ [P]: ORIG }), stubs(), REAL);
+      const g = kit.reqRes({ token: 'TOKSLP000001' }); await L.fns.getSignDocument(g.req, g.res);
+      const s = kit.reqRes({ token: 'TOKSLP000001', signedHtml: SIGNED }); await L.fns.submitSignature(s.req, s.res);
+      return { doc: db._get('leads/L1/documents/d1') || {}, tok: db._get('doc_sign_tokens/TOKSLP000001') || {}, res: s.res };
+    };
+    let x = await sign({ deliveryChannel: 'link_only' });
+    ok('3: signing a link-only link: the server-written signatureEvidence carries deliveryChannel link_only and who minted it', x.doc.status === 'signed' && !!x.doc.signatureEvidence && x.doc.signatureEvidence.deliveryChannel === 'link_only' && x.doc.signatureEvidence.mintedBy === 'U1', JSON.stringify(x.doc.signatureEvidence) + ' ' + x.res.statusCode);
+    ok('3: ...and the token keeps it in evidenceFacts too', (x.tok.evidenceFacts || {}).deliveryChannel === 'link_only');
+    x = await sign({ deliveryChannel: 'email' });
+    ok('3: signing an emailed link records deliveryChannel email', !!x.doc.signatureEvidence && x.doc.signatureEvidence.deliveryChannel === 'email');
+    x = await sign({});
+    ok('3: FLAG OFF / a link minted before this field: evidence has NO deliveryChannel or mintedBy key (the phase 1/2 shape is untouched)', !!x.doc.signatureEvidence && !('deliveryChannel' in x.doc.signatureEvidence) && !('mintedBy' in x.doc.signatureEvidence) && !('deliveryChannel' in (x.tok.evidenceFacts || {})));
+    x = await sign({ deliveryChannel: '<script>' });
+    ok('3: an unknown channel value is never copied into the evidence', !!x.doc.signatureEvidence && !('deliveryChannel' in x.doc.signatureEvidence));
+  }
+
   // ─── a new link retires the old one
   {
     let db = world({ [FLAG]: true });
