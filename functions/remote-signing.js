@@ -553,14 +553,22 @@ exports.createSignRequest = onCall(
     const token = mintSignToken();
     // Flag docSignPanelV1 (security review item 5): a strictly increasing per-document sequence number, taken in a transaction on
     // the document row. The mint now running always outranks every link made before it, whatever the clock says.
+    // The row counter is rules-protected, but a tampered or missing value is still safe: it counts as 0 unless it is a sane
+    // non-negative integer, and the number is never below the highest live link of this document, so a reset cannot keep one alive.
     let linkSeq = null;
     if (signPanelOn) {
       try {
+        let liveMax = 0;
+        try {
+          const live = await db.collection('doc_sign_tokens').where('leadId', '==', leadId).where('status', '==', 'pending').get();
+          live.docs.forEach((x) => { const t = x.data() || {}; if (t.docId === docId && Number.isSafeInteger(t.linkSeq) && t.linkSeq > liveMax) liveMax = t.linkSeq; });
+        } catch (_) { liveMax = 0; /* the retire step below reports a failed query */ }
         linkSeq = await db.runTransaction(async (tx) => {
           const ref = db.doc(`leads/${leadId}/documents/${docId}`);
           const s = await tx.get(ref);
-          const cur = s.exists ? Number((s.data() || {}).linkSeq) : 0;
-          const next = (Number.isFinite(cur) ? cur : 0) + 1;
+          const raw = s.exists ? (s.data() || {}).linkSeq : 0;
+          const cur = Number.isSafeInteger(raw) && raw >= 0 ? raw : 0;
+          const next = Math.max(cur, liveMax) + 1;
           tx.set(ref, { linkSeq: next }, { merge: true });
           return next;
         });

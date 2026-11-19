@@ -197,6 +197,15 @@ const DAY = 86400000;
     const ts2 = tokens(db);
     ok('any document type, flag on: making a new link retires the old link of the SAME document', ts2.length === 2 && ts2.filter((t) => t.status === 'pending').length === 1 && ts2.some((t) => t.status === 'superseded'), JSON.stringify(ts2.map((t) => t.status)));
     ok('the answer says the old link was retired (the panel tells the rep so)', !!b.v && b.v.supersededOld === true);
+    // review: a tampered or missing row counter can never keep an old link alive (max of the live links' linkSeq and the row, plus 1)
+    for (const bad of [0, 'x', NaN, -3, 1e308, 2.5, null, undefined]) {
+      const tdb = world({ [FLAG]: true }, { type: 'attic_acknowledgment' });
+      await tdb.doc('doc_sign_tokens/OLDLIVE').set({ leadId: 'L1', docId: 'd1', ownerUid: 'U1', status: 'pending', linkSeq: 5 });
+      await tdb.doc('leads/L1/documents/d1').set({ linkSeq: bad }, { merge: true });
+      const tr = await mint(tdb, { sendEmail: false });
+      const nt = tokens(tdb).find((t) => t._id === (tr.v || {}).token) || {};
+      ok('5: row linkSeq tampered to ' + String(bad) + ': the new link still outranks the live one (seq ' + nt.linkSeq + ') and retires it', !!tr.v && Number.isInteger(nt.linkSeq) && nt.linkSeq > 5 && (tdb._get('doc_sign_tokens/OLDLIVE') || {}).status === 'superseded' && tr.v.supersededOld === true, JSON.stringify(nt.linkSeq));
+    }
     // security review 2026-11-18, item 5: the clock is frozen, so the order can only come from the sequence number
     {
       const realNow = Date.now; Date.now = () => 1800000000000;
@@ -226,7 +235,7 @@ const DAY = 86400000;
       const cs = tokens(cdb);
       ok('5: two concurrent CONTRACT mints (flag on) also leave exactly one live link', !!k1.v && !!k2.v && cs.length === 2 && cs.filter((t) => t.status === 'pending').length === 1, JSON.stringify(cs.map((t) => t.status)));
     }
-    ok('5: a mint never retires a link that is NEWER than itself (the newer one stays live)', !!a.v && (db._get('doc_sign_tokens/NEWERTOK') || {}).status === 'pending' && a.v.supersededOld === false);
+    ok('5: a link already live when this mint began is ALWAYS retired, whatever its number (a new link outranks every earlier one)', !!a.v && (db._get('doc_sign_tokens/NEWERTOK') || {}).status === 'superseded' && a.v.supersededOld === true);
     await db.doc('doc_sign_tokens/OLDERTOK').set({ leadId: 'L1', docId: 'd1', ownerUid: 'U1', status: 'pending', linkSeq: 0 });
     b = await mint(db, { sendEmail: false });
     ok('5: ...while an older pending link of the same document is still retired', !!b.v && (db._get('doc_sign_tokens/OLDERTOK') || {}).status === 'superseded' && b.v.supersededOld === true);
