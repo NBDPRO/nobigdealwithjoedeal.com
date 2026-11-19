@@ -12,6 +12,7 @@
   "assignStripeTransaction": "./stripe-ledger",
   "attachStormProof": "./handlers/storm-proof",
   "attachVisitCapture": "./visit-capture",
+  "attestWetSigned": "./paper-cert",
   "auditInvoices": "./audit-log",
   "auditLogRetentionCron": "./integrations/compliance",
   "audit_access_codes": "./audit-triggers",

@@ -70,8 +70,13 @@
     // and the signed-doc upload. Whitelisted: this is Firestore data, not a
     // typed value. Rows written before this field existed have none — fall
     // back to the old presence-based inference so nothing needs a backfill.
-    var status = (d.status === 'draft' || d.status === 'sent' || d.status === 'signed')
+    // 'wet_signed_uploaded' (paper certification, flag docClauseSetV1): a paper-signed upload that has not been
+    // certified yet. It must NOT fall through to the old inference below, which reads source 'signed_upload' as signed.
+    var status = (d.status === 'draft' || d.status === 'sent' || d.status === 'signed' || d.status === 'wet_signed_uploaded')
       ? d.status : null;
+    // A paper upload made under the certification flow (it carries wetSignedDocType) counts as signed ONLY once the server has
+    // written wetSignedAttestation; the status field alone is client-writable and is not believed (security review, HIGH1).
+    if (d.source === 'signed_upload' && typeof d.wetSignedDocType === 'string' && d.wetSignedDocType && !d.wetSignedAttestation) status = 'wet_signed_uploaded';
     return {
       id: id,
       legacy: !!legacy,
@@ -219,6 +224,8 @@
       bits.push('⚠ Signature received, signed copy not saved — send a new signing link');
     } else if (doc.signed) {
       bits.push('✓ Signed' + (doc.signedAt ? ' ' + doc.signedAt.toLocaleDateString() : ''));
+    } else if (doc.status === 'wet_signed_uploaded') {
+      bits.push('Uploaded, not certified');
     } else if (doc.status === 'sent') {
       bits.push('Awaiting signature');
     } else if (doc.source === 'signed_upload' || doc.source === 'dnd_upload') {
@@ -289,6 +296,11 @@
                 ? '<button type="button" class="doc-btn doc-btn-plain" data-doc-revoke="' + esc(doc.id) + '"'
                   + ' title="Stop this link now">⛔ Revoke</button>'
                 : '')
+          : '')
+      // Paper certification (flag docClauseSetV1): a waiting paper upload is certified by the rep, then the server files it.
+      + (doc.status === 'wet_signed_uploaded' && !doc.legacy
+          ? '<button type="button" class="doc-btn doc-btn-plain" data-action="certifyPaperDoc" data-arg="' + esc(doc.id) + '"'
+            + ' title="Confirm the homeowner signed this paper copy; it then counts as the signed document">Certify signed copy</button>'
           : '')
       + (doc.shareable
           ? '<button type="button" class="doc-btn" data-doc-share="' + esc(doc.id) + '"'
@@ -528,9 +540,18 @@
       var res = await fn({ leadId: window._customerId, docId: docId });
       var data = (res && res.data) || {};
       if (!data.html) throw new Error('Document is empty');
+      // A printed copy of an unsigned contract-class document carries its id and short digest (flag docClauseSetV1;
+      // the generator answers '' when the flag is off, so the document opens exactly as before).
+      var viewHtml = data.html;
+      try {
+        var _row = (window._customerDocs || []).filter(function (d) { return d.id === docId; })[0];
+        if (_row && !_row.signed && window.NBDDocGen && typeof window.NBDDocGen.paperFooterForStored === 'function') {
+          viewHtml = (await window.NBDDocGen.paperFooterForStored(data.html, docId, _row.docType)) || data.html;
+        }
+      } catch (_) { viewHtml = data.html; }
       if (window.NBDDocViewer && typeof window.NBDDocViewer.open === 'function') {
         window.NBDDocViewer.open({
-          html: data.html,
+          html: viewHtml,
           title: data.typeName || 'Document',
           filename: data.filename || 'document.pdf'
         });

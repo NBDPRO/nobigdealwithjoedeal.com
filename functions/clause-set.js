@@ -262,6 +262,18 @@
   }
 
   /**
+   * The ESIGN-1 sentence the in-person "I agree to sign electronically" tick shows and the evidence records
+   * (Jo's decision Q62, flag docClauseSetV1). Verbatim from the wording table; another tenant reads "Contractor" for the
+   * defined term NBD, the same mechanical substitution every clause gets. '' when the wording did not load.
+   */
+  function esignConsentText(isNbd) {
+    var c = T && T['ESIGN-1'];
+    var s = c && c.parts && c.parts[0] && c.parts[0].text;
+    if (typeof s !== 'string' || !s) return '';
+    return isNbd === false ? s.replace(/\bNBD\b/g, 'Contractor') : s;
+  }
+
+  /**
    * The v1 set for one document. opts = { state, paymentSource, terms (paymentTermsFor), facts, party, hasWarranty }
    * -> { clauseSetVersion, variant, failClosed, refs: ['PAY-4_V1', ...], missing: [field], sections:
    *      [{ title, items: [{ id, ref, byRef, paragraphs: [text] }] }], sectionOf: {id: title} }
@@ -327,6 +339,22 @@
     return { clauseSetVersion: CLAUSE_SET_VERSION, state: base.state, paymentSource: base.paymentSource, failClosed: base.failClosed, clauses: clauses };
   }
 
+  /**
+   * The wording of ONE v1 clause as a document that quotes it prints it (phase 5 forms): the same fill as renderV1, but
+   * for a named clause regardless of its "prints" rule. [] for an unknown or by-reference clause. opts = { state,
+   * paymentSource, terms, facts, party }. A number that is not set stays a {{token}} (the send check refuses it).
+   */
+  function textV1(id, opts) {
+    var c = Object.prototype.hasOwnProperty.call(T, id) ? T[id] : null;
+    if (!c || !Array.isArray(c.parts)) return [];
+    var o = opts || {};
+    var v = variantOf(o);
+    var terms = o.terms || {};
+    var out = [];
+    c.parts.forEach(function (p) { if (_partOk(p.only, v, terms)) out.push(_fill(p.text, terms, o.facts, o.party || null)); });
+    return out;
+  }
+
   return {
     CLAUSE_SET_VERSION: CLAUSE_SET_VERSION,
     VARIANTS: VARIANTS.slice(),
@@ -334,6 +362,7 @@
     describeFor: describeFor,
     textFor: textFor,
     lateInvoiceLine: lateInvoiceLine,
+    esignConsentText: esignConsentText,
     all: all,
     NBD_PAYMENT_TERMS_DEFAULTS: NBD_PAYMENT_TERMS_DEFAULTS,
     PT_FIELDS: PT_FIELDS,
@@ -345,6 +374,7 @@
     renderV1: renderV1,
     missingConfig: missingConfig,
     describeV1: describeV1,
+    textV1: textV1,
     V1_IDS: Object.keys(T).concat(Object.keys(BYREF)).filter(function (x, i, a) { return a.indexOf(x) === i; })
   };
 });

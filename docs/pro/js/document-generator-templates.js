@@ -528,6 +528,40 @@
       return (window.NBDClauseSet && typeof window.NBDClauseSet.lateInvoiceLine === 'function' && window.NBDClauseSet.lateInvoiceLine()) || '';
     } catch (_) { return ''; }
   }
+  // Flag docClauseSetV1 (Jo's decision Q51): documents that printed static lines get real homeowner signatures.
+  function signEaseOn() {
+    try { return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('docClauseSetV1')); }
+    catch (_) { return false; }
+  }
+  // A titled paragraph above a signature block. `key` is how a test (and the evidence record) finds it.
+  function authBlock(key, title, html) {
+    return '<div class="section" data-nbd-auth="' + key + '"><div class="section-title">' + title + '</div>' +
+      '<p style="font-size:13px;line-height:1.5;">' + html + '</p></div><!--end-auth-->';
+  }
+  function localToday() {
+    const n = new Date(); const p = (x) => (x < 10 ? '0' + x : String(x));
+    return n.getFullYear() + '-' + p(n.getMonth() + 1) + '-' + p(n.getDate());
+  }
+  // Card fee v1 (flag docCardFeeV1, default off). Both helpers return '' / null unless the flag is on AND window.NBDCardFee loaded,
+  // so a flag-off document is byte-identical. No fee is charged by the system yet (NBDCardFee.CHARGING_LIVE is false), so the
+  // disclosure sentence cannot print; the fee line prints only when the payment data itself carries cardFeeCents > 0.
+  function cardFeeOn() {
+    try {
+      return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('docCardFeeV1')
+        && window.NBDCardFee && typeof window.NBDCardFee.receiptFeeLine === 'function');
+    } catch (_) { return false; }
+  }
+  function cardFeeRow(d) {
+    if (!cardFeeOn() || !d) return null;
+    return window.NBDCardFee.receiptFeeLine({ flagOn: true, cardFeeCents: d.cardFeeCents, cardFeePct: d.cardFeePct });
+  }
+  function cardFeeDisclosure(d, cp) {
+    if (!cardFeeOn() || !d) return '';
+    const m = /,\s*([A-Za-z]{2})\s+\d{5}/.exec(String(d.address || ''));
+    const pt = (cp && cp.paymentTerms) || {};
+    return window.NBDCardFee.disclosureLine({ flagOn: true, cardFeePct: pt.cardFeePct, contractHasClause: d.contractCardFeeClause === true,
+      state: d.state || (m ? m[1] : ''), paymentSource: d.paymentSource || d.jobType || '' }) || '';
+  }
   function tenantCp(d) {
     if (d && d.companyProfile) return d.companyProfile;
     if (typeof window !== 'undefined' && typeof window._legal === 'function') {
@@ -812,7 +846,12 @@
         ${photoGrid(4,2)}
       </div>
 
-      ${sigBlock(['Contractor — '+C.name])}
+      ${signEaseOn()
+        // DRAFTER WORDING: attorney to confirm. Neutral: the homeowner has read the request and lets the contractor pass a copy on.
+        // No claim-handling language and no statement about what the insurer will do.
+        ? authBlock('supplement', 'Homeowner authorization', 'I have read this supplement request. I authorize ' + esc(C.name) + ' to give a copy of it, with the photographs and documents listed above, to my insurance company.')
+          + sigBlock(['Homeowner authorization', 'Contractor — ' + C.name], d)
+        : sigBlock(['Contractor — '+C.name])}
       ${footer('Supplement Request — Claim #' + d.claimNumber)}
     `);
   };
@@ -1279,7 +1318,8 @@
           <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;font-weight:700;">
             <span>Total</span><span>${money(total)}</span></div>
           ${d.paymentsReceived ? `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;color:#16a34a;">
-            <span>Payments Received</span><span>-${money(d.paymentsReceived)}</span></div>` : ''}
+            <span>Payments Received</span><span>-${money(d.paymentsReceived)}</span></div>` : ''}${(function () { const f = cardFeeRow(d); return f ? `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;">
+            <span>${esc(f.label)}</span><span>${money(f.feeCents / 100)}</span></div>` : ''; })()}
         </div>
       </div>
 
@@ -1298,6 +1338,7 @@
             zelleTo() ? 'Zelle — ' + esc(zelleTo()) : '',
             d.payUrl ? '' : 'Credit Card — ask for secure link',
             _invFinancePartner ? 'Financing — through ' + esc(_invFinancePartner) : '',
+            esc(cardFeeDisclosure(d, _cpInv)),
           ],
           wallets: d.wallets || [],
         })}
@@ -1419,7 +1460,7 @@
       <div class="rct-paid">
         <div class="rct-paid-label">Amount Received</div>
         <div class="rct-paid-amount">${money(amountPaid)}</div>
-      </div>
+      </div>${(function () { const f = cardFeeRow(d); return f ? `<div style="max-width:320px;margin-left:auto;font-size:14px;padding:8px 0;">${esc(f.label)}, included in this payment: ${money(f.feeCents / 100)}</div>` : ''; })()}
 
       ${knowsTotal ? `<div class="section">
         <div style="max-width:320px;margin-left:auto;font-size:14px;">
@@ -1751,7 +1792,11 @@
         </ul>
       </div>` : ''}
 
-      ${sigBlock(['Homeowner Acknowledgment'])}
+      ${signEaseOn()
+        // The empty "Homeowner Acknowledgment" line becomes a real receipt: the date, and the homeowner's signature.
+        ? authBlock('received', 'Received', '<strong>Received on ' + esc(longDate(d.receivedDate || localToday())) + '</strong>')
+          + sigBlock(['Homeowner'], d)
+        : sigBlock(['Homeowner Acknowledgment'])}
       ${affiliateRow()}
       ${footer('Before & After Report')}
     `);

@@ -86,6 +86,7 @@
 
   NBDSignaturePad.prototype._onDown = function (e) {
     e.preventDefault();
+    if (consentLock) return; // the homeowner has not ticked "I agree to sign electronically"
     try { this.canvas.setPointerCapture(e.pointerId); } catch (_) {}
     var p = this._pos(e);
     this.current = [p];
@@ -168,6 +169,25 @@
   // of the serialised HTML in finalize(), so the record is unchanged. It
   // covers every surface that loads the widget: remote signing (sign.html)
   // and the rep's in-person signing in the doc viewer.
+  // In-person consent (flag docClauseSetV1, Jo's decision Q62). The parent doc viewer sends
+  // { __nbd_sig: 'consent', required: true, agreed: bool } while the homeowner has not ticked "I agree to sign
+  // electronically": until agreed, a stroke is ignored, "Use saved" does nothing and finalize refuses. Nothing sends
+  // this message on the remote signing page or with the flag off, so those never lock. The sheet below is display
+  // chrome, cut back out of the saved record like the touch sheet.
+  var consentLock = false;
+  var lockStyleEl = null;
+  function setConsentLock(on) {
+    consentLock = !!on;
+    if (consentLock && !lockStyleEl && document.head) {
+      lockStyleEl = document.createElement('style');
+      lockStyleEl.id = 'nbd-sig-consent-lock';
+      lockStyleEl.textContent = '.nbd-sig-canvas{opacity:.45;cursor:not-allowed !important;}';
+      document.head.appendChild(lockStyleEl);
+    } else if (!consentLock && lockStyleEl) {
+      try { if (lockStyleEl.parentNode) lockStyleEl.parentNode.removeChild(lockStyleEl); else if (document.head && document.head.removeChild) document.head.removeChild(lockStyleEl); } catch (_) {}
+      lockStyleEl = null;
+    }
+  }
   var TOUCH_STYLE_ID = 'nbd-sig-touch';
   var touchStyleEl = null;
   function ensureTouchStyle() {
@@ -225,6 +245,7 @@
   // finalize() re-exports it through the normal path. Re-rasterization is
   // 1:1 (same canvas box) so there's no visible quality loss.
   function applySavedToPad(entry, dataURL) {
+    if (consentLock) return;
     var img = new Image();
     img.onload = function () {
       entry.pad.clear(); // reset strokes + canvas first
@@ -307,6 +328,10 @@
     if (status.hasUnsigned) {
       return { ok: false, missing: status.required };
     }
+    // A pad already drawn on when the consent was withdrawn: not finalized until the tick is back.
+    if (consentLock && pads.some(function (e) { return !e.pad.isEmpty; })) {
+      return { ok: false, needsConsent: true, missing: ['I agree to sign electronically'] };
+    }
     var ackLeft = ackMissing();
     if (ackLeft) {
       return { ok: false, missingAcks: ackLeft, missing: ['every tick box and a Yes or No on every line'] };
@@ -375,6 +400,7 @@
     // The touch sheet is display chrome, not document: cut its exact
     // serialisation back out so the record matches what was sent.
     if (touchStyleEl) html = html.split(touchStyleEl.outerHTML).join('');
+    if (lockStyleEl) html = html.split(lockStyleEl.outerHTML).join('');
     return { ok: true, html: html, signers: signedSigners };
   }
 
@@ -390,6 +416,9 @@
       var r = finalize();
       r.__nbd_sig = 'finalized';
       try { (ev.source || window.parent).postMessage(r, '*'); } catch (_) {}
+    } else if (d.__nbd_sig === 'consent') {
+      // Locked while consent is required and not yet agreed.
+      setConsentLock(d.required === true && d.agreed !== true);
     } else if (d.__nbd_sig === 'savedSigs') {
       // Parent handed us this lead's previously-captured signatures
       // (role -> PNG dataURL). Offer a "Use saved" button per matching

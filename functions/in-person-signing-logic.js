@@ -97,7 +97,22 @@ async function contractGapsFor(db, ctx, evidence) {
     const es = pid ? await db.doc('estimates/' + pid).get() : null;
     if (es && es.exists) priceCents = DE.estimateCents(es.data());
   } catch (_) { priceCents = null; }
-  return DE.serverContractGaps({ type: docMeta.type, html, lead, profile, tenantKey, KyLaw: require('./ky-insurance-law'), priceCents });
+  // Co-owners (flag docClauseSetV1, Q52): every owner on record signs. Only checked when the clause flag is on. The second owner comes
+  // from the server's record (the lead's field is client-writable), the signers from the stored copy's own blocks.
+  let secondOwner = '';
+  if (evidence.clauseFlag === true) {
+    try { secondOwner = await DE.secondOwnerFor(db, leadId, lead); }
+    catch (e) { throw new RefusalError('unavailable', (e && e.message) || 'Could not check the co-owner record just now. Try again in a moment.'); }
+  }
+  const gaps = DE.serverContractGaps(Object.assign({ type: docMeta.type, html, lead, profile, tenantKey, KyLaw: require('./ky-insurance-law'), priceCents },
+    secondOwner ? { secondOwnerName: secondOwner, signerRoles: DE.sigBlockRoles(html) } : {}));
+  // Re-review: a co-owner BLOCK is not a co-owner SIGNATURE. The row's signers[].required and signedSigners are client-written, so
+  // the stored copy decides: with the flag on, a homeowner2 block must be finalized in it.
+  if (evidence.clauseFlag === true && DE.sigBlockRoles(html).indexOf('homeowner2') !== -1
+      && !DE.signedRoles(html).some((r) => r.role === 'homeowner2')) {
+    gaps.push({ code: 'coOwnerUnsigned', message: 'The co-owner has not signed. Every owner on record must sign before this counts as signed.' });
+  }
+  return gaps;
 }
 
 /**
@@ -123,6 +138,14 @@ async function recordEvidence(db, ctx, evidence) {
   }
   // The marker in the stored copy is a hint only: the refs are recomputed, and the clause flag must have been on (item 4).
   const stamp = DE.stampFor(require('./ky-insurance-law'), lead, {}, { html: signedHtml, v1: evidence.clauseFlag === true });
+  // In-person consent (flag docClauseSetV1, Q62). The tick is the rep's browser's report that the homeowner ticked "I agree to
+  // sign electronically": the server cannot see it, so the record says where it came from (consentSource) and, like every field on
+  // this path, it proves only that the rep's signed-in device made the call (attests, below). Only a boolean true counts.
+  const consentFor = { consent: { agreed: null }, source: null };
+  if (evidence.clauseFlag === true && data && data.consentTick === true) {
+    const sentence = require('./clause-set').esignConsentText(DE.isNbdTenant(lead.companyId || lead.userId));
+    if (sentence) { consentFor.consent = { agreed: true, text: sentence, at: Date.now() }; consentFor.source = 'in_person_tick'; }
+  }
   // Time is the SERVER's clock at this call. The row's signedAt is written by the rep's own browser,
   // so it is kept only as a client-reported value (review 2026-11-18, finding 3).
   const clientSignedAt = docMeta.signedAt && typeof docMeta.signedAt.toMillis === 'function' ? docMeta.signedAt.toMillis() : null;
@@ -131,14 +154,22 @@ async function recordEvidence(db, ctx, evidence) {
     // The bytes read here are the signed copy the rep's device saved over the original: they are NOT
     // "the document the homeowner was shown", so documentSha256 stays null on this path.
     documentSha256: null, signedSha256,
-    // No consent step on the rep's phone today (phase 2): recorded as "not asked", never as agreed.
-    consent: { agreed: null },
+    // No consent step on the rep's phone unless the flag asks for one (Q62): then the tick the homeowner made in the viewer is
+    // recorded, with the server's own copy of the ESIGN-1 sentence. Otherwise "not asked", never agreed.
+    consent: consentFor.consent,
     signedAtMs: Date.now(), ip: evidence.ip, ipSource: evidence.ipSource, ua: evidence.ua, recordedByUid: uid,
   });
   // Phase 3: the ticks a signed attic form carries, read from the stored signed copy (never from the call).
   if (signedHtml && AA.DOC_TYPES.indexOf(String(docMeta.type || '')) !== -1) record.acknowledgments = AA.evidenceAcks(AA.parseAcks(signedHtml));
   record.signedCopySha256 = signedSha256;
   record.signedAtClientReported = clientSignedAt;
+  if (consentFor.source) record.consentSource = consentFor.source;
+  // Co-owners (flag docClauseSetV1, Q52): when the signed copy carries a co-owner, the record lists every signature
+  // block the server reads as finalized in the stored copy (role, label, the time the block says). Absent otherwise.
+  if (signedHtml && evidence.clauseFlag === true) {
+    const roles = DE.signedRoles(signedHtml);
+    if (roles.some((r) => r.role === 'homeowner2')) record.signers = roles;
+  }
   // What this record proves: the rep's signed-in device made the call, at this server time, from this
   // address. It does not prove that a homeowner signed, or that the homeowner saw this document.
   record.attests = 'rep_device_and_time_only';
@@ -235,6 +266,48 @@ async function handleInPersonSignature(db, auth, data, deps) {
       } catch (_) { /* best-effort */ }
     }
   }
+  // Phase 5 forms (flag docClauseSetV1; such a document exists only under it): the stored signed copy is read back and verified against
+  // the server's spec for the type, and its result is written (server-owned field). An incomplete copy is refused and marked.
+  // Security review 2026-11-19: with the flag on and no way to read the stored copy, the form is refused (fail closed); with the flag off nothing changes.
+  const isP5 = require('./p5-forms').isP5Doc(docMeta.type);
+  let p5FlagOn = false;
+  if (isP5 && !(attic && typeof attic.readBytes === 'function')) {
+    const DE5 = require('./doc-evidence');
+    try {
+      const co5 = typeof lead.companyId === 'string' ? lead.companyId : '';
+      const fo = { strict: true, flag: DE5.CLAUSE_FLAG_NAME };
+      p5FlagOn = (await DE5.flagForUid(db, uid, fo)) === true || (!!co5 && co5 !== String(uid || '') && (await DE5.flagForUid(db, co5, fo)) === true);
+    } catch (_) { p5FlagOn = true; }   // the form is already a phase 5 form and cannot be read back: an unreadable flag fails closed
+    if (p5FlagOn) {
+      const msg = 'Could not read the signed form to check it. Try again in a moment.';
+      try { await db.doc('leads/' + leadId + '/documents/' + docId).set({ evidenceRefused: { reasons: [{ code: 'p5Form', message: msg }], at: Date.now() } }, { merge: true }); } catch (_) { /* the refusal is the signal */ }
+      throw new RefusalError('failed-precondition', msg);
+    }
+  }
+  if (attic && typeof attic.readBytes === 'function' && isP5) {
+    const AG5 = require('./attic-gate');
+    const refuse5 = async (message) => {
+      try { await db.doc('leads/' + leadId + '/documents/' + docId).set({ evidenceRefused: { reasons: [{ code: 'p5Form', message }], at: Date.now() } }, { merge: true }); } catch (_) { /* the refusal is the signal */ }
+      throw new RefusalError('failed-precondition', message);
+    };
+    const htmlPath5 = typeof docMeta.htmlPath === 'string' ? docMeta.htmlPath : '';
+    let buf5 = null;
+    try { buf5 = htmlPathOk(htmlPath5, leadId) ? await attic.readBytes(htmlPath5, READ_CAP_BYTES) : null; } catch (_) { buf5 = null; }
+    if (!buf5) throw new RefusalError('unavailable', 'Could not read the signed form. Try again in a moment.');
+    const stored5 = Buffer.from(buf5).toString('utf8');
+    if (stored5.length > AG5.MAX_HTML) await refuse5(AG5.TOO_LARGE_MSG);
+    // The figures and the state are re-derived from the company's own terms and the lead, not taken from the stored copy.
+    let prof5 = {};
+    const tk5 = lead.companyId || lead.userId;
+    try { const cp5 = tk5 ? await db.doc('companyProfile/' + tk5).get() : null; prof5 = cp5 && cp5.exists ? (cp5.data() || {}) : {}; }
+    catch (_) { throw new RefusalError('unavailable', 'Could not check the form just now. Try again in a moment.'); }
+    const chk5 = AG5.p5Check(docMeta.type, stored5, { profile: prof5, tenantKey: tk5, isNbd: require('./doc-evidence').isNbdTenant(tk5), lead, KyLaw: require('./ky-insurance-law') });
+    if (!chk5.ok) await refuse5(chk5.reasons.indexOf('not_ohio') !== -1 ? 'This acknowledgment is for Ohio properties only.' : 'The figures on this form do not match the company\'s terms.');
+    const res5 = AG5.resultFor(docMeta.type, stored5, Date.now(), chk5.derived);
+    if (!res5.complete) await refuse5('Every box on this form must be ticked before it counts as signed.');
+    res5.attests = 'rep_device_and_time_only';
+    await db.doc('leads/' + leadId + '/documents/' + docId).set({ atticAckResult: res5 }, { merge: true });
+  }
   if (attic && atticOn) {
     const AG = require('./attic-gate');
     const refuse = async (message) => {
@@ -255,7 +328,7 @@ async function handleInPersonSignature(db, auth, data, deps) {
       result.attests = 'rep_device_and_time_only';
       // Review 2 (item 4): the form covers the estimate it was signed against (id and stamp), the same binding an override has.
       let fb;
-      try { fb = await AG.formBasis(db, leadId, lead, { estimateId: docMeta.estimateId }); } catch (_) { throw new RefusalError('unavailable', 'Could not check the attic acknowledgment just now. Try again in a moment.'); }
+      try { fb = await AG.formBasis(db, leadId, lead, { estimateId: docMeta.estimateId }); } catch (e) { if (e && e.code === 'estimate_not_on_lead') await refuse(AG.NOT_ON_LEAD_MSG); if (e && e.code === 'too_many_estimates') await refuse(AG.TOO_MANY_MSG); throw new RefusalError('unavailable', 'Could not check the attic acknowledgment just now. Try again in a moment.'); }
       result.estimateId = fb.id; result.estimateStamp = fb.stamp;
       await db.doc('leads/' + leadId + '/documents/' + docId).set({ atticAckResult: result }, { merge: true });
     } else if (AG.gated(docMeta.type)) {

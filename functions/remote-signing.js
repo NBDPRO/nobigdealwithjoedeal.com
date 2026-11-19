@@ -471,6 +471,13 @@ exports.createSignRequest = onCall(
     if ((docMeta.signedAt || docMeta.status === 'signed') && docMeta.signedSaveFailed !== true) {
       throw new HttpsError('failed-precondition', 'This document is already signed. Open the signed copy from the Documents tab; to change it, generate a new document and send that one.');
     }
+    // Flag docClauseSetV1 (Q51): a document only the company signs (a lien waiver) is never emailed to the homeowner.
+    // The flag is read only for such a document, and strictly: a read that fails refuses (retryable).
+    if (Array.isArray(docMeta.signers) && docMeta.signers.length > 0
+        && docMeta.signers.every((s) => s && s.role === 'rep')
+        && await DE.clauseFlagForGate(db, uid, HttpsError)) {
+      throw new HttpsError('failed-precondition', 'Only your company signs this document, so it is not sent to the homeowner. Open it and sign it yourself.');
+    }
     const htmlPath = docMeta.htmlPath || null;
     if (!htmlPath) throw new HttpsError('failed-precondition', 'This document has no signable HTML on file');
     // htmlPath is client-written: confine it to THIS lead's own documents/
@@ -611,9 +618,17 @@ exports.createSignRequest = onCall(
           if (ges && ges.exists) gatePrice = DE.estimateCents(ges.data());
         } catch (_) { gatePrice = null; }
       }
+      let secondOwner = '';
+      if (clauseFlagOnAtMint === true) {
+        try { secondOwner = await DE.secondOwnerFor(db, leadId, lead); }
+        catch (e) { throw new HttpsError('unavailable', (e && e.message) || 'Could not check the co-owner record just now. Try again in a moment.'); }
+      }
       const gaps = DE.serverContractGaps({
         type: docMeta.type, html: gateHtml, lead, profile: tenantProfile, tenantKey, KyLaw,
         priceCents: gatePrice, homeownerName: signerName || undefined,
+        // Co-owners (flag docClauseSetV1, Q52): every owner on record signs. Only checked when the flag is on. The second owner
+        // comes from the server's own record (the lead's field is client-writable), and the signers from the stored document's blocks.
+        ...(secondOwner ? { secondOwnerName: secondOwner, signerRoles: DE.sigBlockRoles(gateHtml) } : {}),
       });
       if (gaps.length) throw new HttpsError('failed-precondition', DE.describeGaps(gaps));
     }
@@ -982,10 +997,25 @@ exports.submitSignature = onRequest(
           return;
         }
         record = rebuilt.html;
+        // Co-owners (Q52, re-review): the stored original is rep-authored, so its own data-required flags are not believed. A
+        // homeowner2 block must be signed in the rebuilt record, and a second owner on the server's record (a contract-class
+        // document) needs that block to exist and be signed. Before the burn; a record that cannot be read refuses (retryable).
+        {
+          const hasCoBlock = DE.sigBlockRoles(originalHtml).indexOf('homeowner2') !== -1;
+          let needCo = hasCoBlock;
+          if (!needCo && DE.isContractClass(p.docType) && p.leadId) {
+            try { const rs = await db.doc(`second_owner_records/${p.leadId}`).get(); needCo = !!(rs && rs.exists && String((rs.data() || {}).name || '').trim()); }
+            catch (_) { res.status(503).json({ error: 'Could not record your signature right now. Nothing was used up; please try again shortly.' }); return; }
+          }
+          if (needCo && !DE.signedRoles(rebuilt.html).some((r) => r.role === 'homeowner2')) {
+            res.status(422).json({ error: 'Both owners must sign this contract. The co-owner has not signed yet. Please ask the co-owner to sign, or contact your rep for a corrected copy.' });
+            return;
+          }
+        }
         // Phase 3 (attic acknowledgment): a document with tick controls is recorded with the ticks the signer made,
         // taken from the submission for the controls the ORIGINAL has and nothing else. Every required tick and a
         // Yes or No on every line is enforced here, not only in the page. Before the burn.
-        if (AG.isAtticDoc(p.docType) || AA.parseAcks(originalHtml).length) {
+        if (AG.isAtticDoc(p.docType) || AG.isP5Doc(p.docType) || AA.parseAcks(originalHtml).length) {
           // Review 2026-11-18 (finding 2): the ORIGINAL is rep-authored. It must be the server's own attic form for this document
           // type (same controls, required flags, marker and wording) or the submission is refused, before the burn.
           const mf = AG.verifyManifest(typeof p.docType === 'string' ? p.docType : '', originalHtml);
@@ -993,6 +1023,22 @@ exports.submitSignature = onRequest(
             logger.error('[submitSignature] attic form does not match the server manifest - refusing', { token: token.slice(0, 6), leadId: p.leadId || null, docId: p.docId || null, reasons: mf.reasons });
             res.status(422).json({ error: mf.reasons.indexOf('too_large') !== -1 ? AG.TOO_LARGE_MSG : 'This acknowledgment could not be verified. Please contact your rep for a corrected copy.' });
             return;
+          }
+          // Phase 5 (security review 2026-11-19): the figures and the state are re-derived HERE, from the company's own terms and the lead as
+          // they stand now, before the burn. A profile that cannot be read refuses (retryable); one that is missing leaves the price unset.
+          let p5Derived = null;
+          if (AG.isP5Doc(p.docType)) {
+            let prof = {};
+            const tk = lead && (lead.companyId || lead.userId);
+            try { const cs = tk ? await db.doc(`companyProfile/${tk}`).get() : null; prof = cs && cs.exists ? (cs.data() || {}) : {}; }
+            catch (_) { res.status(503).json({ error: 'Could not record your signature right now. Nothing was used up; please try again shortly.' }); return; }
+            const chk = AG.p5Check(p.docType, originalHtml, { profile: prof, tenantKey: tk, isNbd: DE.isNbdTenant(tk), lead, KyLaw });
+            if (!chk.ok) {
+              logger.error('[submitSignature] phase 5 form failed the server check - refusing', { token: token.slice(0, 6), leadId: p.leadId || null, docId: p.docId || null, reasons: chk.reasons });
+              res.status(422).json({ error: chk.reasons.indexOf('not_ohio') !== -1 ? 'This acknowledgment is for Ohio properties only. Please contact your rep.' : 'This form could not be verified. Please contact your rep for a corrected copy.' });
+              return;
+            }
+            p5Derived = chk.derived;
           }
           const applied = AG.applyAcks(rebuilt.html, signedHtml, typeof p.docType === 'string' ? p.docType : '');
           if (!applied.complete && (applied.manifestReasons || []).indexOf('too_large') !== -1) {
@@ -1006,10 +1052,20 @@ exports.submitSignature = onRequest(
           }
           record = applied.html;
           signedDocType = typeof p.docType === 'string' ? p.docType : null;
-          atticResult = AG.resultFor(signedDocType, applied.html, null);
+          atticResult = AG.resultFor(signedDocType, applied.html, null, p5Derived);
+          // Round 7: the verdict on the rebuilt record comes from the parsed tree (resultFor verifies it), not only from the regex tick reader; a copy the two
+          // read differently is refused before the burn.
+          if (!atticResult.complete || !atticResult.manifestOk) {
+            res.status(422).json({ error: 'This acknowledgment could not be verified. Please contact your rep for a corrected copy.' });
+            return;
+          }
           // Review 2 (item 4): the form is bound to the estimate it covers (id and stamp), read before the burn; a read that fails refuses.
           try { const dm = await db.doc(`leads/${p.leadId}/documents/${p.docId}`).get(); const b = await AG.formBasis(db, p.leadId, lead || {}, { estimateId: dm && dm.exists ? (dm.data() || {}).estimateId : undefined }); atticResult.estimateId = b.id; atticResult.estimateStamp = b.stamp; }
-          catch (_) { res.status(503).json({ error: 'Could not record your signature right now. Nothing was used up; please try again shortly.' }); return; }
+          catch (be) {
+            if (be && be.code === 'too_many_estimates') { res.status(422).json({ error: AG.TOO_MANY_MSG }); return; }
+            if (be && be.code === 'estimate_not_on_lead') { res.status(422).json({ error: 'This acknowledgment could not be verified. Please contact your rep for a corrected copy.' }); return; }
+            res.status(503).json({ error: 'Could not record your signature right now. Nothing was used up; please try again shortly.' }); return;
+          }
         }
       }
     }
@@ -1172,6 +1228,8 @@ exports.submitSignature = onRequest(
         ...DE.requestFacts(req),
       }),
     };
+    // Co-owners (flag docClauseSetV1, Q52): a signed copy with a co-owner block lists every finalized signer the server reads.
+    { const _roles = DE.signedRoles(recordHtml); if (_roles.some((r) => r.role === 'homeowner2')) docPatch.signatureEvidence.signers = _roles; }
     // The tick states travel with the evidence (acknowledgments: [{ id, checked }]); atticAckResult is what the
     // warranty and the contract gate read, server-written (server-owned in firestore.rules).
     if (atticResult) {
