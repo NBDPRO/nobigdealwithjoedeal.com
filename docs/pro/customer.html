@@ -2889,7 +2889,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      html2pdf (~1.1 MB combined) no longer load at boot — they fetch via the
      `pdfexport` bundle on the first PDF export (exportCustomer* handlers +
      NBDDocViewer.handlePdf, which already load-then-runs the bundle). -->
-<script defer src="js/script-loader.js?v=255"></script>
+<script defer src="js/script-loader.js?v=257"></script>
 <script defer src="js/icons.js"></script>
 <!-- Canonical modal driver — window.nbdModal owns open/close + Esc/backdrop
      for every .modal-bg on this page (batch-4 modal consolidation). Loaded
@@ -2955,7 +2955,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/doc-link-copy.js?v=1"></script>
 <script defer src="js/customer-documents.js?v=11"></script>
 <!-- Send for review (2026-10-03): the share sheet + the message copy. -->
-<script defer src="js/phone-share.js?v=3"></script>
+<script defer src="js/phone-share.js?v=9"></script>
 <script defer src="js/estimate-followups.js?v=3"></script>
 <script defer src="js/customer-signed-doc-upload.js?v=3"></script>
 <script defer src="js/customer-portal.js?v=6"></script>
@@ -2977,7 +2977,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      doc-phone-layout.js (2026-09-25) is its phone reading layout for a
      generated document, shared with sign.html and the portal. -->
 <script defer src="js/doc-phone-layout.js?v=1"></script>
-<script defer src="js/nbd-doc-viewer.js?v=6"></script>
+<script defer src="js/nbd-doc-viewer.js?v=12"></script>
 <!-- Photo system Phase 2: client-side EXIF + heading-to-slope inference.
      Loaded BEFORE upload code so analyze() is available at upload time. -->
 <script defer src="js/photo-smart-ingest.js?v=2"></script>
