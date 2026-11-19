@@ -114,7 +114,7 @@ function _scan(html) {
     }
     i = end + 1;
     if (nm && nm[1] === '' && RAW_ELEMENTS[nm[2]] === 1) {
-      const close = low.indexOf('</' + nm[2], i);
+      const close = _rawClose(low, nm[2], i);
       const body = close === -1 ? s.slice(i) : s.slice(i, close);
       if (nm[2] === 'style') styles.push({ body, attrs });
       tags[tags.length - 1].bodyLength = body.length;
@@ -134,6 +134,18 @@ function _scan(html) {
     }
   }
   return { text: text.join(''), tags, styles, unterminated, tooDeep };
+}
+
+// Review 4 (item 2): a raw element ends at </name followed by white space, '/' or '>' (as a browser reads it), never at </namez.
+function _rawClose(low, name, from) {
+  const needle = '</' + name; let p = from;
+  for (;;) {
+    p = low.indexOf(needle, p);
+    if (p === -1) return -1;
+    const c = low.charAt(p + needle.length);
+    if (c === '' || c === ' ' || c === '\t' || c === '\n' || c === '\f' || c === '\r' || c === '/' || c === '>') return p;
+    p += needle.length;
+  }
 }
 
 function _norm(t) {

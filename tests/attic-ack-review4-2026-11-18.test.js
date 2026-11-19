@@ -83,6 +83,20 @@ const generated = async (docType, profileExtra) => {
     ok('...also when signed', verify(sg, { signed: true }).ok === true, JSON.stringify(verify(sg, { signed: true }).reasons));
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('2. the scanner ends a raw element where a browser does');
+  {
+    const tail = (h, close) => h.replace('</body>', close + '</body>');
+    refused('<title>x</titlez> ... </title>: the wording between is inside the title for a browser', tail(GEN.replace('</head>', '<title>x</titlez></head>'), '</title>'), null);
+    refused('<title>x</title9>', tail(GEN.replace('</head>', '<title>x</title9></head>'), '</title>'), null);
+    refused('the widget script closed with </scriptx>', tail(GEN.replace(/(<script src="[^"]*signature-widget\.js" defer>)<\/script>/, '$1</scriptx>'), '</script>'), null);
+    refused('the widget script closed with </script-x>', tail(GEN.replace(/(<script src="[^"]*signature-widget\.js" defer>)<\/script>/, '$1</script-x>'), '</script>'), null);
+    refused('a style block closed with </stylez>', tail(GEN.replace('</head>', '<style id="nbd-sig-styles">x</stylez></head>'), '</style>'), null);
+    ok('control: </title > (white space before >) still closes the title and the form passes', verify(GEN.replace('</title>', '</title >')).ok === true, JSON.stringify(verify(GEN.replace('</title>', '</title >')).reasons));
+    ok('control: </script\\n> closes the widget script', verify(GEN.replace(/(<script src="[^"]*signature-widget\.js" defer>)<\/script>/, '$1</script\n>')).ok === true);
+    ok('control: </title/> closes the title', verify(GEN.replace('</title>', '</title/>')).ok === true);
+  }
+
   console.log('\n' + (failed ? 'FAILED ' + failed + ': ' + fails.join(' | ') : 'all ok') + ' (' + passed + ' passed)');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
