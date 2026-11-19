@@ -74,6 +74,9 @@
     // certified yet. It must NOT fall through to the old inference below, which reads source 'signed_upload' as signed.
     var status = (d.status === 'draft' || d.status === 'sent' || d.status === 'signed' || d.status === 'wet_signed_uploaded')
       ? d.status : null;
+    // A paper upload made under the certification flow (it carries wetSignedDocType) counts as signed ONLY once the server has
+    // written wetSignedAttestation; the status field alone is client-writable and is not believed (security review, HIGH1).
+    if (d.source === 'signed_upload' && typeof d.wetSignedDocType === 'string' && d.wetSignedDocType && !d.wetSignedAttestation) status = 'wet_signed_uploaded';
     return {
       id: id,
       legacy: !!legacy,

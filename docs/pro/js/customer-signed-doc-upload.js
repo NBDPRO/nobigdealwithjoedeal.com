@@ -111,7 +111,7 @@ async function handleSignedDocUpload(input) {
       // moving through draft/sent — status starts (and stays) 'signed'.
       // Paper certification on: it waits as 'wet_signed_uploaded' until the server certifies it.
       status: paper ? 'wet_signed_uploaded' : 'signed',
-      ...(paper ? Object.assign({ wetSignedDocType: paper.docType, wetSignedOn: paper.signedOn },
+      ...(paper ? Object.assign({ wetSignedDocType: paper.docType, wetSignedOn: paper.signedOn, storagePath: path },
         paper.originalDocId ? { originalDocId: paper.originalDocId } : {},
         paper.witnessName ? { witnessName: paper.witnessName } : {}) : {})
     });

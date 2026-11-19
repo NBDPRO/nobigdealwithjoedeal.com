@@ -634,6 +634,32 @@ service cloud.firestore {
     // Paper certification (2026-11-18, flag docClauseSetV1): an uploaded paper-signed document waits as
     // 'wet_signed_uploaded' until the attestWetSigned callable (admin SDK) certifies it. A client may create
     // the row in that status, but cannot move an existing one out of it: the move to 'signed' is the server's.
+    // Security review 2026-11-18 (HIGH1): with docClauseSetV1 on for the writer (their own flag over the default, boolean true
+    // only), a client cannot create a signed_upload row that already claims to be signed (status 'signed', or any signedAt), and
+    // cannot update one into that state. Only attestWetSigned (admin SDK, no rules) certifies. The flag docs are read only when
+    // the row is a signed_upload, so every other document write costs nothing extra. Flag off for the writer: the old paper
+    // upload (status 'signed') keeps working exactly as before.
+    function clauseFlagOnForWriter() {
+      let mine = /databases/$(database)/documents/feature_flags/$(request.auth.uid);
+      let dflt = /databases/$(database)/documents/feature_flags/_default;
+      return exists(mine) && get(mine).data.get('docClauseSetV1', null) != null
+        ? get(mine).data.get('docClauseSetV1', null) == true
+        : (exists(dflt) && get(dflt).data.get('docClauseSetV1', null) == true);
+    }
+    function claimsSigned(d) {
+      return d.get('status', '') == 'signed' || d.get('signedAt', null) != null;
+    }
+    function signedUploadCreateOk() {
+      return request.resource.data.get('source', '') != 'signed_upload'
+        || !claimsSigned(request.resource.data)
+        || !clauseFlagOnForWriter();
+    }
+    function signedUploadUpdateOk() {
+      return request.resource.data.get('source', '') != 'signed_upload'
+        || !claimsSigned(request.resource.data)
+        || claimsSigned(resource.data)
+        || !clauseFlagOnForWriter();
+    }
     function wetStatusUpdateOk() {
       return resource.data.get('status', null) != 'wet_signed_uploaded'
         || request.resource.data.get('status', null) == 'wet_signed_uploaded';
@@ -1391,7 +1417,8 @@ service cloud.firestore {
           && documentStatusWriteOk()
           && documentHtmlPathOk(leadId)
           && documentSaveFlagCreateOk()
-          && documentEvidenceCreateOk();
+          && documentEvidenceCreateOk()
+          && signedUploadCreateOk();
         // Split from create (2026-09-29): an update reads `resource`, which a
         // create does not have. A signed row is locked — see documentIsSigned().
         allow update: if isAuth() && notViewer()
@@ -1401,6 +1428,7 @@ service cloud.firestore {
           && documentHtmlPathOk(leadId)
           && documentSaveFlagUpdateOk()
           && documentEvidenceUpdateOk()
+          && signedUploadUpdateOk()
           && (!documentIsSigned() || signedDocumentUpdateOk(leadId));
         allow delete: if isAuth() && notViewer()
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
@@ -4676,6 +4704,12 @@ service cloud.firestore {
     // endpoints (token-authed, admin SDK). No Firebase-auth client ever
     // touches this collection — same lockdown as doc_sign_tokens.
     match /deal_accept_tokens/{token} {
+      allow read, write: if false;
+    }
+
+    // Co-owners (docClauseSetV1, security review 2026-11-18, HIGH2): the second owner a lead was first sent with, recorded by the
+    // server (admin SDK) so clearing the lead's own secondOwnerName cannot lower the signer requirement. No client touches it.
+    match /second_owner_records/{leadId} {
       allow read, write: if false;
     }
 

@@ -47,6 +47,15 @@ async function run() {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'leads/L1'), { userId: 'owner1', companyId: 'owner1' });
+    // HIGH1 (security review): the "signed upload" guard follows the writer's own docClauseSetV1 flag (per person, over the default).
+    await setDoc(doc(db, 'feature_flags/owner1'), { docClauseSetV1: true });
+    await setDoc(doc(db, 'feature_flags/_default'), { docClauseSetV1: true });
+    await setDoc(doc(db, 'feature_flags/owner2'), { docClauseSetV1: false });   // an explicit per-person off beats the default on
+    await setDoc(doc(db, 'leads/L2'), { userId: 'owner2', companyId: 'owner2' });
+    await setDoc(doc(db, 'leads/L2/documents/legacy'), { name: 'old.jpg', source: 'signed_upload', status: 'signed', signedAt: new Date(), uploadedBy: 'owner2' });
+    await setDoc(doc(db, 'leads/L1/documents/draftup'), { name: 'x.jpg', source: 'signed_upload', status: 'draft', uploadedBy: 'owner1' });
+    await setDoc(doc(db, 'leads/L1/documents/plaindoc'), { name: 'c', type: 'contract', status: 'sent', userId: 'owner1' });
+    await setDoc(doc(db, 'second_owner_records/L1'), { name: 'Pat', recordedAt: 1 });
     await setDoc(doc(db, 'leads/L1/documents/wet'), Object.assign({}, WET));
     await setDoc(doc(db, 'leads/L1/documents/certified'), Object.assign({}, WET, { status: 'signed', signedAt: new Date(), wetSignedAttestation: ATT, wetSignedEvidence: EV }));
   });
@@ -65,6 +74,21 @@ async function run() {
   await check('rep deletes the attestation from a certified row', 'deny', updateDoc(d('certified'), { wetSignedAttestation: deleteField() }));
   await check('rep reopens a certified row to wet_signed_uploaded', 'deny', updateDoc(d('certified'), { status: 'wet_signed_uploaded' }));
   await check('control: rep may still toggle homeowner sharing on a certified row', 'allow', updateDoc(d('certified'), { sharedWithHomeowner: true }));
+
+  // ── HIGH1: a client cannot write a signed_upload row straight to "signed" (only attestWetSigned, admin SDK, does) ──
+  const rep2 = env.authenticatedContext('owner2', {}).firestore();
+  await check('control: rep (flag on) creates a plain generated row with status signed (the guard is only for signed_upload rows)', 'allow', setDoc(doc(owner, 'leads/L1/documents/g1'), { name: 'c', type: 'contract', status: 'signed', signedAt: new Date(), userId: 'owner1' }));
+  await check('rep (flag on) creates a signed_upload row with status signed', 'deny', setDoc(doc(owner, 'leads/L1/documents/h1'), { name: 'f.jpg', source: 'signed_upload', status: 'signed', uploadedBy: 'owner1' }));
+  await check('rep (flag on) creates a signed_upload row with signedAt set', 'deny', setDoc(doc(owner, 'leads/L1/documents/h2'), { name: 'f.jpg', source: 'signed_upload', status: 'draft', signedAt: new Date(), uploadedBy: 'owner1' }));
+  await check('rep (flag on) moves a draft signed_upload row to signed', 'deny', updateDoc(d('draftup'), { status: 'signed' }));
+  await check('rep (flag on) stamps signedAt on a waiting signed_upload row', 'deny', updateDoc(d('wet'), { signedAt: new Date() }));
+  await check('rep (flag on) turns a plain row into a signed_upload row that is signed', 'deny', updateDoc(d('plaindoc'), { source: 'signed_upload', status: 'signed' }));
+  await check('control: rep (flag on) edits a note on a waiting signed_upload row', 'allow', updateDoc(d('wet'), { note: 'second page missing' }));
+  await check('control: rep (flag off for this person) still creates a legacy signed upload as signed', 'allow', setDoc(doc(rep2, 'leads/L2/documents/legacy2'), { name: 'f.jpg', source: 'signed_upload', status: 'signed', uploadedBy: 'owner2' }));
+  await check('control: rep (flag off) may still edit the legacy signed row\'s sharing flag', 'allow', updateDoc(doc(rep2, 'leads/L2/documents/legacy'), { sharedWithHomeowner: true }));
+  await check('rep writes wetSignedAttestation on create (flag off person)', 'deny', setDoc(doc(rep2, 'leads/L2/documents/h3'), { name: 'f.jpg', source: 'signed_upload', status: 'wet_signed_uploaded', wetSignedAttestation: ATT }));
+  await check('second_owner_records is not readable by a client', 'deny', require('firebase/firestore').getDoc(doc(owner, 'second_owner_records/L1')));
+  await check('second_owner_records is not writable by a client (cannot lower or clear a recorded second owner)', 'deny', setDoc(doc(owner, 'second_owner_records/L1'), { name: '' }));
 
   await env.cleanup();
   const bad = results.filter((r) => !r.ok);

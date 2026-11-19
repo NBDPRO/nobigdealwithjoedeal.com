@@ -97,10 +97,15 @@ async function contractGapsFor(db, ctx, evidence) {
     const es = pid ? await db.doc('estimates/' + pid).get() : null;
     if (es && es.exists) priceCents = DE.estimateCents(es.data());
   } catch (_) { priceCents = null; }
+  // Co-owners (flag docClauseSetV1, Q52): every owner on record signs. Only checked when the clause flag is on. The second owner comes
+  // from the server's record (the lead's field is client-writable), the signers from the stored copy's own blocks.
+  let secondOwner = '';
+  if (evidence.clauseFlag === true) {
+    try { secondOwner = await DE.secondOwnerFor(db, leadId, lead); }
+    catch (e) { throw new RefusalError('unavailable', (e && e.message) || 'Could not check the co-owner record just now. Try again in a moment.'); }
+  }
   return DE.serverContractGaps(Object.assign({ type: docMeta.type, html, lead, profile, tenantKey, KyLaw: require('./ky-insurance-law'), priceCents },
-    // Co-owners (flag docClauseSetV1, Q52): every owner on record signs. Only checked when the clause flag is on.
-    evidence.clauseFlag === true && typeof lead.secondOwnerName === 'string' && Array.isArray(docMeta.signers)
-      ? { secondOwnerName: lead.secondOwnerName, signerRoles: docMeta.signers.map((s) => s && s.role) } : {}));
+    secondOwner ? { secondOwnerName: secondOwner, signerRoles: DE.sigBlockRoles(html) } : {}));
 }
 
 /**

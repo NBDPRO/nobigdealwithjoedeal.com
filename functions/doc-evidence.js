@@ -426,6 +426,39 @@ function signedRoles(html) {
   return out;
 }
 
+/**
+ * Every signature block a stored document carries, finalized or not: the roles, in order. The co-owner gate reads THIS (the
+ * stored document's own blocks), not the row's `signers` list, which a client writes (security review 2026-11-18, HIGH2).
+ */
+function sigBlockRoles(html) {
+  const s = html == null ? '' : String(html);
+  const out = [];
+  const re = /<div\b[^>]*\bdata-nbd-sig\s*=\s*"([^"]{1,64})"/gi;
+  let m;
+  while ((m = re.exec(s)) !== null && out.length < 24) out.push(m[1].replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40));
+  return out;
+}
+
+/**
+ * The second owner this lead has (flag docClauseSetV1, Q52), from a place a rep cannot rewrite. The lead's own secondOwnerName
+ * is client-writable, so the first time the gate sees one the SERVER records it (second_owner_records/{leadId}, admin-only in
+ * firestore.rules); from then on the recorded name wins, and clearing the lead's field cannot lower the requirement.
+ * A record that cannot be read or written throws an error with code 'unavailable' (the caller refuses, retryable): it never
+ * reads as "no second owner". Residual: removing a recorded second owner needs an admin to delete that document.
+ */
+async function secondOwnerFor(db, leadId, lead) {
+  const unavailable = (e) => { const er = new Error('Could not check the co-owner record just now. Try again in a moment.'); er.code = 'unavailable'; er.cause = e; return er; };
+  const ref = db.doc('second_owner_records/' + leadId);
+  let rec = null;
+  try { const snap = await ref.get(); rec = snap && snap.exists ? (snap.data() || {}) : null; } catch (e) { throw unavailable(e); }
+  const recorded = rec && typeof rec.name === 'string' ? rec.name.trim().slice(0, 80) : '';
+  const own = lead && typeof lead.secondOwnerName === 'string' ? lead.secondOwnerName.trim().slice(0, 80) : '';
+  if (!recorded && own) {
+    try { await ref.set({ name: own, recordedAt: Date.now() }); } catch (e) { throw unavailable(e); }
+  }
+  return recorded || own;
+}
+
 /** Cents from an estimate document (grandTotal, else total), or null. */
 function estimateCents(est) {
   const n = Number(est && (est.grandTotal != null ? est.grandTotal : est.total));
@@ -439,6 +472,6 @@ module.exports = {
   CLAUSE_FLAG_NAME, clauseFlagForUid, ATTIC_FLAG_NAME, atticFlagForGate, atticGateOn,
   FLAG_NAME, FLAG_DEFAULT, NBD_ENTITY_NAME, CLAUSE_SET_VERSION: ClauseSet.CLAUSE_SET_VERSION,
   NBD_OWNER_UID_FOR_TESTS: NBD_OWNER_UID, clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, buildClauseSetFor, clauseFlagForGate, signPanelFlagForGate, signPanelFlagLoose, DELIVERY_CHANNELS, printedByRef, expectedV1Refs, pdfByRef, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
-  serverContractGaps, signedRoles, estimateCents, isContractClass: Checks.isContractClass,
+  serverContractGaps, signedRoles, sigBlockRoles, secondOwnerFor, estimateCents, isContractClass: Checks.isContractClass,
   describeGaps: Checks.describeGaps,
 };

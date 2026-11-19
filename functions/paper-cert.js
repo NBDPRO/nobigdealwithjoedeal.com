@@ -45,6 +45,13 @@ exports.attestWetSigned = onCall(
           const [buf] = await f.download();
           return buf;
         },
+        // Storage metadata of the uploaded file (null = no such object). Size, content type and the object's own hash are recorded.
+        statFile: async (p) => {
+          try {
+            const [md] = await getStorage().bucket().file(p).getMetadata();
+            return md ? { size: Number(md.size), contentType: md.contentType, md5Hash: md.md5Hash } : null;
+          } catch (e) { if (e && (e.code === 404 || e.code === 'ENOENT')) return null; throw e; }
+        },
         fileSigned: (d, info) => require('./job-spine').spineAfterWetSign(d, info),
       }, { facts: DE.requestFacts(request.rawRequest) }));
     } catch (e) {

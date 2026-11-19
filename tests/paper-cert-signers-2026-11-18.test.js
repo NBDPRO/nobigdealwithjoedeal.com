@@ -35,11 +35,20 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
       'leads/L2': { userId: 'OTHER', companyId: 'CO2' },
       'leads/L1/documents/ORIG': { type: 'contract', status: 'draft', htmlPath: 'documents/REP/L1/d-1.html' },
       'leads/L1/documents/PAPER': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'image/jpeg', name: 'scan.jpg', url: 'https://x.test/scan.jpg',
-        wetSignedDocType: 'contract', originalDocId: 'ORIG', wetSignedOn: '2026-11-17', witnessName: 'Pat Neighbor', uploadedBy: 'REP' },
-      'leads/L1/documents/COC': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'application/pdf', wetSignedDocType: 'certificate_of_completion', wetSignedOn: '2026-11-17', uploadedBy: 'REP' },
-      'leads/L1/documents/OTHERDOC': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'application/pdf', wetSignedDocType: 'other', wetSignedOn: '2026-11-17', uploadedBy: 'REP' },
-      'leads/L1/documents/FUTURE': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'application/pdf', wetSignedDocType: 'contract', wetSignedOn: '2099-01-01', uploadedBy: 'REP' },
-      'leads/L1/documents/BADTYPE': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'application/pdf', wetSignedDocType: 'wire_transfer', wetSignedOn: '2026-11-17', uploadedBy: 'REP' },
+        wetSignedDocType: 'contract', originalDocId: 'ORIG', wetSignedOn: '2026-11-17', witnessName: 'Pat Neighbor', uploadedBy: 'REP', storagePath: 'docs/REP/L1/1_scan.jpg' },
+      'leads/L1/documents/COC': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'application/pdf', wetSignedDocType: 'certificate_of_completion', wetSignedOn: '2026-11-17', uploadedBy: 'REP', storagePath: 'docs/REP/L1/1_scan.jpg' },
+      'leads/L1/documents/OTHERDOC': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'application/pdf', wetSignedDocType: 'other', wetSignedOn: '2026-11-17', uploadedBy: 'REP', storagePath: 'docs/REP/L1/1_scan.jpg' },
+      'leads/L1/documents/FUTURE': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'application/pdf', wetSignedDocType: 'contract', wetSignedOn: '2099-01-01', uploadedBy: 'REP', storagePath: 'docs/REP/L1/1_scan.jpg' },
+      'leads/L1/documents/BADTYPE': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'application/pdf', wetSignedDocType: 'wire_transfer', wetSignedOn: '2026-11-17', uploadedBy: 'REP', storagePath: 'docs/REP/L1/1_scan.jpg' },
+      'leads/L1/documents/NOFILE': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'image/jpeg', wetSignedDocType: 'other', wetSignedOn: '2026-11-17', uploadedBy: 'REP' },
+      'leads/L1/documents/MISSING': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'image/jpeg', wetSignedDocType: 'other', wetSignedOn: '2026-11-17', uploadedBy: 'REP', storagePath: 'docs/REP/L1/never-uploaded.jpg' },
+      'leads/L1/documents/ELSEWHERE': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'image/jpeg', wetSignedDocType: 'other', wetSignedOn: '2026-11-17', uploadedBy: 'REP', storagePath: 'docs/REP/L2/1_scan.jpg' },
+      'leads/L1/documents/EMPTYFILE': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'image/jpeg', wetSignedDocType: 'other', wetSignedOn: '2026-11-17', uploadedBy: 'REP', storagePath: 'docs/REP/L1/empty.jpg' },
+      'leads/L1/documents/DELORIG': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'image/jpeg', wetSignedDocType: 'contract', originalDocId: 'DELETED', wetSignedOn: '2026-11-17', uploadedBy: 'REP', storagePath: 'docs/REP/L1/1_scan.jpg' },
+      'leads/L1/documents/UPORIG': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'image/jpeg', wetSignedDocType: 'contract', originalDocId: 'UPLOADED', wetSignedOn: '2026-11-17', uploadedBy: 'REP', storagePath: 'docs/REP/L1/1_scan.jpg' },
+      'leads/L1/documents/GHOSTORIG': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'image/jpeg', wetSignedDocType: 'contract', originalDocId: 'NOSUCH', wetSignedOn: '2026-11-17', uploadedBy: 'REP', storagePath: 'docs/REP/L1/1_scan.jpg' },
+      'leads/L1/documents/DELETED': { type: 'contract', status: 'draft', deleted: true, htmlPath: 'documents/REP/L1/d-1.html' },
+      'leads/L1/documents/UPLOADED': { source: 'signed_upload', type: 'contract', status: 'signed' },
       'leads/L1/documents/LEGACY': { source: 'signed_upload', status: 'signed', type: 'image/jpeg', name: 'old.jpg' },
       'leads/L1/documents/GEN': { type: 'contract', status: 'sent' },
     });
@@ -50,6 +59,8 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
       const deps = Object.assign({
         flagOn: async () => true,
         readBytes: async (p) => { if (p === 'documents/REP/L1/d-1.html') return ORIG_HTML; throw new Error('nope'); },
+        statFile: async (p) => (p === 'docs/REP/L1/1_scan.jpg' ? { size: 1234, contentType: 'image/jpeg', md5Hash: 'abc123==' }
+          : (p === 'docs/REP/L1/empty.jpg' ? { size: 0, contentType: 'image/jpeg' } : null)),
         toTimestamp: (ms) => ({ toMillis: () => ms }),
         now: () => Date.parse('2026-11-18T15:00:00Z'),
         facts: { ip: '203.0.113.9', ipSource: 'socket', ua: 'UA' },
@@ -77,7 +88,7 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
       const e2 = await rejects(() => L.attestWetSigned(db, REP, { leadId: 'L2', docId: 'PAPER' }, deps));
       ok('a lead of another company is refused', !!e2 && e2.code === 'permission-denied', e2 && e2.code); }
     { const { db, deps } = mk();
-      const r = await L.attestWetSigned(db, { uid: 'STAFF', token: { companyId: 'CO', name: 'Staff Person' } }, { leadId: 'L1', docId: 'PAPER' }, deps);
+      const r = await L.attestWetSigned(db, { uid: 'STAFF', token: { companyId: 'CO', role: 'manager', name: 'Staff Person' } }, { leadId: 'L1', docId: 'PAPER' }, deps);
       ok('same-company staff can attest', r && r.ok === true, JSON.stringify(r)); }
     { const { db, deps, events } = mk();
       const r = await L.attestWetSigned(db, REP, { leadId: 'L1', docId: 'PAPER', witnessName: 'Chris Witness' }, deps);
@@ -122,6 +133,87 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
       const db = kit.makeDb(s); const { deps } = mk();
       const e = await rejects(() => L.attestWetSigned(db, REP, { leadId: 'L1', docId: 'PAPER' }, deps));
       ok('original of a different type is refused', !!e && e.code === 'failed-precondition', e && e.code); }
+
+    // ── security review (MED3): the upload itself must exist; the original must be a live generated document of this lead ──
+    section('1. security review: the file is real, the original is real (MED3)');
+    { const { db, deps } = mk();
+      await L.attestWetSigned(db, REP, { leadId: 'L1', docId: 'PAPER' }, deps);
+      const ev = db._get('leads/L1/documents/PAPER').wetSignedEvidence;
+      ok('the attestation records the uploaded file: path, size, content type and hash from Storage metadata',
+        ev.uploadPath === 'docs/REP/L1/1_scan.jpg' && ev.uploadSize === 1234 && ev.uploadContentType === 'image/jpeg' && ev.uploadMd5 === 'abc123==', JSON.stringify(ev)); }
+    for (const [id, why] of [['NOFILE', 'a row with no uploaded file path (an empty row)'], ['MISSING', 'a path with nothing in Storage'], ['ELSEWHERE', 'a path under another lead'], ['EMPTYFILE', 'a zero-byte file']]) {
+      const { db, deps, events } = mk();
+      const e = await rejects(() => L.attestWetSigned(db, REP, { leadId: 'L1', docId: id }, deps));
+      ok('refused: ' + why, !!e && e.code === 'failed-precondition' && db._get('leads/L1/documents/' + id).status === 'wet_signed_uploaded' && events.length === 0, e && (e.code + ' ' + e.message));
+    }
+    for (const [id, why] of [['DELORIG', 'a deleted original'], ['UPORIG', 'an original that is itself an upload'], ['GHOSTORIG', 'an original that is not on this lead']]) {
+      const { db, deps } = mk();
+      const e = await rejects(() => L.attestWetSigned(db, REP, { leadId: 'L1', docId: id }, deps));
+      ok('refused: ' + why, !!e && e.code === 'failed-precondition', e && (e.code + ' ' + e.message));
+    }
+    { const { db, deps } = mk({ statFile: undefined });
+      const e = await rejects(() => L.attestWetSigned(db, REP, { leadId: 'L1', docId: 'PAPER' }, deps));
+      ok('no way to inspect Storage: fail closed (unavailable), nothing certified', !!e && e.code === 'unavailable' && db._get('leads/L1/documents/PAPER').status === 'wet_signed_uploaded', e && e.code); }
+    { const { db, deps } = mk({ statFile: async () => { throw new Error('storage down'); } });
+      const e = await rejects(() => L.attestWetSigned(db, REP, { leadId: 'L1', docId: 'PAPER' }, deps));
+      ok('Storage error: unavailable (retryable), nothing certified', !!e && e.code === 'unavailable'); }
+
+    // ── MED4: the callable is no broader than the rules (owner of the lead, a manager or a company admin of its company) ──
+    section('1. security review: who may certify (MED4)');
+    { const lead = (role, uid, co) => ({ uid, token: { companyId: co || 'CO', role, name: 'X' } });
+      const tryAs = async (who) => { const { db, deps } = mk(); return rejects(() => L.attestWetSigned(db, who, { leadId: 'L1', docId: 'PAPER' }, deps)); };
+      const e1 = await tryAs(lead('sales_rep', 'MATE'));
+      ok('a sales rep on a teammate\'s lead is denied', !!e1 && e1.code === 'permission-denied', e1 && e1.code);
+      ok('the lead\'s own sales rep is allowed', (await tryAs(lead('sales_rep', 'REP'))) === null);
+      ok('a manager of the company is allowed', (await tryAs(lead('manager', 'M1'))) === null);
+      ok('a company admin of the company is allowed', (await tryAs(lead('company_admin', 'A1'))) === null);
+      const e2 = await tryAs(lead('manager', 'M2', 'OTHERCO'));
+      ok('a manager of another company is denied', !!e2 && e2.code === 'permission-denied', e2 && e2.code);
+      const e3 = await tryAs(lead('company_admin', 'A2', 'OTHERCO'));
+      ok('a company admin of another company is denied', !!e3 && e3.code === 'permission-denied');
+      const e4 = await tryAs({ uid: 'MATE', token: { companyId: 'CO' } });
+      ok('a company member with no role claim is denied', !!e4 && e4.code === 'permission-denied'); }
+
+    // ── LOW5: a replay retries a filing that did not happen ──
+    section('1. security review: a replay retries the filing (LOW5)');
+    { const { db, deps, events } = mk();
+      let calls = 0; const flaky = Object.assign({}, deps, { fileSigned: async (d, info) => { calls++; if (calls === 1) throw new Error('spine down'); return deps.fileSigned(d, info); } });
+      const first = await L.attestWetSigned(db, REP, { leadId: 'L1', docId: 'PAPER' }, flaky);
+      ok('first call: certified even though filing failed', first.ok === true && db._get('leads/L1/documents/PAPER').status === 'signed' && !db._get('leads/L1').contractFiledAt && first.filedField === null, JSON.stringify(first));
+      const again = await L.attestWetSigned(db, REP, { leadId: 'L1', docId: 'PAPER' }, flaky);
+      ok('replay: the contract is filed now', again.ok === true && again.already === true && again.filedField === 'contractFiledAt' && db._get('leads/L1').contractFiledAt === 'ISO' && events.length === 1, JSON.stringify(again));
+      const third = await L.attestWetSigned(db, REP, { leadId: 'L1', docId: 'PAPER' }, flaky);
+      ok('a further replay files nothing more (double attest files once)', third.already === true && events.length === 1 && calls === 2, JSON.stringify({ calls, n: events.length })); }
+    { const { db, deps, events } = mk();
+      await L.attestWetSigned(db, REP, { leadId: 'L1', docId: 'OTHERDOC' }, deps);
+      const again = await L.attestWetSigned(db, REP, { leadId: 'L1', docId: 'OTHERDOC' }, deps);
+      ok('a replay of a document that files nothing does not file', again.already === true && events.length === 0); }
+
+    // ── the callable wrapper: unauthenticated, viewer, other company ──
+    section('1. security review: the callable refuses the unauthenticated, viewers and other companies');
+    { const DEm = require(path.join(FN, 'doc-evidence.js'));
+      const mkW = (dbSeed) => {
+        const db = kit.makeDb(dbSeed || seed()); const st = kit.makeStorage({ 'docs/REP/L1/1_scan.jpg': 'JPEGDATA', 'documents/REP/L1/d-1.html': ORIG_HTML });
+        const viewerStub = { callableRateLimit: async () => {}, assertNotViewer: (t) => { if (t && t.role === 'viewer') throw new kit.HttpsError('permission-denied', 'Viewers are read-only'); } };
+        const W = kit.loadHandler('paper-cert.js', db, st, { './shared': viewerStub, './paper-cert-logic': L, './doc-evidence': DEm, './job-spine': { spineAfterWetSign: async () => ({ filedField: 'contractFiledAt' }) } }, []);
+        return { db, W };
+      };
+      const call = async (W, auth) => { try { return { v: await W.fns.attestWetSigned({ auth, data: { leadId: 'L1', docId: 'PAPER' }, rawRequest: { headers: {}, get: () => 'UA' } }) }; } catch (e) { return { e }; } };
+      const flagSeed = Object.assign(seed(), { 'feature_flags/_default': { docClauseSetV1: true } });
+      let m = mkW(flagSeed);
+      let r = await call(m.W, null);
+      ok('unauthenticated: refused', !!r.e && r.e.code === 'unauthenticated', r.e && r.e.code);
+      r = await call(m.W, { uid: 'V1', token: { companyId: 'CO', role: 'viewer' } });
+      ok('a viewer is refused before anything is read', !!r.e && r.e.code === 'permission-denied' && m.db._get('leads/L1/documents/PAPER').status === 'wet_signed_uploaded', r.e && r.e.code);
+      r = await call(m.W, { uid: 'X1', token: { companyId: 'ELSE', role: 'company_admin' } });
+      ok('another company\'s admin is refused', !!r.e && r.e.code === 'permission-denied', r.e && r.e.code);
+      r = await call(m.W, { uid: 'MATE', token: { companyId: 'CO', role: 'sales_rep' } });
+      ok('a sales rep on a teammate\'s lead is refused', !!r.e && r.e.code === 'permission-denied');
+      r = await call(m.W, { uid: 'REP', token: { companyId: 'CO', role: 'sales_rep', name: 'Rep Name' } });
+      ok('the owner, with the flag on, certifies through the real wrapper (Storage stat read from the bucket)', !!r.v && r.v.ok === true && m.db._get('leads/L1/documents/PAPER').wetSignedEvidence.uploadSize === 8, r.e && (r.e.code + ' ' + r.e.message));
+      const m2 = mkW(seed());
+      r = await call(m2.W, { uid: 'REP', token: { companyId: 'CO', role: 'sales_rep' } });
+      ok('flag off for the caller: refused (failed-precondition), nothing written', !!r.e && r.e.code === 'failed-precondition' && m2.db._get('leads/L1/documents/PAPER').status === 'wet_signed_uploaded', r.e && r.e.code); }
   }
 
   // ───────────────────────── 1b. paper certification: the browser side ─────────────────────────
@@ -159,7 +251,8 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
     ok('flag on: the row waits (status wet_signed_uploaded), never signed', !!p && p.status === 'wet_signed_uploaded' && p.source === 'signed_upload', JSON.stringify(p));
     ok('flag on: type, link to the original, signing date and witness are recorded',
       p.wetSignedDocType === 'contract' && p.originalDocId === 'ORIG' && p.wetSignedOn === '2026-11-17' && p.witnessName === 'Pat');
-    ok('flag on: the upload writes no attestation field (server-owned)', !('wetSignedAttestation' in p) && !('wetSignedEvidence' in p) && !('signedAt' in p)); }
+    ok('flag on: the upload writes no attestation field (server-owned)', !('wetSignedAttestation' in p) && !('wetSignedEvidence' in p) && !('signedAt' in p));
+    ok('flag on: the row names the Storage object it uploaded (the server checks it exists before certifying)', /^docs\/REP\/L1\/\d+_scan_1\.jpg$/.test(String(p.storagePath)), p.storagePath); }
   { const r = await runUpload(true, { collect: async () => ({ docType: 'other', originalDocId: '', signedOn: '2026-11-17', witnessName: '' }) });
     const p = r.added[0].payload;
     ok('flag on: no original and no witness leaves those keys out', !('originalDocId' in p) && !('witnessName' in p) && p.wetSignedDocType === 'other'); }
@@ -191,6 +284,15 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
     ok('the document-type chip does not read the MIME type', r.sb._customerDocs[0].signed === false); }
   { const r = await loadDocs([{ id: 'W2', name: 'scan.jpg', url: 'https://x.test/s.jpg', source: 'signed_upload', status: 'signed', signedAt: day('2026-11-17T12:00:00Z'), wetSignedAttestation: { byUid: 'REP' }, uploadedAt: day('2026-11-17T10:00:00Z') }]);
     ok('a certified upload reads Signed and offers no certify button', /✓ Signed/.test(r.html) && !/certifyPaperDoc/.test(r.html) && !/not certified/.test(r.html)); }
+  { // security review HIGH1: the list keys on the server-written attestation, not on the status field a client could write
+    const r = await loadDocs([{ id: 'F1', name: 'forged.jpg', url: 'https://x.test/f.jpg', source: 'signed_upload', status: 'signed', signedAt: day('2026-11-17T12:00:00Z'), wetSignedDocType: 'contract', uploadedAt: day('2026-11-17T10:00:00Z') }]);
+    ok('a paper upload that claims "signed" with no server attestation still reads "Uploaded, not certified"', /Uploaded, not certified/.test(r.html) && !/✓ Signed/.test(r.html), r.html.slice(0, 300));
+    ok('...is not counted signed, and still offers the certify button', r.sb._customerDocs[0].signed === false && /certifyPaperDoc/.test(r.html)); }
+  { // LOW6: the attester's name, the witness and the file name are data, never markup, on the list
+    const EVIL = '<img src=x onerror=alert(1)>';
+    const r = await loadDocs([{ id: 'E1', name: EVIL + '.jpg', url: 'https://x.test/e.jpg', source: 'signed_upload', status: 'signed', signedAt: day('2026-11-17T12:00:00Z'), wetSignedDocType: 'contract', witnessName: EVIL,
+      wetSignedAttestation: { byUid: 'U', name: EVIL, at: 1, text: EVIL }, wetSignedEvidence: { witnessName: EVIL }, uploadedAt: day('2026-11-17T10:00:00Z') }]);
+    ok('hostile names in the attestation, witness and file name never reach the list as markup', !/<img/i.test(r.html) && !/onerror=alert/.test(r.html.replace(/&lt;img[^&]*&gt;/g, '')), r.html.slice(0, 400)); }
   { const r = await loadDocs([{ id: 'U9', name: 'old.jpg', url: 'https://x.test/o.jpg', source: 'signed_upload', status: 'signed', uploadedAt: day('2026-11-01T10:00:00Z') }]);
     ok('a pre-existing signed upload is unchanged (no certify button, still Signed)', /✓ Signed/.test(r.html) && !/certifyPaperDoc|not certified/.test(r.html)); }
 
@@ -453,28 +555,55 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
       if (flags) s['feature_flags/_default'] = flags;
       return s;
     };
-    const mint = async (flags, lead, signers) => {
+    // The signer roles are read from the STORED document's signature blocks (the row's own `signers` list is client-written).
+    const sigBlk = (r) => '<div data-nbd-sig="' + r + '" data-nbd-sig-required="1"><canvas width="300" height="100"></canvas></div>';
+    const htmlWith = (...roles) => CONTRACT.replace(sigBlk('homeowner'), roles.map(sigBlk).join(''));
+    const BOTH_HTML = htmlWith('homeowner', 'homeowner2', 'rep'); const ONE_HTML = htmlWith('homeowner', 'rep');
+    const mint = async (flags, lead, signers, html, mod) => {
       const db = kit.makeDb(seedRS(flags, lead, signers));
-      const Lh = kit.loadHandler('remote-signing.js', db, kit.makeStorage({ [P]: CONTRACT }), stubs(), REAL);
+      if (mod) mod(db);
+      const Lh = kit.loadHandler('remote-signing.js', db, kit.makeStorage({ [P]: html || CONTRACT }), stubs(), REAL);
       try { return { v: await Lh.fns.createSignRequest({ auth: { uid: 'U1', token: {} }, data: { leadId: 'L1', docId: 'd1', signerEmail: 'dana@example.test', signerName: 'Dana Whitfield' } }), db }; }
       catch (e) { return { e, db }; }
     };
     const FLAG = { docClauseSetV1: true };
-    let r = await mint(FLAG, leadX({ secondOwnerName: 'Pat Whitfield' }), [ROLE('homeowner'), ROLE('rep')]);
+    const PAT = leadX({ secondOwnerName: 'Pat Whitfield' });
+    let r = await mint(FLAG, PAT, [ROLE('homeowner'), ROLE('rep')], ONE_HTML);
     ok('remote: flag on, two owners listed, one homeowner signer: refused, no link', !!r.e && r.e.code === 'failed-precondition' && /Pat Whitfield/.test(r.e.message) && r.db._all('doc_sign_tokens').length === 0, r.e && r.e.message);
-    r = await mint(FLAG, leadX({ secondOwnerName: 'Pat Whitfield' }), [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')]);
+    r = await mint(FLAG, PAT, [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], BOTH_HTML);
     ok('remote: flag on, both owners are signers: sent', !!r.v && r.db._all('doc_sign_tokens').length === 1, r.e && r.e.message);
-    r = await mint(FLAG, leadX(), [ROLE('homeowner'), ROLE('rep')]);
+    r = await mint(FLAG, leadX(), [ROLE('homeowner'), ROLE('rep')], ONE_HTML);
     ok('remote: flag on, one owner: sent', !!r.v && r.db._all('doc_sign_tokens').length === 1, r.e && r.e.message);
-    r = await mint(null, leadX({ secondOwnerName: 'Pat Whitfield' }), [ROLE('homeowner'), ROLE('rep')]);
+    r = await mint(null, PAT, [ROLE('homeowner'), ROLE('rep')], ONE_HTML);
     ok('remote: flag off: unchanged (sent)', !!r.v && r.db._all('doc_sign_tokens').length === 1, r.e && r.e.message);
+    // security review HIGH2: the row's signers list is client-written, so it is not the source of truth
+    r = await mint(FLAG, PAT, undefined, ONE_HTML);
+    ok('remote: a row with NO signers list is not a way round the gate (the stored document\'s blocks decide)', !!r.e && r.e.code === 'failed-precondition' && /Pat Whitfield/.test(r.e.message) && r.db._all('doc_sign_tokens').length === 0, r.e && r.e.message);
+    r = await mint(FLAG, PAT, [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], ONE_HTML);
+    ok('remote: a row that CLAIMS a co-owner signer but whose stored document has no co-owner block is refused', !!r.e && r.e.code === 'failed-precondition' && r.db._all('doc_sign_tokens').length === 0, r.e && r.e.message);
+    r = await mint(FLAG, PAT, undefined, BOTH_HTML);
+    ok('remote: no signers list but the document really has both blocks: sent', !!r.v && r.db._all('doc_sign_tokens').length === 1, r.e && r.e.message);
+    // the second owner is recorded server-side at the first send, and clearing the lead's own field cannot lower it
+    r = await mint(FLAG, PAT, [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], BOTH_HTML);
+    ok('the second owner is recorded by the server at the first send (second_owner_records/L1)', !!r.db._get('second_owner_records/L1') && r.db._get('second_owner_records/L1').name === 'Pat Whitfield', JSON.stringify(r.db._get('second_owner_records/L1')));
+    r = await mint(FLAG, leadX({ secondOwnerName: '' }), [ROLE('homeowner'), ROLE('rep')], ONE_HTML, (db) => db._store.set('second_owner_records/L1', { name: 'Pat Whitfield', recordedAt: 1 }));
+    ok('a lead whose secondOwnerName was cleared AFTER it was recorded still needs the co-owner (refused)', !!r.e && r.e.code === 'failed-precondition' && /Pat Whitfield/.test(r.e.message) && r.db._all('doc_sign_tokens').length === 0, r.e && r.e.message);
+    r = await mint(FLAG, leadX({ secondOwnerName: undefined }), [ROLE('homeowner'), ROLE('rep')], ONE_HTML, (db) => db._store.set('second_owner_records/L1', { name: 'Pat Whitfield', recordedAt: 1 }));
+    ok('...also when the field is deleted outright', !!r.e && r.e.code === 'failed-precondition' && r.db._all('doc_sign_tokens').length === 0);
+    r = await mint(FLAG, PAT, [ROLE('homeowner'), ROLE('rep')], ONE_HTML, (db) => { const o = db.doc; db.doc = (p) => (/^second_owner_records\//.test(p) ? { get: async () => { throw new Error('down'); }, set: async () => { throw new Error('down'); } } : o(p)); });
+    ok('the record cannot be read: fail closed with a retryable "unavailable", no link', !!r.e && r.e.code === 'unavailable' && r.db._all('doc_sign_tokens').length === 0, r.e && r.e.code);
+    r = await mint(FLAG, leadX(), [ROLE('homeowner'), ROLE('rep')], ONE_HTML);
+    ok('a lead with no second owner never gets a record', r.db._get('second_owner_records/L1') === undefined);
+    r = await mint(null, PAT, [ROLE('homeowner'), ROLE('rep')], ONE_HTML);
+    ok('flag off: no record is written', r.db._get('second_owner_records/L1') === undefined);
     // in person
     const Lg = require(path.join(FN, 'in-person-signing-logic.js'));
-    const callIP = async (flags, lead, signers, signedSigners) => {
+    const callIP = async (flags, lead, signers, signedSigners, html, mod) => {
       const s = { 'leads/L1': lead, 'leads/L1/documents/d1': { type: 'contract', status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers, signedSigners, htmlPath: P }, 'estimates/E1': { grandTotal: 14500 }, 'companyProfile/U1': PROFILE };
       if (flags) s['feature_flags/_default'] = flags;
       const db = kit.makeDb(s);
-      const W = kit.loadHandler('in-person-signing.js', db, kit.makeStorage({ [P]: CONTRACT }), { './in-person-signing-logic': Lg, './doc-evidence': DE }, []);
+      if (mod) mod(db);
+      const W = kit.loadHandler('in-person-signing.js', db, kit.makeStorage({ [P]: html || CONTRACT }), { './in-person-signing-logic': Lg, './doc-evidence': DE }, []);
       try { return { v: await W.fns.recordInPersonSignature({ auth: { uid: 'U1', token: {} }, data: { leadId: 'L1', docId: 'd1' }, rawRequest: { headers: { 'x-forwarded-for': '203.0.113.5' }, get: () => 'RepPhone/1' } }), db }; }
       catch (e) { return { e, db }; }
     };
@@ -483,10 +612,21 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
     ok('in person: flag on, two owners listed, the co-owner never a signer: refused', !!c.e && /Pat Whitfield/.test(String(c.e.message)), c.e && c.e.message);
     c = await callIP(FLAG, leadX({ secondOwnerName: 'Pat Whitfield' }), [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], [{ role: 'homeowner', signedAt: 1 }, { role: 'rep', signedAt: 3 }]);
     ok('in person: the co-owner is a required signer who did not sign: not recorded as signed', !!c.e && /not signed|missing_required_signer/.test(String(c.e.message)), c.e && c.e.message);
-    c = await callIP(FLAG, leadX({ secondOwnerName: 'Pat Whitfield' }), [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], signedBoth);
+    c = await callIP(FLAG, PAT, [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], signedBoth, BOTH_HTML);
     ok('in person: both owners signed: recorded', !!c.v && c.v.ok === true, c.e && c.e.message);
-    c = await callIP(null, leadX({ secondOwnerName: 'Pat Whitfield' }), [ROLE('homeowner'), ROLE('rep')], [{ role: 'homeowner', signedAt: 1 }, { role: 'rep', signedAt: 3 }]);
-    ok('in person: flag off: unchanged', !!c.v && c.v.ok === true, c.e && c.e.message); }
+    c = await callIP(null, PAT, [ROLE('homeowner'), ROLE('rep')], [{ role: 'homeowner', signedAt: 1 }, { role: 'rep', signedAt: 3 }], ONE_HTML);
+    ok('in person: flag off: unchanged', !!c.v && c.v.ok === true, c.e && c.e.message);
+    // security review HIGH2, in person
+    c = await callIP(FLAG, PAT, undefined, [{ role: 'homeowner', signedAt: 1 }, { role: 'rep', signedAt: 3 }], ONE_HTML);
+    ok('in person: a row with NO signers list is not a way round the gate', !!c.e && /Pat Whitfield/.test(String(c.e.message)), c.e && c.e.message);
+    c = await callIP(FLAG, PAT, [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], signedBoth, ONE_HTML);
+    ok('in person: a row claiming both signers over a stored copy with one block is refused', !!c.e && /Pat Whitfield/.test(String(c.e.message)), c.e && c.e.message);
+    c = await callIP(FLAG, leadX({ secondOwnerName: '' }), [ROLE('homeowner'), ROLE('rep')], [{ role: 'homeowner', signedAt: 1 }, { role: 'rep', signedAt: 3 }], ONE_HTML, (db) => db._store.set('second_owner_records/L1', { name: 'Pat Whitfield', recordedAt: 1 }));
+    ok('in person: a second owner recorded earlier cannot be lowered by clearing the lead field', !!c.e && /Pat Whitfield/.test(String(c.e.message)), c.e && c.e.message);
+    c = await callIP(FLAG, PAT, [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], signedBoth, BOTH_HTML);
+    ok('in person: the second owner is recorded by the server', !!c.v && !!c.db._get('second_owner_records/L1') && c.db._get('second_owner_records/L1').name === 'Pat Whitfield');
+    c = await callIP(FLAG, PAT, [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], signedBoth, BOTH_HTML, (db) => { const o = db.doc; db.doc = (p) => (/^second_owner_records\//.test(p) ? { get: async () => { throw new Error('down'); }, set: async () => { throw new Error('down'); } } : o(p)); });
+    ok('in person: the record cannot be read: retryable "unavailable"', !!c.e && c.e.code === 'unavailable', c.e && c.e.code); }
 
   section('3. co-owner: evidence records both signers; saved signatures are looked up per role');
   { const DE = require(path.join(FN, 'doc-evidence.js'));

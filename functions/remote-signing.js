@@ -618,12 +618,17 @@ exports.createSignRequest = onCall(
           if (ges && ges.exists) gatePrice = DE.estimateCents(ges.data());
         } catch (_) { gatePrice = null; }
       }
+      let secondOwner = '';
+      if (clauseFlagOnAtMint === true) {
+        try { secondOwner = await DE.secondOwnerFor(db, leadId, lead); }
+        catch (e) { throw new HttpsError('unavailable', (e && e.message) || 'Could not check the co-owner record just now. Try again in a moment.'); }
+      }
       const gaps = DE.serverContractGaps({
         type: docMeta.type, html: gateHtml, lead, profile: tenantProfile, tenantKey, KyLaw,
         priceCents: gatePrice, homeownerName: signerName || undefined,
-        // Co-owners (flag docClauseSetV1, Q52): every owner on record signs. Only checked when the flag is on.
-        ...(clauseFlagOnAtMint === true && typeof lead.secondOwnerName === 'string' && Array.isArray(docMeta.signers)
-          ? { secondOwnerName: lead.secondOwnerName, signerRoles: docMeta.signers.map((s) => s && s.role) } : {}),
+        // Co-owners (flag docClauseSetV1, Q52): every owner on record signs. Only checked when the flag is on. The second owner
+        // comes from the server's own record (the lead's field is client-writable), and the signers from the stored document's blocks.
+        ...(secondOwner ? { secondOwnerName: secondOwner, signerRoles: DE.sigBlockRoles(gateHtml) } : {}),
       });
       if (gaps.length) throw new HttpsError('failed-precondition', DE.describeGaps(gaps));
     }
