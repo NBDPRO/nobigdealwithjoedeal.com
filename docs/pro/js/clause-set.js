@@ -262,6 +262,18 @@
   }
 
   /**
+   * The ESIGN-1 sentence the in-person "I agree to sign electronically" tick shows and the evidence records
+   * (Jo's decision Q62, flag docClauseSetV1). Verbatim from the wording table; another tenant reads "Contractor" for the
+   * defined term NBD, the same mechanical substitution every clause gets. '' when the wording did not load.
+   */
+  function esignConsentText(isNbd) {
+    var c = T && T['ESIGN-1'];
+    var s = c && c.parts && c.parts[0] && c.parts[0].text;
+    if (typeof s !== 'string' || !s) return '';
+    return isNbd === false ? s.replace(/\bNBD\b/g, 'Contractor') : s;
+  }
+
+  /**
    * The v1 set for one document. opts = { state, paymentSource, terms (paymentTermsFor), facts, party, hasWarranty }
    * -> { clauseSetVersion, variant, failClosed, refs: ['PAY-4_V1', ...], missing: [field], sections:
    *      [{ title, items: [{ id, ref, byRef, paragraphs: [text] }] }], sectionOf: {id: title} }
@@ -350,6 +362,7 @@
     describeFor: describeFor,
     textFor: textFor,
     lateInvoiceLine: lateInvoiceLine,
+    esignConsentText: esignConsentText,
     all: all,
     NBD_PAYMENT_TERMS_DEFAULTS: NBD_PAYMENT_TERMS_DEFAULTS,
     PT_FIELDS: PT_FIELDS,

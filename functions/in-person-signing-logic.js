@@ -97,7 +97,22 @@ async function contractGapsFor(db, ctx, evidence) {
     const es = pid ? await db.doc('estimates/' + pid).get() : null;
     if (es && es.exists) priceCents = DE.estimateCents(es.data());
   } catch (_) { priceCents = null; }
-  return DE.serverContractGaps({ type: docMeta.type, html, lead, profile, tenantKey, KyLaw: require('./ky-insurance-law'), priceCents });
+  // Co-owners (flag docClauseSetV1, Q52): every owner on record signs. Only checked when the clause flag is on. The second owner comes
+  // from the server's record (the lead's field is client-writable), the signers from the stored copy's own blocks.
+  let secondOwner = '';
+  if (evidence.clauseFlag === true) {
+    try { secondOwner = await DE.secondOwnerFor(db, leadId, lead); }
+    catch (e) { throw new RefusalError('unavailable', (e && e.message) || 'Could not check the co-owner record just now. Try again in a moment.'); }
+  }
+  const gaps = DE.serverContractGaps(Object.assign({ type: docMeta.type, html, lead, profile, tenantKey, KyLaw: require('./ky-insurance-law'), priceCents },
+    secondOwner ? { secondOwnerName: secondOwner, signerRoles: DE.sigBlockRoles(html) } : {}));
+  // Re-review: a co-owner BLOCK is not a co-owner SIGNATURE. The row's signers[].required and signedSigners are client-written, so
+  // the stored copy decides: with the flag on, a homeowner2 block must be finalized in it.
+  if (evidence.clauseFlag === true && DE.sigBlockRoles(html).indexOf('homeowner2') !== -1
+      && !DE.signedRoles(html).some((r) => r.role === 'homeowner2')) {
+    gaps.push({ code: 'coOwnerUnsigned', message: 'The co-owner has not signed. Every owner on record must sign before this counts as signed.' });
+  }
+  return gaps;
 }
 
 /**
@@ -123,6 +138,14 @@ async function recordEvidence(db, ctx, evidence) {
   }
   // The marker in the stored copy is a hint only: the refs are recomputed, and the clause flag must have been on (item 4).
   const stamp = DE.stampFor(require('./ky-insurance-law'), lead, {}, { html: signedHtml, v1: evidence.clauseFlag === true });
+  // In-person consent (flag docClauseSetV1, Q62). The tick is the rep's browser's report that the homeowner ticked "I agree to
+  // sign electronically": the server cannot see it, so the record says where it came from (consentSource) and, like every field on
+  // this path, it proves only that the rep's signed-in device made the call (attests, below). Only a boolean true counts.
+  const consentFor = { consent: { agreed: null }, source: null };
+  if (evidence.clauseFlag === true && data && data.consentTick === true) {
+    const sentence = require('./clause-set').esignConsentText(DE.isNbdTenant(lead.companyId || lead.userId));
+    if (sentence) { consentFor.consent = { agreed: true, text: sentence, at: Date.now() }; consentFor.source = 'in_person_tick'; }
+  }
   // Time is the SERVER's clock at this call. The row's signedAt is written by the rep's own browser,
   // so it is kept only as a client-reported value (review 2026-11-18, finding 3).
   const clientSignedAt = docMeta.signedAt && typeof docMeta.signedAt.toMillis === 'function' ? docMeta.signedAt.toMillis() : null;
@@ -131,14 +154,22 @@ async function recordEvidence(db, ctx, evidence) {
     // The bytes read here are the signed copy the rep's device saved over the original: they are NOT
     // "the document the homeowner was shown", so documentSha256 stays null on this path.
     documentSha256: null, signedSha256,
-    // No consent step on the rep's phone today (phase 2): recorded as "not asked", never as agreed.
-    consent: { agreed: null },
+    // No consent step on the rep's phone unless the flag asks for one (Q62): then the tick the homeowner made in the viewer is
+    // recorded, with the server's own copy of the ESIGN-1 sentence. Otherwise "not asked", never agreed.
+    consent: consentFor.consent,
     signedAtMs: Date.now(), ip: evidence.ip, ipSource: evidence.ipSource, ua: evidence.ua, recordedByUid: uid,
   });
   // Phase 3: the ticks a signed attic form carries, read from the stored signed copy (never from the call).
   if (signedHtml && AA.DOC_TYPES.indexOf(String(docMeta.type || '')) !== -1) record.acknowledgments = AA.evidenceAcks(AA.parseAcks(signedHtml));
   record.signedCopySha256 = signedSha256;
   record.signedAtClientReported = clientSignedAt;
+  if (consentFor.source) record.consentSource = consentFor.source;
+  // Co-owners (flag docClauseSetV1, Q52): when the signed copy carries a co-owner, the record lists every signature
+  // block the server reads as finalized in the stored copy (role, label, the time the block says). Absent otherwise.
+  if (signedHtml && evidence.clauseFlag === true) {
+    const roles = DE.signedRoles(signedHtml);
+    if (roles.some((r) => r.role === 'homeowner2')) record.signers = roles;
+  }
   // What this record proves: the rep's signed-in device made the call, at this server time, from this
   // address. It does not prove that a homeowner signed, or that the homeowner saw this document.
   record.attests = 'rep_device_and_time_only';

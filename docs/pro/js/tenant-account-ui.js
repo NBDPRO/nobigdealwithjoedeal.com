@@ -109,5 +109,5 @@
   // here at runtime, because the bundle list lives in script-loader.js, blocking and at its shipped ceiling.
   try { if (window.ScriptLoader && typeof window.ScriptLoader.load === 'function') window.ScriptLoader.load('js/company-timezone-settings.js?v=1'); } catch (e) { /* Settings works without it */ }
   // Company Profile's Payment terms panel (clause set v1, 2026-11-18) rides the same lazy bundle the same way.
-  try { if (window.ScriptLoader && typeof window.ScriptLoader.load === 'function') window.ScriptLoader.load('js/payment-terms-settings.js?v=9'); } catch (e) { /* Settings works without it */ }
+  try { if (window.ScriptLoader && typeof window.ScriptLoader.load === 'function') window.ScriptLoader.load('js/payment-terms-settings.js?v=19'); } catch (e) { /* Settings works without it */ }
 })();

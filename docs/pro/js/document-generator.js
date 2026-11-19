@@ -321,11 +321,72 @@ window.NBDDocGen = {
       startDate: set('startDate'), estimatedCompletion: set('estimatedCompletion'),
       text: html || '',
       clauseConfigMissing: this._clauseV1On() && window.NBDClauseSet.PT_FIELDS.filter((f) => String(html || '').indexOf('{{' + f + '}}') !== -1),
+      // Co-owners (flag docClauseSetV1, Q52): when the lead lists a second owner, the signers must include the co-owner.
+      // Checked once the signers are known (the pre-flight asks the generator before it attaches them).
+      ...(this._signEaseOn() && Array.isArray(d.signers)
+        ? { secondOwnerName: d.secondOwnerName || ((window._currentLead || window._leadDoc || {}).secondOwnerName) || '',
+            signerRoles: d.signers.map((s) => s && s.role) } : {}),
     });
     if (!gaps.length) return true;
     const msg = C.describeGaps(gaps);
     if (typeof showToast === 'function') showToast(msg, 'error'); else console.error(msg);
     return false;
+  },
+
+  /**
+   * In-person consent (flag docClauseSetV1, Jo's decision Q62): the tick the homeowner makes before drawing on a
+   * contract-class document, with the registry's ESIGN-1 sentence. null = not asked (flag off, not contract class, no
+   * homeowner signer, or the wording did not load), and then nothing about signing changes.
+   */
+  _inPersonConsentFor(type, signers) {
+    if (!this._paperFooterWanted(type)) return null;
+    if (!Array.isArray(signers) || !signers.some((s) => s && s.role === 'homeowner')) return null;
+    const CS = window.NBDClauseSet;
+    if (!CS || typeof CS.esignConsentText !== 'function') return null;
+    let isNbd = true;
+    try { isNbd = this._nbdGate().isNbd !== false; } catch (_) { isNbd = true; }
+    const t = CS.esignConsentText(isNbd);
+    return t ? { label: 'I agree to sign electronically', text: t } : null;
+  },
+
+  /** Flag docClauseSetV1 (Q51): the homeowner signature and release lines on the documents that had static ones. */
+  _signEaseOn() {
+    try { return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('docClauseSetV1')); }
+    catch (_) { return false; }
+  },
+
+  /**
+   * Paper copies (flag docClauseSetV1, default off; Jo's decision Q49): a printed contract-class document carries its
+   * document id and a short digest in a footer line, so a paper-signed copy can be linked back to the original it
+   * came from. The digest is the SHA-256 of the stored document (the one the signing paths record), which is why the
+   * footer is added to the copy the viewer shows and prints, never to the stored original.
+   */
+  _paperFooterWanted(type) {
+    try {
+      if (!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('docClauseSetV1'))) return false;
+      const C = window.NBDDocSendChecks;
+      return !!(C && typeof C.isContractClass === 'function' && C.isContractClass(type));
+    } catch (_) { return false; }
+  },
+
+  /** The footer line, added before </body>. docId is sanitised; sha is the full hex digest (12 characters print). */
+  _withPaperFooter(html, docId, sha) {
+    const id = String(docId || '').replace(/[^A-Za-z0-9_-]/g, '');
+    const short = String(sha || '').replace(/[^a-f0-9]/g, '').slice(0, 12);
+    if (!id || short.length !== 12) return html;
+    // A style block, not a style attribute: this is the printed document's own sheet (the reskin ratchet counts attributes).
+    const line = '<style>[data-nbd-paper-footer]{margin:18px 0 0;padding-top:6px;border-top:1px solid #DFE2E7;font:9px/1.3 Lato,Arial,sans-serif;color:#4C4C4D;text-align:center;}</style>'
+      + '<div data-nbd-paper-footer="1">Document ID ' + id + ' &middot; Digest ' + short + '</div>';
+    const s = String(html || '');
+    const at = s.toLowerCase().lastIndexOf('</body>');
+    return at === -1 ? s + line : s.slice(0, at) + line + s.slice(at);
+  },
+
+  /** For a stored, unsigned document being reopened: its html with the footer, or '' when the flag is off or the type does not carry one. */
+  async paperFooterForStored(html, docId, type) {
+    if (!this._paperFooterWanted(type)) return '';
+    const sha = await this._sha256Hex(html);
+    return sha ? this._withPaperFooter(html, docId, sha) : '';
   },
 
   /** SHA-256 hex of a string (the digest of the document as presented), or null when unavailable. */
@@ -766,6 +827,31 @@ window.NBDDocGen = {
     certificate_of_completion: 'cocFiledAt',
   },
 
+  // Signers added by flag docClauseSetV1 (Jo's decision Q51, 2026-11-18) to documents that printed static lines or none.
+  // Flag off, defaultSignersFor() answers exactly DOCUMENT_TYPES[type].defaultSigners, so nothing changes.
+  // The homeowner labels name what the signature is for; the wording each one sits under is in the template
+  // (DRAFTER WORDING: attorney to confirm).
+  FLAG_ON_SIGNERS: {
+    supplement_request:   [ { role: 'homeowner', label: 'Homeowner authorization', required: true },
+                            { role: 'rep',       label: 'Authorized NBD Representative', required: true } ],
+    inspectionInsurance:  [ { role: 'homeowner', label: 'Homeowner release', required: true } ],
+    warranty_certificate: [ { role: 'homeowner', label: 'Homeowner', required: true },
+                            { role: 'rep',       label: 'Authorized NBD Representative', required: true } ],
+    before_after_report:  [ { role: 'homeowner', label: 'Homeowner', required: true } ],
+  },
+
+  /** The signers the pre-flight seeds for a document type. */
+  defaultSignersFor(type) {
+    const entry = (this.DOCUMENT_TYPES && this.DOCUMENT_TYPES[type]) || {};
+    try {
+      if (window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('docClauseSetV1')
+          && this.FLAG_ON_SIGNERS[type] && !Array.isArray(entry.defaultSigners)) {
+        return this.FLAG_ON_SIGNERS[type];
+      }
+    } catch (_) { /* flag unreadable: today's signers */ }
+    return Array.isArray(entry.defaultSigners) ? entry.defaultSigners : [];
+  },
+
   // ============================================================================
   // SECTION 2: CORE ENGINE METHODS
   // ============================================================================
@@ -946,6 +1032,22 @@ window.NBDDocGen = {
     // digest of the signed copy; flag docEvidenceFoundation only.
     const _evidenceOn = this._docEvidenceOn();
     const _presentedSha = _evidenceOn ? await this._sha256Hex(html) : null;
+    // Paper copy footer (flag docClauseSetV1, contract class): the document's id is minted now, so the printed copy can
+    // carry it; the row is saved under that id below. _viewHtml is what the viewer shows and prints; the stored original
+    // (and so every digest) stays exactly `html`. Flag off: _viewHtml === html and the row is created by addDoc as before.
+    let _paperRef = null;
+    let _viewHtml = html;
+    {
+      const _lid = data.leadId || (data.customer && data.customer.id) || window._customerId || null;
+      if (_lid && !data._isBlankPreview && window.db && window.collection && window.doc && window.setDoc && this._paperFooterWanted(type)) {
+        try {
+          const ref = window.doc(window.collection(window.db, 'leads', _lid, 'documents'));
+          const sha = await this._sha256Hex(html);
+          const withFooter = (ref && ref.id && sha) ? this._withPaperFooter(html, ref.id, sha) : html;
+          if (withFooter !== html) { _paperRef = ref; _viewHtml = withFooter; }
+        } catch (_) { _paperRef = null; _viewHtml = html; }
+      }
+    }
     // Route through the Universal Document Viewer so the user
     // can Save / Email / Print / PDF / Close without being dumped
     // into a blank popup with no way to persist the doc.
@@ -1010,8 +1112,7 @@ window.NBDDocGen = {
             console.warn('Document HTML upload failed:', e && e.message);
           }
           try {
-            _docMetaRef = await window.addDoc(
-              window.collection(window.db, 'leads', _leadIdEarly, 'documents'),
+            const _docRow =
               {
                 type: type,
                 typeName: typeName,
@@ -1036,8 +1137,10 @@ window.NBDDocGen = {
                   total: (data.estimate && data.estimate.grandTotal) || data.total || null,
                   address: (data.customer && data.customer.address) || null
                 }
-              }
-            );
+              };
+            // Flag on + contract class: created under the id the printed footer carries. Otherwise addDoc, as always.
+            if (_paperRef) { await window.setDoc(_paperRef, _docRow); _docMetaRef = _paperRef; }
+            else { _docMetaRef = await window.addDoc(window.collection(window.db, 'leads', _leadIdEarly, 'documents'), _docRow); }
           } catch (e) {
             console.warn('Document metadata persist failed:', e && e.message);
           }
@@ -1059,19 +1162,32 @@ window.NBDDocGen = {
           }
         })();
       }
+      // Flag docClauseSetV1 (Q51): a document only the company signs (a lien waiver) is never sent to the homeowner for
+      // signature: "Send for signature" is not offered, the rep signs it in the viewer. The server refuses it too.
+      const _repOnly = this._signEaseOn() && Array.isArray(data.signers) && data.signers.length > 0
+        && data.signers.every((s) => s && s.role === 'rep');
+      // Flag docClauseSetV1 (Q62): the homeowner ticks "I agree to sign electronically" before drawing. null = not asked.
+      const _consent = (!_repOnly && !data._isBlankPreview) ? this._inPersonConsentFor(type, data.signers) : null;
+      // The tick bar lives in paper-cert.js, loaded now (on demand, never on a page's boot path). _consentState is the live
+      // { agreed } the bar updates; with the module missing it stays "not agreed" and nothing is saved as signed.
+      let _consentState = null;
+      if (_consent && !window.NBDPaperCert && window.ScriptLoader && typeof window.ScriptLoader.load === 'function') {
+        try { await window.ScriptLoader.load('js/paper-cert.js?v=1'); } catch (_) { /* fail closed below */ }
+      }
       // PR3b: load this lead's saved signatures (if any) so the viewer
       // can hand them to the widget for one-tap "Use saved" reuse. Only
       // fetched when the doc actually has signers — zero cost otherwise.
       const _savedSigs = hasSigners ? await this._fetchSavedSignatures(_leadIdEarly) : null;
       window.NBDDocViewer.open({
-        html: html,
+        html: _viewHtml,
         title: typeName + (customerName ? ' — ' + customerName : ''),
         filename: _filename,
         savedSigs: _savedSigs,
+        ...(_consent ? { consent: _consent } : {}),
         // Signatures PR4: remote signing. Only for signable docs tied to a
         // lead. Awaits the doc's persist (so it has a real docId/htmlPath),
         // then mints + emails a doc_sign_tokens link via createSignRequest.
-        onSendForSignature: (hasSigners && _leadIdEarly) ? (async (signerEmail, sendOpts) => {
+        onSendForSignature: (hasSigners && _leadIdEarly && !_repOnly) ? (async (signerEmail, sendOpts) => {
           if (_persistPromise) { try { await _persistPromise; } catch (_) {} }
           const docId = _docMetaRef && _docMetaRef.id;
           if (!docId) throw new Error('Document is still saving — try again in a moment.');
@@ -1122,6 +1238,11 @@ window.NBDDocGen = {
         // Storage path so reopening the doc shows the embedded sigs,
         // and stamps signedAt + signedSigners on the Firestore doc.
         onPersistFinalized: async (signedHtml, signedSigners) => {
+          // In-person consent (flag docClauseSetV1, Q62): a document that asked for the tick is not saved as signed without it.
+          if (_consent && !(_consentState && _consentState.agreed === true)) {
+            if (typeof showToast === 'function') showToast('Not saved as signed: the homeowner must tick "I agree to sign electronically" first.', 'error');
+            return;
+          }
           if (_persistPromise) { try { await _persistPromise; } catch (_) {} }
           let _signedSaved = false;
           // The Notice of Right to Cancel is dated the day the homeowner
@@ -1238,11 +1359,11 @@ window.NBDDocGen = {
           // already saved above: a failure here never blocks signing, it only
           // logs and tells the rep to move the card by hand.
           if (type === 'contract' && _signedSaved && _docMetaRef && _leadIdEarly) {
-            await this._recordInPersonSignature(_leadIdEarly, _docMetaRef.id, { presentedSha256: _presentedSha });
-          } else if (_evidenceOn && _signedSaved && _docMetaRef && _leadIdEarly) {
+            await this._recordInPersonSignature(_leadIdEarly, _docMetaRef.id, _consent ? { presentedSha256: _presentedSha, consentTick: true } : { presentedSha256: _presentedSha });
+          } else if ((_evidenceOn || _consent) && _signedSaved && _docMetaRef && _leadIdEarly) {
             // Any other signed document (flag docEvidenceFoundation): the server records the
             // signing evidence only; it never moves the card for a non-contract.
-            await this._recordInPersonSignature(_leadIdEarly, _docMetaRef.id, { presentedSha256: _presentedSha, evidenceOnly: true });
+            await this._recordInPersonSignature(_leadIdEarly, _docMetaRef.id, _consent ? { presentedSha256: _presentedSha, evidenceOnly: true, consentTick: true } : { presentedSha256: _presentedSha, evidenceOnly: true });
           }
           // Repaint so the row picks up its '✓ Signed' state immediately.
           if (window.NBDCustomerDocs) {
@@ -1280,6 +1401,12 @@ window.NBDDocGen = {
           }
         }
       });
+      // In-person consent bar (flag docClauseSetV1, Q62), mounted over the viewer that just opened.
+      if (_consent) {
+        _consentState = (window.NBDPaperCert && typeof window.NBDPaperCert.mountConsent === 'function')
+          ? window.NBDPaperCert.mountConsent(document, document.getElementById('nbdv-iframe'), _consent)
+          : { agreed: false };
+      }
       return;
     }
     // Fallback: legacy popup if the doc viewer isn't loaded
@@ -1320,7 +1447,10 @@ window.NBDDocGen = {
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
       const fn = window._httpsCallable(window._functions, 'recordInPersonSignature');
-      const res = await fn(opts.presentedSha256 ? { leadId, docId, presentedSha256: opts.presentedSha256 } : { leadId, docId });
+      const payload = opts.presentedSha256 ? { leadId, docId, presentedSha256: opts.presentedSha256 } : { leadId, docId };
+      // In-person consent (flag docClauseSetV1, Q62): the homeowner ticked "I agree to sign electronically" in the viewer.
+      if (opts.consentTick === true) payload.consentTick = true;
+      const res = await fn(payload);
       const out = (res && res.data) || null;
       if (out && out.moved && typeof showToast === 'function') showToast('✓ Contract signed — card moved to Contract Signed', 'success');
       return out;
@@ -3575,7 +3705,16 @@ window.NBDDocGen = {
                 I certify that I have personally inspected the subject property and that the damages, measurements, and repair estimates contained in this report are accurate to the best of my knowledge and belief.
               </div>
               ${this.renderSignatureBlock(['Damage Assessor'])}
-            </div>
+            </div>${this._signEaseOn() ? `
+            <!-- HOMEOWNER RELEASE (flag docClauseSetV1) -->
+            <div class="section" data-nbd-auth="release">
+              <div class="section-title">Homeowner release</div>
+              <style>.nbd-release-text{font-size:9px;margin:0.1in 0;}</style>
+              <div class="nbd-release-text">
+                ${/* DRAFTER WORDING: attorney to confirm. Neutral: permission to send the report, nothing about coverage, outcome or payment. */''}I authorize ${this._escHtml(this._resolveCompany().name || '')} to send a copy of this inspection report to my insurance company.
+              </div>
+              ${this.renderSignatureBlock((Array.isArray(data.signers) && data.signers.length) ? data.signers : ['Homeowner release'])}
+            </div><!--end-auth-->` : ''}
           </div>
 
           ${this.renderFooter({ pageNumber: '1' })}

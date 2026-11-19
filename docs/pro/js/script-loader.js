@@ -221,27 +221,27 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=42',
-      'js/document-generator-templates.js?v=32',
+      'js/document-generator.js?v=44',
+      'js/document-generator-templates.js?v=33',
       'js/document-generator-library.js?v=20', // 2026-10-04 template library; needs -templates' _tpl
-      'js/doc-preflight.js?v=26',
+      'js/doc-preflight.js?v=28',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
       // fetch/normalize logic. Version matches customer.html's own tag.
-      'js/customer-documents.js?v=11',
+      'js/customer-documents.js?v=21',
       // Same tab's "scan/upload a signed document" rows (2026-09-17) —
       // uploadSignedDoc/handleSignedDocUpload are the exact functions
       // customer.html's Documents tab uses; no second upload path.
-      'js/customer-signed-doc-upload.js?v=3',
+      'js/customer-signed-doc-upload.js?v=9',
       // 2026-11-18: the fail-closed contract check (flag docEvidenceFoundation); the generator
       // reads window.NBDDocSendChecks at call time, so load order does not matter.
-      'js/doc-send-checks.js?v=10',
+      'js/doc-send-checks.js?v=11',
       // 2026-11-18 clause set v1 (flag docClauseSetV1): the wording, then the registry (reads window.NBDClauseText and
       // window.NBDJurisdiction, loaded eagerly by the page). Last in the group (the smoke test reads the head of it for
       // customer-documents.js); the generator reads window.NBDClauseSet at call time. Same group, so both always load together.
       'js/clause-set-text.js?v=3',
-      'js/clause-set.js?v=13',
+      'js/clause-set.js?v=14',
       // 2026-11-18 attic acknowledgment (flag docAtticAckV1): wording, then logic. Same group, loaded together.
       'js/attic-ack-text.js?v=1',
       'js/attic-ack.js?v=5',
@@ -535,7 +535,7 @@
     // under Settings → AI Texting. Hooks the tab, and paints a tab already open.
     tenantsettings: [
       'js/tenant-rules-settings.js?v=1',
-      'js/tenant-account-ui.js?v=16',
+      'js/tenant-account-ui.js?v=17',
       'js/sms-compliance-settings.js?v=2',
       'js/away-mode-settings.js?v=1',
       'js/prod-flags-panel.js?v=1'

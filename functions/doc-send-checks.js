@@ -181,6 +181,11 @@
       gap('mailingAddress', 'The company mailing address is not set (Company Profile, Mailing Address).');
     }
     if (_blank(x.entityName)) gap('entityName', 'The company legal entity name is not set (Company Profile).');
+    // Co-owners (flag docClauseSetV1, Jo's decision Q52): the caller passes secondOwnerName only when the flag is on and the
+    // lead lists a second owner, and signerRoles when it knows who signs. Every owner on record signs.
+    if (!_blank(x.secondOwnerName) && Array.isArray(x.signerRoles) && x.signerRoles.indexOf('homeowner2') === -1) {
+      gap('coOwner', 'The lead lists a second owner (' + String(x.secondOwnerName).trim().slice(0, 80) + ') but only one homeowner signs. Add the co-owner as a signer so every owner on record signs.');
+    }
     // Phase 5: the Ohio insurance acknowledgment is for Ohio only (Kentucky insurance jobs use the Kentucky notices and forms). An unreadable state fails closed.
     if (String(x.type || '') === 'ohio_insurance_ack' && String(x.state || '').toUpperCase() !== 'OH') {
       gap('ohioOnly', 'This acknowledgment is for Ohio properties only. Kentucky insurance jobs use the Kentucky notices and forms in the contract and the Notice of Right to Cancel.');

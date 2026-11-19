@@ -65,6 +65,61 @@
     { role: 'other',     label: 'Other' },
   ];
 
+  // ── Co-owners (flag docClauseSetV1, Jo's decision Q52) ─────────────────────────
+  // A contract needs EVERY owner on record to sign. The co-owner is its own role, 'homeowner2' ("Homeowner (co-owner)"),
+  // so it has its own saved-signature lookup (leads/{id}/signatures/{role}) and its own block in the signed record; a second
+  // "homeowner" used to share the first one's role and so the first one's saved signature. Flag off: none of this runs.
+  var CO_OWNER_LABEL = 'Homeowner (co-owner)';
+  function coOwnerOn() {
+    try { return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('docClauseSetV1')); }
+    catch (_) { return false; }
+  }
+  function isContractClassType(type) {
+    var C = window.NBDDocSendChecks;
+    if (C && typeof C.isContractClass === 'function') return C.isContractClass(type);
+    return ['contract', 'proposal', 'work_authorization', 'estimate_esign'].indexOf(String(type || '')) !== -1;
+  }
+  /** The schema the pre-flight shows for a type: the contract gets an optional "Second owner" name when the flag is on. */
+  function schemaFor(type) {
+    var base = DOC_SCHEMAS[type];
+    if (!base || type !== 'contract' || !coOwnerOn()) return base;
+    return Object.assign({}, base, {
+      sections: base.sections.map(function (sec) {
+        if (sec.id !== 'signatures') return sec;
+        return Object.assign({}, sec, { collapsed: false, fields: sec.fields.concat([
+          { key: 'secondOwnerName', label: 'Second owner (optional)', type: 'text',
+            source: 'lead.secondOwnerName', persist: PERSIST.LEAD,
+            help: 'If the property has two owners on record, enter the second one. Both must sign the contract.' }
+        ]) });
+      })
+    });
+  }
+  /** The signer row the "Add signer" picker creates for a role. */
+  function signerToAdd(signers, role) {
+    var opt = SIGNER_ROLE_OPTIONS.filter(function (o) { return o.role === role; })[0] || {};
+    var label = opt.label || role;
+    if (coOwnerOn() && (role === 'homeowner2'
+        || (role === 'homeowner' && (signers || []).some(function (s) { return s && s.role === 'homeowner'; })))) {
+      return { role: 'homeowner2', label: CO_OWNER_LABEL, required: true };
+    }
+    return { role: role, label: label, required: false };
+  }
+  /** A contract with a second owner needs the co-owner as a signer: adds the row, or refuses when it was switched off. */
+  function ensureCoOwner(signers, secondOwnerName, type) {
+    var list = Array.isArray(signers) ? signers : [];
+    var name = String(secondOwnerName == null ? '' : secondOwnerName).trim();
+    if (!coOwnerOn() || !name || !isContractClassType(type)) return { signers: list };
+    if (!list.some(function (s) { return s && s.role === 'homeowner' && s.enabled !== false; })) return { signers: list };
+    var co = list.filter(function (s) { return s && s.role === 'homeowner2'; })[0];
+    if (!co) {
+      return { signers: list.concat([{ role: 'homeowner2', label: CO_OWNER_LABEL, required: true, enabled: true, removable: false }]) };
+    }
+    if (co.enabled === false) {
+      return { signers: list, error: 'A second owner (' + name.slice(0, 80) + ') is listed, so the co-owner must sign too. Switch the co-owner signer back on, or clear the second owner.' };
+    }
+    return { signers: co.required ? list : list.map(function (s) { return s === co ? Object.assign({}, s, { required: true }) : s; }) };
+  }
+
   /** Tiny utility: escape HTML so user text can't break the modal. */
   function esc(v) {
     if (v === null || v === undefined) return '';
@@ -2482,7 +2537,10 @@
       }).join('');
     }
 
-    var addOptionsHTML = SIGNER_ROLE_OPTIONS.map(function (o) {
+    var _roleOptions = coOwnerOn()
+      ? SIGNER_ROLE_OPTIONS.slice(0, 1).concat([{ role: 'homeowner2', label: CO_OWNER_LABEL }], SIGNER_ROLE_OPTIONS.slice(1))
+      : SIGNER_ROLE_OPTIONS;
+    var addOptionsHTML = _roleOptions.map(function (o) {
       return '<option value="' + esc(o.role) + '">' + esc(o.label) + '</option>';
     }).join('');
 
@@ -2783,16 +2841,17 @@
         var role = el.value;
         if (!role) return;
         el.value = ''; // reset so the same role can be added again
-        var defaultLabel = (SIGNER_ROLE_OPTIONS.find(function (o) { return o.role === role; }) || {}).label || role;
+        var added = signerToAdd(state.signers, role);
+        var defaultLabel = added.label;
         if (role === 'other') {
           var custom = window.prompt('Label for this signer (e.g. "Project Manager"):', '');
           if (custom === null) return; // cancelled
           defaultLabel = custom.trim() || 'Signer';
         }
         state.signers.push({
-          role: role,
+          role: added.role,
           label: defaultLabel,
-          required: false,
+          required: added.required,
           enabled: true,
           removable: true,
         });
@@ -3237,7 +3296,7 @@
     }
 
     var ctx = { lead: lead, estimate: estimate, photos: photos, overrides: overrides, jobWarranty: jobWarranty, depositDropped: [] };
-    var schema = DOC_SCHEMAS[type];
+    var schema = schemaFor(type);
     var values = {};
     var fieldIndex = {};
     var lineItemsMode = {};
@@ -3298,7 +3357,9 @@
     // NBDDocGen.DOCUMENT_TYPES entry). Each becomes a toggleable row;
     // the rep can uncheck, rename inline, or add ad-hoc signers.
     var docTypeEntry = (window.NBDDocGen && window.NBDDocGen.DOCUMENT_TYPES && window.NBDDocGen.DOCUMENT_TYPES[type]) || {};
-    var defaults = Array.isArray(docTypeEntry.defaultSigners) ? docTypeEntry.defaultSigners : [];
+    var defaults = (window.NBDDocGen && typeof window.NBDDocGen.defaultSignersFor === 'function')
+      ? window.NBDDocGen.defaultSignersFor(type)
+      : (Array.isArray(docTypeEntry.defaultSigners) ? docTypeEntry.defaultSigners : []);
     // De-brand the seeded labels. DOCUMENT_TYPES.defaultSigners carries NBD
     // defaults like "Authorized NBD Representative" and "NBD Inspector"; the
     // EMITTED pdf is already corrected, because renderSignatureBlock runs every
@@ -3469,6 +3530,16 @@
     if (window.NBDDocGen && typeof window.NBDDocGen._docSendGate === 'function'
         && !window.NBDDocGen._docSendGate(state.type, mergedData, '')) {
       return;
+    }
+
+    // Co-owners (flag docClauseSetV1, Q52): a second owner on the lead (or typed above) means the co-owner signs too.
+    // Adds the co-owner row, or keeps this modal open when it was switched off. Flag off: returns the list untouched.
+    if (Array.isArray(state.signers) && state.signers.length) {
+      var _coName = mergedData.secondOwnerName != null ? mergedData.secondOwnerName
+        : (((window._currentLead || window._leadDoc || {}).secondOwnerName) || '');
+      var _co = ensureCoOwner(state.signers, _coName, state.type);
+      if (_co.error) { toast(_co.error, 'error'); return; }
+      state.signers = _co.signers;
     }
 
     // Attach signers chosen in the modal. The document generator
@@ -3836,6 +3907,10 @@
     close: close,
     submit: submit,
     DOC_SCHEMAS: DOC_SCHEMAS,
+    // Co-owners (flag docClauseSetV1): the schema shown, the signer row the picker adds, the co-owner requirement.
+    schemaFor: schemaFor,
+    signerToAdd: signerToAdd,
+    ensureCoOwner: ensureCoOwner,
     syncPhase5: syncPhase5,
     // Internal helpers exposed for debugging / testing only:
     _state: state,

@@ -421,6 +421,9 @@ Object.assign(exports, remoteSigningFunctions);
 // exports _test. See functions/in-person-signing.js.
 exports.recordInPersonSignature = require('./in-person-signing').recordInPersonSignature;
 exports.recordAtticOverride = require('./attic-override').recordAtticOverride;
+// Paper certification (2026-11-18, flag docClauseSetV1): the rep certifies an uploaded paper-signed document; the server writes
+// the attestation and files the contract through the job spine. By name only: paper-cert.js also exports _test.
+exports.attestWetSigned = require('./paper-cert').attestWetSigned;
 
 // PDF-native envelope signing: a rep uploads ANY PDF (supplier form,
 // insurance scope, manufacturer warranty), places typed fields on it, and the
