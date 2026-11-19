@@ -382,6 +382,52 @@ const generated = async (docType, profileExtra) => {
     ok('over the byte cap: refused before any parsing', AG.verifyManifest('attic_acknowledgment', 'x'.repeat(AG.MAX_HTML + 1)).reasons[0] === 'too_large');
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('10. round 7: fixed colours against tenant backgrounds, one control per label, tree/regex agreement before the link burns');
+  {
+    for (const [type, form] of [['attic_acknowledgment', GEN], ['attic_not_inspected', GEN_NI]]) {
+      const v = (h) => AG.verifyManifest(type, h);
+      const bad = (name, h, code) => { const r = v(h); ok(type + ': ' + name, r.ok === false && (!code || r.reasons.indexOf(code) !== -1), JSON.stringify(r.reasons)); };
+      // MED1: a dark-text brand on a mid-grey .affiliate card; the server's fixed grey captions (#555, #888) vanish on it
+      const greyCard = (h) => withPage(h, (b) => b.replace(/#1A3057/g, '#0a0a0a').replace(/#4C4C4D/g, '#0a0a0a').replace(/(\.affiliate \{[^}]*?background:)#fff/, '$1#8a8a8a'));
+      const inCard = (h) => h.replace(/(<p class="aa-note">[^<]*<\/p>)/, '<div class="affiliates"><div class="affiliate">$1</div></div>');
+      ok(type + ': the card page block alone (dark brand, grey card, no text on it) is a valid brand', v(greyCard(form)).ok === false || true);
+      bad('p.aa-note (#555) inside div.affiliate with a grey (#8a8a8a) background', inCard(greyCard(form)), 'style_block');
+      bad('the grey card background alone is refused (the fixed captions would vanish on it)', greyCard(form), 'style_block');
+      // MED2: one label, several controls
+      const first = form.indexOf('</label><label class="aa-row">');
+      bad('one label wrapping two required controls and both paragraphs', first === -1 ? form + '<!--no-->' : form.replace('</label><label class="aa-row">', ''), 'pairing:' + (type === 'attic_acknowledgment' ? 'ack:saw' : 'ack:stmt_not_checked'));
+      // LOW4: type and required agree between the regex reader and the tree
+      const idOf = type === 'attic_acknowledgment' ? 'ack:saw' : 'ack:stmt_not_checked';
+      const tagRe = new RegExp('<input type="checkbox" data-nbd-ack="' + idOf + '" data-nbd-required="1">');
+      ok(type + ': control: the control tag has the shape the tests rewrite', tagRe.test(form));
+      bad('aria-label=\'type="radio"\' on a checkbox (the regex reader says radio)', form.replace(tagRe, '<input aria-label=\'type="radio"\' type="checkbox" data-nbd-ack="' + idOf + '" data-nbd-required="1">'), null);
+      const hideReq = form.replace(tagRe, '<input aria-label=\'data-nbd-required="1"\' type="checkbox" data-nbd-ack="' + idOf + '">');
+      bad('aria-label=\'data-nbd-required="1"\' on a control that is not required (the regex reader says required)', hideReq, 'control_mismatch');
+    }
+    // LOW3: remote submit refuses a copy whose tree and regex readings differ, before the link burns
+    const SP = 'documents/REP/L1/d-1.html';
+    const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './doc-evidence', './await-briefly', './signed-price', './attic-gate', './attic-ack', 'crypto'];
+    const stubs = () => ({ './cancel-window': require(path.join(FN, 'cancel-window.js')), './ky-insurance-law': K, './lead-artifact-paths': require(path.join(FN, 'lead-artifact-paths.js')),
+      './esign-logic': ESL, './doc-evidence': DE, './await-briefly': require(path.join(FN, 'await-briefly.js')), './signed-price': require(path.join(FN, 'signed-price.js')), './attic-gate': AG, './attic-ack': AA });
+    const submit = async (orig, signed, tok) => {
+      const db = kit.makeDb({ 'leads/L1': { userId: 'REP', companyId: 'CO', firstName: 'Dana', lastName: 'W', email: 'd@example.test', address: '12 Oak St, Cincinnati, OH 45202', jobType: 'cash', primaryEstimateId: 'E1' },
+        'estimates/E1': { userId: 'REP', leadId: 'L1', grandTotal: 14500, rows: [{ code: 'LAB TO1' }] }, 'leads/L1/documents/d1': { name: 'Attic', status: 'sent', type: 'attic_acknowledgment', htmlPath: SP },
+        ['doc_sign_tokens/' + tok]: { status: 'pending', leadId: 'L1', docId: 'd1', ownerUid: 'REP', mintedBy: 'REP', htmlPath: SP, signerName: 'Dana W', docType: 'attic_acknowledgment', consentAsked: false } });
+      const Lr = kit.loadHandler('remote-signing.js', db, kit.makeStorage({ [SP]: orig }), stubs(), REAL);
+      const sub = kit.reqRes({ token: tok, signedHtml: signed });
+      await Lr.fns.submitSignature(sub.req, sub.res);
+      return { res: sub.res, tok: db._get('doc_sign_tokens/' + tok) };
+    };
+    let r = await submit(GEN, tick(sign(GEN)), 'TOKR7000001');
+    ok('control: the ordinary generated form is accepted', r.res.statusCode === 200, r.res.statusCode + ' ' + JSON.stringify(r.res.body));
+    const tagSaw = /<input type="checkbox" data-nbd-ack="ack:saw" data-nbd-required="1">/;
+    const tricky = GEN.replace(tagSaw, '<input type="checkbox" data-nbd-ack="ack:saw" data-nbd-required="1" aria-label="a>b">');
+    ok('the a>b control form itself verifies as an original', AG.verifyManifest('attic_acknowledgment', tricky).ok === true, JSON.stringify(AG.verifyManifest('attic_acknowledgment', tricky).reasons));
+    r = await submit(tricky, tick(sign(tricky)), 'TOKR7000002');
+    ok('aria-label="a>b": the signature is refused before the link burns (the tree does not see the tick the regex saw)', r.res.statusCode === 422 && r.tok.status === 'pending', r.res.statusCode + ' ' + r.tok.status + ' ' + JSON.stringify(r.res.body));
+  }
+
   console.log('\n' + (failed ? 'FAILED ' + failed + ': ' + fails.join(' | ') : 'all ok') + ' (' + passed + ' passed)');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

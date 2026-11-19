@@ -367,7 +367,6 @@ function _pageCssCanon(css) {
   if (_lum(page) < 0.9) return false;   // the page stays light
   // The fixed colours the server's own CSS blocks use (captions, notes) must stay readable on this page.
   const fixed = (String(AA.ATTIC_FORM_CSS) + ' ' + String(AA.SIG_STYLES_CSS)).toLowerCase().match(/[^a-z-]color:#[0-9a-f]{3,6}/g) || [];
-  for (const c of fixed) if (_contrast(_hexRgb(c.slice(c.indexOf('#'))), page) < 3) return false;
   const surface = (sel) => { const r = sel.indexOf('.footer') !== -1 ? find('.footer') : (sel.indexOf('.letterhead') !== -1 && sel !== '.letterhead' ? find('.letterhead') : null); return r ? _hexes(r.decls.background || '') : []; };
   for (const r of rules) {
     const own = _hexes(r.decls.background || r.decls['background-color'] || '');
@@ -385,6 +384,8 @@ function _pageCssCanon(css) {
   const txt = []; const bgl = [page];
   rules.forEach((r) => { if (!usable(r.sel)) return; _hexes(r.decls.color || '').forEach((h) => txt.push(_hexRgb(h))); _hexes(r.decls.background || r.decls['background-color'] || '').forEach((h) => bgl.push(_hexRgb(h))); });
   for (const t of txt) for (const b of bgl) if (_contrast(t, b) < 4.5) return false;
+  // Round 7: the server's own fixed text colours must read on EVERY light background the tenant's rules can put behind them, not only the page's.
+  for (const c of fixed) for (const b of bgl) if (_contrast(_hexRgb(c.slice(c.indexOf('#'))), b) < 3) return false;
   // Review 4 (PR re-review): every font stack is the shape a tenant's brand fonts produce ('Face','Segoe UI',Helvetica,Arial,sans-serif, or
   // the fallback alone), with no symbol face.
   const col = flat.replace(/\s*([{};:,])\s*/g, '$1');
@@ -495,7 +496,8 @@ function verifyManifest(docType, html, opts) {
   if (parsed.length !== rawCount || parsed.length !== liveCount || parsed.length > MAX_CONTROLS) bad.push('control_count');
   // Round 6: the regex reader of the ticks (attic-ack.js parseAcks) and the parsed tree must agree on every control, its id and its tick.
   const treeAcks = scan.tags.filter((t) => !t.closing && Object.prototype.hasOwnProperty.call(t.attrs, 'data-nbd-ack'));
-  if (treeAcks.length === parsed.length && treeAcks.some((t, i) => String(t.attrs['data-nbd-ack']) !== parsed[i].id || Object.prototype.hasOwnProperty.call(t.attrs, 'checked') !== (parsed[i].checked === true))) bad.push('control_mismatch');
+  if (treeAcks.length === parsed.length && treeAcks.some((t, i) => String(t.attrs['data-nbd-ack']) !== parsed[i].id || Object.prototype.hasOwnProperty.call(t.attrs, 'checked') !== (parsed[i].checked === true)
+    || (String(t.attrs.type == null ? '' : t.attrs.type).trim().toLowerCase() === 'radio' ? 'radio' : 'checkbox') !== parsed[i].type || (t.attrs['data-nbd-required'] === '1') !== (parsed[i].required === true))) bad.push('control_mismatch');
   const seen = {};
   parsed.forEach((c) => { if (seen[c.id]) bad.push('duplicate:' + c.id); seen[c.id] = c; });
   const boxes = parsed.filter((c) => c.type === 'checkbox').map((c) => c.id).sort();
@@ -517,7 +519,7 @@ function verifyManifest(docType, html, opts) {
   _risks(scan, parsed, o).forEach((c) => bad.push(c));
   m.required.forEach((id) => {
     const lab = (scan.labels || []).filter((l) => l.ids.indexOf(id) !== -1)[0];
-    if (pairs[id] && (!lab || _norm(lab.text).indexOf(_plain(pairs[id])) === -1)) bad.push('pairing:' + id);
+    if (pairs[id] && (!lab || lab.ids.length !== 1 || _norm(lab.text).indexOf(_plain(pairs[id])) === -1)) bad.push('pairing:' + id);   // exactly one control per label
   });
   return { ok: bad.length === 0, reasons: bad.slice(0, 12) };
 }

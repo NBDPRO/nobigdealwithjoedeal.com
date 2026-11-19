@@ -1007,6 +1007,12 @@ exports.submitSignature = onRequest(
           record = applied.html;
           signedDocType = typeof p.docType === 'string' ? p.docType : null;
           atticResult = AG.resultFor(signedDocType, applied.html, null);
+          // Round 7: the verdict on the rebuilt record comes from the parsed tree (resultFor verifies it), not only from the regex tick reader; a copy the two
+          // read differently is refused before the burn.
+          if (!atticResult.complete || !atticResult.manifestOk) {
+            res.status(422).json({ error: 'This acknowledgment could not be verified. Please contact your rep for a corrected copy.' });
+            return;
+          }
           // Review 2 (item 4): the form is bound to the estimate it covers (id and stamp), read before the burn; a read that fails refuses.
           try { const dm = await db.doc(`leads/${p.leadId}/documents/${p.docId}`).get(); const b = await AG.formBasis(db, p.leadId, lead || {}, { estimateId: dm && dm.exists ? (dm.data() || {}).estimateId : undefined }); atticResult.estimateId = b.id; atticResult.estimateStamp = b.stamp; }
           catch (be) {
