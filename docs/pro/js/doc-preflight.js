@@ -3776,6 +3776,19 @@
       ]
     };
   })();
+  P5_SCHEMAS.decking_authorization = {
+    title: 'Hidden Conditions / Decking Authorization',
+    subtitle: 'Damaged decking found at tear-off: the homeowner approves or declines replacing it. The per-sheet price is Company Profile\u2019s.',
+    sections: [
+      CUSTOMER_SECTION,
+      { id: 'found', title: 'What was found', collapsed: false, fields: [
+        { key: 'deckingSheets', label: 'Sheets to replace', type: 'number', required: true, source: 'literal:', persist: PERSIST.DOCUMENT },
+        { key: 'deckingFoundOn', label: 'Date found', type: 'date', source: 'computed.todayISO', persist: PERSIST.EPHEMERAL },
+        { key: 'deckingWhere', label: 'Where on the roof', type: 'text', source: 'literal:', persist: PERSIST.DOCUMENT },
+        { key: 'deckingPhotoIds', label: 'Photo IDs (this customer\u2019s photos, separated by commas)', type: 'text', source: 'literal:', persist: PERSIST.DOCUMENT }
+      ] }
+    ]
+  };
   function syncPhase5(on) {
     Object.keys(P5_SCHEMAS).forEach(function (t) { if (on) DOC_SCHEMAS[t] = P5_SCHEMAS[t]; else delete DOC_SCHEMAS[t]; });
   }

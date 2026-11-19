@@ -2343,7 +2343,8 @@ const DOC_PREREQUISITES = {
   proposal_options:     { needs: ['estimate'], label: 'Good-Better-Best Options', msg: 'Build an estimate first — its package prices fill the page.' },
   insurance_next_steps: { needs: ['address'], label: 'Insurance Next Steps', msg: 'Add the property address first.' },
   // Phase 5 (flag docClauseSetV1): only reachable while the flag is on.
-  property_condition:   { needs: ['address'], label: 'Property Condition & Access', msg: 'Add the property address first.' }
+  property_condition:   { needs: ['address'], label: 'Property Condition & Access', msg: 'Add the property address first.' },
+  decking_authorization: { needs: ['address'], label: 'Decking Authorization', msg: 'Add the property address first.' }
 };
 
 function getCustomerDocData() {
@@ -2623,6 +2624,7 @@ window._DOC_TEMPLATE_CATALOG = [
   { type:'referral_card',             icon:'🎁', name:'Referral Card',            desc:'Shareable referral with incentives',        cats:['closeout'],          kw:'refer referral review incentive share' },
   // Phase 5 (flag docClauseSetV1): listed only while the flag is on (_orderedDocTemplates), so flag off lists the same cards as before.
   { type:'property_condition',        icon:'🏠', name:'Property Condition & Access', desc:'Pre-job walk-through checklist the homeowner ticks and signs', cats:['sales','install'], kw:'property condition access walk-through walkthrough driveway landscaping skylight solar pets utilities parking acknowledgment', flag:'docClauseSetV1' },
+  { type:'decking_authorization',     icon:'🪵', name:'Decking Authorization',    desc:'Hidden conditions: homeowner approves or declines replacing damaged decking', cats:['install'], kw:'decking deck sheets plywood osb hidden conditions rotted tear-off authorize approve change', flag:'docClauseSetV1' },
   { type:'storm_history_report',      icon:'⛈️', name:'Storm History Report',     desc:'Free 5-yr NOAA hail & wind history — skip the paid GAF report', cats:['claim','inspection'], kw:'storm hail wind weather history noaa nws gaf 5-year verification report' }
 ];
 

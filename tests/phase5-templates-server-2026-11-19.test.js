@@ -39,7 +39,8 @@ const TERMS = { deckingPerSheetCents: 10000, deckingSheetsBeforeChangeOrder: 10,
 const SIGNERS = [{ role: 'homeowner', label: 'Homeowner', required: true }, { role: 'rep', label: 'Authorized NBD Representative', required: true }];
 // type -> the data a rep would give it
 const FORMS = {
-  property_condition: { propertyCondition: { notes: { driveway: 'Crack by the garage' }, photos: [{ id: 'ph1', item: 'driveway' }] } }
+  property_condition: { propertyCondition: { notes: { driveway: 'Crack by the garage' }, photos: [{ id: 'ph1', item: 'driveway' }] } },
+  decking_authorization: { deckingSheets: 4, deckingPhotos: ['dk1'], deckingWhere: 'North slope' }
 };
 
 const generated = async (docType, extra) => {
@@ -50,6 +51,7 @@ const generated = async (docType, extra) => {
   env.win.NBDDocViewer = { open: (o) => { cap = o; return {}; } };
   env.win._leadDoc = { id: 'L1', address: H.OH_ADDR, jobType: 'cash' };
   const cp = Object.assign({}, H.profileFor(env.win, H.BIZ_ADDR), { paymentTerms: TERMS });
+  env.win._legal = () => cp;
   await env.win.NBDDocGen.generate(docType, Object.assign({ homeownerName: 'Jane Smith', address: H.OH_ADDR, contractDate: '2026-11-19', companyProfile: cp, signers: SIGNERS }, FORMS[docType], extra || {}));
   return cap && cap.html;
 };
@@ -80,7 +82,9 @@ const generated = async (docType, extra) => {
     bad('another type\'s marker is refused', GEN.replace('P5_FORMS_V1 ' + type, 'P5_FORMS_V1 final_walkthrough'), 'marker');
     bad('no marker is refused', GEN.replace(/<!-- nbd:p5[^>]*-->/, ''), 'marker');
     bad('a hand-written form with one control is refused', '<html><body><input type="checkbox" data-nbd-ack="ack:x" data-nbd-required="1"></body></html>');
-    bad('reworded registry wording is refused', GEN.replace('NBD is not responsible for loose items', 'NBD is responsible for nothing'), 'wording');
+    const win = (() => { const t = P5.fragments(type)[0]; for (let i = 0; i + 24 < t.length; i++) { const w = t.slice(i, i + 24); if (/^[A-Za-z ,]+$/.test(w) && !/Contractor/.test(w) && GEN.split(w).length === 2) return w; } return null; })();
+    ok('(a plain 24-character window of the first registry paragraph exists in the form)', !!win);
+    bad('reworded registry wording is refused', GEN.replace(win, 'something else entirely.'), 'wording');
     bad('hidden wording (display:none paragraph) is refused', GEN.replace('<p class="aa-p">', '<p class="aa-p" style="display:none">'), 'inline_style');
     bad('an unknown style block is refused', GEN.replace('</head>', '<style>p{display:none}</style></head>'), 'style_block');
     ok('a copy over the size cap is refused', V(GEN + ' '.repeat(AG.MAX_HTML)).reasons.indexOf('too_large') !== -1);

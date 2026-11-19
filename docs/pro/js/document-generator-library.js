@@ -692,10 +692,12 @@
   // required recorded ticks (data-nbd-ack), the same mechanism as the attic form; the server verifies them (attic-gate.js).
   // ═════════════════════════════════════════════════════════════════
   var P5_ENTRIES = {
-    property_condition: { name: 'Property Condition & Access Acknowledgment', template: 'renderPropertyCondition', defaultSigners: [HOMEOWNER, REP] }
+    property_condition: { name: 'Property Condition & Access Acknowledgment', template: 'renderPropertyCondition', defaultSigners: [HOMEOWNER, REP] },
+    decking_authorization: { name: 'Hidden Conditions / Decking Authorization', template: 'renderDeckingAuthorization', defaultSigners: [HOMEOWNER, REP] }
   };
   var P5_FIELDS = {
-    property_condition: ['homeownerName', 'address', 'walkedOn', 'pcPhotoIds']
+    property_condition: ['homeownerName', 'address', 'walkedOn', 'pcPhotoIds'],
+    decking_authorization: ['homeownerName', 'address', 'deckingSheets', 'deckingFoundOn', 'deckingWhere', 'deckingPhotoIds']
   };
   function p5Wanted() {
     var w = typeof window !== 'undefined' ? window : null;
@@ -791,6 +793,45 @@
     parts.push('<div class="section"><p class="aa-note">' + esc(X.TICK_NOTE) + '</p></div>');
     parts.push(p5Sig(c, d), T.affiliateRow() + T.footer(X.NAMES.property_condition));
     return T.page(X.NAMES.property_condition, parts.join(''));
+  };
+
+  // ── 2. HIDDEN CONDITIONS / DECKING AUTHORIZATION ──
+  // The per-sheet price is paymentTerms.deckingPerSheetCents (NBD's own default is none): unset or 0 prints the {{token}} and the send check
+  // refuses. More sheets than CO-2 allows without a change order prints a [Needs A Change Order] marker, which the send check also refuses.
+  DG.renderDeckingAuthorization = function (data) {
+    T.refresh();
+    var d = Object.assign({ homeownerName: '[Homeowner Name]', address: '[Property Address]' }, data);
+    var c = p5Ctx('decking_authorization', d), X = c.X;
+    var priceOk = c.CS.numOk(c.terms.deckingPerSheetCents, 'deckingPerSheetCents') && Number(c.terms.deckingPerSheetCents) > 0;
+    if (!priceOk) { c.terms = Object.assign({}, c.terms, { deckingPerSheetCents: null }); c.o.terms = c.terms; }
+    var perSheet = priceOk ? Number(c.terms.deckingPerSheetCents) : 0;
+    var limit = c.CS.numOk(c.terms.deckingSheetsBeforeChangeOrder, 'deckingSheetsBeforeChangeOrder') ? Number(c.terms.deckingSheetsBeforeChangeOrder) : null;
+    var n = Number(d.deckingSheets);
+    var haveN = isFinite(n) && n > 0 && Math.floor(n) === n;
+    var over = haveN && limit != null && n > limit;
+    var sheetsCell = !haveN ? '[Number Of Sheets]' : (over ? '[Needs A Change Order]' : String(n));
+    var priceCell = priceOk ? T.centsText(perSheet) : '{{deckingPerSheetCents}}';
+    var totalCell = (haveN && !over && priceOk) ? T.centsText(n * perSheet) : (!priceOk ? '{{deckingPerSheetCents}}' : sheetsCell);
+    var urls = (d.deckingPhotoUrls && typeof d.deckingPhotoUrls === 'object') ? d.deckingPhotoUrls : {};
+    var ids = (Array.isArray(d.deckingPhotos) ? d.deckingPhotos : []).map(function (p) { return p && typeof p === 'object' ? p.id : p; })
+      .concat(String(d.deckingPhotoIds || '').split(/[,\s]+/)).filter(function (s) { return typeof s === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(s); });
+    var found = String(d.deckingFoundOn || '').trim();
+    var where = String(d.deckingWhere || '').trim();
+    var kvRow = function (k, v) { return '<div><dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd></div>'; };
+    var parts = [];
+    parts.push(p5Head(c, d, found ? 'Found ' + (T.longDate(found) || found) : ''));
+    parts.push(c.P.marker('decking_authorization', 'base', ['CO-2']));
+    parts.push('<div class="section">' + p5Paras(c, 'CO-2').map(function (p) { return '<p class="aa-p">' + p5Words(p) + '</p>'; }).join('') + '</div>');
+    parts.push('<div class="section"><p class="aa-p">' + esc(X.DK_INTRO) + '</p><dl class="p5-kv">' +
+      (found ? kvRow(X.DK_FOUND, T.longDate(found) || found) : '') + (where ? kvRow(X.DK_WHERE, where) : '') +
+      kvRow(X.DK_SHEETS, sheetsCell) + kvRow(X.DK_PRICE, priceCell) + kvRow(X.DK_TOTAL, totalCell) + '</dl>' +
+      (ids.length ? '<p class="aa-note">' + esc(X.DK_PHOTOS) + '</p>' + p5Photos(ids, urls) : '') + '</div>');
+    parts.push('<div class="section">' + p5Tick('ack:decking_read', esc(X.DK_READ), true) +
+      '<label class="aa-row"><input type="radio" name="p5-decking" data-nbd-ack="rec:decking:yes" aria-label="Approve"><span>' + esc(X.DK_YES) + '</span></label>' +
+      '<label class="aa-row"><input type="radio" name="p5-decking" data-nbd-ack="rec:decking:no" aria-label="Decline"><span>' + esc(X.DK_NO) + '</span></label>' +
+      '<p class="aa-note">' + esc(X.TICK_NOTE_LINE) + '</p></div>');
+    parts.push(p5Sig(c, d), T.affiliateRow() + T.footer(X.NAMES.decking_authorization));
+    return T.page(X.NAMES.decking_authorization, parts.join(''));
   };
 
   // Brand refresh is done inside each renderer (T.refresh()), so these are

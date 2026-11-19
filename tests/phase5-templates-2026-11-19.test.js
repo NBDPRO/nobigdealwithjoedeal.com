@@ -47,6 +47,7 @@ async function gen(env, type, data, o) {
   let cap = null;
   W.NBDDocViewer = { open: (x) => { cap = x; return {}; } };
   const cp = Object.assign({}, H.profileFor(W, H.BIZ_ADDR), { paymentTerms: opts.terms === undefined ? TERMS : opts.terms });
+  W._legal = () => cp;   // generate() reads the tenant's terms from window._legal()
   W._leadDoc = { id: 'L1', address: (data && data.address) || H.OH_ADDR, jobType: 'cash' };
   const before = env.toasts.length;
   await W.NBDDocGen.generate(type, Object.assign({ homeownerName: 'Jane Smith', address: H.OH_ADDR, contractDate: '2026-11-18', companyProfile: cp,
@@ -122,6 +123,52 @@ const ackIds = (html) => [...html.matchAll(/<input\b[^>]*data-nbd-ack="([^"]+)"/
     // preview copy keeps placeholders (the send check, not the render, refuses)
     const prev = await gen(env, T, { _isBlankPreview: true, homeownerName: undefined, address: undefined });
     ok('flag on, blank preview still renders', !!prev.html);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  section('2. Hidden Conditions / Decking Authorization');
+  {
+    const T = 'decking_authorization';
+    const env = stack({ flags: { docClauseSetV1: true } });
+    const DG = syncOn(env);
+    const CS = env.win.NBDClauseSet;
+    ok('registered with homeowner + contractor required signers', !!DG.DOCUMENT_TYPES[T] && DG.DOCUMENT_TYPES[T].defaultSigners.map((s) => s.role + ':' + s.required).join() === 'homeowner:true,rep:true');
+    ok('pre-flight schema registered under the flag', !!(env.win.DocPreflight && env.win.DocPreflight.DOC_SCHEMAS[T]));
+    const data = { deckingSheets: 4, deckingFoundOn: '2026-11-19', deckingWhere: 'North slope near the chimney', deckingPhotos: ['dk1', 'dk2'], deckingPhotoUrls: { dk1: 'https://firebasestorage.example/o/dk1.jpg' } };
+    const r = await gen(env, T, data);
+    const h = r.html || '';
+    const tx = textOf(h);
+    ok('generate() produced the form', h.length > 4000, r.toasts.join('|'));
+    const terms = CS.paymentTermsFor(TERMS, true);
+    const party = CS.partyFor(env.win._brand(), true);
+    const co2 = CS.textV1('CO-2', { terms, party })[0];
+    ok('CO-2 prints verbatim from the registry, with the per-sheet price from payment terms', co2 && co2.indexOf('$100.00 per sheet') !== -1 && tx.indexOf(co2.replace(/\*\*/g, '')) !== -1);
+    ok('sheets, price per sheet and the total (4 x $100.00 = $400.00) are shown', /Sheets to replace\s+4/.test(tx) && /Price per sheet\s+\$100\.00/.test(tx) && /Total for these sheets\s+\$400\.00/.test(tx), tx.slice(tx.indexOf('Sheets to replace') - 20, tx.indexOf('Sheets to replace') + 200));
+    ok('photos are referenced by id (a thumbnail when a url is known)', h.indexOf('dk1.jpg') !== -1 && tx.indexOf('dk2') !== -1);
+    ok('party block and signature caption', tx.indexOf(NBD_PARTY) !== -1 && h.indexOf('By: Joe Deal, Manager') !== -1);
+    ok('approve / decline is a recorded Yes/No pair, plus one required tick', /data-nbd-ack="rec:decking:yes"/.test(h) && /data-nbd-ack="rec:decking:no"/.test(h) && reqIds(h).join() === 'ack:decking_read' && ackIds(h).length === 3, ackIds(h).join());
+    ok('neither answer is pre-selected and no initials', !/checked/.test(h.replace(/<style[\s\S]*?<\/style>/g, '')) && !/initial/i.test(h));
+    ok('no placeholder on the good copy; never "licensed" or a claim promise', !/\{\{|\[[A-Z][A-Za-z ]+\]/.test(textOf(h).replace(/\[ \]/g, '')) && !/licensed|we handle|guarantee/i.test(tx));
+    ok('a marker names the type, version and CO-2', /<!-- nbd:p5 P5_FORMS_V1 decking_authorization base CO-2_V1 -->/.test(h));
+    // fail closed
+    const noPrice = await gen(env, T, data, { terms: {} });
+    ok('no per-sheet price set: refused, naming deckingPerSheetCents', !noPrice.html && noPrice.toasts.some((m) => /deckingPerSheetCents/.test(m)), noPrice.toasts.join('|'));
+    const zero = await gen(env, T, data, { terms: Object.assign({}, TERMS, { deckingPerSheetCents: 0 }) });
+    ok('a $0 per-sheet price is refused', !zero.html, zero.toasts.join('|'));
+    const noSheets = await gen(env, T, { deckingSheets: undefined });
+    ok('no sheet count: refused', !noSheets.html && noSheets.toasts.some((m) => /placeholder/i.test(m)), noSheets.toasts.join('|'));
+    const over = await gen(env, T, Object.assign({}, data, { deckingSheets: 11 }));
+    ok('more sheets than the contract allows without a change order: refused, says so', !over.html && over.toasts.some((m) => /Change Order/i.test(m)), over.toasts.join('|'));
+    const noAddr = await gen(env, T, Object.assign({}, data, { address: '' }));
+    ok('a blank address is refused', !noAddr.html && noAddr.toasts.some((m) => /address/i.test(m)));
+    // tenant: its own numbers only (a tenant with none set is refused, never given NBD's)
+    const oaks = stack({ flags: { docClauseSetV1: true }, brand: OAKS });
+    syncOn(oaks);
+    const ro = await gen(oaks, T, data, { terms: { deckingPerSheetCents: 12500, deckingSheetsBeforeChangeOrder: 8 } });
+    const to = textOf(ro.html || '');
+    ok('tenant: its own entity and price ($125.00 x 4 = $500.00), no NBD names', to.indexOf('Oaks Roofing LLC') !== -1 && /Total for these sheets\s+\$500\.00/.test(to) && !/No Big Deal|Joe Deal|\bNBD\b/.test(to), ro.toasts.join('|'));
+    const rn = await gen(oaks, T, data, { terms: {} });
+    ok('tenant with no payment terms: refused (NBD defaults never leak)', !rn.html, rn.toasts.join('|'));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

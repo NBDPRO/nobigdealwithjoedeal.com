@@ -59,7 +59,14 @@
       parking: 'Parking for the crew and the dumpster'
     },
     PC_NOTE_NONE: 'No note.',
-    PC_PHOTOS: 'Photos on file:'
+    PC_PHOTOS: 'Photos on file:',
+    // decking_authorization
+    TICK_NOTE_LINE: 'Tick the box and choose Approve or Decline. Your answers are saved with your signature.',
+    DK_INTRO: 'This form records what was found when the old roof came off, and whether you approve replacing it.',
+    DK_READ: 'I have read the notice above and seen the photos listed.',
+    DK_FOUND: 'Found on', DK_WHERE: 'Where', DK_SHEETS: 'Sheets to replace', DK_PRICE: 'Price per sheet', DK_TOTAL: 'Total for these sheets',
+    DK_PHOTOS: 'Photos on file:',
+    DK_YES: 'Approve replacing these sheets at the price shown.', DK_NO: 'Decline.'
   };
 
   var PC_KEYS = ['driveway', 'landscaping', 'gutters', 'satellite_dish', 'solar', 'skylights', 'wall_items', 'attic_items', 'ceilings', 'pets', 'utilities', 'parking'];
@@ -70,6 +77,11 @@
       refs: ['SCH-2', 'DISP-6', 'MEDIA-1'],
       variants: { base: { required: ['ack:pc_notice'].concat(PC_KEYS.map(function (k) { return 'ack:pc_' + k; })), lines: [] } },
       statics: ['PC_INTRO', 'PC_NOTICE', 'TICK_NOTE']
+    },
+    decking_authorization: {
+      refs: ['CO-2'],
+      variants: { base: { required: ['ack:decking_read'], lines: ['decking'] } },
+      statics: ['DK_INTRO', 'DK_READ', 'TICK_NOTE_LINE']
     }
   };
 
