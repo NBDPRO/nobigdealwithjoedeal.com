@@ -435,8 +435,9 @@ exports.createSignRequest = onCall(
     if (lead.userId !== uid && !isAdmin) throw new HttpsError('permission-denied', 'Not your lead');
     // R3-11: the link goes only to an email on this lead's record (its email,
     // or a saved alternate) — never to any address the caller types.
-    // The flag is read strictly (a read that fails refuses, retryable): it decides the link-only mint and the 14-day expiry.
-    const signPanelOn = await DE.signPanelFlagForGate(db, uid, HttpsError);
+    // Only the link-only request (sendEmail:false) reads the flag strictly (a read that fails refuses, retryable). Every other
+    // caller reads it loosely (a failed read = off), so a flag-read problem never changes the ordinary email mint.
+    const signPanelOn = linkOnlyAsked ? await DE.signPanelFlagForGate(db, uid, HttpsError) : await DE.signPanelFlagLoose(db, uid);
     const noEmailMint = linkOnlyAsked && signPanelOn;
     if (linkOnlyAsked && !signPanelOn && !emailShapeOk) {
       throw new HttpsError('invalid-argument', 'A valid signer email is required');

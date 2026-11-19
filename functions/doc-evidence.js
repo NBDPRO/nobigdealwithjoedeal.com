@@ -331,6 +331,14 @@ async function signPanelFlagForGate(db, uid, HttpsError) {
   catch (_) { throw new HttpsError('unavailable', FLAG_UNREADABLE_MSG); }
 }
 
+/**
+ * The sign-link panel flag for a caller that did NOT ask for a link-only mint (security review 2026-11-18, item 1): a loose read, a
+ * failed read is "off", so flag-off behaviour (and any outage) is exactly what it was before the flag existed.
+ */
+async function signPanelFlagLoose(db, uid) {
+  return flagForUid(db, uid, { flag: SIGN_PANEL_FLAG_NAME });
+}
+
 /** The attic flag as a send gate reads it (a read error is a retryable refusal, never "off"). */
 async function atticFlagForGate(db, uid, HttpsError) {
   try { return await flagForUid(db, uid, { strict: true, flag: ATTIC_FLAG_NAME }); }
@@ -404,7 +412,7 @@ function clauseFlagForUid(db, uid) { return flagForUid(db, uid, { flag: CLAUSE_F
 module.exports = {
   CLAUSE_FLAG_NAME, clauseFlagForUid, ATTIC_FLAG_NAME, atticFlagForGate, atticGateOn,
   FLAG_NAME, FLAG_DEFAULT, NBD_ENTITY_NAME, CLAUSE_SET_VERSION: ClauseSet.CLAUSE_SET_VERSION,
-  NBD_OWNER_UID_FOR_TESTS: NBD_OWNER_UID, clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, buildClauseSetFor, clauseFlagForGate, signPanelFlagForGate, printedByRef, expectedV1Refs, pdfByRef, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
+  NBD_OWNER_UID_FOR_TESTS: NBD_OWNER_UID, clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, buildClauseSetFor, clauseFlagForGate, signPanelFlagForGate, signPanelFlagLoose, printedByRef, expectedV1Refs, pdfByRef, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
   serverContractGaps, estimateCents, isContractClass: Checks.isContractClass,
   describeGaps: Checks.describeGaps,
 };

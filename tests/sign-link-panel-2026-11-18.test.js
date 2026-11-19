@@ -119,6 +119,12 @@ const DAY = 86400000;
     ok('gate: an unreadable flag is a retryable refusal, never "off" and never a link', !!r.e && r.e.code === 'unavailable' && tokens(r.db).length === 0, r.e && r.e.code);
     r = await mint(world({ [FLAG]: true }), { sendEmail: false }, (db) => { const o = db.doc; db.doc = (p) => (/^feature_flags\/U1$/.test(p) ? { get: async () => { throw new Error('down'); } } : o(p)); });
     ok('gate: an unreadable per-person flag doc fails closed too', !!r.e && r.e.code === 'unavailable' && tokens(r.db).length === 0);
+    // Security review 2026-11-18, item 1: only the link-only request reads the flag strictly; every other caller reads it loosely (a failed read = off).
+    const failFirstDefault = (db) => { const o = db.doc; let n = 0; db.doc = (p) => (p === 'feature_flags/_default' && ++n === 1 ? { get: async () => { throw new Error('blip'); } } : o(p)); };
+    r = await mint(world(null, { lead: { email: 'dana@example.test' } }), { signerEmail: 'dana@example.test' }, failFirstDefault);
+    ok('FLAG OFF, normal email mint, the sign-panel flag read fails once: proceeds exactly as on main (emailed, 7 days), no new refusal', !!r.v && r.v.emailed === true && Math.abs(r.v.expiresAt - (r.t0 + 7 * DAY)) < 60000 && r.v.supersededOld === undefined, r.e && r.e.code);
+    r = await mint(world({ [FLAG]: true }), { sendEmail: false }, failFirstDefault);
+    ok('link-only request with the same failed flag read: retryable unavailable, nothing minted (strict stays for sendEmail:false)', !!r.e && r.e.code === 'unavailable' && tokens(r.db).length === 0, r.e && r.e.code);
     r = await mint(world({ [FLAG]: true }, { lead: { userId: 'OTHER' } }), { sendEmail: false });
     ok('owner check: a lead that is not yours still refuses a link-only mint', !!r.e && r.e.code === 'permission-denied' && tokens(r.db).length === 0);
     const rs = src('functions/remote-signing.js');
