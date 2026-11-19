@@ -181,6 +181,10 @@
       gap('mailingAddress', 'The company mailing address is not set (Company Profile, Mailing Address).');
     }
     if (_blank(x.entityName)) gap('entityName', 'The company legal entity name is not set (Company Profile).');
+    // Phase 5: the Ohio insurance acknowledgment is for Ohio only (Kentucky insurance jobs use the Kentucky notices and forms). An unreadable state fails closed.
+    if (String(x.type || '') === 'ohio_insurance_ack' && String(x.state || '').toUpperCase() !== 'OH') {
+      gap('ohioOnly', 'This acknowledgment is for Ohio properties only. Kentucky insurance jobs use the Kentucky notices and forms in the contract and the Notice of Right to Cancel.');
+    }
     if (String(x.type || '') === 'contract') {
       if (_blank(x.startDate)) gap('startDate', 'The start date is blank.');
       if (_blank(x.estimatedCompletion)) gap('estimatedCompletion', 'The estimated completion is blank.');

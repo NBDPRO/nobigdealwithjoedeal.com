@@ -696,13 +696,15 @@
     decking_authorization: { name: 'Hidden Conditions / Decking Authorization', template: 'renderDeckingAuthorization', defaultSigners: [HOMEOWNER, REP] },
     // The homeowner only: the request is the homeowner's, separate from the contract.
     emergency_services_request: { name: 'Emergency Services Request', template: 'renderEmergencyServicesRequest', defaultSigners: [HOMEOWNER] },
-    final_walkthrough: { name: 'Final Walkthrough & Punch List', template: 'renderFinalWalkthrough', defaultSigners: [HOMEOWNER, REP] }
+    final_walkthrough: { name: 'Final Walkthrough & Punch List', template: 'renderFinalWalkthrough', defaultSigners: [HOMEOWNER, REP] },
+    ohio_insurance_ack: { name: 'Ohio Insurance Job Acknowledgment', template: 'renderOhioInsuranceAck', defaultSigners: [HOMEOWNER, REP] }
   };
   var P5_FIELDS = {
     property_condition: ['homeownerName', 'address', 'walkedOn', 'pcPhotoIds'],
     decking_authorization: ['homeownerName', 'address', 'deckingSheets', 'deckingFoundOn', 'deckingWhere', 'deckingPhotoIds'],
     emergency_services_request: ['homeownerName', 'address', 'emergencyWork'],
-    final_walkthrough: ['homeownerName', 'address', 'completionDate', 'walkthroughDate', 'punchItemsText']
+    final_walkthrough: ['homeownerName', 'address', 'completionDate', 'walkthroughDate', 'punchItemsText'],
+    ohio_insurance_ack: ['homeownerName', 'address', 'insCarrier', 'claimNumber']
   };
   function p5Wanted() {
     var w = typeof window !== 'undefined' ? window : null;
@@ -910,6 +912,31 @@
       '<p class="aa-note">' + esc(X.TICK_NOTE) + '</p></div>');
     parts.push(p5Sig(c, d), T.affiliateRow() + T.footer(X.NAMES.final_walkthrough));
     return T.page(X.NAMES.final_walkthrough, parts.join(''));
+  };
+
+  // ── 5. OHIO INSURANCE JOB ACKNOWLEDGMENT ──
+  // Ohio only: a Kentucky (or unreadable-state) property prints an [Ohio Only] marker and the send check refuses it with a message
+  // pointing to the Kentucky notices and forms (ky-insurance-law.js; nothing of them is restated here). Each statement is a required
+  // tick whose label is the clause itself: INS-1 (the shipped payment clause's no-representation sentence), INS-2, CO-3, INS-5.
+  DG.renderOhioInsuranceAck = function (data) {
+    T.refresh();
+    var d = Object.assign({ homeownerName: '[Homeowner Name]', address: '[Property Address]' }, data);
+    var c = p5Ctx('ohio_insurance_ack', d), X = c.X;
+    var carrier = String(d.insCarrier || d.insuranceCompany || '').trim(), claim = String(d.claimNumber || '').trim();
+    var pay = (c.CS.textFor && c.CS.textFor('PAYMENT', 'all')) || (J() && J().PAYMENT_CLAUSE) || '';
+    var ins1 = c.P.ins1(pay);
+    if (!ins1) throw new Error('The payment clause did not load. Reload the page and try again.');
+    var kvRow = function (k, v) { return '<div><dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd></div>'; };
+    var rows = [['ack:ins_claim', [ins1]], ['ack:ins_deductible', p5Paras(c, 'INS-2')], ['ack:ins_supplement', p5Paras(c, 'CO-3')], ['ack:ins_assignment', p5Paras(c, 'INS-5')]];
+    var parts = [];
+    parts.push(p5Head(c, d, ''));
+    parts.push(c.P.marker('ohio_insurance_ack', 'base', ['INS-1', 'INS-2', 'CO-3', 'INS-5']));
+    if (c.state !== 'OH') parts.push('<div class="section"><p class="aa-p">[Ohio Only]</p></div>');
+    parts.push('<div class="section"><p class="aa-p">' + esc(X.OI_INTRO) + '</p>' +
+      ((carrier || claim) ? '<dl class="p5-kv">' + (carrier ? kvRow(X.OI_CARRIER, carrier) : '') + (claim ? kvRow(X.OI_CLAIM, claim) : '') + '</dl>' : '') + '</div>');
+    parts.push('<div class="section">' + rows.map(function (r) { return p5Tick(r[0], p5Words(r[1].join(' ')), true); }).join('') + '<p class="aa-note">' + esc(X.TICK_NOTE) + '</p></div>');
+    parts.push(p5Sig(c, d), T.affiliateRow() + T.footer(X.NAMES.ohio_insurance_ack));
+    return T.page(X.NAMES.ohio_insurance_ack, parts.join(''));
   };
 
   // Brand refresh is done inside each renderer (T.refresh()), so these are

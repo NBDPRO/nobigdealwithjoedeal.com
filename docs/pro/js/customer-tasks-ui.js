@@ -2346,7 +2346,8 @@ const DOC_PREREQUISITES = {
   property_condition:   { needs: ['address'], label: 'Property Condition & Access', msg: 'Add the property address first.' },
   decking_authorization: { needs: ['address'], label: 'Decking Authorization', msg: 'Add the property address first.' },
   emergency_services_request: { needs: ['address'], label: 'Emergency Services Request', msg: 'Add the property address first.' },
-  final_walkthrough:    { needs: ['address'], label: 'Final Walkthrough & Punch List', msg: 'Add the property address first.' }
+  final_walkthrough:    { needs: ['address'], label: 'Final Walkthrough & Punch List', msg: 'Add the property address first.' },
+  ohio_insurance_ack:   { needs: ['address'], label: 'Ohio Insurance Acknowledgment', msg: 'Add the property address first.' }
 };
 
 function getCustomerDocData() {
@@ -2629,6 +2630,7 @@ window._DOC_TEMPLATE_CATALOG = [
   { type:'decking_authorization',     icon:'🪵', name:'Decking Authorization',    desc:'Hidden conditions: homeowner approves or declines replacing damaged decking', cats:['install'], kw:'decking deck sheets plywood osb hidden conditions rotted tear-off authorize approve change', flag:'docClauseSetV1' },
   { type:'emergency_services_request', icon:'⛈', name:'Emergency Services Request', desc:'Separate signed request for tarp or dry-in inside the cancellation window', cats:['install','claim'], kw:'emergency tarp dry-in dry in cancellation window request separate leak weather', flag:'docClauseSetV1' },
   { type:'final_walkthrough',         icon:'🔍', name:'Final Walkthrough & Punch List', desc:'Completion sign-off with any open items listed', cats:['closeout'], kw:'final walkthrough punch list open items completion sign-off close out', flag:'docClauseSetV1' },
+  { type:'ohio_insurance_ack',        icon:'📑', name:'Ohio Insurance Acknowledgment', desc:'Ohio insurance jobs: deductible, claim, supplements, no assignment', cats:['claim','sales'], kw:'ohio insurance acknowledgment deductible claim supplement assignment adjuster', flag:'docClauseSetV1' },
   { type:'storm_history_report',      icon:'⛈️', name:'Storm History Report',     desc:'Free 5-yr NOAA hail & wind history — skip the paid GAF report', cats:['claim','inspection'], kw:'storm hail wind weather history noaa nws gaf 5-year verification report' }
 ];
 

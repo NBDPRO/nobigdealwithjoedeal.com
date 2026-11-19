@@ -20,10 +20,11 @@
   var node = typeof module === 'object' && module.exports;
   var AA = node ? require('./attic-ack') : (root && root.NBDAtticAck);
   var CT = node ? require('./clause-set-text') : (root && root.NBDClauseText);
-  var api = factory(AA || {}, CT || {});
+  var K = node ? require('./ky-insurance-law') : (root && root.NBDJurisdiction);
+  var api = factory(AA || {}, CT || {}, K || {});
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.NBDP5Forms = api;
-})(typeof window !== 'undefined' ? window : null, function (AA, CT) {
+})(typeof window !== 'undefined' ? window : null, function (AA, CT, K) {
   'use strict';
 
   var FLAG = 'docClauseSetV1';
@@ -32,7 +33,7 @@
 
   // DRAFTER WORDING: attorney to confirm (every string in this block)
   var TEXT = {
-    PARTY: '{{contractor}} ("Contractor") and {{owner}}, the owner(s) of the property at {{address}}, sign this form.',
+    PARTY: '{{contractor}} ("Contractor") and {{owner}} ("Homeowner"), the owner(s) of the property at {{address}}, sign this form.',
     TICK_NOTE: 'Tick each box. Your ticks are saved with your signature.',
     NAMES: {
       property_condition: 'Property Condition & Access Acknowledgment',
@@ -80,7 +81,10 @@
     FW_COMPLETED: 'Completion date', FW_WALKTHROUGH: 'Walkthrough date', FW_ITEMS_H: 'Open items', FW_HOLD: 'Amount held for the listed items',
     FW_WALKED: 'I walked the finished job with the Contractor\'s representative.',
     FW_NO_ITEMS: 'There are no open items.',
-    FW_ITEMS_LISTED: 'The items listed above are all of the open items.'
+    FW_ITEMS_LISTED: 'The items listed above are all of the open items.',
+    // ohio_insurance_ack
+    OI_INTRO: 'Your roof work may be paid by your insurance company. Read each statement below and tick it.',
+    OI_CARRIER: 'Your insurance company', OI_CLAIM: 'Your claim number'
   };
 
   var PC_KEYS = ['driveway', 'landscaping', 'gutters', 'satellite_dish', 'solar', 'skylights', 'wall_items', 'attic_items', 'ceilings', 'pets', 'utilities', 'parking'];
@@ -114,8 +118,21 @@
         none: { required: ['ack:fw_walked', 'ack:fw_no_items'], lines: [], statics: ['FW_NO_ITEMS'] }
       },
       statics: ['FW_INTRO', 'FW_WALKED', 'TICK_NOTE']
+    },
+    // Ohio only. INS-1 is the shipped payment clause (by reference): its no-representation sentence is printed (INS1_FROM on).
+    ohio_insurance_ack: {
+      refs: ['INS-1', 'INS-2', 'CO-3', 'INS-5'],
+      variants: { base: { required: ['ack:ins_claim', 'ack:ins_deductible', 'ack:ins_supplement', 'ack:ins_assignment'], lines: [] } },
+      statics: ['OI_INTRO', 'TICK_NOTE']
     }
   };
+  var INS1_FROM = 'This contract does not transfer';
+  /** INS-1 as this form prints it: the shipped payment clause from its no-representation sentence on (verbatim). */
+  function ins1(paymentClause) {
+    var t = String(paymentClause == null ? '' : paymentClause);
+    var i = t.indexOf(INS1_FROM);
+    return i === -1 ? t : t.slice(i);
+  }
 
   function isP5Doc(type) { return TYPES.indexOf(String(type || '')) !== -1 && Object.prototype.hasOwnProperty.call(SPECS, String(type)); }
   function spec(type, variant) {
@@ -157,12 +174,13 @@
       var c = CL[id];
       if (c && c.parts) c.parts.forEach(function (p) { if (!p.only) runs(p.text).forEach(function (r) { out.push(r); }); });
     });
+    if (s.refs.indexOf('INS-1') !== -1 && K && K.PAYMENT_CLAUSE) runs(ins1(K.PAYMENT_CLAUSE)).forEach(function (r) { out.push(r); });
     (s.statics || []).concat(vs).forEach(function (k) { runs(TEXT[k]).forEach(function (r) { out.push(r); }); });
     return out;
   }
 
   return {
     FLAG: FLAG, VERSION: VERSION, TYPES: TYPES, TEXT: TEXT, PC_KEYS: PC_KEYS, FORM_CSS: FORM_CSS, MARKER_RE: MARKER_RE,
-    isP5Doc: isP5Doc, spec: spec, marker: marker, fragments: fragments, runs: runs
+    isP5Doc: isP5Doc, ins1: ins1, spec: spec, marker: marker, fragments: fragments, runs: runs
   };
 });

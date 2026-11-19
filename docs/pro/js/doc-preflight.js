@@ -3812,6 +3812,17 @@
       ] }
     ]
   };
+  P5_SCHEMAS.ohio_insurance_ack = {
+    title: 'Ohio Insurance Job Acknowledgment',
+    subtitle: 'For an Ohio property whose repair may be paid by insurance. Kentucky jobs use the Kentucky notices instead.',
+    sections: [
+      CUSTOMER_SECTION,
+      { id: 'claim', title: 'Homeowner\u2019s insurance', collapsed: false, fields: [
+        { key: 'insCarrier', label: 'Homeowner\u2019s insurance company', type: 'text', source: 'lead.insCarrier', persist: PERSIST.LEAD },
+        { key: 'claimNumber', label: 'Homeowner\u2019s claim number', type: 'text', source: 'lead.claimNumber', persist: PERSIST.LEAD }
+      ] }
+    ]
+  };
   function syncPhase5(on) {
     Object.keys(P5_SCHEMAS).forEach(function (t) { if (on) DOC_SCHEMAS[t] = P5_SCHEMAS[t]; else delete DOC_SCHEMAS[t]; });
   }

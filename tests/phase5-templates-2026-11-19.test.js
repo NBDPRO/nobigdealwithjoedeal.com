@@ -255,6 +255,67 @@ const ackIds = (html) => [...html.matchAll(/<input\b[^>]*data-nbd-ack="([^"]+)"/
     ok('tenant with no payment terms: refused (NBD days never leak)', !rn.html, rn.toasts.join('|'));
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  section('5. Ohio Insurance Job Acknowledgment (Ohio only)');
+  {
+    const T = 'ohio_insurance_ack';
+    const env = stack({ flags: { docClauseSetV1: true } });
+    const DG = syncOn(env);
+    const CS = env.win.NBDClauseSet;
+    ok('registered with homeowner + contractor required signers', !!DG.DOCUMENT_TYPES[T] && DG.DOCUMENT_TYPES[T].defaultSigners.map((s) => s.role + ':' + s.required).join() === 'homeowner:true,rep:true');
+    ok('pre-flight schema registered under the flag', !!(env.win.DocPreflight && env.win.DocPreflight.DOC_SCHEMAS[T]));
+    const data = { insCarrier: 'Example Mutual', claimNumber: 'CLM-55' };
+    const r = await gen(env, T, data);
+    const h = r.html || '';
+    const tx = textOf(h);
+    ok('generate() produced the form', h.length > 4000, r.toasts.join('|'));
+    const terms = CS.paymentTermsFor(TERMS, true);
+    const party = CS.partyFor(env.win._brand(), true);
+    const o = { terms, party };
+    const payment = CS.textFor('PAYMENT', 'all');
+    const ins1 = payment.slice(payment.indexOf('This contract does not transfer'));
+    ok('INS-1: the shipped payment clause\'s no-representation sentence, verbatim (does not represent you, does not act on your claim)', ins1.length > 60 && /will not represent Homeowner or act for Homeowner on any insurance claim/.test(ins1) && tx.indexOf(ins1) !== -1);
+    ok('INS-2 (the deductible is yours), CO-3 (supplements need your approval), INS-5 (no assignment) print verbatim from the registry',
+      ['INS-2', 'CO-3', 'INS-5'].every((id) => { const t = CS.textV1(id, o)[0]; return t && t.length > 40 && tx.indexOf(t.replace(/\*\*/g, '')) !== -1; }));
+    ok('four required recorded ticks, one per statement; no initials', reqIds(h).join() === 'ack:ins_claim,ack:ins_deductible,ack:ins_supplement,ack:ins_assignment' && ackIds(h).length === 4 && !/initial/i.test(h), ackIds(h).join());
+    ok('the homeowner\'s own carrier and claim number are shown as theirs', /Your insurance company\s+Example Mutual/.test(tx) && /Your claim number\s+CLM-55/.test(tx));
+    ok('party block and signature caption', tx.indexOf(NBD_PARTY) !== -1 && h.indexOf('By: Joe Deal, Manager') !== -1 && (h.match(/data-nbd-sig="/g) || []).length === 2);
+    ok('honesty: never "licensed", never "we handle", no outcome or guarantee wording', !/licensed|we handle|handle your claim|guarantee|approved by your insurer|we will get/i.test(tx));
+    ok('no placeholder on the good copy', !/\{\{|\[[A-Z][A-Za-z ]+\]/.test(tx));
+    ok('a marker names the type and the four refs', /<!-- nbd:p5 P5_FORMS_V1 ohio_insurance_ack base INS-1_V1,INS-2_V1,CO-3_V1,INS-5_V1 -->/.test(h));
+    // Ohio only
+    const ky = await gen(env, T, Object.assign({ address: H.KY_ADDR }, data));
+    ok('a Kentucky property is refused, and the message points to the Kentucky notices and forms', !ky.html && ky.toasts.some((m) => /Ohio properties only/.test(m) && /Kentucky/.test(m)), ky.toasts.join('|'));
+    const unk = await gen(env, T, Object.assign({ address: '9 Somewhere Rd' }, data));
+    ok('an unreadable state is refused (fail closed)', !unk.html && unk.toasts.some((m) => /Ohio properties only/.test(m)), unk.toasts.join('|'));
+    const noAddr = await gen(env, T, Object.assign({}, data, { address: '' }));
+    ok('a blank address is refused', !noAddr.html);
+    const oaks = stack({ flags: { docClauseSetV1: true }, brand: OAKS });
+    syncOn(oaks);
+    const ro = await gen(oaks, T, data);
+    const to = textOf(ro.html || '');
+    ok('tenant: its own entity name; "Contractor" for the defined term, no NBD names', to.indexOf('Oaks Roofing LLC') !== -1 && !/No Big Deal|Joe Deal|\bNBD\b/.test(to) && /The insurance deductible is your responsibility\. Contractor does not waive/.test(to), ro.toasts.join('|'));
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  section('6. across the five: banned phrases, the flag-off picker, the wording file');
+  {
+    const w = scanSource(read('docs/pro/js/p5-forms.js'));
+    ok('the phase 5 wording file has no banned phrase', w.length === 0, JSON.stringify(w));
+    const lib = read('docs/pro/js/document-generator-library.js');
+    const added = lib.slice(lib.indexOf('PHASE 5 TEMPLATES'));
+    ok('the phase 5 library code adds no banned phrase', scanSource(added).length === 0, JSON.stringify(scanSource(added)));
+    const p5 = read('docs/pro/js/p5-forms.js');
+    ok('every new sentence is marked as the drafter\'s, for the attorney', /DRAFTER WORDING: attorney to confirm/.test(p5));
+    const flagOff = stack({ flags: {} });
+    const DGoff = syncOn(flagOff);
+    ok('flag off: no phase 5 type renders from the registry (getHTML finds none)', ALL.every((t) => DGoff.getHTML(t, {}) === null));
+    const ui = read('docs/pro/js/customer-tasks-ui.js');
+    ok('every phase 5 picker card carries flag:docClauseSetV1 and the picker filters on it', ALL.every((t) => new RegExp("type:'" + t + "'[^\\n]*flag:'docClauseSetV1'").test(ui)) && /filter\(function\(t\) \{ return !t\.flag \|\| _flagOn\(t\.flag\); \}\)/.test(ui));
+    const loader = read('docs/pro/js/script-loader.js');
+    ok('p5-forms.js loads in the docgen bundle', /js\/p5-forms\.js\?v=\d+/.test(loader));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

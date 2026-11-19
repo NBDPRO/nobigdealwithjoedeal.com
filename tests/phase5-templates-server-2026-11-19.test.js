@@ -42,7 +42,8 @@ const FORMS = {
   property_condition: { propertyCondition: { notes: { driveway: 'Crack by the garage' }, photos: [{ id: 'ph1', item: 'driveway' }] } },
   decking_authorization: { deckingSheets: 4, deckingPhotos: ['dk1'], deckingWhere: 'North slope' },
   emergency_services_request: { emergencyWork: 'Tarp the north slope.', signers: [{ role: 'homeowner', label: 'Homeowner', required: true }] },
-  final_walkthrough: { completionDate: '2026-11-19', walkthroughDate: '2026-11-19', punchItems: [{ text: 'Touch up paint, rear drip edge', holdCents: 15000 }] }
+  final_walkthrough: { completionDate: '2026-11-19', walkthroughDate: '2026-11-19', punchItems: [{ text: 'Touch up paint, rear drip edge', holdCents: 15000 }] },
+  ohio_insurance_ack: { insCarrier: 'Example Mutual', claimNumber: 'CLM-55' }
 };
 
 const generated = async (docType, extra) => {
@@ -128,6 +129,7 @@ const generated = async (docType, extra) => {
     // the fail-closed send check on the server
     const gaps = (extra) => DE.serverContractGaps(Object.assign({ type, html: GEN, lead, profile: { brand: { entityName: 'No Big Deal Solutions LLC' } }, tenantKey: 'CO', KyLaw: K, priceCents: null }, extra || {}));
     ok('server send check: a good form with no company mailing address is clear (no cancel packet on it)', gaps({ tenantKey: undefined }).length === 0, JSON.stringify(gaps({ tenantKey: undefined })));
+    if (type === 'ohio_insurance_ack') ok('server send check: a Kentucky lead is refused (Ohio only)', gaps({ lead: Object.assign({}, lead, { address: H.KY_ADDR }) }).some((g) => g.code === 'ohioOnly'), JSON.stringify(gaps({ lead: Object.assign({}, lead, { address: H.KY_ADDR }) })));
     ok('server send check: a blank address is refused', gaps({ address: '', lead: Object.assign({}, lead, { address: '' }) }).some((g) => g.code === 'address'));
     ok('server send check: a leftover [Placeholder] is refused', gaps({ html: GEN.replace('Jane Smith', '[Homeowner Name]') }).some((g) => g.code === 'placeholder'));
   }
