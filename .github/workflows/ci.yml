@@ -659,6 +659,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-subpaper-test 'node firestore-rules.sub-paperwork.test.js'
+      # Agreed sub pay per job (2026-11-19, flag subJobBoard): companies/{cid}/subJobs/{leadId}. Cost data: owner + company_admin + manager only. Own file (positive controls inside).
+      - name: Run sub-jobs rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-subjobs-test 'node firestore-rules.sub-jobs.test.js'
       # W-9 / insurance certificates (2026-10-19): sub-papers/{companyId}/{subId}/ is owner + company_admin only. Own file (positive control inside).
       - name: Run sub-papers storage rules tests under emulator
         run: |

@@ -1792,6 +1792,7 @@
     "firestore-rules.canvassers.test.js",
     "firestore-rules.company-docs.test.js",
     "firestore-rules.sub-paperwork.test.js",
+    "firestore-rules.sub-jobs.test.js",
     "firestore-rules.health-shortcut.test.js",
     "firestore-rules.hail-mesh.test.js",
     "ds-phone-fit-2026-11-14.test.js",

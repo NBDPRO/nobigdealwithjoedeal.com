@@ -490,7 +490,9 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-18  1156/74/1311 -> 1158/74/1313: supplier pricing slice 7 adds price-logic-materials-2026-11 (node), after merging main (#3164, #3166; main was stale by 1). MEASURED via --check.
 //   2026-11-18  -> 1161/74/1316: supplier pricing slice 9 adds price-import-doc-read-2026-11 (node); main was stale by the suites other PRs added. MEASURED via --check.
 //   2026-11-19  1177/75/1336 -> 1182/75/1342: phase 5 templates add phase5-templates-2026-11-19 and phase5-templates-server-2026-11-19 (node); main was stale by 3. MEASURED via --check.
-const FLOORS = { node: 1190, smoke: 75, disk: 1351 };
+//   2026-11-19  -> 1189/75/1351: sub job board rules add firestore-rules.sub-jobs (wired-individually, own CI step); disk was stale by 1. MEASURED via --check.
+//   2026-11-19  -> 1190/75/1352: in-tab dialogs add nbd-dialog-2026-11-19 (node); MEASURED via --check.
+const FLOORS = { node: 1190, smoke: 75, disk: 1352 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
