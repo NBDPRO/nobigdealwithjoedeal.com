@@ -726,6 +726,9 @@ exports.sendEstimateEnvelope = onCall(
         depositPlan: safeDepositPlan(est),
         signers: signers.map((s) => ({ id: s.id, name: s.name })),
         failClosed: checkSend, entityName, clauseSet,
+        // NBD Document Standard navy + orange, for NBD's own contracts only; another
+        // company prints in the neutral look until its own colours are passed here.
+        brand: sellerName === 'No Big Deal Home Solutions' ? { primary: '#1A3057', accent: '#BD5728' } : null,
       });
     } catch (e) {
       if (e && e.gaps) throw new HttpsError('failed-precondition', DE.describeGaps(e.gaps));
