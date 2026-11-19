@@ -381,7 +381,28 @@ function serverContractGaps(o) {
     startDate: 'not observable on the server', estimatedCompletion: 'not observable on the server',
     text: x.html == null ? '' : x.html,
     clauseConfigMissing: x.clauseConfigMissing,
+    // Co-owners (flag docClauseSetV1): the caller passes these only when the flag is on.
+    secondOwnerName: x.secondOwnerName, signerRoles: x.signerRoles,
   });
+}
+
+/**
+ * The signature blocks a signed copy carries as finalized: [{ role, label, signedAt }], in document order.
+ * Read from the stored copy by the server (never from the call). Linear: one pass over the opening tags.
+ */
+function signedRoles(html) {
+  const s = html == null ? '' : String(html);
+  const out = [];
+  const re = /<div\b[^>]*\bdata-nbd-sig\s*=\s*"([^"]{1,64})"[^>]*>/gi;
+  let m;
+  while ((m = re.exec(s)) !== null && out.length < 12) {
+    const tag = m[0];
+    if (!/data-nbd-sig-finalized\s*=\s*"1"/i.test(tag)) continue;
+    const at = /data-nbd-sig-signed-at\s*=\s*"([^"]{0,40})"/i.exec(tag);
+    const lb = /data-label\s*=\s*"([^"]{0,80})"/i.exec(tag);
+    out.push({ role: m[1].replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40), label: lb ? lb[1] : null, signedAt: at ? at[1] : null });
+  }
+  return out;
 }
 
 /** Cents from an estimate document (grandTotal, else total), or null. */
@@ -397,6 +418,6 @@ module.exports = {
   CLAUSE_FLAG_NAME, clauseFlagForUid, ATTIC_FLAG_NAME, atticFlagForGate, atticGateOn,
   FLAG_NAME, FLAG_DEFAULT, NBD_ENTITY_NAME, CLAUSE_SET_VERSION: ClauseSet.CLAUSE_SET_VERSION,
   NBD_OWNER_UID_FOR_TESTS: NBD_OWNER_UID, clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, buildClauseSetFor, clauseFlagForGate, printedByRef, expectedV1Refs, pdfByRef, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
-  serverContractGaps, estimateCents, isContractClass: Checks.isContractClass,
+  serverContractGaps, signedRoles, estimateCents, isContractClass: Checks.isContractClass,
   describeGaps: Checks.describeGaps,
 };

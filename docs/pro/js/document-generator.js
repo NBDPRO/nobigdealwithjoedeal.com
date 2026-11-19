@@ -320,6 +320,11 @@ window.NBDDocGen = {
       startDate: set('startDate'), estimatedCompletion: set('estimatedCompletion'),
       text: html || '',
       clauseConfigMissing: this._clauseV1On() && window.NBDClauseSet.PT_FIELDS.filter((f) => String(html || '').indexOf('{{' + f + '}}') !== -1),
+      // Co-owners (flag docClauseSetV1, Q52): when the lead lists a second owner, the signers must include the co-owner.
+      // Checked once the signers are known (the pre-flight asks the generator before it attaches them).
+      ...(this._signEaseOn() && Array.isArray(d.signers)
+        ? { secondOwnerName: d.secondOwnerName || ((window._currentLead || window._leadDoc || {}).secondOwnerName) || '',
+            signerRoles: d.signers.map((s) => s && s.role) } : {}),
     });
     if (!gaps.length) return true;
     const msg = C.describeGaps(gaps);

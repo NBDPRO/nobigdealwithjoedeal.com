@@ -387,6 +387,137 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
     r = await mint(false, repOnly);
     ok('server, flag off: unchanged (a rep-only document still sends)', !!r.v && r.db._all('doc_sign_tokens').length === 1, r.e && r.e.message); }
 
+  // ───────────────────────── 3. co-owners (Q52) ─────────────────────────
+  section('3. co-owner: pre-flight (role, field, add-signer)');
+  { const mkPf = (flagOn) => { const env = H.docs({ flags: flagOn ? { docClauseSetV1: true } : {} }); return env.win.DocPreflight; };
+    const off = mkPf(false); const on = mkPf(true);
+    ok('DocPreflight exposes schemaFor, signerToAdd and ensureCoOwner', ['schemaFor', 'signerToAdd', 'ensureCoOwner'].every((k) => typeof on['_' + k] === 'function' || typeof on[k] === 'function'));
+    const sf = (P, t) => (P.schemaFor || P._schemaFor)(t);
+    ok('flag off: the contract schema is the registry\'s own object (no second-owner field)', sf(off, 'contract') === off.DOC_SCHEMAS.contract
+      && !JSON.stringify(off.DOC_SCHEMAS.contract).includes('secondOwnerName'));
+    { const s = sf(on, 'contract'); const all = [].concat.apply([], s.sections.map((x) => x.fields));
+      const f = all.find((x) => x.key === 'secondOwnerName');
+      ok('flag on: the contract pre-flight has an optional "Second owner" name that persists to the lead', !!f && f.persist === 'lead' && !f.required && /second owner/i.test(f.label), JSON.stringify(f)); }
+    ok('flag on: other document types keep their own schema', sf(on, 'proposal') === on.DOC_SCHEMAS.proposal && sf(on, 'change_order') === on.DOC_SCHEMAS.change_order);
+    const sa = (P) => P.signerToAdd || P._signerToAdd;
+    const existing = [{ role: 'homeowner', label: 'Homeowner', required: true, enabled: true }, { role: 'rep', label: 'Rep', required: true, enabled: true }];
+    { const r = sa(on)(existing, 'homeowner');
+      ok('flag on: adding a second "Homeowner" creates the distinct role homeowner2, labelled co-owner, required', r.role === 'homeowner2' && r.label === 'Homeowner (co-owner)' && r.required === true, JSON.stringify(r)); }
+    { const r = sa(on)([], 'homeowner'); ok('flag on: the first homeowner is still "homeowner"', r.role === 'homeowner' && r.label === 'Homeowner'); }
+    { const r = sa(on)(existing, 'homeowner2'); ok('flag on: the picker can add the co-owner directly', r.role === 'homeowner2' && r.label === 'Homeowner (co-owner)'); }
+    { const r = sa(off)(existing, 'homeowner');
+      ok('flag off: a second "Homeowner" is the same role as before', r.role === 'homeowner' && r.label === 'Homeowner' && r.required === false, JSON.stringify(r)); }
+    { const r = sa(on)(existing, 'witness'); ok('flag on: other roles are unchanged', r.role === 'witness' && r.label === 'Witness'); }
+    const ens = (P) => P.ensureCoOwner || P._ensureCoOwner;
+    { const r = ens(on)(existing.map((s) => Object.assign({}, s)), 'Pat Smith', 'contract');
+      ok('a second owner name adds the co-owner signer (required, enabled)', !r.error && r.signers.some((s) => s.role === 'homeowner2' && s.required === true && s.enabled !== false), JSON.stringify(r)); }
+    { const withCo = existing.concat([{ role: 'homeowner2', label: 'Homeowner (co-owner)', required: true, enabled: false }]);
+      const r = ens(on)(withCo, 'Pat Smith', 'contract');
+      ok('a second owner listed but the co-owner signer switched off is refused', !!r.error && /every owner|second owner|co-owner/i.test(r.error), JSON.stringify(r)); }
+    { const r = ens(on)(existing.map((s) => Object.assign({}, s)), '   ', 'contract'); ok('no second owner: signers unchanged', !r.error && r.signers.length === 2); }
+    { const r = ens(off)(existing.map((s) => Object.assign({}, s)), 'Pat Smith', 'contract'); ok('flag off: nothing is added or refused', !r.error && r.signers.length === 2); }
+    { const r = ens(on)(existing.map((s) => Object.assign({}, s)), 'Pat Smith', 'change_order'); ok('only contract-class documents require the co-owner', !r.error && r.signers.length === 2); }
+  }
+
+  section('3. co-owner: the send gate (shared module, client and server)');
+  { const C = require(path.join(FN, 'doc-send-checks.js'));
+    const base = { type: 'contract', priceCents: 1450000, address: '1 A St', homeownerName: 'Dana', mailingAddress: '1 Main', needsMailingAddress: true, entityName: 'X LLC', startDate: 'Dec 1', estimatedCompletion: '5 days', text: '<p>ok</p>' };
+    const codes = (o) => C.contractGaps(Object.assign({}, base, o)).map((g) => g.code);
+    ok('two owners, one homeowner signer: refused (coOwner)', codes({ secondOwnerName: 'Pat Smith', signerRoles: ['homeowner', 'rep'] }).includes('coOwner'));
+    ok('the refusal names the second owner', C.contractGaps(Object.assign({}, base, { secondOwnerName: 'Pat Smith', signerRoles: ['homeowner', 'rep'] })).some((g) => /Pat Smith/.test(g.message)));
+    ok('two owners, both signers: clear', !codes({ secondOwnerName: 'Pat Smith', signerRoles: ['homeowner', 'homeowner2', 'rep'] }).includes('coOwner'));
+    ok('no second owner: unchanged', !codes({ signerRoles: ['homeowner', 'rep'] }).includes('coOwner') && codes({}).length === 0);
+    ok('a second owner with the signer list unknown is not guessed at', !codes({ secondOwnerName: 'Pat Smith' }).includes('coOwner'));
+    const twinOk = src('docs/pro/js/doc-send-checks.js') === src('functions/doc-send-checks.js');
+    ok('the browser and functions copies of doc-send-checks.js are byte-identical', twinOk); }
+
+  section('3. co-owner: the server refuses a contract that lists two owners with one signer');
+  { const P = 'documents/U1/L1/d-1.html';
+    const K = require(path.join(FN, 'ky-insurance-law.js')); const ESL = require(path.join(FN, 'esign-logic.js')); const DE = require(path.join(FN, 'doc-evidence.js'));
+    const CONTRACT = '<!DOCTYPE html><html><head><title>Roofing Contract</title></head><body><h1>Roofing Contract</h1><p>Contract price: $14,500.00</p>'
+      + '<!--nbd-cancel-packet:start--><section data-nbd-cancel-by="2026-11-17"><h2>Notice of Right to Cancel</h2>'
+      + '<div data-nbd-noc="ftc"><p>NOTICE OF CANCELLATION. NOT LATER THAN MIDNIGHT OF November 17, 2026</p></div>'
+      + '<div data-nbd-noc="ftc"><p>NOTICE OF CANCELLATION. NOT LATER THAN MIDNIGHT OF November 17, 2026</p></div>'
+      + '</section><!--nbd-cancel-packet:end-->'
+      + '<div data-nbd-sig="homeowner" data-nbd-sig-required="1"><canvas width="300" height="100"></canvas></div></body></html>';
+    const PROFILE = { brand: { legalName: 'Acme Roofing LLC', entityName: 'Acme Roofing LLC', contact: { mailingAddress: '1 Main St, Cincinnati, OH 45202' } } };
+    const leadX = (extra) => Object.assign({ userId: 'U1', companyId: 'U1', firstName: 'Dana', lastName: 'Whitfield', email: 'dana@example.test', address: '12 Oak St, Cincinnati, OH 45202', jobType: 'cash', primaryEstimateId: 'E1' }, extra || {});
+    const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './doc-evidence', './await-briefly', './signed-price', 'crypto'];
+    const stubs = () => ({ './cancel-window': require(path.join(FN, 'cancel-window.js')), './ky-insurance-law': K, './lead-artifact-paths': require(path.join(FN, 'lead-artifact-paths.js')),
+      './esign-logic': ESL, './doc-evidence': DE, './await-briefly': require(path.join(FN, 'await-briefly.js')), './signed-price': require(path.join(FN, 'signed-price.js')) });
+    const ROLE = (r) => ({ role: r, required: true });
+    const seedRS = (flags, lead, signers) => {
+      const s = { 'leads/L1': lead, 'leads/L1/documents/d1': { type: 'contract', typeName: 'Roofing Contract', htmlPath: P, userId: 'U1', signers }, 'companyProfile/U1': PROFILE, 'estimates/E1': { grandTotal: 14500 } };
+      if (flags) s['feature_flags/_default'] = flags;
+      return s;
+    };
+    const mint = async (flags, lead, signers) => {
+      const db = kit.makeDb(seedRS(flags, lead, signers));
+      const Lh = kit.loadHandler('remote-signing.js', db, kit.makeStorage({ [P]: CONTRACT }), stubs(), REAL);
+      try { return { v: await Lh.fns.createSignRequest({ auth: { uid: 'U1', token: {} }, data: { leadId: 'L1', docId: 'd1', signerEmail: 'dana@example.test', signerName: 'Dana Whitfield' } }), db }; }
+      catch (e) { return { e, db }; }
+    };
+    const FLAG = { docClauseSetV1: true };
+    let r = await mint(FLAG, leadX({ secondOwnerName: 'Pat Whitfield' }), [ROLE('homeowner'), ROLE('rep')]);
+    ok('remote: flag on, two owners listed, one homeowner signer: refused, no link', !!r.e && r.e.code === 'failed-precondition' && /Pat Whitfield/.test(r.e.message) && r.db._all('doc_sign_tokens').length === 0, r.e && r.e.message);
+    r = await mint(FLAG, leadX({ secondOwnerName: 'Pat Whitfield' }), [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')]);
+    ok('remote: flag on, both owners are signers: sent', !!r.v && r.db._all('doc_sign_tokens').length === 1, r.e && r.e.message);
+    r = await mint(FLAG, leadX(), [ROLE('homeowner'), ROLE('rep')]);
+    ok('remote: flag on, one owner: sent', !!r.v && r.db._all('doc_sign_tokens').length === 1, r.e && r.e.message);
+    r = await mint(null, leadX({ secondOwnerName: 'Pat Whitfield' }), [ROLE('homeowner'), ROLE('rep')]);
+    ok('remote: flag off: unchanged (sent)', !!r.v && r.db._all('doc_sign_tokens').length === 1, r.e && r.e.message);
+    // in person
+    const Lg = require(path.join(FN, 'in-person-signing-logic.js'));
+    const callIP = async (flags, lead, signers, signedSigners) => {
+      const s = { 'leads/L1': lead, 'leads/L1/documents/d1': { type: 'contract', status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers, signedSigners, htmlPath: P }, 'estimates/E1': { grandTotal: 14500 }, 'companyProfile/U1': PROFILE };
+      if (flags) s['feature_flags/_default'] = flags;
+      const db = kit.makeDb(s);
+      const W = kit.loadHandler('in-person-signing.js', db, kit.makeStorage({ [P]: CONTRACT }), { './in-person-signing-logic': Lg, './doc-evidence': DE }, []);
+      try { return { v: await W.fns.recordInPersonSignature({ auth: { uid: 'U1', token: {} }, data: { leadId: 'L1', docId: 'd1' }, rawRequest: { headers: { 'x-forwarded-for': '203.0.113.5' }, get: () => 'RepPhone/1' } }), db }; }
+      catch (e) { return { e, db }; }
+    };
+    const signedBoth = [{ role: 'homeowner', signedAt: 1 }, { role: 'homeowner2', signedAt: 2 }, { role: 'rep', signedAt: 3 }];
+    let c = await callIP(FLAG, leadX({ secondOwnerName: 'Pat Whitfield' }), [ROLE('homeowner'), ROLE('rep')], [{ role: 'homeowner', signedAt: 1 }, { role: 'rep', signedAt: 3 }]);
+    ok('in person: flag on, two owners listed, the co-owner never a signer: refused', !!c.e && /Pat Whitfield/.test(String(c.e.message)), c.e && c.e.message);
+    c = await callIP(FLAG, leadX({ secondOwnerName: 'Pat Whitfield' }), [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], [{ role: 'homeowner', signedAt: 1 }, { role: 'rep', signedAt: 3 }]);
+    ok('in person: the co-owner is a required signer who did not sign: not recorded as signed', !!c.e && /not signed|missing_required_signer/.test(String(c.e.message)), c.e && c.e.message);
+    c = await callIP(FLAG, leadX({ secondOwnerName: 'Pat Whitfield' }), [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], signedBoth);
+    ok('in person: both owners signed: recorded', !!c.v && c.v.ok === true, c.e && c.e.message);
+    c = await callIP(null, leadX({ secondOwnerName: 'Pat Whitfield' }), [ROLE('homeowner'), ROLE('rep')], [{ role: 'homeowner', signedAt: 1 }, { role: 'rep', signedAt: 3 }]);
+    ok('in person: flag off: unchanged', !!c.v && c.v.ok === true, c.e && c.e.message); }
+
+  section('3. co-owner: evidence records both signers; saved signatures are looked up per role');
+  { const DE = require(path.join(FN, 'doc-evidence.js'));
+    ok('DE.signedRoles exists', typeof DE.signedRoles === 'function');
+    if (typeof DE.signedRoles === 'function') {
+      const blk = (role, label, at) => '<div class="nbd-sig-block" data-nbd-sig="' + role + '" data-label="' + label + '" data-required="true" data-nbd-sig-finalized="1" data-nbd-sig-signed-at="' + at + '"><img src="data:image/png;base64,AAAA"></div>';
+      const html = '<body>' + blk('homeowner', 'Homeowner', '2026-11-18T15:00:00.000Z') + blk('homeowner2', 'Homeowner (co-owner)', '2026-11-18T15:01:00.000Z')
+        + '<div class="nbd-sig-block" data-nbd-sig="rep" data-label="Rep" data-required="true"><canvas></canvas></div></body>';
+      const got = DE.signedRoles(html);
+      ok('both finalized owners are listed with their time; the unsigned rep block is not', got.length === 2 && got[0].role === 'homeowner' && got[1].role === 'homeowner2' && got[1].label === 'Homeowner (co-owner)' && /2026-11-18T15:01/.test(got[1].signedAt), JSON.stringify(got));
+      ok('no signature blocks: an empty list', DE.signedRoles('<p>x</p>').length === 0 && DE.signedRoles(null).length === 0); }
+    // in-person: the stored record is read and both signers are written into the evidence
+    const Lg = require(path.join(FN, 'in-person-signing-logic.js'));
+    const P = 'documents/U1/L1/d-1.html';
+    const blk2 = (role, at) => '<div data-nbd-sig="' + role + '" data-label="' + role + '" data-nbd-sig-finalized="1" data-nbd-sig-signed-at="' + at + '"><img src="data:image/png;base64,AAAA"></div>';
+    const html = '<html><body><p>Contract price $14,500.00</p>' + blk2('homeowner', '2026-11-18T15:00:00.000Z') + blk2('homeowner2', '2026-11-18T15:01:00.000Z') + '</body></html>';
+    const db = kit.makeDb({
+      'leads/L1': { userId: 'U1', companyId: 'U1' },
+      'leads/L1/documents/d1': { type: 'work_authorization', status: 'signed', signedAt: { toMillis: () => 1 }, signers: [{ role: 'homeowner', required: true }, { role: 'homeowner2', required: true }], signedSigners: [{ role: 'homeowner' }, { role: 'homeowner2' }], htmlPath: P },
+    });
+    // a non-contract-class type skips the gap check, so the evidence write is what is under test
+    const w = await Lg.recordEvidence(db, { leadId: 'L1', docId: 'd1', lead: { userId: 'U1', companyId: 'U1' }, docMeta: db._get('leads/L1/documents/d1'), uid: 'U1', data: {} },
+      { enabled: true, clauseFlag: true, ip: '203.0.113.5', ipSource: 'socket', ua: 'UA', readBytes: async () => Buffer.from(html) });
+    ok('in-person evidence lists both owners', !!w && Array.isArray(w.signers) && w.signers.map((s) => s.role).join(',') === 'homeowner,homeowner2', JSON.stringify(w && w.signers)); }
+  { const stub = (extra) => ({ docs: [{ id: 'homeowner', data: () => ({ png: 'PNG-A' }) }, { id: 'homeowner2', data: () => ({ png: 'PNG-B' }) }], forEach(fn) { this.docs.forEach(fn); } });
+    const env = q51Env(true); const W = env.win;
+    W.db = {}; W.collection = (_d, ...p) => ({ path: p.join('/') }); W.getDocs = async () => stub();
+    const got = await W.NBDDocGen._fetchSavedSignatures('L1');
+    ok('saved signatures are keyed by role: the co-owner has their own, not the first owner\'s', got.homeowner === 'PNG-A' && got.homeowner2 === 'PNG-B', JSON.stringify(got)); }
+  { const env = q51Env(true);
+    const html = env.win.NBDDocGen.renderSignatureBlock([{ role: 'homeowner', label: 'Homeowner', required: true }, { role: 'homeowner2', label: 'Homeowner (co-owner)', required: true }, { role: 'rep', label: 'Rep', required: true }]);
+    ok('the co-owner renders as its own signature block with its own role', /data-nbd-sig="homeowner2"[^>]*data-label="Homeowner \(co-owner\)"/.test(html) && (html.match(/data-nbd-sig="homeowner"/g) || []).length === 1); }
+
   console.log('\npaper-cert-signers: ' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log(fails.join('\n')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

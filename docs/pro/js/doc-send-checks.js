@@ -177,6 +177,11 @@
       gap('mailingAddress', 'The company mailing address is not set (Company Profile, Mailing Address).');
     }
     if (_blank(x.entityName)) gap('entityName', 'The company legal entity name is not set (Company Profile).');
+    // Co-owners (flag docClauseSetV1, Jo's decision Q52): the caller passes secondOwnerName only when the flag is on and the
+    // lead lists a second owner, and signerRoles when it knows who signs. Every owner on record signs.
+    if (!_blank(x.secondOwnerName) && Array.isArray(x.signerRoles) && x.signerRoles.indexOf('homeowner2') === -1) {
+      gap('coOwner', 'The lead lists a second owner (' + String(x.secondOwnerName).trim().slice(0, 80) + ') but only one homeowner signs. Add the co-owner as a signer so every owner on record signs.');
+    }
     if (String(x.type || '') === 'contract') {
       if (_blank(x.startDate)) gap('startDate', 'The start date is blank.');
       if (_blank(x.estimatedCompletion)) gap('estimatedCompletion', 'The estimated completion is blank.');

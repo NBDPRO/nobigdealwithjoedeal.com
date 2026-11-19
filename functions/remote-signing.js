@@ -545,6 +545,9 @@ exports.createSignRequest = onCall(
       const gaps = DE.serverContractGaps({
         type: docMeta.type, html: gateHtml, lead, profile: tenantProfile, tenantKey, KyLaw,
         priceCents: gatePrice, homeownerName: signerName || undefined,
+        // Co-owners (flag docClauseSetV1, Q52): every owner on record signs. Only checked when the flag is on.
+        ...(clauseFlagOnAtMint === true && typeof lead.secondOwnerName === 'string' && Array.isArray(docMeta.signers)
+          ? { secondOwnerName: lead.secondOwnerName, signerRoles: docMeta.signers.map((s) => s && s.role) } : {}),
       });
       if (gaps.length) throw new HttpsError('failed-precondition', DE.describeGaps(gaps));
     }
@@ -1082,6 +1085,8 @@ exports.submitSignature = onRequest(
         ...DE.requestFacts(req),
       }),
     };
+    // Co-owners (flag docClauseSetV1, Q52): a signed copy with a co-owner block lists every finalized signer the server reads.
+    { const _roles = DE.signedRoles(recordHtml); if (_roles.some((r) => r.role === 'homeowner2')) docPatch.signatureEvidence.signers = _roles; }
     // The tick states travel with the evidence (acknowledgments: [{ id, checked }]); atticAckResult is what the
     // warranty and the contract gate read, server-written (server-owned in firestore.rules).
     if (atticResult) {

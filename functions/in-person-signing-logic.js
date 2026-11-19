@@ -97,7 +97,10 @@ async function contractGapsFor(db, ctx, evidence) {
     const es = pid ? await db.doc('estimates/' + pid).get() : null;
     if (es && es.exists) priceCents = DE.estimateCents(es.data());
   } catch (_) { priceCents = null; }
-  return DE.serverContractGaps({ type: docMeta.type, html, lead, profile, tenantKey, KyLaw: require('./ky-insurance-law'), priceCents });
+  return DE.serverContractGaps(Object.assign({ type: docMeta.type, html, lead, profile, tenantKey, KyLaw: require('./ky-insurance-law'), priceCents },
+    // Co-owners (flag docClauseSetV1, Q52): every owner on record signs. Only checked when the clause flag is on.
+    evidence.clauseFlag === true && typeof lead.secondOwnerName === 'string' && Array.isArray(docMeta.signers)
+      ? { secondOwnerName: lead.secondOwnerName, signerRoles: docMeta.signers.map((s) => s && s.role) } : {}));
 }
 
 /**
@@ -139,6 +142,12 @@ async function recordEvidence(db, ctx, evidence) {
   if (signedHtml && AA.DOC_TYPES.indexOf(String(docMeta.type || '')) !== -1) record.acknowledgments = AA.evidenceAcks(AA.parseAcks(signedHtml));
   record.signedCopySha256 = signedSha256;
   record.signedAtClientReported = clientSignedAt;
+  // Co-owners (flag docClauseSetV1, Q52): when the signed copy carries a co-owner, the record lists every signature
+  // block the server reads as finalized in the stored copy (role, label, the time the block says). Absent otherwise.
+  if (signedHtml && evidence.clauseFlag === true) {
+    const roles = DE.signedRoles(signedHtml);
+    if (roles.some((r) => r.role === 'homeowner2')) record.signers = roles;
+  }
   // What this record proves: the rep's signed-in device made the call, at this server time, from this
   // address. It does not prove that a homeowner signed, or that the homeowner saw this document.
   record.attests = 'rep_device_and_time_only';
