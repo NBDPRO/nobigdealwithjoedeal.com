@@ -594,7 +594,7 @@
     // Mission Control on a computer at night (never switches by itself), plus
     // its Settings > Appearance panel. Kicked by today-home.js at Home boot.
     layoutoffer: [
-      'css/layout-offer.css?v=1',
+      'css/layout-offer.css?v=2',
       'js/layout-offer.js?v=2'
     ],
     // Call back now + Needs you (2026-10-16): the speed-to-lead strip in Field
