@@ -68,11 +68,11 @@ async function run() {
   await check('owner plants atticGateUnverified on a draft', 'deny', updateDoc(d('draft'), { atticGateUnverified: { at: 1 } }));
   // Review 4: the same for a rep (each deny sits beside an allow for the same actor, so a rule that denies everything cannot pass), and for
   // rewriting or removing a mark the server already wrote.
-  const rd = (id) => doc(rep, 'leads/L1/documents/' + id);
-  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'leads/L1/documents/unv'), { name: 'a', type: 'contract', status: 'signed', signedAt: new Date(), userId: 'owner1', atticGateUnverified: { reason: 'attic_flag_unreadable', at: 1 } }); });
-  await check('control: a rep creates an ordinary contract row', 'allow', setDoc(doc(rep, 'leads/L1/documents/repnew1'), { name: 'x', type: 'contract', status: 'draft', userId: 'rep1' }));
+  const rd = (id) => doc(rep, 'leads/LREP/documents/' + id);
+  await env.withSecurityRulesDisabled(async (ctx) => { const adb = ctx.firestore(); await setDoc(doc(adb, 'leads/LREP'), { userId: 'rep1', companyId: 'owner1' }); await setDoc(doc(adb, 'leads/LREP/documents/draft'), { name: 'a', type: 'contract', status: 'draft', userId: 'rep1' }); await setDoc(doc(adb, 'leads/LREP/documents/unv'), { name: 'a', type: 'contract', status: 'draft', userId: 'rep1', atticGateUnverified: { reason: 'attic_flag_unreadable', at: 1 } }); await setDoc(doc(ctx.firestore(), 'leads/L1/documents/unv'), { name: 'a', type: 'contract', status: 'signed', signedAt: new Date(), userId: 'owner1', atticGateUnverified: { reason: 'attic_flag_unreadable', at: 1 } }); });
+  await check('control: a rep creates an ordinary contract row', 'allow', setDoc(doc(rep, 'leads/LREP/documents/repnew1'), { name: 'x', type: 'contract', status: 'draft', userId: 'rep1' }));
   await check('control: a rep edits an ordinary field on a draft', 'allow', updateDoc(rd('draft'), { name: 'rep renamed' }));
-  await check('a rep creates a row carrying atticGateUnverified', 'deny', setDoc(doc(rep, 'leads/L1/documents/repnew2'), { name: 'x', type: 'contract', status: 'draft', userId: 'rep1', atticGateUnverified: { at: 1 } }));
+  await check('a rep creates a row carrying atticGateUnverified', 'deny', setDoc(doc(rep, 'leads/LREP/documents/repnew2'), { name: 'x', type: 'contract', status: 'draft', userId: 'rep1', atticGateUnverified: { at: 1 } }));
   await check('a rep plants atticGateUnverified on a draft', 'deny', updateDoc(rd('draft'), { atticGateUnverified: { at: 1 } }));
   await check('a rep rewrites an existing atticGateUnverified', 'deny', updateDoc(rd('unv'), { atticGateUnverified: { at: 2 } }));
   await check('the owner removes an existing atticGateUnverified', 'deny', updateDoc(d('unv'), { atticGateUnverified: deleteField() }));
