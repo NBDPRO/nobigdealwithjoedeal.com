@@ -32,6 +32,10 @@ I re-checked the findings in the browser (hit-testing, element lookups, the CSS)
 - **Finding 5 (Menu chip on its own row)** is deliberate wrapping (`flex-wrap` with `margin-left:auto` in each layout's CSS), caused by six controls sharing one row. Changing it is a design call, not a bug fix. Not changed.
 - **Findings 2 and 3 (Island chrome cost, the breadcrumb row)** are design judgement calls and were not changed.
 
+## Follow-up: bottom-edge queue (PR A, decided with Jo 2026-11-19)
+
+Jo chose one floating item at a time on the phone. Shipped in PR A: the "Switch to Field App?" banner waits while a toast or the reminders card is up; the reminders card also waits for a toast (it already waited for the banner and for a calm moment); the field-tools dial (mic, Quick Capture, Capture inbox) shows on the D2D view only, so it no longer sits over lead cards on the CRM list; Capture inbox got a row in the More drawer (Quick Capture is already "Voice Note" in +). Found on the way: the dial's flag checked for a `view-map` element, but `map` redirects to `d2d`, so before this change the dial showed on the CRM list only and never on D2D. PR B (Record visit as a nav tab behind a flag) follows after Jo has checked PR A on the iPhone. Pinned by `tests/bottom-edge-queue-2026-11-19.test.js`.
+
 ## What would move the needle
 
 Fix 1 and 6 first: they touch every layout at once. Then the Island and Field specifics (2, 4), then the chrome trim (3, 5). Layout-specific polish beyond that has little payoff while seven layouts share one set of views.

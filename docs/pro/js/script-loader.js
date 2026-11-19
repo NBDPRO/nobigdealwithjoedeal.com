@@ -599,7 +599,7 @@
     // its Settings > Appearance panel. Kicked by today-home.js at Home boot.
     layoutoffer: [
       'css/layout-offer.css?v=2',
-      'js/layout-offer.js?v=2'
+      'js/layout-offer.js?v=3'
     ],
     // Call back now + Needs you (2026-10-16): the speed-to-lead strip in Field
     // and Focus and the money-and-momentum chips in Field and Mission. Kicked by
