@@ -695,12 +695,14 @@
     property_condition: { name: 'Property Condition & Access Acknowledgment', template: 'renderPropertyCondition', defaultSigners: [HOMEOWNER, REP] },
     decking_authorization: { name: 'Hidden Conditions / Decking Authorization', template: 'renderDeckingAuthorization', defaultSigners: [HOMEOWNER, REP] },
     // The homeowner only: the request is the homeowner's, separate from the contract.
-    emergency_services_request: { name: 'Emergency Services Request', template: 'renderEmergencyServicesRequest', defaultSigners: [HOMEOWNER] }
+    emergency_services_request: { name: 'Emergency Services Request', template: 'renderEmergencyServicesRequest', defaultSigners: [HOMEOWNER] },
+    final_walkthrough: { name: 'Final Walkthrough & Punch List', template: 'renderFinalWalkthrough', defaultSigners: [HOMEOWNER, REP] }
   };
   var P5_FIELDS = {
     property_condition: ['homeownerName', 'address', 'walkedOn', 'pcPhotoIds'],
     decking_authorization: ['homeownerName', 'address', 'deckingSheets', 'deckingFoundOn', 'deckingWhere', 'deckingPhotoIds'],
-    emergency_services_request: ['homeownerName', 'address', 'emergencyWork']
+    emergency_services_request: ['homeownerName', 'address', 'emergencyWork'],
+    final_walkthrough: ['homeownerName', 'address', 'completionDate', 'walkthroughDate', 'punchItemsText']
   };
   function p5Wanted() {
     var w = typeof window !== 'undefined' ? window : null;
@@ -862,6 +864,52 @@
     parts.push(own ? '<div class="section">' + DG.renderSignatureBlock(own.filter(function (s) { return !(s && typeof s === 'object' && s.role === 'rep'); })) + '</div>' : T.sigBlock(['Homeowner'], d));
     parts.push(T.affiliateRow() + T.footer(X.NAMES.emergency_services_request));
     return T.page(X.NAMES.emergency_services_request, parts.join(''));
+  };
+
+  // ── 4. FINAL WALKTHROUGH & PUNCH LIST ──
+  // PAY-4 is the registry's (the window to list items is paymentTerms.punchListDays; only the listed items may be held back). The rep
+  // enters the completion and walkthrough dates and the open items (data.punchItems: strings or { text, holdCents }; [] = none; the
+  // pre-flight's punchItemsText is one item per line, an optional amount after " | " in dollars). Neither listed nor declared none prints
+  // a [placeholder], which the send check refuses.
+  function p5PunchItems(d) {
+    if (Array.isArray(d.punchItems)) return d.punchItems;
+    if (typeof d.punchItemsText === 'string') {
+      return d.punchItemsText.split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean).map(function (l) {
+        var m = /^(.*?)\s*\|\s*\$?([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*$/.exec(l);
+        return m ? { text: m[1], holdCents: T.toCents(m[2]) } : { text: l };
+      });
+    }
+    return null;
+  }
+  DG.renderFinalWalkthrough = function (data) {
+    T.refresh();
+    var d = Object.assign({ homeownerName: '[Homeowner Name]', address: '[Property Address]' }, data);
+    var c = p5Ctx('final_walkthrough', d), X = c.X;
+    var jur = jurisdictionOf(d);
+    var jt = (J() && typeof J().normJobType === 'function') ? J().normJobType(d.jobType || (window._leadDoc && window._leadDoc.jobType)) : '';
+    c.o.paymentSource = (jur && jur.insurance) ? 'insurance' : (jt === 'finance' ? 'financed' : 'cash');
+    var raw = p5PunchItems(d);
+    var list = (raw || []).map(function (i) { return i && typeof i === 'object' ? { text: String(i.text || '').trim(), hold: Math.max(0, Math.round(Number(i.holdCents) || 0)) } : { text: String(i == null ? '' : i).trim(), hold: 0 }; })
+      .filter(function (i) { return i.text; });
+    var variant = (raw && !list.length) ? 'none' : 'items';
+    var held = list.reduce(function (s, i) { return s + i.hold; }, 0);
+    var done = String(d.completionDate || '').trim(), walk = String(d.walkthroughDate || '').trim();
+    var kvRow = function (k, v) { return '<div><dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd></div>'; };
+    var parts = [];
+    parts.push(p5Head(c, d, ''));
+    parts.push(c.P.marker('final_walkthrough', variant, ['PAY-4']));
+    parts.push('<div class="section"><p class="aa-p">' + esc(X.FW_INTRO) + '</p>' + p5Paras(c, 'PAY-4').map(function (p) { return '<p class="aa-p">' + p5Words(p) + '</p>'; }).join('') +
+      '<dl class="p5-kv">' + kvRow(X.FW_COMPLETED, done ? (T.longDate(done) || done) : '[Completion Date]') +
+      kvRow(X.FW_WALKTHROUGH, walk ? (T.longDate(walk) || walk) : '[Walkthrough Date]') + '</dl></div>');
+    var itemsHtml = !raw ? '<p class="aa-p">[Open Items Not Entered]</p>'
+      : (list.length ? '<ol class="lib-list">' + list.map(function (i) { return '<li>' + esc(i.text) + (i.hold ? ' &mdash; ' + esc(T.centsText(i.hold)) : '') + '</li>'; }).join('') + '</ol>' +
+        (held ? '<dl class="p5-kv">' + kvRow(X.FW_HOLD, T.centsText(held)) + '</dl>' : '') : '');
+    parts.push('<div class="section"><p class="aa-note">' + esc(X.FW_ITEMS_H) + '</p>' + itemsHtml +
+      p5Tick('ack:fw_walked', esc(X.FW_WALKED), true) +
+      (variant === 'none' ? p5Tick('ack:fw_no_items', esc(X.FW_NO_ITEMS), true) : p5Tick('ack:fw_items_listed', esc(X.FW_ITEMS_LISTED), true)) +
+      '<p class="aa-note">' + esc(X.TICK_NOTE) + '</p></div>');
+    parts.push(p5Sig(c, d), T.affiliateRow() + T.footer(X.NAMES.final_walkthrough));
+    return T.page(X.NAMES.final_walkthrough, parts.join(''));
   };
 
   // Brand refresh is done inside each renderer (T.refresh()), so these are

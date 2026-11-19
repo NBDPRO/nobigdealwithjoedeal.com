@@ -213,6 +213,48 @@ const ackIds = (html) => [...html.matchAll(/<input\b[^>]*data-nbd-ack="([^"]+)"/
     ok('tenant: its own entity name, no NBD names', to.indexOf('Oaks Roofing LLC') !== -1 && !/No Big Deal|Joe Deal|\bNBD\b/.test(to), ro.toasts.join('|'));
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  section('4. Final Walkthrough & Punch List sign-off');
+  {
+    const T = 'final_walkthrough';
+    const env = stack({ flags: { docClauseSetV1: true } });
+    const DG = syncOn(env);
+    const CS = env.win.NBDClauseSet;
+    ok('registered with homeowner + contractor required signers', !!DG.DOCUMENT_TYPES[T] && DG.DOCUMENT_TYPES[T].defaultSigners.map((s) => s.role + ':' + s.required).join() === 'homeowner:true,rep:true');
+    ok('pre-flight schema registered under the flag', !!(env.win.DocPreflight && env.win.DocPreflight.DOC_SCHEMAS[T]));
+    const items = { completionDate: '2026-11-19', walkthroughDate: '2026-11-19', punchItems: [{ text: 'Touch up paint on the drip edge, rear', holdCents: 15000 }, 'Re-seal the pipe boot on the garage'] };
+    const r = await gen(env, T, items);
+    const h = r.html || '';
+    const tx = textOf(h);
+    ok('generate() produced the form', h.length > 4000, r.toasts.join('|'));
+    const terms = CS.paymentTermsFor(TERMS, true);
+    const party = CS.partyFor(env.win._brand(), true);
+    const pay4 = CS.textV1('PAY-4', { state: 'OH', paymentSource: 'cash', terms, party })[0];
+    ok('PAY-4 prints verbatim from the registry, with the 3-day window from paymentTerms.punchListDays', pay4 && /within 3 days of the walkthrough/.test(pay4) && tx.indexOf(pay4.replace(/\*\*/g, '')) !== -1);
+    ok('the completion and walkthrough dates are shown', /Completion date\s+November 19, 2026/.test(tx) && /Walkthrough date\s+November 19, 2026/.test(tx), tx.slice(tx.indexOf('Completion date') - 5, tx.indexOf('Completion date') + 120));
+    ok('the listed items and the amount held back (cents: $150.00) are shown', tx.indexOf('Touch up paint on the drip edge, rear') !== -1 && tx.indexOf('Re-seal the pipe boot on the garage') !== -1 && /\$150\.00/.test(tx));
+    ok('with items: the "listed items are all" tick, not the "no open items" tick', reqIds(h).join() === 'ack:fw_walked,ack:fw_items_listed' && /final_walkthrough items PAY-4_V1 -->/.test(h.replace(/<!-- nbd:p5 P5_FORMS_V1 /, '')), reqIds(h).join());
+    ok('party block and signature caption (By: Joe Deal, Manager)', tx.indexOf(NBD_PARTY) !== -1 && h.indexOf('By: Joe Deal, Manager') !== -1 && (h.match(/data-nbd-sig="/g) || []).length === 2);
+    const none = await gen(env, T, { completionDate: '2026-11-19', walkthroughDate: '2026-11-19', punchItems: [] });
+    ok('no open items: the "no open items" tick and variant', reqIds(none.html || '').join() === 'ack:fw_walked,ack:fw_no_items' && /final_walkthrough none PAY-4_V1/.test(none.html || ''), none.toasts.join('|'));
+    const unset = await gen(env, T, { completionDate: '2026-11-19', walkthroughDate: '2026-11-19' });
+    ok('items neither listed nor declared none: refused (a placeholder)', !unset.html && unset.toasts.some((m) => /placeholder/i.test(m)), unset.toasts.join('|'));
+    const noDate = await gen(env, T, { punchItems: [], walkthroughDate: '2026-11-19' });
+    ok('no completion date: refused', !noDate.html && noDate.toasts.some((m) => /placeholder/i.test(m)));
+    const noDays = await gen(env, T, { completionDate: '2026-11-19', walkthroughDate: '2026-11-19', punchItems: [] }, { terms: { finalPaymentDays: 7 } });
+    ok('punchListDays unset (NBD default is only NBD tenant\'s own, so set it to nothing to test): NBD default 3 still prints', !!noDays.html && /within 3 days of the walkthrough/.test(textOf(noDays.html)));
+    const noAddr = await gen(env, T, Object.assign({}, items, { address: '' }));
+    ok('a blank address is refused', !noAddr.html && noAddr.toasts.some((m) => /address/i.test(m)));
+    ok('never "licensed" or a claim promise; no placeholder on the good copy', !/licensed|we handle|guarantee/i.test(tx) && !/\{\{|\[[A-Z][A-Za-z ]+\]/.test(tx));
+    const oaks = stack({ flags: { docClauseSetV1: true }, brand: OAKS });
+    syncOn(oaks);
+    const ro = await gen(oaks, T, items, { terms: { finalPaymentDays: 10, punchListDays: 5 } });
+    const to = textOf(ro.html || '');
+    ok('tenant: its own entity and its own 5 days, no NBD names', to.indexOf('Oaks Roofing LLC') !== -1 && /within 5 days of the walkthrough/.test(to) && !/No Big Deal|Joe Deal|\bNBD\b/.test(to), ro.toasts.join('|'));
+    const rn = await gen(oaks, T, items, { terms: {} });
+    ok('tenant with no payment terms: refused (NBD days never leak)', !rn.html, rn.toasts.join('|'));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

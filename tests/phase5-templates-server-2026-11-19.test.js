@@ -41,7 +41,8 @@ const SIGNERS = [{ role: 'homeowner', label: 'Homeowner', required: true }, { ro
 const FORMS = {
   property_condition: { propertyCondition: { notes: { driveway: 'Crack by the garage' }, photos: [{ id: 'ph1', item: 'driveway' }] } },
   decking_authorization: { deckingSheets: 4, deckingPhotos: ['dk1'], deckingWhere: 'North slope' },
-  emergency_services_request: { emergencyWork: 'Tarp the north slope.', signers: [{ role: 'homeowner', label: 'Homeowner', required: true }] }
+  emergency_services_request: { emergencyWork: 'Tarp the north slope.', signers: [{ role: 'homeowner', label: 'Homeowner', required: true }] },
+  final_walkthrough: { completionDate: '2026-11-19', walkthroughDate: '2026-11-19', punchItems: [{ text: 'Touch up paint, rear drip edge', holdCents: 15000 }] }
 };
 
 const generated = async (docType, extra) => {
@@ -80,7 +81,7 @@ const generated = async (docType, extra) => {
     bad('a removed tick control is refused', GEN.replace(/<input[^>]*data-nbd-ack="[^"]*"[^>]*>/, ''), 'checkboxes');
     bad('an extra tick control is refused', GEN.replace('</body>', '<input type="checkbox" data-nbd-ack="ack:evil" data-nbd-required="1"></body>'));
     bad('a pre-ticked original is refused', GEN.replace('<input', '<input checked=""'), 'preticked');
-    bad('another type\'s marker is refused', GEN.replace('P5_FORMS_V1 ' + type, 'P5_FORMS_V1 final_walkthrough'), 'marker');
+    bad('another type\'s marker is refused', GEN.replace('P5_FORMS_V1 ' + type, 'P5_FORMS_V1 ' + (type === 'property_condition' ? 'decking_authorization' : 'property_condition')), 'marker');
     bad('no marker is refused', GEN.replace(/<!-- nbd:p5[^>]*-->/, ''), 'marker');
     bad('a hand-written form with one control is refused', '<html><body><input type="checkbox" data-nbd-ack="ack:x" data-nbd-required="1"></body></html>');
     const win = (() => { const t = P5.fragments(type)[0]; for (let i = 0; i + 24 < t.length; i++) { const w = t.slice(i, i + 24); if (/^[A-Za-z ,]+$/.test(w) && !/Contractor/.test(w) && GEN.split(w).length === 2) return w; } return null; })();
@@ -129,6 +130,17 @@ const generated = async (docType, extra) => {
     ok('server send check: a good form with no company mailing address is clear (no cancel packet on it)', gaps({ tenantKey: undefined }).length === 0, JSON.stringify(gaps({ tenantKey: undefined })));
     ok('server send check: a blank address is refused', gaps({ address: '', lead: Object.assign({}, lead, { address: '' }) }).some((g) => g.code === 'address'));
     ok('server send check: a leftover [Placeholder] is refused', gaps({ html: GEN.replace('Jane Smith', '[Homeowner Name]') }).some((g) => g.code === 'placeholder'));
+  }
+
+  section('3. variants: the server holds each variant\'s own required ticks');
+  {
+    const none = await generated('final_walkthrough', { punchItems: [] });
+    ok('final walkthrough, no open items: passes as the "none" variant', AG.verifyManifest('final_walkthrough', none).ok === true, JSON.stringify(AG.verifyManifest('final_walkthrough', none).reasons));
+    ok('...and a "none" copy carrying the items variant\'s marker is refused (its ticks do not match)', AG.verifyManifest('final_walkthrough', none.replace('final_walkthrough none', 'final_walkthrough items')).ok === false);
+    ok('...an unknown variant is refused', AG.verifyManifest('final_walkthrough', none.replace('final_walkthrough none', 'final_walkthrough bogus')).ok === false);
+    const ky = await generated('emergency_services_request', { address: H.KY_ADDR });
+    ok('emergency request, Kentucky variant passes', AG.verifyManifest('emergency_services_request', ky).ok === true, JSON.stringify(AG.verifyManifest('emergency_services_request', ky).reasons));
+    ok('...and cannot pass as the Ohio variant with the Kentucky wording (instruction line differs)', AG.verifyManifest('emergency_services_request', ky.replace('emergency_services_request ky', 'emergency_services_request oh')).ok === false);
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

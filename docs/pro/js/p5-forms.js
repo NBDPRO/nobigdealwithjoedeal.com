@@ -74,7 +74,13 @@
     EM_NOTICE: 'I received the Notice of Right to Cancel.',
     EM_OH: 'Ohio property: sign this request by hand and write the date yourself.',
     EM_KY: 'Kentucky property: sign and date this request.',
-    EM_PAPER: 'If you sign on paper, write the date here:'
+    EM_PAPER: 'If you sign on paper, write the date here:',
+    // final_walkthrough
+    FW_INTRO: 'We walked the finished job with you. This form records the dates and any open items.',
+    FW_COMPLETED: 'Completion date', FW_WALKTHROUGH: 'Walkthrough date', FW_ITEMS_H: 'Open items', FW_HOLD: 'Amount held for the listed items',
+    FW_WALKED: 'I walked the finished job with the Contractor\'s representative.',
+    FW_NO_ITEMS: 'There are no open items.',
+    FW_ITEMS_LISTED: 'The items listed above are all of the open items.'
   };
 
   var PC_KEYS = ['driveway', 'landscaping', 'gutters', 'satellite_dish', 'solar', 'skylights', 'wall_items', 'attic_items', 'ceilings', 'pets', 'utilities', 'parking'];
@@ -99,6 +105,15 @@
         ky: { required: ['ack:em_request', 'ack:em_notice'], lines: [], statics: ['EM_KY'] }
       },
       statics: ['EM_INTRO', 'EM_REQUEST', 'EM_NOTICE', 'TICK_NOTE']
+    },
+    // items = open items are listed; none = the homeowner confirms there are none. PAY-4 is the registry's.
+    final_walkthrough: {
+      refs: ['PAY-4'],
+      variants: {
+        items: { required: ['ack:fw_walked', 'ack:fw_items_listed'], lines: [], statics: ['FW_ITEMS_LISTED'] },
+        none: { required: ['ack:fw_walked', 'ack:fw_no_items'], lines: [], statics: ['FW_NO_ITEMS'] }
+      },
+      statics: ['FW_INTRO', 'FW_WALKED', 'TICK_NOTE']
     }
   };
 

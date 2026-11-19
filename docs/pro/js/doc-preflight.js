@@ -3800,6 +3800,18 @@
       ] }
     ]
   };
+  P5_SCHEMAS.final_walkthrough = {
+    title: 'Final Walkthrough & Punch List',
+    subtitle: 'Sign-off after the walkthrough: the dates and any open items. Leave the items blank only if there are none.',
+    sections: [
+      CUSTOMER_SECTION,
+      { id: 'walk', title: 'Walkthrough', collapsed: false, fields: [
+        { key: 'completionDate', label: 'Completion date', type: 'date', required: true, source: 'computed.todayISO', persist: PERSIST.EPHEMERAL },
+        { key: 'walkthroughDate', label: 'Walkthrough date', type: 'date', required: true, source: 'computed.todayISO', persist: PERSIST.EPHEMERAL },
+        { key: 'punchItemsText', label: 'Open items (one per line; add " | 150" for the dollar amount held; blank = none)', type: 'textarea', rows: 4, source: 'literal:', persist: PERSIST.DOCUMENT }
+      ] }
+    ]
+  };
   function syncPhase5(on) {
     Object.keys(P5_SCHEMAS).forEach(function (t) { if (on) DOC_SCHEMAS[t] = P5_SCHEMAS[t]; else delete DOC_SCHEMAS[t]; });
   }
