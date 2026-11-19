@@ -22,6 +22,16 @@ Jo asked for a UI/UX sweep of every CRM layout at emulated phone size, since the
 6. **Undersized tap targets, same offenders in all 9 layouts** (every one under 40 px; Jo's own target is 44): What's New bell 41x36, the user pill 38x36 (both on every view), Home hide button 36 wide, D2D map zoom buttons 30 wide, D2D layer toggle 93x36, Photos search box 37 tall and its "only with photos" checkbox 13x13, toast close buttons 20x20, Island's active tab 34 wide.
 7. **Tiny text**: about 73 text elements under 11 px per layout, near-identical across layouts, so they come from shared views, not from any layout. Worth a pass with the audit's element list (`report.json`).
 
+## Verification update (same day): what is real, what is not
+
+I re-checked the findings in the browser (hit-testing, element lookups, the CSS) before fixing anything. Corrections:
+
+- **Finding 6 (tap targets) is mostly a measurement artifact.** The probe measured visual boxes. The What's New bell and the user pill carry 44 px invisible hit areas (`dashboard-app.css`, the `::after` rules near line 4420) and both hit-test correctly at their centers. The push prompt's Not now and Enable buttons are already `min-height:44px` (`push-registration.js`). Treat the 36/41 px figures as visual size only. Not confirmed as real problems: D2D zoom buttons, the Photos checkbox and search box, toast close buttons, Island's active tab. Those still deserve a look with a real finger, not a probe.
+- **Finding 1 (overlays)** is partly by design: `push-registration.js` already lifts the prompt above the bottom nav. What remains is that the prompt (about 147 px) plus the round Record visit button (56 px, fixed, z-index 900) cover a lot of a 852 px screen at once on first run. Not changed: needs a decision on what may stack at the bottom.
+- **Finding 4 (Field header clip) was real and is fixed**: the header row was a non-wrapping flex row. It now wraps; `+ Lead`, `Search` and `Sun` are all visible at 393 px. Pinned by `tests/layout-field-header-wraps-2026-11-19.test.js`.
+- **Finding 5 (Menu chip on its own row)** is deliberate wrapping (`flex-wrap` with `margin-left:auto` in each layout's CSS), caused by six controls sharing one row. Changing it is a design call, not a bug fix. Not changed.
+- **Findings 2 and 3 (Island chrome cost, the breadcrumb row)** are design judgement calls and were not changed.
+
 ## What would move the needle
 
 Fix 1 and 6 first: they touch every layout at once. Then the Island and Field specifics (2, 4), then the chrome trim (3, 5). Layout-specific polish beyond that has little payoff while seven layouts share one set of views.
