@@ -236,6 +236,98 @@ function _pageCssOk(css) {
   }
   return true;
 }
+// Review 4 (2026-11-18), item 1: the rep-supplied page block is not a property allowlist any more (colour, size, opacity and position are
+// exactly what hides wording). Its rules, selectors and properties must be the generator's own (PAGE_CSS_CANON: the generated block with
+// every colour written as '#' and the font stacks as F), so a rep can change only the tenant's brand colours and fonts - and the colours must
+// still be readable: text against its own background (and the page's) at a contrast of 3 or more.
+const PAGE_CSS_CANON =
+  '*{box-sizing:border-box;}body{font-family:F;color:#;line-height:1.55;margin:0;padding:0;background:#;}h1,h2,h3' +
+  ',h4{font-family:F;color:#;margin:0 0 12px 0;}.doc-page{max-width:8.5in;margin:0 auto;padding:40px 50px;}.orang' +
+  'e{color:#;}.section{margin-bottom:28px;}.section-title{font-size:15px;font-weight:700;text-transform:uppercase' +
+  ';letter-spacing:0.1em;color:#;padding-bottom:8px;margin-bottom:14px;position:relative;display:inline-block;pad' +
+  'ding-right:24px;font-family:F;}.section-title:after{content:"";position:absolute;left:0;bottom:0;width:32px;he' +
+  'ight:3px;background:#;border-radius:2px;}.section-num{font-family:F;font-weight:800;font-size:15px;color:#;mar' +
+  'gin-right:10px;letter-spacing:0.04em;}table.items{width:100%;border-collapse:collapse;margin:16px 0;}table.ite' +
+  'ms th{background:#;color:#;padding:10px 14px;text-align:left;font-family:F;font-size:12px;font-weight:700;text' +
+  '-transform:uppercase;letter-spacing:0.06em;}table.items td{padding:10px 14px;border-bottom:1px solid #;font-si' +
+  'ze:14px;}table.items tr:nth-child(even) td{background:#;}table.items .right{text-align:right;}.total-bar{displ' +
+  'ay:flex;justify-content:space-between;align-items:center;background:#;color:#;font-family:F;font-size:14px;fon' +
+  't-weight:700;padding:14px 20px;border-radius:4px;margin:18px 0;letter-spacing:0.04em;}.total-bar .total-figure' +
+  '{font-size:18px;}.sig-line{display:inline-block;width:280px;border-bottom:2px solid #;margin:0 20px;}.sig-labe' +
+  'l{font-size:11px;color:#;margin-top:4px;}.photo-zone{border:2px dashed #;border-radius:8px;min-height:180px;di' +
+  'splay:flex;align-items:center;justify-content:center;color:#;font-size:13px;background:#;}.photo-cap{font-size' +
+  ':11px;color:#;margin-top:6px;line-height:1.4;}.badge{display:inline-block;padding:6px 16px;border-radius:20px;' +
+  'font-size:12px;font-weight:700;font-family:F;letter-spacing:0.04em;}.affiliates{display:flex;justify-content:c' +
+  'enter;align-items:center;gap:14px;flex-wrap:wrap;margin:28px 0 8px 0;}.affiliate{border:1px solid #;border-rad' +
+  'ius:6px;background:#;padding:8px 14px;text-align:left;}.affiliate-name{font-family:F;font-size:11px;font-weigh' +
+  't:700;color:#;letter-spacing:0.04em;}.affiliate-num{font-family:F;font-size:10px;color:#;margin-top:2px;}.affi' +
+  'liate-badge{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 12px 8px;' +
+  '}.affiliate-badge-img{display:block;height:52px;width:auto;}.affiliate-badge-num{font-family:F;font-size:10px;' +
+  'color:#;margin-top:5px;letter-spacing:0.02em;}.pay-panel{border:2px solid #;border-radius:6px;background:#;pad' +
+  'ding:16px 20px;margin:18px 0;}.pay-panel-title{font-family:F;font-size:12px;font-weight:700;color:#;text-trans' +
+  'form:uppercase;letter-spacing:0.08em;margin-bottom:8px;}.fine-print{font-size:11px;color:#;line-height:1.5;}.l' +
+  'etterhead{background:linear-gradient(180deg,# 0%,# 100%);color:#;padding:24px 32px;margin:-40px -50px 28px -50' +
+  'px;border-bottom:6px solid #;display:flex;justify-content:space-between;align-items:center;gap:18px;}.letterhe' +
+  'ad-brand{display:flex;align-items:center;gap:14px;min-width:0;position:relative;}.letterhead-logo-img{display:' +
+  'block;width:160px;height:auto;object-fit:contain;object-position:left center;flex-shrink:0;background:#;border' +
+  '-radius:8px;padding:6px 10px;box-sizing:border-box;}.letterhead-name{font-family:F;font-size:22px;font-weight:' +
+  '800;color:#;letter-spacing:.04em;text-transform:uppercase;line-height:1.1;}.letterhead-tagline{font-family:F;f' +
+  'ont-size:12px;color:rgba(255,255,255,.88);font-style:italic;margin-top:4px;}.letterhead-contact{text-align:rig' +
+  'ht;font-family:F;font-size:11px;color:rgba(255,255,255,.92);line-height:1.7;flex-shrink:0;letter-spacing:.02em' +
+  ';}.footer{background:linear-gradient(180deg,# 0%,# 100%);color:rgba(255,255,255,.92);margin:40px -50px -40px -' +
+  '50px;padding:18px 32px;border-top:4px solid #;display:flex;justify-content:space-between;align-items:center;ga' +
+  'p:18px;font-family:F;font-size:10px;letter-spacing:.04em;}.footer .footer-brand{font-family:F;font-weight:800;' +
+  'text-transform:uppercase;letter-spacing:.1em;color:#;font-size:11px;}.footer .footer-docnum{font-variant-numer' +
+  'ic:tabular-nums;}.closing-tag{text-align:center;font-family:F;font-style:italic;font-size:11px;color:#;margin-' +
+  'top:22px;}.print-btn{text-align:center;padding:24px;}.print-btn button{background:#;color:#;border:none;paddin' +
+  'g:14px 36px;border-radius:8px;font-size:16px;cursor:pointer;font-weight:600;font-family:F;}.print-btn button:h' +
+  'over{opacity:0.9;}';
+function _canonCss(css) {
+  return String(css).replace(/\s+/g, ' ').trim().replace(/\s*([{};:,])\s*/g, '$1').toLowerCase()
+    .replace(/#[0-9a-f]{3,8}\b/g, '#').replace(/font-family:[^;}]*/g, 'font-family:F');
+}
+function _hexRgb(h) {
+  const x = String(h).slice(1);
+  if (x.length === 3) return [0, 1, 2].map((i) => parseInt(x.charAt(i) + x.charAt(i), 16));
+  if (x.length === 6) return [0, 2, 4].map((i) => parseInt(x.substr(i, 2), 16));
+  return null;
+}
+function _lum(rgb) {
+  const c = rgb.map((v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+function _contrast(a, b) { const la = _lum(a); const lb = _lum(b); return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05); }
+function _hexes(v) { return String(v).match(/#[0-9a-f]+/gi) || []; }
+function _pageCssCanon(css) {
+  if (_canonCss(css) !== PAGE_CSS_CANON) return false;
+  const rules = []; const flat = String(css).toLowerCase();
+  flat.split('}').forEach((r) => {
+    const ob = r.indexOf('{'); if (ob === -1) return;
+    const decls = {};
+    r.slice(ob + 1).split(';').forEach((d) => { const c = d.indexOf(':'); if (c > 0) decls[d.slice(0, c).trim()] = d.slice(c + 1).trim(); });
+    rules.push({ sel: r.slice(0, ob).replace(/\s+/g, ' ').trim(), decls });
+  });
+  const all = _hexes(flat);
+  for (const h of all) if (!_hexRgb(h)) return false;
+  const find = (sel) => rules.filter((r) => r.sel === sel)[0];
+  const body = find('body');
+  const bodyBg = body && _hexes(body.decls.background || '')[0];
+  const bodyFg = body && _hexes(body.decls.color || '')[0];
+  if (!bodyBg || !bodyFg) return false;
+  const page = _hexRgb(bodyBg);
+  if (_lum(page) < 0.7) return false;   // the page stays light
+  const surface = (sel) => { const r = sel.indexOf('.footer') !== -1 ? find('.footer') : (sel.indexOf('.letterhead') !== -1 && sel !== '.letterhead' ? find('.letterhead') : null); return r ? _hexes(r.decls.background || '') : []; };
+  for (const r of rules) {
+    const own = _hexes(r.decls.background || r.decls['background-color'] || '');
+    const bgs = (own.length ? own : surface(r.sel)).map(_hexRgb);
+    if (!bgs.length && r.decls.color) bgs.push(page);
+    let fgs = _hexes(r.decls.color || '');
+    if (!r.decls.color && own.length) fgs = [bodyFg];
+    if (r.decls.color && !fgs.length) continue;   // an rgba() white, as the generator writes it
+    for (const f of fgs) for (const b of bgs) if (_contrast(_hexRgb(f), b) < 3) return false;
+  }
+  return true;
+}
 /** Reason codes for the page's style blocks (empty when every block is one the server knows). */
 function _styleReasons(blocks) {
   const bad = []; const add = (c) => { if (bad.indexOf(c) === -1) bad.push(c); };
@@ -245,7 +337,7 @@ function _styleReasons(blocks) {
     const body = _ws(b.body); const names = Object.keys(b.attrs || {});
     if (body === sig && names.length === 1 && names[0] === 'id' && b.attrs.id === 'nbd-sig-styles') { seen.sig++; return; }
     if (body === attic && names.length === 0) { seen.attic++; return; }
-    if (names.length === 0 && body.indexOf(pr) === 0 && _pageCssOk(body.slice(pr.length).trim()) && !_hidingCss(body.slice(pr.length))) { seen.page++; return; }
+    if (names.length === 0 && body.indexOf(pr) === 0 && _pageCssOk(body.slice(pr.length).trim()) && !_hidingCss(body.slice(pr.length)) && _pageCssCanon(body.slice(pr.length))) { seen.page++; return; }
     add('style_block');
     if (_hidingCss(body)) add('css_hidden');
   });
