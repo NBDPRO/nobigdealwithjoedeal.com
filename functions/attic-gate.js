@@ -342,7 +342,7 @@ function verifyP5(docType, html, o) {
 // ── Phase 5 checks beyond the manifest (security review 2026-11-19) ─────────────────────────────────────────────
 function isP5Doc(type) { return P5.isP5Doc(type); }
 function _p5Money(c) { return '$' + Math.floor(c / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + ('0' + (c % 100)).slice(-2); }
-function _p5Cents(s) { const m = /^([0-9][0-9,]*)\.([0-9]{2})$/.exec(String(s)); return m ? Number(m[1].replace(/,/g, '')) * 100 + Number(m[2]) : null; }
+function _p5Cents(s) { const m = /^(\d{1,3}(?:,\d{3})+|\d+)\.(\d{2})$/.exec(String(s)); return m ? Number(m[1].replace(/,/g, '')) * 100 + Number(m[2]) : null; }
 /**
  * What the server re-derives for a phase 5 form, from the company's own terms and the lead, never from the form's text alone.
  * ctx = { profile, tenantKey, isNbd, lead, KyLaw }. Decking: sheets x paymentTerms.deckingPerSheetCents in integer cents, compared with the
@@ -359,9 +359,10 @@ function p5Check(docType, html, ctx) {
     const limit = terms.deckingSheetsBeforeChangeOrder;
     const T = P5.TEXT;
     const t = _norm(_scan(html).text);
-    const sm = new RegExp(T.DK_SHEETS + '\\s*([0-9]+)(?![0-9])').exec(t);
-    const pm = new RegExp(T.DK_PRICE + '\\s*\\$([0-9,]+\\.[0-9]{2})').exec(t);
-    const tm = new RegExp(T.DK_TOTAL + '\\s*\\$([0-9,]+\\.[0-9]{2})').exec(t);
+    // Each figure is a whole token: the sheet count a whole integer followed by the next label, an amount a whole money string (not "12.5", "1e3", "$1,0,0.00").
+    const sm = new RegExp(T.DK_SHEETS + '\\s*([0-9]+)\\s*' + T.DK_PRICE).exec(t);
+    const pm = new RegExp(T.DK_PRICE + '\\s*\\$([0-9,.]+)\\s*' + T.DK_TOTAL).exec(t);
+    const tm = new RegExp(T.DK_TOTAL + '\\s*\\$([0-9,.]+)(?![0-9,.])').exec(t);
     const priceOk = CS.numOk(price, 'deckingPerSheetCents') && price > 0;
     if (!priceOk) bad.push('price_unset');
     const sheets = sm ? Number(sm[1]) : null;

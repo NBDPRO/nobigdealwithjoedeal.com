@@ -244,8 +244,9 @@ async function handleInPersonSignature(db, auth, data, deps) {
     const DE5 = require('./doc-evidence');
     try {
       const co5 = typeof lead.companyId === 'string' ? lead.companyId : '';
-      p5FlagOn = (await DE5.clauseFlagForUid(db, uid)) === true || (!!co5 && co5 !== String(uid || '') && (await DE5.clauseFlagForUid(db, co5)) === true);
-    } catch (_) { p5FlagOn = false; }
+      const fo = { strict: true, flag: DE5.CLAUSE_FLAG_NAME };
+      p5FlagOn = (await DE5.flagForUid(db, uid, fo)) === true || (!!co5 && co5 !== String(uid || '') && (await DE5.flagForUid(db, co5, fo)) === true);
+    } catch (_) { p5FlagOn = true; }   // the form is already a phase 5 form and cannot be read back: an unreadable flag fails closed
     if (p5FlagOn) {
       const msg = 'Could not read the signed form to check it. Try again in a moment.';
       try { await db.doc('leads/' + leadId + '/documents/' + docId).set({ evidenceRefused: { reasons: [{ code: 'p5Form', message: msg }], at: Date.now() } }, { merge: true }); } catch (_) { /* the refusal is the signal */ }

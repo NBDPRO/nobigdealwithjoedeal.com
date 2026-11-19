@@ -219,6 +219,25 @@ const generated = async (docType, extra) => {
     ip = await ipDock(tick(sign(DK.replace('<dd>$400.00</dd>', '<dd>$40.00</dd>'))));
     ok('in person: a tampered total is refused and marked', !!ip.e && !!(ip.db._get('leads/L1/documents/d1') || {}).evidenceRefused);
 
+    // Re-review lows
+    {
+      const ipFlagDb = () => IPW({ 'feature_flags/_default': {} });
+      const orig = DE.flagForUid;
+      DE.flagForUid = async () => { throw new Error('flag store down'); };
+      let eL = null;
+      try { eL = await ipNo(ipFlagDb(), { on: false }); } finally { DE.flagForUid = orig; }
+      ok('LOW1: the flag read throws and the form has no reader: refused (fail closed), not waved through', !!eL && eL.code === 'failed-precondition', eL && eL.code);
+    }
+    const wide = { profile: { paymentTerms: Object.assign({}, TERMS, { deckingSheetsBeforeChangeOrder: 20 }) } };
+    await bad('LOW2: "12.5" sheets (read as 12) with a matching total is refused', DK.replace('<dt>Sheets to replace</dt><dd>4</dd>', '<dt>Sheets to replace</dt><dd>12.5</dd>').replace('<dd>$400.00</dd>', '<dd>$1,200.00</dd>'), 'TOKSEC000020', wide);
+    await bad('LOW2: "1e3" sheets (read as 1) with a matching total is refused', DK.replace('<dt>Sheets to replace</dt><dd>4</dd>', '<dt>Sheets to replace</dt><dd>1e3</dd>').replace('<dd>$400.00</dd>', '<dd>$100.00</dd>'), 'TOKSEC000021', wide);
+    await bad('LOW2: a price written "$1,0,0.00" is refused', DK.replace('<dd>$100.00</dd>', '<dd>$1,0,0.00</dd>'), 'TOKSEC000022');
+    await bad('LOW2: a total written "$4,0,0.00" is refused', DK.replace('<dd>$400.00</dd>', '<dd>$4,0,0.00</dd>'), 'TOKSEC000023');
+    {
+      const big = AG.p5Check('decking_authorization', DK.replace('<dd>$100.00</dd>', '<dd>$1,000.00</dd>').replace('<dd>$400.00</dd>', '<dd>$4,000.00</dd>').replace('charged at $100.00 per sheet', 'charged at $1,000.00 per sheet'), { profile: { paymentTerms: Object.assign({}, TERMS, { deckingPerSheetCents: 100000 }) }, isNbd: false });
+      ok('LOW2 control: well-formed thousands ("$1,000.00" x 4 = "$4,000.00") still pass', big.ok === true && big.derived.totalCents === 400000, JSON.stringify(big));
+    }
+
     // MED 5: Ohio only is re-checked when the signature is submitted (and in person), not only at the send
     const OI = await generated('ohio_insurance_ack');
     r = await remote('ohio_insurance_ack', 'TOKSEC000013', OI, tick(sign(OI)));
