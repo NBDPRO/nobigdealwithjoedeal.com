@@ -342,10 +342,10 @@ const generated = async (docType, extraData) => {
     ok('...and does not satisfy the non-primary estimate E2', d.satisfied === false);
     db = world('EX');
     e = await signIP(db);
-    ok('a row naming an estimate that belongs to another lead is ignored: the form binds to the primary', !e && resOf(db).estimateId === 'E1');
+    ok('a row naming an estimate that belongs to another lead is refused (review 4, item 4: no longer ignored) and nothing is recorded', !!e && e.code === 'failed-precondition' && !resOf(db).complete, e && e.code);
     db = world('GHOST');
     e = await signIP(db);
-    ok('...and one that does not exist too', !e && resOf(db).estimateId === 'E1');
+    ok('...and one that does not exist too', !!e && e.code === 'failed-precondition' && !resOf(db).complete, e && e.code);
     // an empty binding never equals a real basis
     db = world('E2');
     db._store.set('leads/L1/documents/d1', Object.assign({}, db._get('leads/L1/documents/d1'), { atticAckResult: { version: 'ATTIC_ACK_V1', complete: true, estimateId: '', estimateStamp: '' } }));
