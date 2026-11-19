@@ -1,0 +1,8 @@
+{
+  "invoice.nolink": "188e8c362ae805b2bb97da21ff17c8b6ffd6a263b276aeec3934544c27b823e4",
+  "invoice.link": "7d9646c05a8d045754b1e379cbbf6ffa447caf6770a46cac1fafdf7781c54833",
+  "invoice.paid": "c80abd3b25a4ed112c6b11ae1dce28ad0a4438fe59397b363a80bb61e4d0734e",
+  "receipt.card": "a6bbc3ed6298adfdf0abe8306d8236b7b9678a9e55a1c1a3cbfa5739f6d754b6",
+  "receipt.nototal": "73ec6cfbf36d1445ea0b024508d0d8dd47a8a9dd632ae111e039e21f28a17b85",
+  "pa.default": "0fb91fef11ce55f850e93092040dab228c7df25cc59d602b1bd194d376e5d34c"
+}
