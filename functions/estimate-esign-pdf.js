@@ -140,7 +140,11 @@ async function buildEstimateContractPdf(input) {
   doc.setProducer('NBD Pro e-sign');
   const fonts = { reg: await doc.embedFont(StandardFonts.Helvetica), bold: await doc.embedFont(StandardFonts.HelveticaBold) };
   const L = new Layout(doc, fonts);
-  const company = i.companyName || 'No Big Deal Home Solutions';
+  // Clause set v1 (flag docClauseSetV1): the contracting party is named as the contract names it (entity d/b/a dba),
+  // as the seller in the cancellation statement and notices too. A tenant with no entityName gets its own legalName
+  // from the party block; an empty block falls back to today's name. Flag off: unchanged.
+  const partyName = i.clauseSet && i.clauseSet.partyBlock && typeof i.clauseSet.partyBlock.nameLine === 'string' ? i.clauseSet.partyBlock.nameLine.trim() : '';
+  const company = partyName || i.companyName || 'No Big Deal Home Solutions';
   const brandPrimary = hexRgb(i.brand && i.brand.primary);
   const brandAccent = hexRgb(i.brand && i.brand.accent);
   const LABEL = brandPrimary || GREY; // section captions
