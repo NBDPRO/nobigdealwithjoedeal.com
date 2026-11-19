@@ -349,6 +349,39 @@ const generated = async (docType, profileExtra) => {
     }
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('9. round 6: the trust boundary is a spec-compliant parser (parse5), so the scanner and a browser read the same tree');
+  {
+    ok('parse5 is a direct dependency with an exact version', JSON.parse(fs.readFileSync(path.join(FN, 'package.json'), 'utf8')).dependencies.parse5 === '7.3.0');
+    ok('...and the lockfile carries it', !!JSON.parse(fs.readFileSync(path.join(FN, 'package-lock.json'), 'utf8')).packages['node_modules/parse5']);
+    for (const [type, form] of [['attic_acknowledgment', GEN], ['attic_not_inspected', GEN_NI]]) {
+      const v = (h) => AG.verifyManifest(type, h);
+      const bad = (name, h) => { const r = v(h); ok(type + ': ' + name, r.ok === false, JSON.stringify(r.reasons)); };
+      const HIDE = '<div style="display:none">';
+      bad('F1: <!--> ends the comment at once; the div after it is a real hidden element', form.replace('<div class="section">', '<!-->' + HIDE + '--><div class="section">'));
+      bad('F1: <!---> likewise', form.replace('<div class="section">', '<!--->' + HIDE + '--><div class="section">'));
+      bad('F1: a comment closed by --!>', form.replace('<div class="section">', '<!-- x --!>' + HIDE + '--><div class="section">'));
+      bad('F1: <!--><style>.aa-p{display:none}</style>--> in the head', form.replace('</head>', '<!--><style>.aa-p{display:none}</style>--></head>'));
+      bad('F1: <!--> then a hidden class on a wrapper', form.replace('<div class="section">', '<!--><div class="no-print">--><div class="section">'));
+      bad('F2: a quote after == moves the end of the tag', form.replace('<div class="section">', '<div class="section" style="margin-top:36px;" a=="><div style="display:none">'));
+      bad('F2: a quote after = with a space', form.replace('<div class="section">', '<div class="section" a= "><div style="display:none">'));
+      bad('F2: a < inside a tag', form.replace('<div class="section">', '<div class="section" b<c="><div style="display:none">'));
+      bad('an unterminated tag at the end of the page', form + '<div class="section');
+      bad('an unterminated comment at the end of the page', form + '<!-- never closed');
+      bad('a hidden div created by table foster-parenting', form.replace('<div class="section">', '<table><div style="display:none"></div></table><div class="section">'));
+      ok(type + ': control: the generated form and its signed copy still pass on the parsed tree', v(form).ok === true && AG.verifyManifest(type, tick(sign(form)), { signed: true }).ok === true, JSON.stringify(v(form).reasons));
+    }
+    // the DoS caps hold with the real parser
+    const t0 = Date.now();
+    const flood = GEN.replace('</body>', '<br>'.repeat(450000) + '</body>');
+    const rf = AG.verifyManifest('attic_acknowledgment', flood);
+    ok('450,000 tags: refused as too_many_tags in under 5 s with parse5', rf.ok === false && rf.reasons.indexOf('too_many_tags') !== -1 && Date.now() - t0 < 5000, (Date.now() - t0) + ' ms ' + JSON.stringify(rf.reasons));
+    const deep = GEN.replace('</body>', '<b>'.repeat(300000) + '</body>');
+    const t1 = Date.now(); const rd = AG.verifyManifest('attic_acknowledgment', deep);
+    ok('300,000 nested elements: refused (too_deep or too_many_tags) in under 5 s', rd.ok === false && Date.now() - t1 < 5000, (Date.now() - t1) + ' ms ' + JSON.stringify(rd.reasons));
+    ok('over the byte cap: refused before any parsing', AG.verifyManifest('attic_acknowledgment', 'x'.repeat(AG.MAX_HTML + 1)).reasons[0] === 'too_large');
+  }
+
   console.log('\n' + (failed ? 'FAILED ' + failed + ': ' + fails.join(' | ') : 'all ok') + ' (' + passed + ' passed)');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

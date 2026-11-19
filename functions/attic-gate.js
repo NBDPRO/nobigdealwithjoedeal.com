@@ -78,14 +78,11 @@ const POSITIONS = {
 };
 function _classes(v) { return String(v == null ? '' : v).toLowerCase().split(/\s+/).filter(Boolean); }
 function _hiddenClass(attrs) { return _classes(attrs && attrs.class).some((c) => HIDDEN_CLASSES[c] === 1); }
-const ATTR_RE = /([^\s"'<>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+// Round 6: the markup is read by parse5, the HTML5 parser (the same tokenizer and tree construction rules a browser runs), never by a hand-written
+// tokenizer, so what the checks see is the tree a browser builds (comments that end at once, quotes after '=', foster-parented content and implied
+// elements all follow the specification). The size cap is applied before parsing (MAX_HTML) and the tag and depth caps while walking the tree.
+const { parse: _parseHtml } = require('parse5');
 
-/**
- * One linear pass over the markup -> { text, tags: [{ name, closing, attrs }], styles: [{ body: css text, attrs }], unterminated }.
- * text is the page text only (comments, tags, the content of RAW_ELEMENTS and the text inside an element with a HIDDEN_CLASSES class removed).
- * A comment, tag, quote or raw element that never closes swallows the rest of the document, as a browser does: what follows it is not read as
- * wording. An element nested deeper than MAX_DEPTH ends the scan (too_deep).
- */
 let _scanRuns = 0; const _scanCache = [];
 /** _scanRaw, memoised for the large strings a request holds (verifyManifest, applyAcks and resultFor read the same stored copy). */
 function _scan(html) {
@@ -97,107 +94,87 @@ function _scan(html) {
   _scanCache.push({ s: s0, r }); if (_scanCache.length > 4) _scanCache.shift();
   return r;
 }
+
+/**
+ * One walk over the parsed tree -> { text, tags: [{ name, closing, attrs, ... }], styles: [{ body, attrs }], labels, unterminated, tooDeep, tooMany }.
+ * text is the page text only (comments, the content of RAW_ELEMENTS and the text inside an element with a HIDDEN_CLASSES class removed).
+ * Input that ends inside a tag, comment or raw element, or a raw element with no end tag, is `unterminated`. An element nested deeper than
+ * MAX_DEPTH is too_deep; more than MAX_TAGS tags is too_many (the walk stops there).
+ */
 function _scanRaw(html) {
   const s = String(html == null ? '' : html);
-  const low = s.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));   // same length as s
-  const n = s.length;
-  const text = []; const tags = []; const styles = [];
+  const text = []; const tags = []; const styles = []; const labels = [];
   let unterminated = false; let tooDeep = false; let tooMany = false;
-  const stack = []; const open = {}; const openCls = {}; let hid = 0; let lhSeen = false; let footerSeen = false; let curLabel = null; const labels = [];   // open elements, how many of each name, how many carry a hidden class
+  let doc;
+  try {
+    doc = _parseHtml(s, { sourceCodeLocationInfo: true, scriptingEnabled: true, onParseError: (e) => { if (e && /^eof-/.test(String(e.code))) unterminated = true; } });
+  } catch (_) {
+    return { text: '', tags: [], styles: [], labels: [], unterminated: true, tooDeep: false, tooMany: false };
+  }
+  const stack = []; const open = {}; const openCls = {}; let hid = 0; let lhSeen = false; let footerSeen = false; let curLabel = null;
   const say = (t) => { if (hid === 0) text.push(t); };
-  let i = 0;
-  while (i < n) {
-    const lt = s.indexOf('<', i);
-    if (lt === -1) { say(s.slice(i)); break; }
-    if (lt > i) say(s.slice(i, lt));
-    i = lt;
-    if (low.startsWith('<!--', i)) {
-      const e = s.indexOf('-->', i + 4);
-      if (e === -1) { unterminated = true; break; }
-      say(' '); i = e + 3; continue;
-    }
-    const c = low.charAt(i + 1);
-    if (!((c >= 'a' && c <= 'z') || c === '/' || c === '!' || c === '?')) { say('<'); i++; continue; }
-    // the tag: up to the first '>' that is not inside a quoted attribute value
-    let j = i + 1; let end = -1; let prev = '';
-    while (j < n) {
-      const ch = s.charAt(j);
-      if (ch === '>') { end = j; break; }
-      if ((ch === '"' || ch === "'") && prev === '=') {
-        const q = s.indexOf(ch, j + 1);
-        if (q === -1) break;
-        j = q + 1; prev = ch; continue;
+  const work = [{ n: doc, i: 0, ent: null }];
+  while (work.length) {
+    const fr = work[work.length - 1];
+    const kids = fr.n.childNodes || [];
+    if (fr.i >= kids.length) {   // leaving an element
+      work.pop();
+      if (fr.ent) {
+        const t = stack.pop(); open[t.name]--; if (t.h) hid--; t.c.forEach((c) => { openCls[c]--; });
+        tags.push({ name: t.name, closing: true, attrs: {} });
+        if (t.name === 'label' && curLabel) { labels.push({ ids: curLabel.ids, text: text.slice(curLabel.start).join('') }); curLabel = null; }
       }
-      if (ch !== ' ' && ch !== '\t' && ch !== '\n' && ch !== '\r' && ch !== '\f') prev = ch;
-      j++;
+      continue;
     }
-    if (end === -1) { unterminated = true; break; }
+    const node = kids[fr.i++];
+    const nn = node.nodeName;
+    if (nn === '#text') { say(node.value); continue; }
+    if (nn === '#comment') { say(' '); continue; }
+    if (!node.tagName) continue;   // doctype
     if (tags.length > MAX_TAGS) { tooMany = true; break; }
-    const raw = s.slice(i, end + 1);
-    const nm = /^<(\/?)([a-z][a-z0-9:-]*)/.exec(low.slice(i, Math.min(end + 1, i + 40)));
+    const name = String(node.tagName).toLowerCase();
     const attrs = {};
-    if (nm) {
-      const body = raw.slice(nm[0].length);
-      let a; ATTR_RE.lastIndex = 0;
-      while ((a = ATTR_RE.exec(body))) { const k = a[1].toLowerCase(); if (!Object.prototype.hasOwnProperty.call(attrs, k)) attrs[k] = a[2] != null ? a[2] : (a[3] != null ? a[3] : (a[4] != null ? a[4] : '')); }
-      const tg = { name: nm[2], closing: nm[1] === '/', attrs };
-      const cls0 = _classes(attrs.class);
-      if (!tg.closing) {
-        const par = stack.length ? stack[stack.length - 1] : null;
-        const underPage = !!par && par.c.indexOf('doc-page') !== -1;
-        let bp = cls0.some((c) => {
-          const r = POSITIONS[c];
-          return !!r && !((!r.tags || r.tags.indexOf(nm[2]) !== -1) && (!r.anc || openCls[r.anc] > 0) && (!r.par || (!!par && (par.name === r.par || par.c.indexOf(r.par) !== -1))));
-        });
-        // Round 5: the letterhead is the first child of the page, the footer a direct child of it, once each, with nothing after the footer
-        // (an empty or mid-page footer pulls the wording that follows it onto the dark surface).
-        if (cls0.indexOf('letterhead') !== -1) { if (!(underPage && par.kids === 0 && !lhSeen)) bp = true; lhSeen = true; }
-        if (cls0.indexOf('footer') !== -1) { if (!(underPage && !footerSeen)) bp = true; footerSeen = true; }
-        else if (underPage && footerSeen && nm[2] !== 'style' && nm[2] !== 'script') bp = true;
-        if (par && nm[2] !== 'style' && nm[2] !== 'script') par.kids++;   // a style block or script renders nothing
-        if (bp) tg.badPos = true;
-        if (hid > 0) tg.inHidden = true;
-        if (nm[2] === 'label' && !curLabel) curLabel = { start: text.length, ids: [] };
-        if (curLabel && Object.prototype.hasOwnProperty.call(attrs, 'data-nbd-ack')) curLabel.ids.push(String(attrs['data-nbd-ack']));
-      } else if (nm[2] === 'label' && curLabel) { labels.push({ ids: curLabel.ids, text: text.slice(curLabel.start).join('') }); curLabel = null; }
-      tags.push(tg);
+    (node.attrs || []).forEach((a) => { const k = String(a.name).toLowerCase(); if (!Object.prototype.hasOwnProperty.call(attrs, k)) attrs[k] = a.value; });
+    const tg = { name, closing: false, attrs };
+    const loc = node.sourceCodeLocation;
+    const al = loc && loc.startTag && loc.startTag.attrs;
+    if (al) ['class', 'style', 'id', 'hidden'].forEach((k) => { const l = al[k]; if (l && s.slice(l.startOffset, l.endOffset).indexOf('&') !== -1) tg.entityAttr = true; });
+    const cls0 = _classes(attrs.class);
+    const par = stack.length ? stack[stack.length - 1] : null;
+    const underPage = !!par && par.c.indexOf('doc-page') !== -1;
+    let bp = cls0.some((c) => {
+      const r = POSITIONS[c];
+      return !!r && !((!r.tags || r.tags.indexOf(name) !== -1) && (!r.anc || openCls[r.anc] > 0) && (!r.par || (!!par && (par.name === r.par || par.c.indexOf(r.par) !== -1))));
+    });
+    // The letterhead is the first rendered child of the page, the footer a direct child of it, once each, with nothing rendered after the footer.
+    if (cls0.indexOf('letterhead') !== -1) { if (!(underPage && par.kids === 0 && !lhSeen)) bp = true; lhSeen = true; }
+    if (cls0.indexOf('footer') !== -1) { if (!(underPage && !footerSeen)) bp = true; footerSeen = true; }
+    else if (underPage && footerSeen && name !== 'style' && name !== 'script') bp = true;
+    if (par && name !== 'style' && name !== 'script') par.kids++;   // a style block or script renders nothing
+    if (bp) tg.badPos = true;
+    if (hid > 0) tg.inHidden = true;
+    if (name === 'label' && !curLabel) curLabel = { start: text.length, ids: [] };
+    if (curLabel && Object.prototype.hasOwnProperty.call(attrs, 'data-nbd-ack')) curLabel.ids.push(String(attrs['data-nbd-ack']));
+    tags.push(tg);
+    if (RAW_ELEMENTS[name] === 1) {
+      // the content of a raw element is never wording (and is not walked); a missing end tag swallows the rest of the page
+      const cn = node.childNodes || [];
+      let bodyText = ''; let other = 0;
+      cn.forEach((c) => { if (c.nodeName === '#text') bodyText += c.value; else other++; });
+      tg.bodyLength = bodyText.length + other;
+      if (name === 'style') styles.push({ body: bodyText, attrs });
+      if (!(loc && loc.endTag)) unterminated = true;
+      tags.push({ name, closing: true, attrs: {} });
+      continue;
     }
-    i = end + 1;
-    if (nm && nm[1] === '' && RAW_ELEMENTS[nm[2]] === 1) {
-      const close = _rawClose(low, nm[2], i);
-      const body = close === -1 ? s.slice(i) : s.slice(i, close);
-      if (nm[2] === 'style') styles.push({ body, attrs });
-      tags[tags.length - 1].bodyLength = body.length;
-      if (close === -1) { unterminated = true; break; }
-      const gt = s.indexOf('>', close);
-      if (gt === -1) { unterminated = true; break; }
-      tags.push({ name: nm[2], closing: true, attrs: {} });
-      i = gt + 1;
-    } else if (nm && VOID_ELEMENTS[nm[2]] !== 1) {
-      if (nm[1] === '') {
-        if (stack.length >= MAX_DEPTH) { tooDeep = true; break; }
-        const h = _hiddenClass(attrs);
-        const cl = _classes(attrs.class);
-        stack.push({ name: nm[2], h, c: cl, kids: 0 }); open[nm[2]] = (open[nm[2]] || 0) + 1; if (h) hid++;
-        cl.forEach((c) => { openCls[c] = (openCls[c] || 0) + 1; });
-      } else if (open[nm[2]] > 0) {   // a closing tag pops to its element (each element is popped once, so this is linear)
-        for (;;) { const t = stack.pop(); open[t.name]--; if (t.h) hid--; t.c.forEach((c) => { openCls[c]--; }); if (t.name === nm[2]) break; }
-      }
-    }
+    if (VOID_ELEMENTS[name] === 1) continue;
+    if (stack.length >= MAX_DEPTH) { tooDeep = true; break; }
+    const h = _hiddenClass(attrs);
+    stack.push({ name, h, c: cls0, kids: 0 }); open[name] = (open[name] || 0) + 1; if (h) hid++;
+    cls0.forEach((c) => { openCls[c] = (openCls[c] || 0) + 1; });
+    work.push({ n: node, i: 0, ent: true });
   }
-  return { text: text.join(''), tags, styles, unterminated, tooDeep, tooMany, labels };
-}
-
-// Review 4 (item 2): a raw element ends at </name followed by white space, '/' or '>' (as a browser reads it), never at </namez.
-function _rawClose(low, name, from) {
-  const needle = '</' + name; let p = from;
-  for (;;) {
-    p = low.indexOf(needle, p);
-    if (p === -1) return -1;
-    const c = low.charAt(p + needle.length);
-    if (c === '' || c === ' ' || c === '\t' || c === '\n' || c === '\f' || c === '\r' || c === '/' || c === '>') return p;
-    p += needle.length;
-  }
+  return { text: text.join(''), tags, styles, labels, unterminated, tooDeep, tooMany };
 }
 
 function _norm(t) {
@@ -459,7 +436,7 @@ function _risks(scan, parsed, opts) {
     Object.keys(a).forEach((k) => { if (!(GLOBAL_ATTRS[k] === 1 || (TAG_ATTRS[t.name] && TAG_ATTRS[t.name][k] === 1))) add('bad_attr:' + String(k).slice(0, 30)); });
     // Review 4 (item 3): a browser decodes entities in an attribute value (class="&#110;o-print" is no-print); these checks read the raw text, so
     // the attributes they read may not carry one.
-    ['class', 'style', 'id', 'hidden'].forEach((k) => { if (typeof a[k] === 'string' && a[k].indexOf('&') !== -1) add('entity_attr'); });
+    if (t.entityAttr) add('entity_attr');   // set from the raw source of the attribute (the parser has already decoded its value)
     const cls = _classes(a.class);
     if (cls.indexOf('no-print') !== -1) {   // the print button's own wrapper is the only element that may carry it
       noPrint++;
@@ -516,6 +493,9 @@ function verifyManifest(docType, html, opts) {
   // Review 3 (item 3): a control counts only when it is a real tag of the page, not text in a comment, textarea, noscript or template.
   const liveCount = scan.tags.filter((t) => !t.closing && Object.prototype.hasOwnProperty.call(t.attrs, 'data-nbd-ack')).length;
   if (parsed.length !== rawCount || parsed.length !== liveCount || parsed.length > MAX_CONTROLS) bad.push('control_count');
+  // Round 6: the regex reader of the ticks (attic-ack.js parseAcks) and the parsed tree must agree on every control, its id and its tick.
+  const treeAcks = scan.tags.filter((t) => !t.closing && Object.prototype.hasOwnProperty.call(t.attrs, 'data-nbd-ack'));
+  if (treeAcks.length === parsed.length && treeAcks.some((t, i) => String(t.attrs['data-nbd-ack']) !== parsed[i].id || Object.prototype.hasOwnProperty.call(t.attrs, 'checked') !== (parsed[i].checked === true))) bad.push('control_mismatch');
   const seen = {};
   parsed.forEach((c) => { if (seen[c.id]) bad.push('duplicate:' + c.id); seen[c.id] = c; });
   const boxes = parsed.filter((c) => c.type === 'checkbox').map((c) => c.id).sort();
