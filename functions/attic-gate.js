@@ -56,10 +56,26 @@ const MAX_HTML = 2 * 1024 * 1024;
 const RAW_ELEMENTS = { script: 1, style: 1, template: 1, title: 1, noscript: 1, canvas: 1, object: 1, iframe: 1, audio: 1, video: 1, textarea: 1, xmp: 1, noembed: 1, noframes: 1, plaintext: 1 };
 const VOID_ELEMENTS = { area: 1, base: 1, br: 1, col: 1, embed: 1, hr: 1, img: 1, input: 1, link: 1, meta: 1, param: 1, source: 1, track: 1, wbr: 1 };
 // Classes that hide an element's text in the printed or signed copy (see the style allowlist): text inside one is not wording.
-const HIDDEN_CLASSES = { 'no-print': 1, 'nbd-sig-controls': 1, 'nbd-sig-state': 1 };
+// Round 4: the letterhead, footer and print button are dark or print-hidden surfaces: text inside them is never the packet's wording.
+const HIDDEN_CLASSES = { 'no-print': 1, 'nbd-sig-controls': 1, 'nbd-sig-state': 1, letterhead: 1, footer: 1, 'print-btn': 1 };
 const MAX_DEPTH = 400;
 // Review 4 (item 5): the real form has well under 1,000 tags; a copy with more is refused (the scan stops at the cap, so the work is bounded).
 const MAX_TAGS = 20000;
+// Round 4: each class the generator writes is valid only on the element(s) it writes it on and, for the surface and signing classes, inside
+// the element that carries the surface (a class on a different element, or outside its surface, is bad_position).
+const POSITIONS = {
+  'doc-page': { tags: ['div'] }, letterhead: { tags: ['div'] }, 'letterhead-brand': { tags: ['div'], anc: 'letterhead' },
+  'letterhead-logo-img': { tags: ['img'], anc: 'letterhead' }, 'letterhead-name': { tags: ['div'], anc: 'letterhead' },
+  'letterhead-tagline': { tags: ['div'], anc: 'letterhead' }, 'letterhead-contact': { tags: ['div'], anc: 'letterhead' },
+  'lib-h1': { tags: ['h1'] }, 'lib-sub': { tags: ['p'] }, 'aa-ver': { tags: ['p'] }, section: { tags: ['div'] }, 'aa-p': { tags: ['p'] }, 'aa-note': { tags: ['p'] },
+  'aa-thumbs': { tags: ['div'] }, 'lib-fine': { tags: ['span'] }, 'lib-table': { tags: ['table'] }, 'aa-opt': { tags: ['th', 'td'] }, 'aa-row': { tags: ['label'] },
+  'signature-block': { tags: ['div'] }, 'nbd-sig-block': { tags: ['div'], anc: 'signature-block' }, 'nbd-sig-label': { tags: ['div'], anc: 'nbd-sig-block' },
+  'nbd-sig-canvas': { tags: ['canvas'], anc: 'nbd-sig-block' }, 'nbd-sig-controls': { tags: ['div'], anc: 'nbd-sig-block' }, 'nbd-sig-state': { tags: ['span'], anc: 'nbd-sig-controls' },
+  'nbd-sig-print-name': { tags: ['div'], anc: 'nbd-sig-block' }, 'nbd-sig-img': { tags: ['img'] }, 'nbd-sig-date': { tags: ['div'], anc: 'nbd-sig-block' },
+  affiliates: { tags: ['div'] }, affiliate: { tags: ['div'], anc: 'affiliates' }, 'affiliate-name': { tags: ['div'], anc: 'affiliate' }, 'affiliate-num': { tags: ['div'], anc: 'affiliate' },
+  footer: { tags: ['div'] }, 'footer-brand': { tags: ['span'], anc: 'footer' }, 'no-print': { tags: ['div'] }, 'print-btn': { tags: ['div'] },
+  'sig-label': { tags: ['div', 'span', 'p'] }, 'sig-line': { tags: ['div', 'span'] },
+};
 function _classes(v) { return String(v == null ? '' : v).toLowerCase().split(/\s+/).filter(Boolean); }
 function _hiddenClass(attrs) { return _classes(attrs && attrs.class).some((c) => HIDDEN_CLASSES[c] === 1); }
 const ATTR_RE = /([^\s"'<>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
@@ -87,7 +103,7 @@ function _scanRaw(html) {
   const n = s.length;
   const text = []; const tags = []; const styles = [];
   let unterminated = false; let tooDeep = false; let tooMany = false;
-  const stack = []; const open = {}; let hid = 0;   // open elements, how many of each name, how many carry a hidden class
+  const stack = []; const open = {}; const openCls = {}; let hid = 0;   // open elements, how many of each name, how many carry a hidden class
   const say = (t) => { if (hid === 0) text.push(t); };
   let i = 0;
   while (i < n) {
@@ -124,7 +140,9 @@ function _scanRaw(html) {
       const body = raw.slice(nm[0].length);
       let a; ATTR_RE.lastIndex = 0;
       while ((a = ATTR_RE.exec(body))) { const k = a[1].toLowerCase(); if (!Object.prototype.hasOwnProperty.call(attrs, k)) attrs[k] = a[2] != null ? a[2] : (a[3] != null ? a[3] : (a[4] != null ? a[4] : '')); }
-      tags.push({ name: nm[2], closing: nm[1] === '/', attrs });
+      const tg = { name: nm[2], closing: nm[1] === '/', attrs };
+      if (!tg.closing) { const bp = _classes(attrs.class).some((c) => { const r = POSITIONS[c]; return !!r && !((!r.tags || r.tags.indexOf(nm[2]) !== -1) && (!r.anc || openCls[r.anc] > 0)); }); if (bp) tg.badPos = true; }
+      tags.push(tg);
     }
     i = end + 1;
     if (nm && nm[1] === '' && RAW_ELEMENTS[nm[2]] === 1) {
@@ -141,9 +159,11 @@ function _scanRaw(html) {
       if (nm[1] === '') {
         if (stack.length >= MAX_DEPTH) { tooDeep = true; break; }
         const h = _hiddenClass(attrs);
-        stack.push({ name: nm[2], h }); open[nm[2]] = (open[nm[2]] || 0) + 1; if (h) hid++;
+        const cl = _classes(attrs.class);
+        stack.push({ name: nm[2], h, c: cl }); open[nm[2]] = (open[nm[2]] || 0) + 1; if (h) hid++;
+        cl.forEach((c) => { openCls[c] = (openCls[c] || 0) + 1; });
       } else if (open[nm[2]] > 0) {   // a closing tag pops to its element (each element is popped once, so this is linear)
-        for (;;) { const t = stack.pop(); open[t.name]--; if (t.h) hid--; if (t.name === nm[2]) break; }
+        for (;;) { const t = stack.pop(); open[t.name]--; if (t.h) hid--; t.c.forEach((c) => { openCls[c]--; }); if (t.name === nm[2]) break; }
       }
     }
   }
@@ -171,21 +191,9 @@ function _plain(s) { return _norm(_scan(s).text); }
 
 // Review 2 (2026-11-18), item 3: wording that is in the markup but not on the page. The form the server issues has no template element,
 // no hidden attribute, and no inline style except a margin; its style blocks are the allowlist below. Anything else fails.
-// Review 4 (PR re-review): a margin is bounded (a large one moves wording off the page): up to 100px or pt, 10em or rem, unitless only 0.
-const SAFE_MARGIN_RE = /^\s*margin(?:-(?:top|bottom|left|right))?\s*:\s*([0-9]{1,3}(?:\.[0-9]{1,2})?)(px|em|rem|pt)?\s*$/i;
-function _safeInlineStyle(style) {
-  const parts = String(style).split(';');
-  let n = 0;
-  for (const p of parts) {
-    if (!p.trim()) continue;
-    const m = SAFE_MARGIN_RE.exec(p);
-    if (!m) return false;
-    const v = parseFloat(m[1]); const u = (m[2] || '').toLowerCase();
-    if (u === '' ? v !== 0 : (u === 'em' || u === 'rem' ? v > 10 : v > 100)) return false;
-    n++;
-  }
-  return n > 0;
-}
+// Round 4: the only inline style the generator writes (besides the signature image's own) is margin-top:36px on div.section above the signature
+// block (document-generator-templates.js). Exactly that, on that element, at most twice: no other margin, so nested margins cannot accumulate.
+const GEN_MARGIN = 'margin-top:36px;';
 const SIG_IMG_STYLE = 'max-width:100%;height:auto;display:block;background:#fff;';
 const HIDING_CSS_RES = [
   /display:none/, /visibility:(?:hidden|collapse)/, /content-visibility:hidden/, /font-size:(?:0+(?:\.0*)?|\.0+)(?:px|pt|em|rem|ex|%)?(?![0-9.])/, /opacity:(?:0+(?:\.0*)?|\.0+)(?![0-9.])/,
@@ -361,7 +369,10 @@ function _pageCssCanon(css) {
   const bodyFg = body && _hexes(body.decls.color || '')[0];
   if (!bodyBg || !bodyFg) return false;
   const page = _hexRgb(bodyBg);
-  if (_lum(page) < 0.7) return false;   // the page stays light
+  if (_lum(page) < 0.9) return false;   // the page stays light
+  // The fixed colours the server's own CSS blocks use (captions, notes) must stay readable on this page.
+  const fixed = (String(AA.ATTIC_FORM_CSS) + ' ' + String(AA.SIG_STYLES_CSS)).toLowerCase().match(/[^a-z-]color:#[0-9a-f]{3,6}/g) || [];
+  for (const c of fixed) if (_contrast(_hexRgb(c.slice(c.indexOf('#'))), page) < 3) return false;
   const surface = (sel) => { const r = sel.indexOf('.footer') !== -1 ? find('.footer') : (sel.indexOf('.letterhead') !== -1 && sel !== '.letterhead' ? find('.letterhead') : null); return r ? _hexes(r.decls.background || '') : []; };
   for (const r of rules) {
     const own = _hexes(r.decls.background || r.decls['background-color'] || '');
@@ -373,17 +384,26 @@ function _pageCssCanon(css) {
     if (r.sel.indexOf(':after') !== -1 || r.sel.indexOf(':before') !== -1) continue;   // a decorative bar (content:"") carries no text
     for (const f of fgs) for (const b of bgs) if (_contrast(_hexRgb(f), b) < 4.5) return false;
   }
+  // Round 4: text colours and light backgrounds of the rules a form can use (every class in the selector is one the generator writes, and it is not
+  // a dark surface) must read against EACH OTHER, so a class nested in another's background cannot match it.
+  const usable = (sel) => !/letterhead|footer|print-btn|:after|:before|th\b|total-bar/.test(sel) && (sel.match(/\.[a-z0-9_-]+/g) || []).every((c) => FORM_CLASSES[c.slice(1)] === 1);
+  const txt = []; const bgl = [page];
+  rules.forEach((r) => { if (!usable(r.sel)) return; _hexes(r.decls.color || '').forEach((h) => txt.push(_hexRgb(h))); _hexes(r.decls.background || r.decls['background-color'] || '').forEach((h) => bgl.push(_hexRgb(h))); });
+  for (const t of txt) for (const b of bgl) if (_contrast(t, b) < 4.5) return false;
   // Review 4 (PR re-review): every font stack is the shape a tenant's brand fonts produce ('Face','Segoe UI',Helvetica,Arial,sans-serif, or
   // the fallback alone), with no symbol face.
   const stacks = flat.match(/font-family:[^;}]*/g) || [];
   for (const st of stacks) {
     const v = st.slice('font-family:'.length).replace(/\s+/g, ' ').trim();
     const m = /^(?:'([a-z0-9][a-z0-9 ._&-]{0,39})',)?'segoe ui',helvetica,arial,sans-serif$/.exec(v.replace(/,\s+/g, ','));
-    if (!m || (m[1] && SYMBOL_FONT_RE.test(m[1]))) return false;
+    if (!m || (m[1] && BRAND_FONTS[m[1]] !== 1)) return false;
   }
   return true;
 }
-const SYMBOL_FONT_RE = /wingding|webding|symbol|dingbat|marlett|emoji|ornament|zapf|bookshelf|icon|glyph|awesome|material/i;
+// Round 4: an allowlist, not a denylist of symbol faces. A tenant's document face must be one of these (lower case); others are refused until added.
+const BRAND_FONTS = {};
+([ 'montserrat', 'lato', 'open sans', 'roboto', 'inter', 'poppins', 'nunito', 'raleway', 'oswald', 'work sans', 'dm sans', 'source sans pro', 'source sans 3', 'pt sans', 'noto sans', 'noto serif', 'lora', 'merriweather',
+  'playfair display', 'libre baskerville', 'bebas neue', 'arial', 'helvetica', 'georgia', 'times new roman', 'calibri', 'cambria', 'verdana', 'tahoma', 'trebuchet ms', 'segoe ui', 'garamond' ]).forEach((n) => { BRAND_FONTS[n] = 1; });
 /** Reason codes for the page's style blocks (empty when every block is one the server knows). */
 function _styleReasons(blocks) {
   const bad = []; const add = (c) => { if (bad.indexOf(c) === -1) bad.push(c); };
@@ -410,7 +430,7 @@ function _risks(scan, parsed, opts) {
   const add = (c) => { if (bad.indexOf(c) === -1) bad.push(c); };
   if (scan.tooDeep) add('too_deep');
   if (scan.tooMany) add('too_many_tags');
-  let noPrint = 0;
+  let noPrint = 0; let margins = 0;
   scan.tags.forEach((t) => {
     // Review 3 (item 3): the tags and attributes of the form are an allowlist (what the server render and the signing step write).
     if (ALLOWED_TAGS[t.name] !== 1) add('bad_tag:' + String(t.name).slice(0, 20));
@@ -430,12 +450,13 @@ function _risks(scan, parsed, opts) {
     if (WORD_CARRIERS[t.name] === 1 && cls.some((c) => WORD_CLASSES[c] !== 1)) add('bad_class');
     // Review 4 (PR re-review): containers (div, td, th, ul, table ...) take only the classes the generator and the signing step write.
     if (cls.some((c) => FORM_CLASSES[c] !== 1)) add('bad_class');
+    if (t.badPos) add('bad_position');
     if (t.name === 'script' && (!(t.bodyLength === 0) || !SCRIPT_SRC_RE.test(String(a.src || '').slice(0, 200)))) add('script');
     if (t.name === 'template') add('template');
     if (Object.prototype.hasOwnProperty.call(a, 'hidden')) add('hidden_attr');
     // The one inline style a signed copy gets is the signature image's own (signature-widget.js and remote-signing.js finalizeBlock write it).
     const sigImg = t.name === 'img' && /(?:^|\s)nbd-sig-img(?:\s|$)/.test(a.class || '') && String(a.style || '').replace(/\s+/g, '').toLowerCase() === SIG_IMG_STYLE;
-    if (Object.prototype.hasOwnProperty.call(a, 'style') && !sigImg && !_safeInlineStyle(a.style)) add('inline_style');
+    if (Object.prototype.hasOwnProperty.call(a, 'style') && !sigImg && !(t.name === 'div' && _classes(a.class).join(' ') === 'section' && String(a.style).replace(/\s+/g, '').toLowerCase() === GEN_MARGIN && ++margins <= 2)) add('inline_style');
     if (t.name === 'link' && /stylesheet/i.test(a.rel || '')) add('css_hidden');
     if (WORDING_TAGS[t.name] === 1 && /(?:^|\s)no-print(?:\s|$)/i.test(a.class || '')) add('no_print_wording');
     if (Object.prototype.hasOwnProperty.call(a, 'data-nbd-ack')) {
@@ -574,6 +595,7 @@ async function _estimateSet(db, leadId, lead, o) {
   const ownedBy = (id, e) => !!e && e.deleted !== true && (id === L.primaryEstimateId || (okId(leadId) && e.leadId === leadId))
     && !(e.companyId && L.companyId && e.companyId !== L.companyId);
   const cand = [];
+  let capped = false;
   const seen = {};
   const add = (id, data) => { if (data && !seen[id]) { seen[id] = true; cand.push({ id, data }); } };
   if (o.estimateId != null && o.estimateId !== '') {
@@ -591,15 +613,18 @@ async function _estimateSet(db, leadId, lead, o) {
     if (s && s.exists) add(pid, s.data() || {});
   }
   if (okId(leadId)) {
-    // Review 4 (PR re-review): an unordered limit would read an arbitrary 20; more than 20 fails closed instead.
-    const q = await db.collection('estimates').where('leadId', '==', leadId).limit(21).get();
-    if (q.docs.length > 20) return Object.assign({}, none, { tooMany: true });
-    q.docs.map((d) => ({ id: d.id, x: d.data() || {} })).filter((d) => d.x.deleted !== true).sort((p, r) => (p.id < r.id ? -1 : 1)).forEach((d) => add(d.id, d.x));
+    // Round 4: an unordered limit would read an arbitrary page, so more than 20 LIVE estimates (a soft-deleted one is not counted; the read
+    // takes up to 101 so a pile of deleted ones cannot hide the live ones) marks the list capped: the scope is then assumed to be a re-roof, a
+    // signed form cannot satisfy it (a re-roof estimate may be out of sight), and only the owner's recorded override does.
+    const q = await db.collection('estimates').where('leadId', '==', leadId).limit(101).get();
+    const live = q.docs.map((d) => ({ id: d.id, x: d.data() || {} })).filter((d) => d.x.deleted !== true).sort((p, r) => (p.id < r.id ? -1 : 1));
+    if (live.length > 20 || q.docs.length > 100) capped = true;
+    live.slice(0, 20).forEach((d) => add(d.id, d.x));
   }
   const rank = (c) => AA.scopeRank(AA.scopeFromEstimate(c.data));
   let top = null;
   cand.forEach((c) => { if (!top || rank(c) > rank(top)) top = c; });
-  return { list: cand, basis: top ? { id: top.id, stamp: estimateStamp(top.data) } : { id: '', stamp: '' }, rejected: false };
+  return { list: cand, basis: top ? { id: top.id, stamp: estimateStamp(top.data) } : { id: '', stamp: '' }, rejected: false, tooMany: capped };
 }
 
 const TOO_MANY_MSG = 'This customer has more than 20 estimates, so the attic acknowledgment cannot be checked. Archive the old estimates, then try again. Nothing was sent.';
@@ -629,9 +654,6 @@ async function decide(db, leadId, lead, opts) {
   const o = opts || {};
   const L = lead || {};
   const set = await _estimateSet(db, leadId, L, o);
-  if (set.tooMany) {
-    return { scope: 'unknown', basis: set.basis, required: true, satisfied: false, how: null, warn: false, message: TOO_MANY_MSG };
-  }
   if (set.rejected) {
     return { scope: 'unknown', basis: set.basis, required: true, satisfied: false, how: null, warn: false, message: NOT_ON_LEAD_MSG };
   }
@@ -640,7 +662,7 @@ async function decide(db, leadId, lead, opts) {
     return { scope: 'unknown', basis: set.basis, required: true, satisfied: false, how: null, warn: false,
       message: 'This deal is not linked to a customer or an estimate, so the attic acknowledgment cannot be checked. Link the deal to the customer, then send it. Nothing was sent.' };
   }
-  let scope = AA.effectiveScope(L, set.list.map((x) => x.data));
+  let scope = set.tooMany ? 'reroof' : AA.effectiveScope(L, set.list.map((x) => x.data));
   const rawScope = scope;
   // Overrides recorded on this lead that are still good for this basis.
   let valid = [];
@@ -649,7 +671,7 @@ async function decide(db, leadId, lead, opts) {
     const now = Date.now();
     valid = ov.docs.map((d) => d.data() || {}).filter((v) => v.version === AA.VERSION && !v.revokedAt && typeof v.expiresAt === 'number' && v.expiresAt > now
       && String(v.estimateId || '') === set.basis.id && String(v.estimateStamp || '') === set.basis.stamp);
-    const lowered = valid.filter((v) => v.kind === 'scope_lowered' && AA.SCOPES.indexOf(v.toScope) !== -1 && AA.scopeRank(v.toScope) < AA.scopeRank(rawScope))[0];
+    const lowered = set.tooMany ? null : valid.filter((v) => v.kind === 'scope_lowered' && AA.SCOPES.indexOf(v.toScope) !== -1 && AA.scopeRank(v.toScope) < AA.scopeRank(rawScope))[0];
     if (lowered) scope = lowered.toScope;
   }
   const g0 = AA.gate({ scope, signedForm: false, override: false });
@@ -669,7 +691,7 @@ async function decide(db, leadId, lead, opts) {
   // own status and signedAt are written by the rep's browser on the in-person path.
   // Review 2 (item 4): a deleted row never counts, and a form covers the estimate (id and stamp) it was signed against - the same binding an
   // override has - so a form signed for an older estimate cannot satisfy a newer, re-priced or re-scoped re-roof estimate.
-  const signedForm = found.some((d) => {
+  const signedForm = !set.tooMany && found.some((d) => {
     const r = d.data() || {};
     if (r.deleted === true || String(r.status || '') === 'deleted') return false;
     const res = r.atticAckResult;
@@ -677,7 +699,9 @@ async function decide(db, leadId, lead, opts) {
       && String(res.estimateId || '') === set.basis.id && String(res.estimateStamp || '') === set.basis.stamp;
   });
   const override = valid.some((v) => v.kind !== 'scope_lowered');
-  return Object.assign({ scope, rawScope, basis: set.basis }, AA.gate({ scope, signedForm, override }));
+  const out = Object.assign({ scope, rawScope, basis: set.basis }, AA.gate({ scope, signedForm, override }));
+  if (set.tooMany && !out.satisfied) out.message = TOO_MANY_MSG;
+  return out;
 }
 
 const OVERRIDE_DAYS = 30;
@@ -759,4 +783,4 @@ async function recordOverride(db, auth, data, fail, deps) {
 
 const TOO_LARGE_MSG = 'This attic acknowledgment is too large to verify. Open the customer, create a fresh copy of the form and try again.';
 
-module.exports = { _scanCalls: () => _scanRuns, estimateStamp, manifestFor, verifyManifest, OVERRIDES, MAX_HTML, TOO_LARGE_MSG, NOT_ON_LEAD_MSG, formBasis, gated, isAtticDoc, applyAcks, resultFor, decide, recordOverride };
+module.exports = { _scanCalls: () => _scanRuns, estimateStamp, manifestFor, verifyManifest, OVERRIDES, MAX_HTML, TOO_LARGE_MSG, NOT_ON_LEAD_MSG, TOO_MANY_MSG, formBasis, gated, isAtticDoc, applyAcks, resultFor, decide, recordOverride };

@@ -229,7 +229,7 @@ const generated = async (docType, profileExtra) => {
       bad('margin-top:-5000px', form.replace('<p class="aa-p">', '<p class="aa-p" style="margin-top:-5000px">'), 'inline_style');
       bad('margin-left:101px', form.replace('<p class="aa-p">', '<p class="aa-p" style="margin-left:101px">'), 'inline_style');
       bad('margin-left:50em', form.replace('<p class="aa-p">', '<p class="aa-p" style="margin-left:50em">'), 'inline_style');
-      ok(type + ': control: margin-left:40px is still accepted', v(form.replace('<p class="aa-p">', '<p class="aa-p" style="margin-left:40px">')).ok === true);
+      bad('margin-left:40px (round 4: only the generator\'s own margin-top:36px is accepted)', form.replace('<p class="aa-p">', '<p class="aa-p" style="margin-left:40px">'), 'inline_style');
       const font = (val) => withPage(form, (b) => b.replace(/(body \{ font-family:)[^;]*;/, '$1' + val + ';'));
       bad('body font-family:Wingdings', font('Wingdings'), 'style_block');
       bad('a symbol font in a full-looking stack', font("'Wingdings','Segoe UI',Helvetica,Arial,sans-serif"), 'style_block');
@@ -254,6 +254,56 @@ const generated = async (docType, profileExtra) => {
     ok('...and formBasis throws too_many_estimates', !!threw && threw.code === 'too_many_estimates');
     d = await AG.decide(mk(20), 'L1', { userId: 'REP', companyId: 'CO', primaryEstimateId: 'E0' }, {});
     ok('control: exactly 20 estimates is read as before (not a re-roof, no form needed)', d.required === false, JSON.stringify(d).slice(0, 160));
+  }
+
+  // ═══════════════════════════════════════════════════════
+  section('7. round 4: wording on a dark surface, nested margins, font allowlist, class positions, soft-deleted estimates, override with a capped list');
+  {
+    for (const [type, form] of [['attic_acknowledgment', GEN], ['attic_not_inspected', GEN_NI]]) {
+      const v = (h) => AG.verifyManifest(type, h);
+      const bad = (name, h) => { const r = v(h); ok(type + ': ' + name, r.ok === false, JSON.stringify(r.reasons)); };
+      const P = '<p class="aa-p">';
+      const wrap = (cls, inner) => form.replace(P, '<div class="' + cls + '">' + P).replace(/(<p class="aa-p">[\s\S]*?<\/p>)/, '$1' + (inner || '</div>'));
+      bad('wording inside div.letterhead (white on a gradient that vanishes in print)', wrap('letterhead'));
+      bad('wording inside div.footer', wrap('footer'));
+      bad('wording inside div.letterhead-contact', wrap('letterhead-contact'));
+      bad('wording inside div.letterhead-tagline', wrap('letterhead-tagline'));
+      bad('wording inside div.print-btn', wrap('print-btn'));
+      bad('a letterhead-contact class with no letterhead around it', form.replace('<div class="section">', '<div class="letterhead-contact">'));
+      bad('a paragraph class on a div (aa-p on a div)', form.replace('<div class="section">', '<div class="aa-p">'));
+      bad('an affiliate card class outside the affiliates row', form.replace('<div class="section">', '<div class="affiliate">'));
+      const nest = (n) => form.replace('<div class="section">', '<div class="section" style="margin-top:36px;">'.repeat(n) + '<div class="section">') ;
+      bad('nested margin-left:100px divs', form.replace('<div class="section">', '<div style="margin-left:100px"><div style="margin-left:100px"><div style="margin-left:100px"><div class="section">'));
+      bad('margin-left:100px on one div', form.replace('<div class="section">', '<div class="section" style="margin-left:100px">'));
+      bad('the generator\'s margin-top:36px repeated on many wrappers', nest(8));
+      ok(type + ': control: the generated form (its own margin-top:36px) still passes', v(form).ok === true, JSON.stringify(v(form).reasons));
+      const font = (val) => withPage(form, (b) => b.replace(/(body \{ font-family:)[^;]*;/, '$1' + val + ';'));
+      ['MS Reference Specialty', 'MT Extra', 'Segoe MDL2 Assets', 'Monotype Sorts', 'Not A Registered Face'].forEach((f) => bad('font ' + f + ' (not a registered brand face)', font("'" + f + "','Segoe UI',Helvetica,Arial,sans-serif")));
+      ['Open Sans', 'Poppins', 'Montserrat', 'Lato'].forEach((f) => ok(type + ': control: registered face ' + f + ' is accepted', v(font("'" + f + "','Segoe UI',Helvetica,Arial,sans-serif")).ok === true));
+      bad('a pale tenant page background (#e6e6e6) under the fixed grey captions', withPage(form, (b) => b.replace('background:#fff; }', 'background:#e6e6e6; }')));
+    }
+    // the estimate list, against a db whose .limit() is real
+    const mk = (live, dead, extra) => { const s = { 'leads/L1': { userId: 'REP', companyId: 'CO', primaryEstimateId: 'E0', jobType: 'cash' } };
+      for (let i = 0; i < live; i++) s['estimates/E' + i] = { userId: 'REP', leadId: 'L1', grandTotal: 100 + i, rows: [{ code: i === 3 ? 'LAB TO1' : 'GTR 5K' }] };
+      for (let i = 0; i < dead; i++) s['estimates/D' + i] = { userId: 'REP', leadId: 'L1', deleted: true, grandTotal: 1, rows: [{ code: 'GTR 5K' }] };
+      Object.assign(s, extra || {}); return kit.makeDb(s); };
+    const probe = await mk(30, 0).collection('estimates').where('leadId', '==', 'L1').limit(5).get();
+    ok('proof: the kit db honours .limit(5) over 30 matching estimates (returns 5)', probe.docs.length === 5, String(probe.docs.length));
+    const probe21 = await mk(30, 0).collection('estimates').where('leadId', '==', 'L1').limit(21).get();
+    ok('proof: .limit(21) over 30 returns exactly 21, so a 21-doc read means "more than 20"', probe21.docs.length === 21, String(probe21.docs.length));
+    const L0 = { userId: 'REP', companyId: 'CO', primaryEstimateId: 'E0' };
+    let d = await AG.decide(mk(5, 40), 'L1', L0, {});
+    ok('5 live estimates plus 40 soft-deleted ones: NOT capped (deleted ones are not counted); the re-roof estimate is seen', d.required === true && d.scope === 'reroof' && !/more than 20/.test(d.message || ''), JSON.stringify(d).slice(0, 200));
+    d = await AG.decide(mk(25, 0), 'L1', L0, {});
+    ok('25 live estimates: capped, a re-roof is assumed and the gate is closed', d.required === true && d.satisfied === false && /more than 20/i.test(d.message), JSON.stringify(d).slice(0, 200));
+    const ovr = { leadId: 'L1', byUid: 'CO', kind: 'proceed', reason: 'homeowner would not sign the page', at: Date.now(), expiresAt: Date.now() + 86400000, version: AA.VERSION, estimateId: 'E3', estimateStamp: AG.estimateStamp({ userId: 'REP', leadId: 'L1', grandTotal: 103, rows: [{ code: 'LAB TO1' }] }) };
+    d = await AG.decide(mk(25, 0, { 'attic_overrides/o1': ovr }), 'L1', L0, {});
+    ok('25 live estimates with a recorded owner override on the basis: the override is honoured (the owner can proceed)', d.satisfied === true, JSON.stringify(d).slice(0, 200));
+    const signedRow = { type: 'attic_acknowledgment', status: 'signed', signedAt: { seconds: 1 }, atticAckResult: { version: AA.VERSION, complete: true, estimateId: 'E3', estimateStamp: ovr.estimateStamp } };
+    d = await AG.decide(mk(25, 0, { 'leads/L1/documents/sf': signedRow }), 'L1', L0, {});
+    ok('25 live estimates: a signed form alone does not satisfy (a re-roof estimate may be out of sight)', d.satisfied === false, JSON.stringify(d).slice(0, 160));
+    d = await AG.decide(mk(20, 0), 'L1', L0, {});
+    ok('control: exactly 20 live estimates is read in full', !/more than 20/.test(d.message || ''));
   }
 
   console.log('\n' + (failed ? 'FAILED ' + failed + ': ' + fails.join(' | ') : 'all ok') + ' (' + passed + ' passed)');
