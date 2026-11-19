@@ -112,7 +112,7 @@
    * -> { ready, missing: [field keys], atticMissing, line }. atticFreeCheckDays is not a contract clause; the attic
    * forms refuse without it (document-generator.js _docSendGate), so it is reported apart from the contract line.
    */
-  function readiness(profileTerms, isNbd, CS) {
+  function gateStatus(profileTerms, isNbd, CS) {
     CS = CS || clauseSet();
     var seen = {};
     if (CS) {
@@ -133,7 +133,7 @@
     };
   }
 
-  var api = { FIELDS: FIELDS, parse: parse, collect: collect, readiness: readiness, fromCents: fromCents };
+  var api = { FIELDS: FIELDS, parse: parse, collect: collect, gateStatus: gateStatus, fromCents: fromCents };
   if (node) module.exports = api;
 
   var W = root;
@@ -209,7 +209,7 @@
     var nbd = isNbd();
     var terms = CS.paymentTermsFor(profile().paymentTerms, nbd);
     var edit = canEdit();
-    var r = readiness(profile().paymentTerms, nbd, CS);
+    var r = gateStatus(profile().paymentTerms, nbd, CS);
     panel.innerHTML =
       '<div class="panel-hdr"><div><div class="panel-label">The numbers your printed contracts carry: late fees, windows, and decking.</div>' +
         '<div class="panel-title">Payment terms</div></div></div>' +

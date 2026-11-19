@@ -58,8 +58,10 @@ function mount(claims, profile, opts) {
     _saveCompanyProfile: (p) => { saves.push(JSON.parse(JSON.stringify(p))); if (o.saveFails) return Promise.reject(new Error('nope')); return Promise.resolve(); },
     showToast: (m, k) => { (W.toasts = W.toasts || []).push([String(m), k]); },
     switchSettingsTab: (t) => { W.tabs = (W.tabs || []).concat([t]); },
+    ScriptLoader: { load: (u) => { (W.loads = W.loads || []).push(String(u)); return Promise.resolve(); } },
     addEventListener() {}, setTimeout: (f) => { f(); return 1; },
   };
+  Object.defineProperty(W, 'NBDFlags', { get() { W.flagTouched = true; return undefined; }, configurable: true });
   const ctx = vm.createContext(W);
   ctx.window = ctx;
   vm.runInContext(SRC, ctx, { filename: FILE });
@@ -72,23 +74,24 @@ function fill(p, vals) { Object.keys(vals).forEach((k) => { inp(p, k).value = St
 (async () => {
   console.log('\n1. the file and how it loads (lazy, CSP)');
   ok(FILE + ' exists', !!SRC);
-  const code = H.noComments(SRC);
-  ok('no inline handler, no style attribute, no el.style', !/style="|style=\\"|\son[a-z]+=|\.style\b/.test(code));
-  ok('every interpolated value goes through esc', /function esc\(/.test(SRC));
-  ok('loaded lazily from the tenantsettings bundle file (tenant-account-ui.js), not the eager boot path',
+  const T0 = mount({ role: 'company_admin', companyId: 'co-a' }, { paymentTerms: { lateGraceDays: '"><img src=x>' } }, { nbd: false });
+  T0.W.switchSettingsTab('company');
+  const walk = (el, fn) => { fn(el); (el.children || []).forEach((c) => c.attrs && walk(c, fn)); };
+  let bad = 0, nodes = 0, imgs = 0;
+  if (T0.panel()) walk(T0.panel(), (el) => { nodes++; if (el.tagName === 'IMG') imgs++; Object.keys(el.attrs).forEach((k) => { if (/^on/i.test(k) || k === 'style') bad++; }); });
+  ok('the panel paints (' + nodes + ' elements); no inline handler, no style attribute on any of them', nodes > 20 && bad === 0);
+  ok('every value is escaped (a hostile saved value is not markup); the stylesheet loads lazily from the file', imgs === 0 && (T0.W.loads || []).some((u) => u === 'css/payment-terms-settings.css?v=1'));
+  ok('painting it reads no flag (NBDFlags never touched) and writes nothing', T0.saves.length === 0 && T0.W.flagTouched !== true);
+  ok('loaded lazily from the tenantsettings bundle file (tenant-account-ui.js), never at boot or by a tag',
     /ScriptLoader\.load\('js\/payment-terms-settings\.js\?v=\d+'\)/.test(read('docs/pro/js/tenant-account-ui.js'))
-    && !/payment-terms-settings/.test(read('docs/pro/js/script-loader.js')) && !/payment-terms-settings/.test(read('docs/pro/dashboard.html')));
-  const SL = read('docs/pro/js/script-loader.js');
-  const tv = /'js\/tenant-account-ui\.js\?v=(\d+)'/.exec(SL);
+    && !/payment-terms-settings/.test(read('docs/pro/js/script-loader.js') + read('docs/pro/dashboard.html')));
+  const tv = /'js\/tenant-account-ui\.js\?v=(\d+)'/.exec(read('docs/pro/js/script-loader.js'));
   ok('tenant-account-ui.js version bumped well above 2 (' + (tv && tv[1]) + ')', !!tv && Number(tv[1]) >= 8);
-  ok('its stylesheet loads lazily from the file, 44px controls, nothing under 11px, no motion', (() => {
-    const css = read('docs/pro/css/payment-terms-settings.css');
-    return /ScriptLoader\.load\('css\/payment-terms-settings\.css\?v=\d+'\)/.test(SRC) && /min-height: 44px/.test(css)
-      && !/font-size:\s*(?:[0-9]|10)(?:\.\d+)?px/.test(css) && !/transition|animation/.test(css);
-  })());
+  const css = read('docs/pro/css/payment-terms-settings.css');
+  ok('44px controls, nothing under 11px, no motion', /min-height: 44px/.test(css) && !/font-size:\s*(?:[0-9]|10)(?:\.\d+)?px|transition|animation/.test(css));
 
   console.log('\n2. bounds equal numOk (clause-set.js) at every edge');
-  ok('exports the logic', !!PT && ['FIELDS', 'parse', 'collect', 'readiness', 'fromCents'].every((k) => PT[k] !== undefined));
+  ok('exports the logic', !!PT && ['FIELDS', 'parse', 'collect', 'gateStatus', 'fromCents'].every((k) => PT[k] !== undefined));
   if (PT) {
     ok('one input spec per payment term, in the profile order', J(PT.FIELDS.map((f) => f.key)) === J(KEYS), J(PT.FIELDS.map((f) => f.key)));
     let allSame = true, why = '';
@@ -126,22 +129,22 @@ function fill(p, vals) { Object.keys(vals).forEach((k) => { inp(p, k).value = St
     ok('a percent keeps its decimals: 1.5 is read, a third decimal is refused', PT.parse('lateInterestPct', '1.5').value === 1.5 && !PT.parse('lateInterestPct', '1.555').ok);
 
     console.log('\n4. readiness equals the send gate\'s missing list');
-    const emptyR = PT.readiness({}, false, CS);
+    const emptyR = PT.gateStatus({}, false, CS);
     ok('empty tenant: not ready, missing === the gate\'s list', !emptyR.ready && J(emptyR.missing) === J(gateMissing({}, false)) && emptyR.missing.length > 0, J(emptyR.missing) + ' vs ' + J(gateMissing({}, false)));
-    const nbdR = PT.readiness({}, true, CS);
+    const nbdR = PT.gateStatus({}, true, CS);
     ok('NBD defaults: missing === the gate\'s list (decking per sheet is unset in the defaults)', J(nbdR.missing) === J(gateMissing({}, true)) && nbdR.missing.includes('deckingPerSheetCents'), J(nbdR.missing));
     const full = { lateGraceDays: 15, lateInterestPct: 8, disputeDays: 10, finalPaymentDays: 7, punchListDays: 3, pauseNoticeDays: 5, restockPct: 15, cardFeePct: 0, deckingPerSheetCents: 10000, deckingSheetsBeforeChangeOrder: 10, atticFreeCheckDays: 3, claimNoticeDays: 30 };
-    const fullR = PT.readiness(full, false, CS);
+    const fullR = PT.gateStatus(full, false, CS);
     ok('all twelve set: ready, nothing missing, gate agrees', fullR.ready && fullR.missing.length === 0 && gateMissing(full, false).length === 0);
-    ok('card fee 0 is a valid "off", never missing', !PT.readiness({}, false, CS).missing.includes('cardFeePct') && !gateMissing({}, false).includes('cardFeePct'));
+    ok('card fee 0 is a valid "off", never missing', !PT.gateStatus({}, false, CS).missing.includes('cardFeePct') && !gateMissing({}, false).includes('cardFeePct'));
     const one = Object.assign({}, full); delete one.claimNoticeDays;
-    ok('one unset: the line names it, as the gate does', J(PT.readiness(one, false, CS).missing) === J(['claimNoticeDays']) && J(gateMissing(one, false)) === J(['claimNoticeDays']));
+    ok('one unset: the line names it, as the gate does', J(PT.gateStatus(one, false, CS).missing) === J(['claimNoticeDays']) && J(gateMissing(one, false)) === J(['claimNoticeDays']));
     const zero = Object.assign({}, full, { deckingPerSheetCents: 0 });
-    ok('a decking price of 0 is not ready (the gate refuses it)', PT.readiness(zero, false, CS).missing.includes('deckingPerSheetCents') && gateMissing(zero, false).includes('deckingPerSheetCents'));
+    ok('a decking price of 0 is not ready (the gate refuses it)', PT.gateStatus(zero, false, CS).missing.includes('deckingPerSheetCents') && gateMissing(zero, false).includes('deckingPerSheetCents'));
     ok('the line text', fullR.line === 'Ready: new contracts can be sent' && /^Not ready: set /.test(emptyR.line), fullR.line + ' | ' + emptyR.line);
     ok('attic check days is flagged on its own (the attic forms need it, contracts do not)',
       !emptyR.missing.includes('atticFreeCheckDays') && emptyR.atticMissing === true && fullR.atticMissing === false);
-    ok('readiness reuses clause-set.js (no second missing-number detector or bounds table in the file)', /renderV1/.test(SRC) && !/NEEDS\s*=/.test(SRC) && !/PT_BOUNDS/.test(SRC));
+    ok('readiness follows clause-set.js: a stubbed renderV1 moves the line with it (no second detector)', (() => { const fake = Object.assign({}, CS, { renderV1: () => ({ missing: ['claimNoticeDays'] }) }); return J(PT.gateStatus(full, false, fake).missing) === J(['claimNoticeDays']); })());
 
     console.log('\n5. collect: only valid values, only what is filled');
     const good = PT.collect({ lateGraceDays: '15', deckingPerSheetCents: '100', cardFeePct: '0', claimNoticeDays: '' });
@@ -217,7 +220,6 @@ function fill(p, vals) { Object.keys(vals).forEach((k) => { inp(p, k).value = St
     T.W.switchSettingsTab('company'); const p = T.panel();
     ok('NBD with defaults: the line names only the decking price',
       /^Not ready: set /.test(text(p.querySelector('[data-ptset="ready"]'))) && /decking/i.test(text(p.querySelector('[data-ptset="ready"]'))), text(p.querySelector('[data-ptset="ready"]')));
-    ok('shown whether or not a flag is on: the file reads no flag', !/NBDFlags|docClauseSetV1/.test(code));
     const T2 = mount({ role: 'company_admin', companyId: 'co-a' }, { paymentTerms: Object.assign({}, nbdTerms, { deckingPerSheetCents: 10000 }) }, { nbd: false });
     T2.W.switchSettingsTab('company');
     ok('all set: "Ready: new contracts can be sent"', text(T2.panel().querySelector('[data-ptset="ready"]')) === 'Ready: new contracts can be sent', text(T2.panel().querySelector('[data-ptset="ready"]')));
@@ -226,7 +228,7 @@ function fill(p, vals) { Object.keys(vals).forEach((k) => { inp(p, k).value = St
     ok('the line repaints from the profile on the next paint', /^Not ready/.test(text(T2.panel().querySelector('[data-ptset="ready"]'))));
     ok('opening the tab again does not add a second panel', T2.document.querySelectorAll('[data-ptset="panel"]').length === 1);
   }
-  ok('registered in tests/ci-manifest.json', /payment-terms-settings-2026-11-18\.test\.js/.test(read('tests/ci-manifest.json')));
+  ok('registered in tests/ci-manifest.json', JSON.stringify(JSON.parse(read('tests/ci-manifest.json'))).includes('payment-terms-settings-2026-11-18.test.js'));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
