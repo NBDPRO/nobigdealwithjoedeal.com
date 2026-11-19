@@ -1029,6 +1029,8 @@ window.NBDDocGen = {
                 signers: Array.isArray(data.signers)
                   ? data.signers.map(s => ({ role: s.role, label: s.label, required: !!s.required }))
                   : null,
+                // The estimate an attic form was generated for (flag docAtticAckV1; attic types only, so every other row is unchanged).
+                ...((type === 'attic_acknowledgment' || type === 'attic_not_inspected') && typeof data.estimateId === 'string' && data.estimateId ? { estimateId: data.estimateId } : {}),
                 snapshot: {
                   total: (data.estimate && data.estimate.grandTotal) || data.total || null,
                   address: (data.customer && data.customer.address) || null
@@ -2432,8 +2434,10 @@ window.NBDDocGen = {
   _injectSignatureAssets(html) {
     if (typeof html !== 'string' || !html.length) return html;
     const scriptSrc = this._assetOrigin() + '/pro/js/signature-widget.js';
-    const css =
-      '<style id="nbd-sig-styles">' +
+    // The CSS text is the twinned module's constant when it is loaded (functions/attic-gate.js holds the same text and accepts this
+    // block in a stored attic form only when it equals it); the literal below is that same text, for a page without attic-ack.js.
+    const AA = (typeof window !== 'undefined' && window.NBDAtticAck) || null;
+    const sigCss = AA && typeof AA.SIG_STYLES_CSS === 'string' ? AA.SIG_STYLES_CSS :
       '.nbd-sig-block{margin:0.2in 0 0.4in;padding:0;page-break-inside:avoid;}' +
       '.nbd-sig-label{font-size:11px;font-weight:700;color:#1A3057;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;}' +
       '.nbd-sig-canvas{display:block;width:100%;height:120px;border:1px dashed #999;border-radius:6px;background:#fafafa;cursor:crosshair;box-sizing:border-box;touch-action:none;}' +
@@ -2444,8 +2448,8 @@ window.NBDDocGen = {
       '.nbd-sig-state{font-size:10px;color:#2d7a2d;font-weight:600;margin-left:auto;}' +
       '.nbd-sig-date{margin-top:4px;font-size:10px;color:#666;font-style:italic;}' +
       '.nbd-sig-print-name{margin-top:8px;font-size:10px;color:#666;}' +
-      '@media print{.nbd-sig-controls,.nbd-sig-state{display:none!important;}.nbd-sig-canvas{border:1px solid #333;background:#fff;}}' +
-      '</style>';
+      '@media print{.nbd-sig-controls,.nbd-sig-state{display:none!important;}.nbd-sig-canvas{border:1px solid #333;background:#fff;}}';
+    const css = '<style id="nbd-sig-styles">' + sigCss + '</style>';
     const scriptTag = '<script src="' + scriptSrc + '" defer></' + 'script>';
     let out = html;
     if (/<\/head>/i.test(out)) {

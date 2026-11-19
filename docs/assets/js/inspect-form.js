@@ -161,7 +161,12 @@
       setText('insThanksTitle', 'Pick your time');
       setText('insThanksText', 'Your request is in. Tap Pick My Time to choose a day that works for you.');
       if (window.NBDIntake && typeof window.NBDIntake.calendarUrl === 'function') {
-        pick.setAttribute('href', window.NBDIntake.calendarUrl({ name: data.name, phone: data.phone, address: data.address }));
+        // Central KY leads get the Lexington event (own schedule, batched days).
+        var cal = window.NBDInspectRegion ? window.NBDInspectRegion.calendarBase(data.address, document.referrer) : undefined;
+        pick.setAttribute('href', window.NBDIntake.calendarUrl({ name: data.name, phone: data.phone, address: data.address }, cal));
+        if (cal && window.NBDInspectRegion.LEX === cal) {
+          setText('insThanksText', 'Your request is in. Tap Pick My Time to choose a day. Central Kentucky visits are batched onto set days, so the calendar shows those.');
+        }
       }
       pick.hidden = false;
       var pickNote = document.getElementById('insPickNote');

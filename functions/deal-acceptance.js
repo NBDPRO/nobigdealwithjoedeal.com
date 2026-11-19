@@ -212,6 +212,7 @@ exports.createDealAcceptToken = onCall(
     // lead that no longer exists is dropped, never carried.
     let leadId = null;
     let leadPrimaryEstimateId = null;
+    let leadDocData = null;   // the lead as this one read saw it (the attic gate below reads no lead of its own: review 3, item 4)
     if (deal.leadId != null && deal.leadId !== '') {
       if (typeof deal.leadId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(deal.leadId)) {
         throw new HttpsError('failed-precondition', 'This deal is linked to an invalid lead.');
@@ -223,6 +224,7 @@ exports.createDealAcceptToken = onCall(
         }
         leadId = deal.leadId;
         leadPrimaryEstimateId = (leadSnap.data() || {}).primaryEstimateId || null;
+        leadDocData = leadSnap.data() || {};
       }
     }
 
@@ -307,11 +309,10 @@ exports.createDealAcceptToken = onCall(
     // is gated from its own estimate and refused when it has neither (finding 4, below). A read that fails refuses, never passes.
     {
       const AG = require('./attic-gate');
-      let atticLead = {};
-      if (leadId) {
-        try { const ls = await db.doc(`leads/${leadId}`).get(); atticLead = ls.exists ? (ls.data() || {}) : {}; }
-        catch (_) { throw new HttpsError('unavailable', 'Could not check the attic acknowledgment just now. Nothing was sent. Try again in a moment.'); }
-      }
+      // Review 3 (item 4): this block reads NO lead of its own. The lead the mint already read above is used, so with the flag off the
+      // mint does exactly what it did before the attic gate existed (no extra read, no new way to fail); a failed read of the flag
+      // or of the estimates and overrides inside decide() still refuses, below.
+      const atticLead = leadId && leadDocData ? leadDocData : {};
       // Review 2026-11-18 (finding 4): deal_rooms.leadId is client-written, so a deal with no resolvable lead is NOT ungated. The
       // tenant owner's flag is read from the minting owner's company; the scope comes from the deal's own estimate; and a deal
       // that resolves neither a lead nor an estimate is refused (fail closed) while the flag is on.
