@@ -58,7 +58,7 @@ function footerOverlap(html) {
   // The footer holds only spans, so its first </div> closes it.
   const end = html.indexOf('</div>', m.index) + 6;
   const after = html.slice(end).replace(/^\s*<\/div>/, '');
-  const wrapped = /<div[^>]*style="[^"]*display:\s*flow-root[^"]*padding-bottom:\s*\d+px[^"]*"[^>]*>\s*$/.test(before);
+  const wrapped = /<div class="lib-footer-wrap">\s*$/.test(before) && /\.lib-footer-wrap\{display:flow-root;padding-bottom:\d+px;\}/.test(html);
   const followed = /nbd-noc-page/.test(after);
   return { found: true, wrapped, followed };
 }

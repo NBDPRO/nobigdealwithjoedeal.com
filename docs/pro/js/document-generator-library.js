@@ -87,6 +87,7 @@
   // One stylesheet for the library's documents, in the tenant's colours.
   function css(B) {
     return '<style>' +
+      '.lib-footer-wrap{display:flow-root;padding-bottom:40px;}' +
       '.lib-h1{text-align:center;font-family:' + B.FD + ';font-size:24px;color:' + B.S + ';margin:22px 0 4px;letter-spacing:.04em;text-transform:uppercase;}' +
       '.lib-sub{text-align:center;color:' + B.G + ';font-size:13px;margin:0 0 20px;}' +
       '.lib-intro{background:' + B.WSH + ';border-left:4px solid ' + B.A + ';padding:14px 18px;border-radius:4px;font-size:14px;margin:0 0 22px;}' +
@@ -350,7 +351,7 @@
       // negative margin pulled the detachable forms' first lines UNDER the band
       // (statutory text hidden on screen). The flow-root wrapper contains the
       // negative margin; the padding gives the forms their own clear space.
-      '<div class="lib-footer-wrap" style="display:flow-root;padding-bottom:40px;">' + T.footer('Notice of Right to Cancel') + '</div>' +
+      '<div class="lib-footer-wrap">' + T.footer('Notice of Right to Cancel') + '</div>' +
       forms
     );
   };
