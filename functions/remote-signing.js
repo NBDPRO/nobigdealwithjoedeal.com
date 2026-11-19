@@ -407,20 +407,24 @@ exports.createSignRequest = onCall(
     // A compromised rep session could otherwise mint tokens / send mail
     // in a loop. 20/min/uid is far above any real workflow.
     await callableRateLimit(request, 'createSignRequest', 20, 60_000);
+    const d = request.data || {};
+    // Signing-ease lane (flag docSignPanelV1, Jo's Q48): sendEmail:false asks for a link with NO email, for the QR / text /
+    // copy panel. It relaxes the email-required and on-record checks below ONLY when that flag is on for the caller; with the
+    // flag off the parameter is ignored and every check is exactly the old one. Only this request reads the flag strictly.
+    const linkOnlyAsked = d.sendEmail === false;
+    const linkOnlyFlag = linkOnlyAsked ? await DE.signPanelFlagForGate(getFirestore(), uid, HttpsError) : false;
     // R3-11: and a daily cap, shared with the e-sign envelope sends — this
     // mails from the platform domain and sign-up is open.
-    await callableRateLimit(request, 'signLinkEmailDaily', ESL.SIGN_EMAIL_DAILY_CAP, 86_400_000);
+    // Security review 2026-11-18, item 4: a link-only mint sends no email, so it draws its OWN, larger counter and cannot
+    // starve the email sends. A flag-off caller who sends sendEmail:false still emails, so it still draws the email counter.
+    if (linkOnlyAsked && linkOnlyFlag) await callableRateLimit(request, 'signLinkOnlyDaily', ESL.SIGN_LINK_ONLY_DAILY_CAP, 86_400_000);
+    else await callableRateLimit(request, 'signLinkEmailDaily', ESL.SIGN_EMAIL_DAILY_CAP, 86_400_000);
 
-    const d = request.data || {};
     const leadId = typeof d.leadId === 'string' ? d.leadId : null;
     const docId = typeof d.docId === 'string' ? d.docId : null;
     const signerEmail = typeof d.signerEmail === 'string' ? d.signerEmail.trim() : '';
     const signerName = typeof d.signerName === 'string' ? d.signerName.trim().slice(0, 120) : '';
     if (!leadId || !docId) throw new HttpsError('invalid-argument', 'leadId and docId required');
-    // Signing-ease lane (flag docSignPanelV1, Jo's Q48): sendEmail:false asks for a link with NO email, for the QR / text /
-    // copy panel. It relaxes the email-required and on-record checks below ONLY when that flag is on for the caller; with the
-    // flag off the parameter is ignored and every check is exactly the old one.
-    const linkOnlyAsked = d.sendEmail === false;
     const emailShapeOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(signerEmail);
     if (!linkOnlyAsked && !emailShapeOk) {
       throw new HttpsError('invalid-argument', 'A valid signer email is required');
@@ -437,7 +441,7 @@ exports.createSignRequest = onCall(
     // or a saved alternate) — never to any address the caller types.
     // Only the link-only request (sendEmail:false) reads the flag strictly (a read that fails refuses, retryable). Every other
     // caller reads it loosely (a failed read = off), so a flag-read problem never changes the ordinary email mint.
-    const signPanelOn = linkOnlyAsked ? await DE.signPanelFlagForGate(db, uid, HttpsError) : await DE.signPanelFlagLoose(db, uid);
+    const signPanelOn = linkOnlyAsked ? linkOnlyFlag : await DE.signPanelFlagLoose(db, uid);
     const noEmailMint = linkOnlyAsked && signPanelOn;
     if (linkOnlyAsked && !signPanelOn && !emailShapeOk) {
       throw new HttpsError('invalid-argument', 'A valid signer email is required');
@@ -628,8 +632,9 @@ exports.createSignRequest = onCall(
     // token above (doc_sign_tokens.status is the token's own pending/signed/
     // expired state) — a failure here must not stop the mint+email below,
     // it only means the CRM's "awaiting signature" label doesn't light up.
+    // A link-only link delivered nothing, so it does not mark the document "sent" (security review item 4); it records the mint.
     try {
-      await db.doc(`leads/${leadId}/documents/${docId}`).set({ status: 'sent' }, { merge: true });
+      await db.doc(`leads/${leadId}/documents/${docId}`).set(noEmailMint ? { linkMintedAt: FieldValue.serverTimestamp() } : { status: 'sent' }, { merge: true });
     } catch (e) {
       logger.warn('[createSignRequest] status stamp failed', { leadId, docId, err: e.message });
     }

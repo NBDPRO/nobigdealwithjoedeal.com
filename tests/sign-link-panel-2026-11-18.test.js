@@ -44,7 +44,8 @@ const PROFILE = { brand: { legalName: 'Acme Roofing LLC', entityName: 'Acme Roof
 // NO email on the lead's record: the case Q48 is about.
 const lead = (extra) => Object.assign({ userId: 'U1', companyId: 'U1', firstName: 'Dana', lastName: 'Whitfield', address: '12 Oak St, Cincinnati, OH 45202', jobType: 'cash', primaryEstimateId: 'E1' }, extra || {});
 const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './doc-evidence', './await-briefly', './signed-price', './attic-gate', './attic-ack', 'crypto'];
-const stubs = () => ({ './cancel-window': require(path.join(FN, 'cancel-window.js')), './ky-insurance-law': K, './lead-artifact-paths': require(path.join(FN, 'lead-artifact-paths.js')),
+const RL = []; // the rate limits a mint drew: [name, max]
+const stubs = () => ({ './shared': { callableRateLimit: async (_r, name, max) => { RL.push([name, max]); }, assertNotViewer: () => {} }, './cancel-window': require(path.join(FN, 'cancel-window.js')), './ky-insurance-law': K, './lead-artifact-paths': require(path.join(FN, 'lead-artifact-paths.js')),
   './esign-logic': ESL, './doc-evidence': DE, './await-briefly': require(path.join(FN, 'await-briefly.js')), './signed-price': require(path.join(FN, 'signed-price.js')), './attic-gate': AG, './attic-ack': AA });
 const world = (flags, o) => {
   const x = o || {};
@@ -58,6 +59,7 @@ const world = (flags, o) => {
 };
 const mint = async (db, data, mod) => {
   if (mod) mod(db);
+  RL.length = 0;
   const L = kit.loadHandler('remote-signing.js', db, kit.makeStorage({ [P]: CONTRACT }), stubs(), REAL);
   const t0 = Date.now();
   try { return { v: await L.fns.createSignRequest({ auth: { uid: 'U1', token: {} }, data: Object.assign({ leadId: 'L1', docId: 'd1', signerName: 'Dana Whitfield' }, data || {}) }), db, t0 }; }
@@ -74,7 +76,16 @@ const DAY = 86400000;
     ok('flag on, sendEmail:false, no email anywhere: a link is minted', !!r.v && !!r.v.signLink && r.v.signLink.indexOf(r.v.token) !== -1, r.e && r.e.message);
     ok('nothing was emailed, and the token is stored with no signer email', !!r.v && r.v.emailed === false && tokens(r.db).length === 1 && (tokens(r.db)[0] || {}).signerEmail === '');
     ok('the token is pending and single-use as always (status pending, no burn fields)', (tokens(r.db)[0] || {}).status === 'pending');
-    ok('the document is stamped "sent" like an emailed link', (r.db._get('leads/L1/documents/d1') || {}).status === 'sent');
+    ok('4: a link-only mint does NOT mark the document "sent" (nothing was delivered); it records linkMintedAt', (r.db._get('leads/L1/documents/d1') || {}).status !== 'sent' && !!(r.db._get('leads/L1/documents/d1') || {}).linkMintedAt);
+    {
+      const e1 = await mint(world({ [FLAG]: true }, { lead: { email: 'dana@example.test' } }), { signerEmail: 'dana@example.test' });
+      ok('4: an emailed mint still marks the document "sent"', (e1.db._get('leads/L1/documents/d1') || {}).status === 'sent' && !(e1.db._get('leads/L1/documents/d1') || {}).linkMintedAt);
+      ok('4: the email path draws the email daily counter at its old cap and not the link-only one', RL.length === 2 && RL.some((x) => x[0] === 'signLinkEmailDaily' && x[1] === ESL.SIGN_EMAIL_DAILY_CAP) && !RL.some((x) => x[0] === 'signLinkOnlyDaily'), JSON.stringify(RL));
+      await mint(world({ [FLAG]: true }), { sendEmail: false });
+      ok('4: a link-only mint draws its OWN generous counter (signLinkOnlyDaily, 200) and never the email counter', RL.some((x) => x[0] === 'signLinkOnlyDaily' && x[1] === 200 && x[1] === ESL.SIGN_LINK_ONLY_DAILY_CAP) && !RL.some((x) => x[0] === 'signLinkEmailDaily') && ESL.SIGN_LINK_ONLY_DAILY_CAP > ESL.SIGN_EMAIL_DAILY_CAP, JSON.stringify(RL));
+      const e2 = await mint(world(null, { lead: { email: 'dana@example.test' } }), { sendEmail: false, signerEmail: 'dana@example.test' });
+      ok('4: FLAG OFF, sendEmail:false with a real address on the record: it EMAILS and draws the email counter (the param cannot dodge the email cap)', !!e2.v && e2.v.emailed === true && RL.some((x) => x[0] === 'signLinkEmailDaily') && !RL.some((x) => x[0] === 'signLinkOnlyDaily'), JSON.stringify(RL));
+    }
     r = await mint(world({ [FLAG]: true }), { sendEmail: false, signerEmail: 'not-an-email' });
     ok('flag on, sendEmail:false: a junk address typed alongside is ignored, never emailed', !!r.v && r.v.emailed === false && (tokens(r.db)[0] || {}).signerEmail === '', r.e && r.e.message);
     r = await mint(world({ [FLAG]: true }), {});
@@ -130,7 +141,7 @@ const DAY = 86400000;
     const rs = src('functions/remote-signing.js');
     const at = (s) => rs.indexOf(s);
     ok('the rate limits (per-minute and daily) run before the flag branch and are unchanged', at("callableRateLimit(request, 'createSignRequest', 20, 60_000)") !== -1 && at("callableRateLimit(request, 'signLinkEmailDaily'") !== -1
-      && at("callableRateLimit(request, 'signLinkEmailDaily'") < at('signPanelFlagForGate'));
+      && at("callableRateLimit(request, 'signLinkEmailDaily'") < at('const emailShapeOk'));
     ok('the email block is skipped by a flag, not removed (the email path is the old code)', rx(/if \(!noEmailMint\)/, rs) && rx(/Resend\(RESEND_API_KEY\.value\(\)\)/, rs));
     ok('the email copy states the real expiry (7 stays 7)', rx(/expires in \$\{ttlDays\} days/, rs) && !rx(/expires in 7 days/, rs));
   }
