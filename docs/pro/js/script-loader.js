@@ -233,22 +233,19 @@
       // Same tab's "scan/upload a signed document" rows (2026-09-17) —
       // uploadSignedDoc/handleSignedDocUpload are the exact functions
       // customer.html's Documents tab uses; no second upload path.
-      'js/customer-signed-doc-upload.js?v=13',
+      'js/customer-signed-doc-upload.js?v=9',
       // 2026-11-18: the fail-closed contract check (flag docEvidenceFoundation); the generator
       // reads window.NBDDocSendChecks at call time, so load order does not matter.
-      'js/doc-send-checks.js?v=12',
+      'js/doc-send-checks.js?v=9',
       // 2026-11-18 clause set v1 (flag docClauseSetV1): the wording, then the registry (reads window.NBDClauseText and
       // window.NBDJurisdiction, loaded eagerly by the page). Last in the group (the smoke test reads the head of it for
       // customer-documents.js); the generator reads window.NBDClauseSet at call time. Same group, so both always load together.
       'js/clause-set-text.js?v=3',
-      'js/clause-set.js?v=15',
+      'js/clause-set.js?v=9',
       // 2026-11-18 attic acknowledgment (flag docAtticAckV1): wording, then logic. Same group, loaded together.
       'js/attic-ack-text.js?v=1',
       'js/attic-ack.js?v=5',
-      'js/attic-panel.js?v=6',
-      // 2026-11-18 paper certification (flag docClauseSetV1): the paper-signed form and the certify call, loaded on demand
-      // (customer-signed-doc-upload.js loads this bundle when the flag is on), never on the customer page's boot path.
-      'js/paper-cert.js?v=1'
+      'js/attic-panel.js?v=6'
     ],
     // Estimate engine (PR 2c). The revenue-critical builder + its product/
     // catalog data. Only needed when the rep builds an estimate, opens the
@@ -534,7 +531,7 @@
     // under Settings → AI Texting. Hooks the tab, and paints a tab already open.
     tenantsettings: [
       'js/tenant-rules-settings.js?v=1',
-      'js/tenant-account-ui.js?v=8',
+      'js/tenant-account-ui.js?v=9',
       'js/sms-compliance-settings.js?v=2',
       'js/away-mode-settings.js?v=1',
       'js/prod-flags-panel.js?v=1'

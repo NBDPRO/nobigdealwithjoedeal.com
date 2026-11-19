@@ -373,7 +373,9 @@ window.NBDDocGen = {
     const id = String(docId || '').replace(/[^A-Za-z0-9_-]/g, '');
     const short = String(sha || '').replace(/[^a-f0-9]/g, '').slice(0, 12);
     if (!id || short.length !== 12) return html;
-    const line = '<div data-nbd-paper-footer="1" style="margin:18px 0 0;padding-top:6px;border-top:1px solid #DFE2E7;font:9px/1.3 Lato,Arial,sans-serif;color:#4C4C4D;text-align:center;">Document ID ' + id + ' &middot; Digest ' + short + '</div>';
+    // A style block, not a style attribute: this is the printed document's own sheet (the reskin ratchet counts attributes).
+    const line = '<style>[data-nbd-paper-footer]{margin:18px 0 0;padding-top:6px;border-top:1px solid #DFE2E7;font:9px/1.3 Lato,Arial,sans-serif;color:#4C4C4D;text-align:center;}</style>'
+      + '<div data-nbd-paper-footer="1">Document ID ' + id + ' &middot; Digest ' + short + '</div>';
     const s = String(html || '');
     const at = s.toLowerCase().lastIndexOf('</body>');
     return at === -1 ? s + line : s.slice(0, at) + line + s.slice(at);
@@ -1169,6 +1171,12 @@ window.NBDDocGen = {
         && data.signers.every((s) => s && s.role === 'rep');
       // Flag docClauseSetV1 (Q62): the homeowner ticks "I agree to sign electronically" before drawing. null = not asked.
       const _consent = (!_repOnly && !data._isBlankPreview) ? this._inPersonConsentFor(type, data.signers) : null;
+      // The tick bar lives in paper-cert.js, loaded now (on demand, never on a page's boot path). _consentState is the live
+      // { agreed } the bar updates; with the module missing it stays "not agreed" and nothing is saved as signed.
+      let _consentState = null;
+      if (_consent && !window.NBDPaperCert && window.ScriptLoader && typeof window.ScriptLoader.load === 'function') {
+        try { await window.ScriptLoader.load('js/paper-cert.js?v=1'); } catch (_) { /* fail closed below */ }
+      }
       window.NBDDocViewer.open({
         ...(_consent ? { consent: _consent } : {}),
         html: _viewHtml,
@@ -1221,9 +1229,9 @@ window.NBDDocGen = {
         // inside the iframe. Re-uploads the signed HTML to the same
         // Storage path so reopening the doc shows the embedded sigs,
         // and stamps signedAt + signedSigners on the Firestore doc.
-        onPersistFinalized: async (signedHtml, signedSigners, _extra) => {
+        onPersistFinalized: async (signedHtml, signedSigners) => {
           // In-person consent (flag docClauseSetV1, Q62): a document that asked for the tick is not saved as signed without it.
-          if (_consent && !(_extra && _extra.consentTick === true)) {
+          if (_consent && !(_consentState && _consentState.agreed === true)) {
             if (typeof showToast === 'function') showToast('Not saved as signed: the homeowner must tick "I agree to sign electronically" first.', 'error');
             return;
           }
@@ -1385,6 +1393,12 @@ window.NBDDocGen = {
           }
         }
       });
+      // In-person consent bar (flag docClauseSetV1, Q62), mounted over the viewer that just opened.
+      if (_consent) {
+        _consentState = (window.NBDPaperCert && typeof window.NBDPaperCert.mountConsent === 'function')
+          ? window.NBDPaperCert.mountConsent(document, document.getElementById('nbdv-iframe'), _consent)
+          : { agreed: false };
+      }
       return;
     }
     // Fallback: legacy popup if the doc viewer isn't loaded
@@ -3687,7 +3701,8 @@ window.NBDDocGen = {
             <!-- HOMEOWNER RELEASE (flag docClauseSetV1) -->
             <div class="section" data-nbd-auth="release">
               <div class="section-title">Homeowner release</div>
-              <div style="font-size: 9px; margin: 0.1in 0;">
+              <style>.nbd-release-text{font-size:9px;margin:0.1in 0;}</style>
+              <div class="nbd-release-text">
                 ${/* DRAFTER WORDING: attorney to confirm. Neutral: permission to send the report, nothing about coverage, outcome or payment. */''}I authorize ${this._escHtml(this._resolveCompany().name || '')} to send a copy of this inspection report to my insurance company.
               </div>
               ${this.renderSignatureBlock((Array.isArray(data.signers) && data.signers.length) ? data.signers : ['Homeowner release'])}

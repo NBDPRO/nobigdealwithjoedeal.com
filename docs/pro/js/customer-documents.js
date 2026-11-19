@@ -296,9 +296,8 @@
           : '')
       // Paper certification (flag docClauseSetV1): a waiting paper upload is certified by the rep, then the server files it.
       + (doc.status === 'wet_signed_uploaded' && !doc.legacy
-          ? '<button type="button" class="doc-btn" data-action="certifyPaperDoc" data-arg="' + esc(doc.id) + '"'
-            + ' title="Confirm the homeowner signed this paper copy; it then counts as the signed document"'
-            + ' style="background:none;border:0;cursor:pointer;font-family:inherit;color:var(--orange,#BD5728);font-weight:700;">Certify signed copy</button>'
+          ? '<button type="button" class="doc-btn doc-btn-plain" data-action="certifyPaperDoc" data-arg="' + esc(doc.id) + '"'
+            + ' title="Confirm the homeowner signed this paper copy; it then counts as the signed document">Certify signed copy</button>'
           : '')
       + (doc.shareable
           ? '<button type="button" class="doc-btn" data-doc-share="' + esc(doc.id) + '"'

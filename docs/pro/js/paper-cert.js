@@ -1,5 +1,6 @@
 // ── Paper certification (flag docClauseSetV1, Jo's decisions Q49 and Q63, 2026-11-18) ──
-// Loaded on demand from the docgen bundle (script-loader.js), never on the customer page's boot path.
+// Loaded on demand (ScriptLoader.load from customer-signed-doc-upload.js and the document generator), never on a page's
+// boot path and not through the eager script-loader.js list (the dashboard's byte ceiling has no headroom).
 //
 //   NBDPaperCert.collect(file)   the form shown when a paper-signed file is picked: what the paper is, which
 //                                generated document it is the signed copy of, the date it was signed and an
@@ -161,8 +162,64 @@
     }
   }
 
+  // ── In-person consent (flag docClauseSetV1, Jo's decision Q62) ─────────────────────────────
+  // opts.consent = { label, text } on the doc viewer: a bar above the document with the registry's ESIGN-1 sentence and a required
+  // "I agree to sign electronically" tick. Until the homeowner ticks it, the signing widget ignores strokes, "Use saved" and
+  // finalize (signature-widget.js); the tick travels to onPersistFinalized and on to the server evidence.
+  // Plain DOM calls and textContent only: the sentence is text, never markup. Lives here, not in the eager viewer file.
+  function consentBar(doc, consent, onChange) {
+    var state = { agreed: false };
+    var el = doc.createElement('div');
+    el.setAttribute('id', 'nbdv-consent');
+    el.setAttribute('style', 'flex:0 0 auto;background:#FFF8F2;border-bottom:2px solid #BD5728;padding:10px 14px;color:#14181F;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;');
+    var row = doc.createElement('label');
+    row.setAttribute('style', 'display:flex;gap:10px;align-items:center;font-weight:700;min-height:44px;cursor:pointer;');
+    var tick = doc.createElement('input');
+    tick.setAttribute('type', 'checkbox');
+    tick.setAttribute('style', 'width:28px;height:28px;flex:0 0 auto;accent-color:#BD5728;');
+    var lab = doc.createElement('span');
+    lab.textContent = String(consent.label || 'I agree to sign electronically');
+    row.appendChild(tick); row.appendChild(lab);
+    var txt = doc.createElement('div');
+    txt.setAttribute('style', 'font-size:13px;color:#4C4C4D;margin-top:2px;');
+    txt.textContent = String(consent.text || '');
+    el.appendChild(row); el.appendChild(txt);
+    tick.addEventListener('change', function () {
+      state.agreed = !!tick.checked;
+      try { if (typeof onChange === 'function') onChange(state.agreed); } catch (_) { /* the widget message is best effort */ }
+    });
+    return { el: el, state: state };
+  }
+
+  /** Mounts the bar above the viewer's body and keeps the widget's lock in step. Returns the live state { agreed }. */
+  function mountConsent(doc, iframe, consent) {
+    var send = function (agreed) {
+      try { iframe.contentWindow.postMessage({ __nbd_sig: 'consent', required: true, agreed: !!agreed }, '*'); } catch (_) { /* not ready: the load handler sends it */ }
+    };
+    var stale = typeof doc.getElementById === 'function' ? doc.getElementById('nbdv-consent') : null;
+    if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
+    var bar = consentBar(doc, consent, send);
+    var bodyEl = iframe.parentNode;
+    if (bodyEl && bodyEl.parentNode) bodyEl.parentNode.insertBefore(bar.el, bodyEl);
+    // Locked as soon as the document has loaded.
+    iframe.addEventListener('load', function () { send(bar.state.agreed); }, { once: true });
+    // The bar belongs to this open. The viewer has no close hook (and its file is on the dashboard's byte ceiling), so the bar
+    // leaves with the overlay's "open" class.
+    var overlay = typeof doc.getElementById === 'function' ? doc.getElementById('nbd-doc-viewer-overlay') : null;
+    if (overlay && typeof MutationObserver === 'function') {
+      var mo = new MutationObserver(function () {
+        if (overlay.classList.contains('open')) return;
+        if (bar.el.parentNode) bar.el.parentNode.removeChild(bar.el);
+        mo.disconnect();
+      });
+      mo.observe(overlay, { attributes: true, attributeFilter: ['class'] });
+    }
+    return bar.state;
+  }
+
   window.NBDPaperCert = {
     ATTEST_TEXT: ATTEST_TEXT, PAPER_TYPES: PAPER_TYPES,
+    consentBar: consentBar, mountConsent: mountConsent,
     originalsFor: originalsFor, checkForm: checkForm, collect: collect, certify: certify,
     _setPrompt: function (fn) { prompt = { collect: fn, certify: fn }; }
   };

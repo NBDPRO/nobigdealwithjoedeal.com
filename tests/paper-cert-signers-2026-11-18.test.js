@@ -142,7 +142,7 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
       NBDCustomerDocs: { refresh: async () => {} },
     });
     if (paperCert) sb.NBDPaperCert = paperCert;
-    if (loadBundle) sb.ScriptLoader = { loadBundle: async (n) => { loadBundle(sb, n); } };
+    if (loadBundle) sb.ScriptLoader = { load: async (p) => { loadBundle(sb, p); } };
     vm.createContext(sb);
     vm.runInContext(src('docs/pro/js/customer-signed-doc-upload.js'), sb, { filename: 'customer-signed-doc-upload.js' });
     const input = { files: [{ name: 'scan 1.jpg', size: 1000, type: 'image/jpeg' }], value: 'x' };
@@ -167,8 +167,10 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
     ok('flag on: cancelling the form uploads nothing', r.added.length === 0); }
   { const r = await runUpload(true, null, null);
     ok('flag on but the certification form did not load: nothing is written (never falls back to "signed")', r.added.length === 0 && r.toasts.some((t) => /could not|did not load|try again/i.test(t)), JSON.stringify(r.toasts)); }
-  { const r = await runUpload(true, null, (sb, n) => { if (n === 'docgen') sb.NBDPaperCert = { collect: async () => ({ docType: 'contract', originalDocId: '', signedOn: '2026-11-17', witnessName: '' }) }; });
-    ok('flag on: the form is loaded on demand from the docgen bundle', r.added.length === 1 && r.added[0].payload.status === 'wet_signed_uploaded'); }
+  { let asked = '';
+    const r = await runUpload(true, null, (sb, p) => { asked = p; if (/paper-cert\.js/.test(p)) sb.NBDPaperCert = { collect: async () => ({ docType: 'contract', originalDocId: '', signedOn: '2026-11-17', witnessName: '' }) }; });
+    ok('flag on: the form is loaded on demand with ScriptLoader.load (not through the eager loader list)', asked === 'js/paper-cert.js?v=1' && r.added.length === 1 && r.added[0].payload.status === 'wet_signed_uploaded', asked);
+    ok('the eager script-loader.js does not list paper-cert.js', !/paper-cert\.js/.test(src('docs/pro/js/script-loader.js'))); }
 
   section('1b. documents list: "Uploaded, not certified"');
   const loadDocs = async (rows) => {
@@ -536,10 +538,24 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
 
   section('4. the viewer: a required tick above the document, passed to the signing widget');
   { const viewerSrc = src('docs/pro/js/nbd-doc-viewer.js');
+    // The bar is built by paper-cert.js (lazy), not the eager viewer file (the dashboard's shipped byte ceiling has no headroom).
     const VS = vm.createContext({ window: {}, document: { getElementById() { return null; }, createElement() { return {}; }, addEventListener() {}, body: {} }, console, setTimeout, clearTimeout });
-    VS.window = VS; try { vm.runInContext(viewerSrc, VS, { filename: 'nbd-doc-viewer.js' }); } catch (e) { ok('the viewer loads in a stub page', false, e.message); }
-    const V = VS.NBDDocViewer;
-    ok('the viewer exposes the consent bar builder', !!V && typeof V._consentBar === 'function');
+    VS.window = VS; try { vm.runInContext(src('docs/pro/js/paper-cert.js'), VS, { filename: 'paper-cert.js' }); } catch (e) { ok('paper-cert.js loads in a stub page', false, e.message); }
+    const V = { _consentBar: VS.NBDPaperCert && VS.NBDPaperCert.consentBar, mount: VS.NBDPaperCert && VS.NBDPaperCert.mountConsent };
+    ok('the lazy module exposes the consent bar builder and the mount', typeof V._consentBar === 'function' && typeof V.mount === 'function');
+    ok('the eager viewer file is untouched: no consent code at all (the generator mounts the bar)', !/consent/i.test(viewerSrc) && !/NBDPaperCert/.test(viewerSrc));
+    ok('the eager role-gate.js is untouched (certifyPaperDoc guards itself)', !/certifyPaperDoc/.test(src('docs/pro/js/role-gate.js')) && /NBDRole\.guard\(\)/.test(src('docs/pro/js/customer-signed-doc-upload.js')));
+    { // mountConsent: bar inserted before the viewer body, the lock message sent on load and on every change
+      const sent = []; const inserted = []; let loadFn = null;
+      const mkEl = (tag) => ({ tag, children: [], attrs: {}, listeners: {}, style: {}, textContent: '', checked: false, appendChild(c) { this.children.push(c); return c; }, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(t, fn) { this.listeners[t] = fn; } });
+      const docStub = { createElement: mkEl };
+      const bodyEl = { parentNode: { insertBefore: (n, ref) => inserted.push({ n, ref }) } };
+      const iframe = { parentNode: bodyEl, contentWindow: { postMessage: (m) => sent.push(m) }, addEventListener: (t, fn) => { if (t === 'load') loadFn = fn; } };
+      const st = V.mount(docStub, iframe, { label: 'I agree to sign electronically', text: esignFromPacket });
+      ok('mountConsent inserts the bar above the viewer body', inserted.length === 1 && inserted[0].ref === bodyEl);
+      loadFn(); ok('on load the widget is told consent is required and not agreed', sent.length === 1 && sent[0].__nbd_sig === 'consent' && sent[0].required === true && sent[0].agreed === false);
+      const tickEl = inserted[0].n.children[0].children[0]; tickEl.checked = true; tickEl.listeners.change();
+      ok('ticking tells the widget agreed:true and the live state follows', sent[sent.length - 1].agreed === true && st.agreed === true); }
     if (V && typeof V._consentBar === 'function') {
       const made = [];
       const fakeDoc = { createElement: (tag) => { const el = { tag, children: [], attrs: {}, listeners: {}, style: {}, textContent: '', checked: false,
@@ -556,7 +572,22 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
       tick.checked = true; tick.listeners.change(); ok('ticking records agreement and tells the widget', bar.state.agreed === true && changes[changes.length - 1] === true);
       tick.checked = false; tick.listeners.change(); ok('unticking withdraws it and tells the widget', bar.state.agreed === false && changes[changes.length - 1] === false);
       ok('the tick is 24px or larger for a finger', /(^|;)\s*width:\s*(2[4-9]|[3-9]\d)px/.test(tick.attrs.style || '') || (tick.style && parseInt(tick.style.width, 10) >= 24)); }
-    ok('open() reports the tick to the persist callback as consentTick', /onPersistFinalized\(reply\.html, reply\.signers \|\| \[\], \{ consentTick: /.test(viewerSrc)); }
+    { // the bar leaves with the viewer: the overlay losing its "open" class removes it, and a later bar replaces a stale one
+      let cb = null; const removed = []; const classes = new Set(['open']);
+      VS.MutationObserver = function (fn) { cb = fn; this.observe = () => {}; this.disconnect = () => { cb = null; }; };
+      const overlay = { classList: { contains: (c) => classes.has(c) } };
+      const mk = (tag) => ({ tag, children: [], attrs: {}, listeners: {}, style: {}, textContent: '', appendChild(c) { this.children.push(c); return c; }, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(t, fn) { this.listeners[t] = fn; } });
+      const stale = { parentNode: { removeChild: (n) => removed.push(n) } };
+      const docStub = { createElement: mk, getElementById: (id) => (id === 'nbd-doc-viewer-overlay' ? overlay : (id === 'nbdv-consent' ? stale : null)) };
+      let mounted = null;
+      const barParent = { insertBefore: (n) => { mounted = n; n.parentNode = { removeChild: (x) => removed.push(x) }; } };
+      const iframe = { parentNode: { parentNode: barParent }, contentWindow: { postMessage() {} }, addEventListener() {} };
+      V.mount(docStub, iframe, { label: 'x', text: 'y' });
+      ok('a stale bar from an earlier open is removed before the new one mounts', removed.length === 1 && removed[0] === stale);
+      ok('the bar watches the overlay\'s class', typeof cb === 'function' && !!mounted);
+      cb(); ok('while the viewer is open the bar stays', removed.indexOf(mounted) === -1);
+      classes.delete('open'); cb();
+      ok('closing the viewer (the overlay loses "open") removes the bar', removed.indexOf(mounted) !== -1); } }
 
   section('4. the signing widget: no drawing, no saved signature and no finalize until the tick');
   { const wsrc = src('docs/pro/js/signature-widget.js');
@@ -605,7 +636,9 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
       ok('locked and nothing signed: the existing "required signature missing" answer, not a consent one', fin && fin.ok === false && !fin.needsConsent && Array.isArray(fin.missing) && fin.missing[0] === 'homeowner', JSON.stringify(fin && { ok: fin.ok, missing: fin.missing })); } }
 
   section('4. the generator: the tick is asked for on contract-class in-person signing, and recorded');
-  const genSigned = async (flagOn, type, signers) => {
+  // consentMode: 'stub' = a paper-cert.js whose mounted bar state the test controls; 'none' = the module never loads;
+  // 'loader' = the module arrives through ScriptLoader.load (the on-demand path).
+  const genSigned = async (flagOn, type, signers, consentMode) => {
     const brand = { legalName: 'No Big Deal Home Solutions', entityName: 'No Big Deal Solutions LLC', dbaName: 'No Big Deal Home Solutions', signerTitle: 'Manager', colors: {},
       contact: { email: 'info@nobigdealwithjoedeal.com', phone: '(859) 420-7382', mailingAddress: H.BIZ_ADDR } };
     const env = H.docs({ flags: flagOn ? { docClauseSetV1: true } : {}, brand });
@@ -618,26 +651,42 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
     W.addDoc = async () => ({ id: 'ADDED1' }); W.setDoc = async () => {}; W.updateDoc = async (r, patch) => { updates.push({ path: r.path, patch }); };
     W._functions = {}; W._httpsCallable = (_f, name) => async (payload) => { calls.push({ name, payload }); return { data: { ok: true } }; };
     W.NBDDocViewer = { open: (o) => { viewer = o; return {}; } };
+    const consentState = { agreed: false }; const mounts = []; const loads = [];
+    const stubModule = { mountConsent: (doc, iframe, consent) => { mounts.push(consent); return consentState; } };
+    const mode = consentMode || 'stub';
+    if (mode === 'stub') W.NBDPaperCert = stubModule;
+    if (mode === 'loader') W.ScriptLoader = { load: async (p) => { loads.push(p); W.NBDPaperCert = stubModule; } };
     const cp = Object.assign({}, H.profileFor(W, H.BIZ_ADDR), { paymentTerms: { deckingPerSheetCents: 10000 } });
     const v = H.VARIANTS.oh_cash;
     W._legal = () => cp; W._leadDoc = { id: 'L1', address: v.address, jobType: v.jobType };
     await W.NBDDocGen.generate(type, Object.assign(H.contractData(W, v), { companyProfile: cp, signers }));
     await new Promise((r) => setTimeout(r, 30));
-    return { viewer, calls, updates, W };
+    return { viewer, calls, updates, W, consentState, mounts, loads };
   };
   const HO_REP = [{ role: 'homeowner', label: 'Homeowner', required: true }, { role: 'rep', label: 'Authorized NBD Representative', required: true }];
   { const g = await genSigned(true, 'contract', HO_REP);
     ok('flag on: a contract with signers asks for the tick, with the registry\'s ESIGN-1 sentence', !!g.viewer && !!g.viewer.consent
       && g.viewer.consent.label === 'I agree to sign electronically' && g.viewer.consent.text === esignFromPacket, g.viewer && JSON.stringify(g.viewer.consent));
     const signed = '<html><body><div data-nbd-sig="homeowner" data-nbd-sig-finalized="1"></div></body></html>';
-    await g.viewer.onPersistFinalized(signed, [{ role: 'homeowner', label: 'Homeowner', signedAt: '2026-11-18T15:00:00Z', png: 'data:image/png;base64,AA' }], { consentTick: true });
+    ok('the bar is mounted over the viewer that just opened, with the same consent', g.mounts.length === 1 && g.mounts[0].text === esignFromPacket);
+    g.consentState.agreed = true; // the homeowner ticks
+    await g.viewer.onPersistFinalized(signed, [{ role: 'homeowner', label: 'Homeowner', signedAt: '2026-11-18T15:00:00Z', png: 'data:image/png;base64,AA' }]);
     const rec = g.calls.find((c) => c.name === 'recordInPersonSignature');
     ok('ticked: the in-person record call carries consentTick', !!rec && rec.payload.consentTick === true, JSON.stringify(g.calls));
     ok('ticked: the document is saved as signed', g.updates.some((u) => u.patch && u.patch.status === 'signed')); }
   { const g = await genSigned(true, 'contract', HO_REP);
     const signed = '<html><body><div data-nbd-sig="homeowner" data-nbd-sig-finalized="1"></div></body></html>';
-    await g.viewer.onPersistFinalized(signed, [{ role: 'homeowner', label: 'Homeowner', signedAt: '2026-11-18T15:00:00Z', png: 'data:image/png;base64,AA' }], { consentTick: false });
-    ok('not ticked: nothing is saved as signed (signing is blocked without the tick)', !g.updates.some((u) => u.patch && u.patch.status === 'signed') && !g.calls.some((c) => c.name === 'recordInPersonSignature'), JSON.stringify(g.updates.map((u) => u.patch && u.patch.status))); }
+    await g.viewer.onPersistFinalized(signed, [{ role: 'homeowner', label: 'Homeowner', signedAt: '2026-11-18T15:00:00Z', png: 'data:image/png;base64,AA' }]);
+    ok('not ticked: nothing is saved as signed (signing is blocked without the tick)', !g.updates.some((u) => u.patch && u.patch.status === 'signed') && !g.calls.some((c) => c.name === 'recordInPersonSignature'), JSON.stringify(g.updates.map((u) => u.patch && u.patch.status)));
+    g.consentState.agreed = false;
+    await g.viewer.onPersistFinalized(signed, [{ role: 'homeowner', label: 'Homeowner', signedAt: '2026-11-18T15:00:00Z', png: 'data:image/png;base64,AA' }]);
+    ok('ticked then unticked: still not saved', !g.updates.some((u) => u.patch && u.patch.status === 'signed')); }
+  { const g = await genSigned(true, 'contract', HO_REP, 'none');
+    const signed = '<html><body><div data-nbd-sig="homeowner" data-nbd-sig-finalized="1"></div></body></html>';
+    await g.viewer.onPersistFinalized(signed, [{ role: 'homeowner', label: 'Homeowner', signedAt: '2026-11-18T15:00:00Z', png: 'data:image/png;base64,AA' }]);
+    ok('the consent module never loaded: fail closed, nothing saved as signed', !g.updates.some((u) => u.patch && u.patch.status === 'signed')); }
+  { const g = await genSigned(true, 'contract', HO_REP, 'loader');
+    ok('the consent module is loaded on demand with ScriptLoader.load before the viewer opens', g.loads.length === 1 && g.loads[0] === 'js/paper-cert.js?v=1' && g.mounts.length === 1, JSON.stringify(g.loads)); }
   { const g = await genSigned(false, 'contract', HO_REP);
     ok('flag off: no consent bar is requested', !!g.viewer && !('consent' in g.viewer));
     const signed = '<html><body><div data-nbd-sig="homeowner" data-nbd-sig-finalized="1"></div></body></html>';

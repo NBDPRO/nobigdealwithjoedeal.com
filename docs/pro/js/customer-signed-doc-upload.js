@@ -24,13 +24,17 @@ function _signedDocPaperCertOn() {
   catch (_) { return false; }
 }
 
-// The form lives in paper-cert.js (the docgen bundle), loaded here on demand so the customer page's boot
-// path carries none of it. 'unavailable' = it could not be loaded: the upload is NOT made (never falls back to "signed").
+// The form lives in paper-cert.js, loaded here on demand (ScriptLoader.load) so no page's boot path carries it.
+// 'unavailable' = it could not be loaded: the upload is NOT made (never falls back to "signed").
+async function _signedDocLoadPaperCert() {
+  if (!window.NBDPaperCert && window.ScriptLoader && typeof window.ScriptLoader.load === 'function') {
+    await window.ScriptLoader.load('js/paper-cert.js?v=1');
+  }
+}
+
 async function _signedDocCollectPaper(file) {
   try {
-    if (!window.NBDPaperCert && window.ScriptLoader && typeof window.ScriptLoader.loadBundle === 'function') {
-      await window.ScriptLoader.loadBundle('docgen');
-    }
+    await _signedDocLoadPaperCert();
     if (!window.NBDPaperCert || typeof window.NBDPaperCert.collect !== 'function') return 'unavailable';
     return await window.NBDPaperCert.collect(file);
   } catch (e) {
@@ -43,9 +47,7 @@ async function _signedDocCollectPaper(file) {
 async function certifyPaperDoc(docId) {
   if (window.NBDRole && !window.NBDRole.guard()) return;
   try {
-    if (!window.NBDPaperCert && window.ScriptLoader && typeof window.ScriptLoader.loadBundle === 'function') {
-      await window.ScriptLoader.loadBundle('docgen');
-    }
+    await _signedDocLoadPaperCert();
     if (!window.NBDPaperCert) throw new Error('form did not load');
     await window.NBDPaperCert.certify(docId);
   } catch (e) {
