@@ -543,8 +543,16 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
     VS.window = VS; try { vm.runInContext(src('docs/pro/js/paper-cert.js'), VS, { filename: 'paper-cert.js' }); } catch (e) { ok('paper-cert.js loads in a stub page', false, e.message); }
     const V = { _consentBar: VS.NBDPaperCert && VS.NBDPaperCert.consentBar, mount: VS.NBDPaperCert && VS.NBDPaperCert.mountConsent };
     ok('the lazy module exposes the consent bar builder and the mount', typeof V._consentBar === 'function' && typeof V.mount === 'function');
-    ok('the eager viewer file is untouched: no consent code at all (the generator mounts the bar)', !/consent/i.test(viewerSrc) && !/NBDPaperCert/.test(viewerSrc));
-    ok('the eager role-gate.js is untouched (certifyPaperDoc guards itself)', !/certifyPaperDoc/.test(src('docs/pro/js/role-gate.js')) && /NBDRole\.guard\(\)/.test(src('docs/pro/js/customer-signed-doc-upload.js')));
+    // The eager viewer and role-gate are untouched on purpose (the dashboard's shipped byte ceiling has no headroom;
+    // tests/dashboard-boot-budget guards the bytes). So the viewer's own guard for a read-only role is behaviour here:
+    { const guard = { calls: 0 }; const certified = [];
+      const sb = { console, window: null, NBDRole: { guard: () => { guard.calls++; return false; } }, NBDPaperCert: { certify: async (id) => certified.push(id) } };
+      sb.window = sb; vm.createContext(sb);
+      vm.runInContext(src('docs/pro/js/customer-signed-doc-upload.js'), sb, { filename: 'customer-signed-doc-upload.js' });
+      await sb.certifyPaperDoc('W1');
+      ok('a read-only role cannot open the certify form (certifyPaperDoc guards itself)', guard.calls === 1 && certified.length === 0);
+      sb.NBDRole.guard = () => true; await sb.certifyPaperDoc('W1');
+      ok('an allowed role reaches certify', certified.join() === 'W1'); }
     { // mountConsent: bar inserted before the viewer body, the lock message sent on load and on every change
       const sent = []; const inserted = []; let loadFn = null;
       const mkEl = (tag) => ({ tag, children: [], attrs: {}, listeners: {}, style: {}, textContent: '', checked: false, appendChild(c) { this.children.push(c); return c; }, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(t, fn) { this.listeners[t] = fn; } });

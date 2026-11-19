@@ -1161,10 +1161,6 @@ window.NBDDocGen = {
           }
         })();
       }
-      // PR3b: load this lead's saved signatures (if any) so the viewer
-      // can hand them to the widget for one-tap "Use saved" reuse. Only
-      // fetched when the doc actually has signers — zero cost otherwise.
-      const _savedSigs = hasSigners ? await this._fetchSavedSignatures(_leadIdEarly) : null;
       // Flag docClauseSetV1 (Q51): a document only the company signs (a lien waiver) is never sent to the homeowner for
       // signature: "Send for signature" is not offered, the rep signs it in the viewer. The server refuses it too.
       const _repOnly = this._signEaseOn() && Array.isArray(data.signers) && data.signers.length > 0
@@ -1177,12 +1173,16 @@ window.NBDDocGen = {
       if (_consent && !window.NBDPaperCert && window.ScriptLoader && typeof window.ScriptLoader.load === 'function') {
         try { await window.ScriptLoader.load('js/paper-cert.js?v=1'); } catch (_) { /* fail closed below */ }
       }
+      // PR3b: load this lead's saved signatures (if any) so the viewer
+      // can hand them to the widget for one-tap "Use saved" reuse. Only
+      // fetched when the doc actually has signers — zero cost otherwise.
+      const _savedSigs = hasSigners ? await this._fetchSavedSignatures(_leadIdEarly) : null;
       window.NBDDocViewer.open({
-        ...(_consent ? { consent: _consent } : {}),
         html: _viewHtml,
         title: typeName + (customerName ? ' — ' + customerName : ''),
         filename: _filename,
         savedSigs: _savedSigs,
+        ...(_consent ? { consent: _consent } : {}),
         // Signatures PR4: remote signing. Only for signable docs tied to a
         // lead. Awaits the doc's persist (so it has a real docId/htmlPath),
         // then mints + emails a doc_sign_tokens link via createSignRequest.
