@@ -566,6 +566,33 @@ const isoAt = (ymd, hm) => new Date(SW.localToUtcMs(ymd, hm)).toISOString();
     ok('rules: an order row may not carry money keys', /hasAny\(\['cost', 'costCents', 'price', 'priceCents', 'total', 'totalCents', 'materialTotal', 'margin'\]\)/.test(rules));
   }
 
+  // ═══ 14. paste-a-list roster add ════════════════════════════════════════
+  console.log('\n14. paste-a-list roster add');
+  {
+    const exist = [{ id: 'a', name: 'Dave Ortiz', phone: '(513) 555-0111' }];
+    const rows = PL.parseSubList([
+      'Mike Ruiz 513-555-0142 Gutters',
+      'Sam Lee, (859) 555-0177',
+      'Tony Baker',
+      '   ',
+      'Dave Ortiz',
+      'Someone Else 513.555.0111',
+      '513-555-0199 siding',
+      'Mike Ruiz - 513 555 0142',
+    ].join('\r\n'), exist);
+    const by = (i) => rows[i];
+    ok('blank lines are skipped', rows.length === 7);
+    ok('name + phone + trade split out of one line', by(0).name === 'Mike Ruiz' && by(0).phone === '513-555-0142' && by(0).trade === 'Gutters' && by(0).status === 'new');
+    ok('comma and paren shape', by(1).name === 'Sam Lee' && by(1).phone === '(859) 555-0177' && by(1).trade === '' && by(1).status === 'new');
+    ok('a bare name is fine (no phone, no trade)', by(2).name === 'Tony Baker' && by(2).phone === '' && by(2).status === 'new');
+    ok('same name as a roster sub is a duplicate', by(3).status === 'duplicate' && /name/.test(by(3).reason));
+    ok('same phone as a roster sub is a duplicate even with a new name', by(4).status === 'duplicate' && /phone/.test(by(4).reason));
+    ok('a line with only a phone and trade has no name: invalid, never saved', by(5).status === 'invalid');
+    ok('a repeat inside the paste is a duplicate', by(6).status === 'duplicate');
+    ok('every new row passes cleanSub (the rules-shaped check) and defaults trade to Roofing', rows.filter((r) => r.status === 'new').every((r) => PL.cleanSub(r).ok) && PL.cleanSub(by(1)).sub.trade === 'Roofing');
+    ok('empty / null input gives no rows', PL.parseSubList('', []).length === 0 && PL.parseSubList(null).length === 0);
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n  - ' + fails.join('\n  - ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

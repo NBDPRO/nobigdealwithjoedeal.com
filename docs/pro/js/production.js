@@ -365,7 +365,28 @@
           '<button type="button" class="btn btn-ghost pr-small" data-pr-action="edit-sub" data-pr-sub="' + esc(s.id) + '">Edit</button></div>';
       }).join('') : '<div class="pr-muted">No subs yet. Add the crews you sub work to.</div>') +
       (mig.newNames.length ? '<div class="pr-muted">Old crew name' + (mig.newNames.length === 1 ? '' : 's') + ' not on the roster: ' + esc(mig.newNames.join(', ')) + '</div>' : '') +
+      bulkPanelHtml() +
       subForm(_cp.editSub ? subById(_cp.editSub) : null) + '</div>';
+  }
+
+  /** Paste-a-list add: one sub per line, previewed before anything saves. */
+  function bulkPanelHtml() {
+    const rows = _cp.bulkRows || null;
+    const label = { new: 'Add', duplicate: 'Skip', invalid: 'Skip' };
+    const preview = rows ? (rows.length
+      ? '<ul class="pr-bulk-rows">' + rows.map((r) => '<li class="pr-bulk-' + esc(r.status) + '"><b>' + esc(label[r.status]) + '</b> ' +
+        esc(r.name || r.line) + (r.phone ? ' · ' + esc(r.phone) : '') + (r.trade ? ' · ' + esc(r.trade) : '') +
+        (r.reason ? ' <span class="pr-muted">' + esc(r.reason) + '</span>' : '') + '</li>').join('') + '</ul>' +
+        (rows.some((r) => r.status === 'new')
+          ? '<button type="button" class="btn btn-orange pr-save" data-pr-action="bulk-save">Add ' + rows.filter((r) => r.status === 'new').length + ' to the roster</button>'
+          : '<div class="pr-muted">Nothing new to add.</div>')
+      : '<div class="pr-muted">Nothing to read yet.</div>') : '';
+    return '<div class="pr-bulk">' +
+      '<div class="pr-h">Paste a list</div>' +
+      '<label class="pr-field">One sub per line: name, phone, trade (trade is optional)' +
+      '<textarea id="prBulkText" rows="5" maxlength="6000" placeholder="Mike Ruiz 513-555-0142 Gutters">' + esc(_cp.bulkText || '') + '</textarea></label>' +
+      '<button type="button" class="btn btn-ghost pr-small" data-pr-action="bulk-preview">Preview</button>' +
+      preview + '</div>';
   }
 
   function subForm(s) {
@@ -496,6 +517,22 @@
         if (!out.ok) { msg(out.message); return; }
         await patchLead(out.fields);
         _cp.open = null; toast('Start saved ✓', 'success'); renderPanel();
+        return;
+      }
+      if (act === 'bulk-preview') {
+        _cp.bulkText = String(($('prBulkText') || {}).value || '');
+        _cp.bulkRows = P().parseSubList(_cp.bulkText, subs());
+        renderPanel();
+        return;
+      }
+      if (act === 'bulk-save') {
+        const todo = (_cp.bulkRows || []).filter((r) => r.status === 'new');
+        btn.disabled = true;
+        let n = 0;
+        for (const r of todo) { await saveSub({ name: r.name, phone: r.phone, trade: r.trade }, null); n++; }
+        _cp.bulkText = ''; _cp.bulkRows = null;
+        toast(n + (n === 1 ? ' sub' : ' subs') + ' added to the roster ✓', 'success');
+        renderPanel();
         return;
       }
       if (act === 'save-roster') {
