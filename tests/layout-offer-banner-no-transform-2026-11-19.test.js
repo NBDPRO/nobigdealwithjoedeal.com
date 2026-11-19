@@ -12,22 +12,20 @@
  *
  * Run: node tests/layout-offer-banner-no-transform-2026-11-19.test.js
  */
-const fs = require('fs');
-const path = require('path');
+const K = require('./lib/src-kit');
 
-const css = fs.readFileSync(path.join(__dirname, '..', 'docs/pro/css/layout-offer.css'), 'utf8');
-const loader = fs.readFileSync(path.join(__dirname, '..', 'docs/pro/js/script-loader.js'), 'utf8');
+const css = K.read('docs/pro/css/layout-offer.css');
+const rule = K.cssRule(css, '.lo-banner', { media: '*' }) || {};
+const withTransform = K.cssRules(css).filter((r) => r.selectors.some((s) => /\.lo-banner/.test(s)) && ('transform' in r.decls || 'translate' in r.decls));
+const bump = K.read('docs/pro/js/script-loader.js').match(/css\/layout-offer\.css\?v=(\d+)/);
 
 let failed = 0;
 function check(name, ok) { console.log((ok ? 'ok   ' : 'FAIL ') + name); if (!ok) failed++; }
 
-const rule = (css.match(/\.lo-banner\s*\{[^}]*\}/) || [''])[0];
-check('.lo-banner rule found', rule.length > 0);
-check('.lo-banner does not use transform (global :hover reset removes it)', !/transform/i.test(rule));
-check('.lo-banner does not use translate', !/translate/i.test(rule));
-check('.lo-banner centers with left/right 0 + auto margin', /left:0/.test(rule) && /right:0/.test(rule) && /margin:0 auto/.test(rule));
-check('no media/override rule re-adds a transform to the banner', !/\.lo-banner[^{]*\{[^}]*transform/i.test(css));
-check('the stylesheet cache-bust was bumped past v=1', /css\/layout-offer\.css\?v=([2-9]|\d{2,})'/.test(loader));
+check('.lo-banner rule found, fixed to the viewport', rule.position === 'fixed');
+check('no rule on .lo-banner uses transform or translate (the global :hover reset removes it)', withTransform.length === 0);
+check('it centers with left 0, right 0 and an auto margin', rule.left === '0' && rule.right === '0' && rule.margin === '0 auto');
+check('the stylesheet cache-bust was bumped past v=1', !!bump && Number(bump[1]) >= 2);
 
 if (failed) { console.log('\n' + failed + ' failed'); process.exit(1); }
 console.log('\nall passed');
