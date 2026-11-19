@@ -3,6 +3,37 @@
 > Lane note for the template / liability work. It is **not** the live brief: the current handoff stays whatever INDEX.md
 > names. Nothing here is legal advice, and no customer-facing legal wording has shipped.
 
+## Update 2026-11-19 (end of the long session; supersedes the "What is NOT done" table below)
+
+**Shipped since this note was written (merged; flags dark except where noted):** phase 2 clause wording on every signing path (flag `docClauseSetV1`, **ON for Jo's account only**, with `docEvidenceFoundation`), phase 3 attic acknowledgment and gate (`docAtticAckV1`, **OFF**), the payment-terms settings panel, the sign-link panel with QR, text and copy (#3207, flag `docSignPanelV1`, **OFF**), contract and e-sign PDF layout fixes, and the CI budget raise (#3191). Docs: [CLAUSE-SET-V1](CLAUSE-SET-V1-2026-11-18.md), [ATTIC-ACK-V1](ATTIC-ACK-V1-2026-11-18.md), [SIGN-LINK-PANEL](SIGN-LINK-PANEL-2026-11-18.md), [attorney packet](ATTORNEY-REVIEW-PACKET-2026-11-18.md) and [answer sheet](OPEN-ITEMS-ANSWER-SHEET-2026-11-18.md).
+
+**Merged 2026-11-19 (all dark, nothing turned on for anyone):**
+
+| PR | What |
+| --- | --- |
+| #3207 | Sign-link panel (QR, text, copy, email, new link), flag `docSignPanelV1` |
+| #3209 | Card fee rules (`computeCardFee`, receipt and invoice line, refund math), flag `docCardFeeV1`. **No fee is charged:** Stripe cannot tell credit from debit before the card is entered, so a funding-aware path needs a PaymentIntent and Payment Element pay page (about 5 to 8 working days); `cardFeePct` must stay 0. See [CARD-FEE-V1](CARD-FEE-V1-2026-11-18.md) |
+| #3210 | Attic gate security fixes, seven review rounds. The form is now parsed with parse5 (direct dependency) and every check runs on the tree. Accepted residual: extra wording not in the canonical list, and mismatched label wording. See [ATTIC-ACK-V1](ATTIC-ACK-V1-2026-11-18.md) |
+| #3212 | Five templates (property condition, decking authorization, emergency request, final walkthrough, Ohio insurance acknowledgment) behind `docClauseSetV1`, with server verification. Every new sentence is marked DRAFTER WORDING. See [PHASE5-TEMPLATES](PHASE5-TEMPLATES-2026-11-18.md) |
+| #3213 | Paper-upload certification (`attestWetSigned`), signable supplement/inspection/warranty docs, co-owner signer, in-person consent tick, behind `docClauseSetV1`. See [PAPER-CERT-SIGNERS](PAPER-CERT-SIGNERS-2026-11-18.md) |
+
+**Flags as of the end of 2026-11-19, read back from production, Jo's account only (uid `1phDvAV…`; `_default` and every other account untouched):** `docEvidenceFoundation` on, `docClauseSetV1` on, `docAtticAckV1` on, `docSignPanelV1` on, `docCardFeeV1` on (does nothing: no fee is charged and its disclosure sentence is locked behind `CHARGING_LIVE = false`). The attic form, the sign-link panel, the five templates and the consent bar have NOT been seen on a real screen; first real use should be one Kentucky re-roof through Send for Signature. Rollback for any flag: write it `false` on `feature_flags/<uid>` (admin script; Jo's console also works). Other tenants stay off: there is no company-profile entity-name field yet and NBD's mailing address default is blank, so their contracts would refuse to send.
+
+**Hard gate (historical, now passed for Jo's account):** `docAtticAckV1` stays OFF until Jo says go. The last review's verdict: an owner-only dry run on the Kentucky cash and Kentucky insurance test leads is reasonable; residual risk is a rep hiding wording through styling or padding extra wording, not forging a tick. Before turning on `docClauseSetV1`-gated paper certification for any other account, note the reviewer's flag-off residual: a user with the flag explicitly false can still upload a paper copy as `signed`.
+
+**Still open, in order:**
+
+1. Merge the four branches (each: merge `main`, run the node bucket in parallel, security review for server and rules changes, PR into the queue).
+2. Browser verification on the TEST lead: Ohio cash, Kentucky insurance, invoice, the "By: Joe Deal, Manager" caption. The customer page froze the browser renderer on the long contract preview; use a fresh tab and expect it to be slow.
+3. Delete the two TEST leads (`TEST Do Not Contact`, 100 Test Lane Campton KY, and `TEST reverse payment`) and the saved test contract and task.
+4. Attic flag dry runs on Kentucky cash and Kentucky insurance test leads, confirm `atticFreeCheckDays` (default 3), then Jo's go-ahead for the flag write on his account only.
+
+**Backlog, approved but unbuilt:** signed-copy email to homeowner and rep (Q50), estimate and deal "Send to homeowner" QR panel (Q59), 14-day links with email reminders (Q61), server-only `signed` status (Q65), signing packet (Q66), booking-confirmation attic heads-up (Q70), Kentucky insurance deal-page attic route check (Q72), and a clause cross-reference wording item for the attorney list (Q87).
+
+**Jo only:** send the attorney packet; Kentucky assumed-name filing and the Ohio foreign-LLC question; supplier restocking percent and return terms; baffle and duct retail prices (proposed $25 and $450) and the $100 per sheet decking price; notify the card processor before the first surcharge; archive the session by hand when the queue is empty.
+
+**Open counsel questions added this session:** link-only signing links let a rep sign as the homeowner; the in-person gate remains advisory; card-surcharge law in Ohio and Kentucky is not researched.
+
 ## What this lane did (2026-11-17 to 11-18)
 
 Jo asked for a deep sweep of every document template for liability gaps, an attic / ventilation / moisture sign-off
