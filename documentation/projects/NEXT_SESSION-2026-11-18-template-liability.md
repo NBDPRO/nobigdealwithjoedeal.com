@@ -3,6 +3,34 @@
 > Lane note for the template / liability work. It is **not** the live brief: the current handoff stays whatever INDEX.md
 > names. Nothing here is legal advice, and no customer-facing legal wording has shipped.
 
+## Update 2026-11-19 (end of the long session; supersedes the "What is NOT done" table below)
+
+**Shipped since this note was written (merged; flags dark except where noted):** phase 2 clause wording on every signing path (flag `docClauseSetV1`, **ON for Jo's account only**, with `docEvidenceFoundation`), phase 3 attic acknowledgment and gate (`docAtticAckV1`, **OFF**), the payment-terms settings panel, the sign-link panel with QR, text and copy (#3207, flag `docSignPanelV1`, **OFF**), contract and e-sign PDF layout fixes, and the CI budget raise (#3191). Docs: [CLAUSE-SET-V1](CLAUSE-SET-V1-2026-11-18.md), [ATTIC-ACK-V1](ATTIC-ACK-V1-2026-11-18.md), [SIGN-LINK-PANEL](SIGN-LINK-PANEL-2026-11-18.md), [attorney packet](ATTORNEY-REVIEW-PACKET-2026-11-18.md) and [answer sheet](OPEN-ITEMS-ANSWER-SHEET-2026-11-18.md).
+
+**In flight when the session crashed (each resumed from its own worktree; nothing is pushed):**
+
+| Branch | Work | State when this was written |
+| --- | --- | --- |
+| `feat/card-fee-v1` | Phase 4: 3% fee on credit cards only, flag `docCardFeeV1`; the Stripe feasibility note was committed first | research committed, build continuing |
+| `feat/phase5-templates` | Property condition, decking authorization, emergency request, final walkthrough, Ohio insurance acknowledgment (behind `docClauseSetV1`) | no commits yet |
+| `feat/paper-cert-signers` | Paper-upload certification, signable supplement, inspection and warranty docs, co-owner role, in-person consent tick | no commits yet |
+| `fix/attic-gate-review3` | Fixes for the third attic-gate review: style allowlist can hide wording (High), raw-element end mismatch (High), entity-encoded class (Medium), stub-estimate binding (Medium), tag cap (Low), plus an emulator rules test for `atticGateUnverified` | no commits yet |
+
+**Hard gate:** do **not** write `docAtticAckV1` for any account until `fix/attic-gate-review3` is merged and re-reviewed. The reviewer's verdict: an owner-only dry run on test leads is reasonable; the gate guards against mistakes, not against a rep who hand-writes the form HTML, until those findings are fixed.
+
+**Still open, in order:**
+
+1. Merge the four branches (each: merge `main`, run the node bucket in parallel, security review for server and rules changes, PR into the queue).
+2. Browser verification on the TEST lead: Ohio cash, Kentucky insurance, invoice, the "By: Joe Deal, Manager" caption. The customer page froze the browser renderer on the long contract preview; use a fresh tab and expect it to be slow.
+3. Delete the two TEST leads (`TEST Do Not Contact`, 100 Test Lane Campton KY, and `TEST reverse payment`) and the saved test contract and task.
+4. Attic flag dry runs on Kentucky cash and Kentucky insurance test leads, confirm `atticFreeCheckDays` (default 3), then Jo's go-ahead for the flag write on his account only.
+
+**Backlog, approved but unbuilt:** signed-copy email to homeowner and rep (Q50), estimate and deal "Send to homeowner" QR panel (Q59), 14-day links with email reminders (Q61), server-only `signed` status (Q65), signing packet (Q66), booking-confirmation attic heads-up (Q70), Kentucky insurance deal-page attic route check (Q72), and a clause cross-reference wording item for the attorney list (Q87).
+
+**Jo only:** send the attorney packet; Kentucky assumed-name filing and the Ohio foreign-LLC question; supplier restocking percent and return terms; baffle and duct retail prices (proposed $25 and $450) and the $100 per sheet decking price; notify the card processor before the first surcharge; archive the session by hand when the queue is empty.
+
+**Open counsel questions added this session:** link-only signing links let a rep sign as the homeowner; the in-person gate remains advisory; card-surcharge law in Ohio and Kentucky is not researched.
+
 ## What this lane did (2026-11-17 to 11-18)
 
 Jo asked for a deep sweep of every document template for liability gaps, an attic / ventilation / moisture sign-off
