@@ -98,7 +98,7 @@
 
   /** The static text runs (20+ characters) of a registry clause: what the server requires to find in a stored copy. */
   function runs(text) {
-    return String(text == null ? '' : text).split(/\{\{[^}]*\}\}/).map(function (r) { return r.replace(/\*\*/g, '').replace(/\bNBD\b/g, 'Contractor').replace(/\s+/g, ' ').trim(); })
+    return String(text == null ? '' : text).split('[ ]')[0].split(/\{\{[^}]*\}\}/).map(function (r) { return r.replace(/\*\*/g, '').replace(/\bNBD\b/g, 'Contractor').replace(/\s+/g, ' ').trim(); })
       .filter(function (r) { return r.length >= 20; });
   }
   /** Every wording fragment a stored copy of this type must carry (registry runs and this module's own static strings). */

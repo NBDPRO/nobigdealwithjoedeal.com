@@ -16,6 +16,7 @@
 const crypto = require('crypto');
 const AA = require('./attic-ack');
 const TXT = require('./attic-ack-text');
+const P5 = require('./p5-forms');
 
 const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 const OVERRIDES = 'attic_overrides';
@@ -164,7 +165,7 @@ const TAG_ATTRS = {
 // The elements that carry the required wording may have only the classes the server render writes (a class is not a way to hide text
 // once the style blocks are an allowlist, but an unknown class on a paragraph is not the server's form).
 const WORD_CARRIERS = { p: 1, label: 1, strong: 1, em: 1, h1: 1, h2: 1, h3: 1, li: 1, span: 1 };
-const WORD_CLASSES = { 'aa-p': 1, 'aa-note': 1, 'aa-ver': 1, 'aa-row': 1, 'lib-sub': 1, 'lib-h1': 1, 'lib-fine': 1, 'footer-brand': 1, 'nbd-sig-state': 1 };
+const WORD_CLASSES = { 'p5-note': 1, 'aa-p': 1, 'aa-note': 1, 'aa-ver': 1, 'aa-row': 1, 'lib-sub': 1, 'lib-h1': 1, 'lib-fine': 1, 'footer-brand': 1, 'nbd-sig-state': 1 };
 // The signing widget's script: no body, and a source on this site's own path.
 const SCRIPT_SRC_RE = /^(?:https?:\/\/(?:[a-z0-9-]{1,63}\.){0,4}(?:nobigdealwithjoedeal\.com|localhost|127\.0\.0\.1)(?::[0-9]{1,5})?)?\/pro\/js\/signature-widget\.js$/i;
 const WORDING_TAGS = { p: 1, label: 1, span: 1, strong: 1, em: 1, td: 1, th: 1, tr: 1, tbody: 1, thead: 1, table: 1, li: 1, ul: 1, ol: 1, h1: 1, h2: 1, h3: 1, input: 1 };
@@ -239,12 +240,12 @@ function _pageCssOk(css) {
 /** Reason codes for the page's style blocks (empty when every block is one the server knows). */
 function _styleReasons(blocks) {
   const bad = []; const add = (c) => { if (bad.indexOf(c) === -1) bad.push(c); };
-  const sig = _ws(AA.SIG_STYLES_CSS); const attic = _ws(AA.ATTIC_FORM_CSS); const pr = _ws(AA.PRINT_RULE_CSS);
+  const sig = _ws(AA.SIG_STYLES_CSS); const attic = _ws(AA.ATTIC_FORM_CSS); const p5css = _ws(P5.FORM_CSS); const pr = _ws(AA.PRINT_RULE_CSS);
   const seen = { sig: 0, attic: 0, page: 0 };
   blocks.forEach((b) => {
     const body = _ws(b.body); const names = Object.keys(b.attrs || {});
     if (body === sig && names.length === 1 && names[0] === 'id' && b.attrs.id === 'nbd-sig-styles') { seen.sig++; return; }
-    if (body === attic && names.length === 0) { seen.attic++; return; }
+    if ((body === attic || body === p5css) && names.length === 0) { seen.attic++; return; }
     if (names.length === 0 && body.indexOf(pr) === 0 && _pageCssOk(body.slice(pr.length).trim()) && !_hidingCss(body.slice(pr.length))) { seen.page++; return; }
     add('style_block');
     if (_hidingCss(body)) add('css_hidden');
@@ -300,8 +301,47 @@ function _risks(scan, parsed, opts) {
  * Same controls (ids, types, required flags), the variant marker for the type, and the packet's paragraphs. Ticks are not part of
  * it (a signed copy has them). Anything else - an extra, missing or non-required control, a stripped flag, hand-written HTML - fails.
  */
+/**
+ * Phase 5 forms (flag docClauseSetV1): the same checks for a form whose spec is p5-forms.js - the marker names this type and a known
+ * variant, the required ticks are exactly the spec's, each Yes/No line has both answers, the registry wording and the form's own static
+ * text are present, and nothing hides wording or pre-ticks a box. -> { ok, reasons }
+ */
+function verifyP5(docType, html, o) {
+  const bad = [];
+  const s = String(html == null ? '' : html);
+  if (s.length > MAX_HTML) return { ok: false, reasons: ['too_large'] };
+  const markers = []; let mm; P5.MARKER_RE.lastIndex = 0;
+  while ((mm = P5.MARKER_RE.exec(s))) markers.push(mm);
+  const sp = markers.length === 1 && markers[0][1] === P5.VERSION && markers[0][2] === docType ? P5.spec(docType, markers[0][3]) : null;
+  if (!sp) return { ok: false, reasons: ['marker'] };
+  const parsed = AA.parseAcks(s);
+  const scan = _scan(s);
+  const rawCount = (s.match(/data-nbd-ack/gi) || []).length;
+  const liveCount = scan.tags.filter((t) => !t.closing && Object.prototype.hasOwnProperty.call(t.attrs, 'data-nbd-ack')).length;
+  if (parsed.length !== rawCount || parsed.length !== liveCount || parsed.length > MAX_CONTROLS) bad.push('control_count');
+  const seen = {};
+  parsed.forEach((c) => { if (seen[c.id]) bad.push('duplicate:' + c.id); seen[c.id] = c; });
+  const boxes = parsed.filter((c) => c.type === 'checkbox').map((c) => c.id).sort();
+  if (boxes.join('|') !== sp.required.slice().sort().join('|')) bad.push('checkboxes');
+  parsed.filter((c) => c.type === 'checkbox').forEach((c) => { if (c.required !== true) bad.push('not_required:' + c.id); });
+  const groups = {};
+  parsed.filter((c) => c.type === 'radio').forEach((c) => {
+    const r = /^rec:([a-z_0-9]+):(yes|no)$/.exec(c.id);
+    if (!r || sp.lines.indexOf(r[1]) === -1) { bad.push('radio_id:' + c.id); return; }
+    if (c.required) bad.push('radio_required:' + c.id);
+    (groups[r[1]] = groups[r[1]] || {})[r[2]] = true;
+  });
+  sp.lines.forEach((g) => { if (!(groups[g] && groups[g].yes && groups[g].no)) bad.push('missing_line:' + g); });
+  if (scan.unterminated) bad.push('unterminated');
+  const text = _norm(scan.text);
+  P5.fragments(docType).forEach((p, i) => { if (text.indexOf(_norm(p)) === -1) bad.push('wording:' + i); });
+  _risks(scan, parsed, o).forEach((c) => bad.push(c));
+  return { ok: bad.length === 0, reasons: bad.slice(0, 12) };
+}
+
 function verifyManifest(docType, html, opts) {
   const o = opts || {};
+  if (P5.isP5Doc(docType)) return verifyP5(String(docType), html, o);
   const m = manifestFor(docType);
   const bad = [];
   if (!m) return { ok: false, reasons: ['doc_type'] };
@@ -388,6 +428,16 @@ function applyAcks(originalHtml, signedHtml, docType) {
 function resultFor(docType, signedHtml, formDateMs) {
   const manifest = verifyManifest(docType, signedHtml, { signed: true });
   const acks = manifest.reasons.indexOf('too_large') === -1 ? AA.parseAcks(signedHtml) : [];
+  if (P5.isP5Doc(docType)) {
+    // A phase 5 form: stored in the same server-owned field (atticAckResult), told apart by version and formType. It never counts as an attic form.
+    return {
+      version: P5.VERSION, formType: String(docType), notInspected: false, declined: false,
+      manifestOk: manifest.ok,
+      complete: manifest.ok && acks.length > 0 && AA.acksComplete(acks).ok,
+      acknowledgments: AA.evidenceAcks(acks),
+      formDateMs: Number.isFinite(Number(formDateMs)) ? Number(formDateMs) : null,
+    };
+  }
   return {
     version: AA.VERSION,
     notInspected: String(docType) === 'attic_not_inspected',

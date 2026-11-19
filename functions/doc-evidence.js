@@ -376,7 +376,7 @@ function serverContractGaps(o) {
     address: x.address != null ? x.address : lead.address,
     homeownerName: name,
     mailingAddress: KyLaw && typeof KyLaw.contractorMailingAddress === 'function' ? KyLaw.contractorMailingAddress(x.profile || {}) : '',
-    needsMailingAddress: true,
+    needsMailingAddress: !(Checks.isP5 && Checks.isP5(x.type)),   // a phase 5 form carries no cancellation forms, so no mailing address is printed on it
     entityName: entityNameFor(x.profile, x.tenantKey),
     startDate: 'not observable on the server', estimatedCompletion: 'not observable on the server',
     text: x.html == null ? '' : x.html,

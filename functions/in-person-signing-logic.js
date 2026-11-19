@@ -235,6 +235,25 @@ async function handleInPersonSignature(db, auth, data, deps) {
       } catch (_) { /* best-effort */ }
     }
   }
+  // Phase 5 forms (flag docClauseSetV1; such a document exists only under it): the stored signed copy is read back and verified against
+  // the server's spec for the type, and its result is written (server-owned field). An incomplete copy is refused and marked.
+  if (attic && typeof attic.readBytes === 'function' && require('./p5-forms').isP5Doc(docMeta.type)) {
+    const AG5 = require('./attic-gate');
+    const refuse5 = async (message) => {
+      try { await db.doc('leads/' + leadId + '/documents/' + docId).set({ evidenceRefused: { reasons: [{ code: 'p5Form', message }], at: Date.now() } }, { merge: true }); } catch (_) { /* the refusal is the signal */ }
+      throw new RefusalError('failed-precondition', message);
+    };
+    const htmlPath5 = typeof docMeta.htmlPath === 'string' ? docMeta.htmlPath : '';
+    let buf5 = null;
+    try { buf5 = htmlPathOk(htmlPath5, leadId) ? await attic.readBytes(htmlPath5, READ_CAP_BYTES) : null; } catch (_) { buf5 = null; }
+    if (!buf5) throw new RefusalError('unavailable', 'Could not read the signed form. Try again in a moment.');
+    const stored5 = Buffer.from(buf5).toString('utf8');
+    if (stored5.length > AG5.MAX_HTML) await refuse5(AG5.TOO_LARGE_MSG);
+    const res5 = AG5.resultFor(docMeta.type, stored5, Date.now());
+    if (!res5.complete) await refuse5('Every box on this form must be ticked before it counts as signed.');
+    res5.attests = 'rep_device_and_time_only';
+    await db.doc('leads/' + leadId + '/documents/' + docId).set({ atticAckResult: res5 }, { merge: true });
+  }
   if (attic && atticOn) {
     const AG = require('./attic-gate');
     const refuse = async (message) => {
