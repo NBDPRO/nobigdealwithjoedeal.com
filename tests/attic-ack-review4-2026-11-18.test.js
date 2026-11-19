@@ -306,6 +306,49 @@ const generated = async (docType, profileExtra) => {
     ok('control: exactly 20 live estimates is read in full', !/more than 20/.test(d.message || ''));
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('8. round 5: footer/letterhead placement, font stack with white space before the colon, hidden controls, label pairing, direct parents');
+  {
+    for (const [type, form] of [['attic_acknowledgment', GEN], ['attic_not_inspected', GEN_NI]]) {
+      const v = (h, o) => AG.verifyManifest(type, h, o);
+      const bad = (name, h, o) => { const r = v(h, o); ok(type + ': ' + name, r.ok === false, JSON.stringify(r.reasons)); };
+      ok(type + ': control: the generated form passes (letterhead first, footer last, once each)', v(form).ok === true, JSON.stringify(v(form).reasons));
+      ok(type + ': control: the signed, ticked copy passes', v(tick(sign(form)), { signed: true }).ok === true, JSON.stringify(v(tick(sign(form)), { signed: true }).reasons));
+      // H1
+      bad('an empty div.footer before the first paragraph (pulls the wording onto the navy surface)', form.replace('<p class="aa-p">', '<div class="footer"></div><p class="aa-p">'));
+      bad('an empty div.footer between sections', form.replace('</div><div class="section">', '</div><div class="footer"></div><div class="section">').replace('</div>\n<div class="section">', '</div><div class="footer"></div>\n<div class="section">'));
+      bad('a second letterhead in the middle of the form', form.replace('<div class="section">', '<div class="letterhead"></div><div class="section">'));
+      bad('a letterhead nested in a letterhead', form.replace('<div class="section">', '<div class="letterhead"><div class="letterhead"></div></div><div class="section">'));
+      bad('a footer nested in a section', form.replace('<div class="section">', '<div class="section"><div class="footer"></div>'));
+      bad('a footer with form wording after it inside the page', form.replace('<div class="footer">', '<div class="footer"></div><div class="section"><p class="aa-p">x</p></div><div class="footer">'));
+      // H2
+      const fontWs = (ws) => withPage(form, (b) => b.replace(/(body \{ font-family)(:)[^;]*;/, "$1" + ws + ":" + ws + "'Webdings','Segoe UI',Helvetica,Arial,sans-serif;"));
+      [' ', '\t', '\n', ' \n\t '].forEach((ws) => bad('font-family' + JSON.stringify(ws) + ':\'Webdings\'', fontWs(ws)));
+      const fontOk = withPage(form, (b) => b.replace(/(body \{ font-family)(:)[^;]*;/, "$1 : 'Open Sans','Segoe UI',Helvetica,Arial,sans-serif;"));
+      ok(type + ': control: a registered face with a space before the colon is accepted', v(fontOk).ok === true, JSON.stringify(v(fontOk).reasons));
+      // M2
+      const firstLabel = /<label class="aa-row">[\s\S]*?<\/label>/;
+      bad('a required control inside div.nbd-sig-controls (hidden in print)', form.replace(firstLabel, (m) => '<div class="signature-block"><div class="nbd-sig-block"><div class="nbd-sig-controls">' + m + '</div></div></div>'));
+      bad('a required control inside span.nbd-sig-state', form.replace(firstLabel, (m) => '<div class="signature-block"><div class="nbd-sig-block"><div class="nbd-sig-controls"><span class="nbd-sig-state">' + m + '</span></div></div></div>'));
+      bad('a required control inside the footer', form.replace('<div class="footer">', '<div class="footer"><input type="checkbox" data-nbd-ack="ack:saw" data-nbd-required="1">').replace(firstLabel, (m) => m.replace(/<input[^>]*>/, '')));
+      // M1
+      if (type === 'attic_acknowledgment') {
+        const swapped = form.replace('data-nbd-ack="ack:saw"', 'data-nbd-ack="ack:TMP"').replace('data-nbd-ack="ack:declined"', 'data-nbd-ack="ack:saw"').replace('data-nbd-ack="ack:TMP"', 'data-nbd-ack="ack:declined"');
+        bad('two required controls swapped between their paragraphs (a tick on the wrong wording)', swapped);
+        const detached = form.replace(/<label class="aa-row">(<input type="checkbox" data-nbd-ack="ack:saw"[^>]*>)<span>/, '<label class="aa-row"><span>').replace('<div class="section"><p class="aa-note">', '<div class="section">$&'.replace('$&', '') + '<p class="aa-note">');
+        ok(type + ': control: an unmodified form still pairs every control with its paragraph', v(form).ok === true);
+        bad('a required control moved out of its paragraph\'s label', form.replace(/(<label class="aa-row">)(<input type="checkbox" data-nbd-ack="ack:saw"[^>]*>)(<span>)/, '$2$1$3'));
+        void detached;
+      } else {
+        const swapped = form.replace('data-nbd-ack="ack:stmt_not_checked"', 'data-nbd-ack="ack:TMP"').replace('data-nbd-ack="ack:stmt_offered"', 'data-nbd-ack="ack:stmt_not_checked"').replace('data-nbd-ack="ack:TMP"', 'data-nbd-ack="ack:stmt_offered"');
+        bad('two statement controls swapped between their paragraphs', swapped);
+      }
+      // direct parents
+      bad('letterhead-contact nested one level too deep (inside letterhead-brand)', form.replace('<div class="letterhead-brand">', '<div class="letterhead-brand"><div class="letterhead-contact"></div>'));
+      bad('an aa-row label directly in the form instead of its section', form.replace('<div class="section">', '<div class="aa-row-wrap"><label class="aa-row"></label></div><div class="section">'));
+    }
+  }
+
   console.log('\n' + (failed ? 'FAILED ' + failed + ': ' + fails.join(' | ') : 'all ok') + ' (' + passed + ' passed)');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

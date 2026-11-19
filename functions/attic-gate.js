@@ -64,16 +64,16 @@ const MAX_TAGS = 20000;
 // Round 4: each class the generator writes is valid only on the element(s) it writes it on and, for the surface and signing classes, inside
 // the element that carries the surface (a class on a different element, or outside its surface, is bad_position).
 const POSITIONS = {
-  'doc-page': { tags: ['div'] }, letterhead: { tags: ['div'] }, 'letterhead-brand': { tags: ['div'], anc: 'letterhead' },
-  'letterhead-logo-img': { tags: ['img'], anc: 'letterhead' }, 'letterhead-name': { tags: ['div'], anc: 'letterhead' },
-  'letterhead-tagline': { tags: ['div'], anc: 'letterhead' }, 'letterhead-contact': { tags: ['div'], anc: 'letterhead' },
+  'doc-page': { tags: ['div'] }, letterhead: { tags: ['div'] }, 'letterhead-brand': { tags: ['div'], anc: 'letterhead', par: 'letterhead' },
+  'letterhead-logo-img': { tags: ['img'], anc: 'letterhead', par: 'letterhead-brand' }, 'letterhead-name': { tags: ['div'], anc: 'letterhead' },
+  'letterhead-tagline': { tags: ['div'], anc: 'letterhead' }, 'letterhead-contact': { tags: ['div'], anc: 'letterhead', par: 'letterhead' },
   'lib-h1': { tags: ['h1'] }, 'lib-sub': { tags: ['p'] }, 'aa-ver': { tags: ['p'] }, section: { tags: ['div'] }, 'aa-p': { tags: ['p'] }, 'aa-note': { tags: ['p'] },
-  'aa-thumbs': { tags: ['div'] }, 'lib-fine': { tags: ['span'] }, 'lib-table': { tags: ['table'] }, 'aa-opt': { tags: ['th', 'td'] }, 'aa-row': { tags: ['label'] },
+  'aa-thumbs': { tags: ['div'] }, 'lib-fine': { tags: ['span'] }, 'lib-table': { tags: ['table'] }, 'aa-opt': { tags: ['th', 'td'], par: 'tr' }, 'aa-row': { tags: ['label'], par: 'section' },
   'signature-block': { tags: ['div'] }, 'nbd-sig-block': { tags: ['div'], anc: 'signature-block' }, 'nbd-sig-label': { tags: ['div'], anc: 'nbd-sig-block' },
-  'nbd-sig-canvas': { tags: ['canvas'], anc: 'nbd-sig-block' }, 'nbd-sig-controls': { tags: ['div'], anc: 'nbd-sig-block' }, 'nbd-sig-state': { tags: ['span'], anc: 'nbd-sig-controls' },
+  'nbd-sig-canvas': { tags: ['canvas'], anc: 'nbd-sig-block' }, 'nbd-sig-controls': { tags: ['div'], anc: 'nbd-sig-block' }, 'nbd-sig-state': { tags: ['span'], anc: 'nbd-sig-controls', par: 'nbd-sig-controls' },
   'nbd-sig-print-name': { tags: ['div'], anc: 'nbd-sig-block' }, 'nbd-sig-img': { tags: ['img'] }, 'nbd-sig-date': { tags: ['div'], anc: 'nbd-sig-block' },
-  affiliates: { tags: ['div'] }, affiliate: { tags: ['div'], anc: 'affiliates' }, 'affiliate-name': { tags: ['div'], anc: 'affiliate' }, 'affiliate-num': { tags: ['div'], anc: 'affiliate' },
-  footer: { tags: ['div'] }, 'footer-brand': { tags: ['span'], anc: 'footer' }, 'no-print': { tags: ['div'] }, 'print-btn': { tags: ['div'] },
+  affiliates: { tags: ['div'] }, affiliate: { tags: ['div'], anc: 'affiliates', par: 'affiliates' }, 'affiliate-name': { tags: ['div'], anc: 'affiliate', par: 'affiliate' }, 'affiliate-num': { tags: ['div'], anc: 'affiliate', par: 'affiliate' },
+  footer: { tags: ['div'] }, 'footer-brand': { tags: ['span'], anc: 'footer', par: 'footer' }, 'no-print': { tags: ['div'] }, 'print-btn': { tags: ['div'] },
   'sig-label': { tags: ['div', 'span', 'p'] }, 'sig-line': { tags: ['div', 'span'] },
 };
 function _classes(v) { return String(v == null ? '' : v).toLowerCase().split(/\s+/).filter(Boolean); }
@@ -103,7 +103,7 @@ function _scanRaw(html) {
   const n = s.length;
   const text = []; const tags = []; const styles = [];
   let unterminated = false; let tooDeep = false; let tooMany = false;
-  const stack = []; const open = {}; const openCls = {}; let hid = 0;   // open elements, how many of each name, how many carry a hidden class
+  const stack = []; const open = {}; const openCls = {}; let hid = 0; let lhSeen = false; let footerSeen = false; let curLabel = null; const labels = [];   // open elements, how many of each name, how many carry a hidden class
   const say = (t) => { if (hid === 0) text.push(t); };
   let i = 0;
   while (i < n) {
@@ -141,7 +141,25 @@ function _scanRaw(html) {
       let a; ATTR_RE.lastIndex = 0;
       while ((a = ATTR_RE.exec(body))) { const k = a[1].toLowerCase(); if (!Object.prototype.hasOwnProperty.call(attrs, k)) attrs[k] = a[2] != null ? a[2] : (a[3] != null ? a[3] : (a[4] != null ? a[4] : '')); }
       const tg = { name: nm[2], closing: nm[1] === '/', attrs };
-      if (!tg.closing) { const bp = _classes(attrs.class).some((c) => { const r = POSITIONS[c]; return !!r && !((!r.tags || r.tags.indexOf(nm[2]) !== -1) && (!r.anc || openCls[r.anc] > 0)); }); if (bp) tg.badPos = true; }
+      const cls0 = _classes(attrs.class);
+      if (!tg.closing) {
+        const par = stack.length ? stack[stack.length - 1] : null;
+        const underPage = !!par && par.c.indexOf('doc-page') !== -1;
+        let bp = cls0.some((c) => {
+          const r = POSITIONS[c];
+          return !!r && !((!r.tags || r.tags.indexOf(nm[2]) !== -1) && (!r.anc || openCls[r.anc] > 0) && (!r.par || (!!par && (par.name === r.par || par.c.indexOf(r.par) !== -1))));
+        });
+        // Round 5: the letterhead is the first child of the page, the footer a direct child of it, once each, with nothing after the footer
+        // (an empty or mid-page footer pulls the wording that follows it onto the dark surface).
+        if (cls0.indexOf('letterhead') !== -1) { if (!(underPage && par.kids === 0 && !lhSeen)) bp = true; lhSeen = true; }
+        if (cls0.indexOf('footer') !== -1) { if (!(underPage && !footerSeen)) bp = true; footerSeen = true; }
+        else if (underPage && footerSeen && nm[2] !== 'style' && nm[2] !== 'script') bp = true;
+        if (par && nm[2] !== 'style' && nm[2] !== 'script') par.kids++;   // a style block or script renders nothing
+        if (bp) tg.badPos = true;
+        if (hid > 0) tg.inHidden = true;
+        if (nm[2] === 'label' && !curLabel) curLabel = { start: text.length, ids: [] };
+        if (curLabel && Object.prototype.hasOwnProperty.call(attrs, 'data-nbd-ack')) curLabel.ids.push(String(attrs['data-nbd-ack']));
+      } else if (nm[2] === 'label' && curLabel) { labels.push({ ids: curLabel.ids, text: text.slice(curLabel.start).join('') }); curLabel = null; }
       tags.push(tg);
     }
     i = end + 1;
@@ -160,14 +178,14 @@ function _scanRaw(html) {
         if (stack.length >= MAX_DEPTH) { tooDeep = true; break; }
         const h = _hiddenClass(attrs);
         const cl = _classes(attrs.class);
-        stack.push({ name: nm[2], h, c: cl }); open[nm[2]] = (open[nm[2]] || 0) + 1; if (h) hid++;
+        stack.push({ name: nm[2], h, c: cl, kids: 0 }); open[nm[2]] = (open[nm[2]] || 0) + 1; if (h) hid++;
         cl.forEach((c) => { openCls[c] = (openCls[c] || 0) + 1; });
       } else if (open[nm[2]] > 0) {   // a closing tag pops to its element (each element is popped once, so this is linear)
         for (;;) { const t = stack.pop(); open[t.name]--; if (t.h) hid--; t.c.forEach((c) => { openCls[c]--; }); if (t.name === nm[2]) break; }
       }
     }
   }
-  return { text: text.join(''), tags, styles, unterminated, tooDeep, tooMany };
+  return { text: text.join(''), tags, styles, unterminated, tooDeep, tooMany, labels };
 }
 
 // Review 4 (item 2): a raw element ends at </name followed by white space, '/' or '>' (as a browser reads it), never at </namez.
@@ -392,7 +410,9 @@ function _pageCssCanon(css) {
   for (const t of txt) for (const b of bgl) if (_contrast(t, b) < 4.5) return false;
   // Review 4 (PR re-review): every font stack is the shape a tenant's brand fonts produce ('Face','Segoe UI',Helvetica,Arial,sans-serif, or
   // the fallback alone), with no symbol face.
-  const stacks = flat.match(/font-family:[^;}]*/g) || [];
+  const col = flat.replace(/\s*([{};:,])\s*/g, '$1');
+  const stacks = col.match(/font-family:[^;}]*/g) || [];
+  if (stacks.length !== (flat.match(/font-family\s*:/g) || []).length) return false;
   for (const st of stacks) {
     const v = st.slice('font-family:'.length).replace(/\s+/g, ' ').trim();
     const m = /^(?:'([a-z0-9][a-z0-9 ._&-]{0,39})',)?'segoe ui',helvetica,arial,sans-serif$/.exec(v.replace(/,\s+/g, ','));
@@ -460,6 +480,7 @@ function _risks(scan, parsed, opts) {
     if (t.name === 'link' && /stylesheet/i.test(a.rel || '')) add('css_hidden');
     if (WORDING_TAGS[t.name] === 1 && /(?:^|\s)no-print(?:\s|$)/i.test(a.class || '')) add('no_print_wording');
     if (Object.prototype.hasOwnProperty.call(a, 'data-nbd-ack')) {
+      if (t.inHidden) add('hidden_control');
       const ty = String(a.type == null ? '' : a.type).trim().toLowerCase();
       if (t.name !== 'input' || (ty !== 'checkbox' && ty !== 'radio')) add('control_type');
       if (opts.signed !== true && Object.prototype.hasOwnProperty.call(a, 'checked')) add('preticked');
@@ -486,6 +507,10 @@ function verifyManifest(docType, html, opts) {
   while ((mm = MARKER_RE.exec(s))) markers.push(mm);
   if (markers.length !== 1 || markers[0][1] !== AA.VERSION || markers[0][2] !== m.variant) bad.push('marker');
   const parsed = AA.parseAcks(s);
+  // Round 5: each required control sits inside the label of its own paragraph (a tick on the wrong wording is refused).
+  const pairs = {};
+  ACK_IDS.forEach((id, i) => { pairs['ack:' + id] = (TXT.ACKS || [])[i]; });
+  if (docType === 'attic_not_inspected') STMT_IDS.forEach((id, i) => { pairs['ack:stmt_' + id] = (TXT.STATEMENTS || [])[i]; });
   const scan = _scan(s);
   const rawCount = (s.match(/data-nbd-ack/gi) || []).length;
   // Review 3 (item 3): a control counts only when it is a real tag of the page, not text in a comment, textarea, noscript or template.
@@ -510,6 +535,10 @@ function verifyManifest(docType, html, opts) {
   const text = _norm(scan.text);
   m.paras.forEach((p, i) => { if (text.indexOf(_plain(p)) === -1) bad.push('wording:' + i); });
   _risks(scan, parsed, o).forEach((c) => bad.push(c));
+  m.required.forEach((id) => {
+    const lab = (scan.labels || []).filter((l) => l.ids.indexOf(id) !== -1)[0];
+    if (pairs[id] && (!lab || _norm(lab.text).indexOf(_plain(pairs[id])) === -1)) bad.push('pairing:' + id);
+  });
   return { ok: bad.length === 0, reasons: bad.slice(0, 12) };
 }
 
