@@ -11,7 +11,9 @@
  *   - at Finish asks "Workout done. Tick the floor?" and stores the answer on the workout (NBDCoachUI.answerFloor). There are no floors
  *     or day pages here, so nothing is ticked on this screen: Daily Success applies a yes the next time it opens, and never asks again
  *
- * No account data is read here. CSP: external classic script, delegated listener, textContent only.
+ *   - draws the Progress card under the coach card (progress-charts-ui.js cardHtml(); every value in it is escaped there)
+ *
+ * No account data is read here. CSP: external classic script, delegated listener, textContent only, except that card's html.
  */
 (function () {
   'use strict';
@@ -19,8 +21,19 @@
   const SHELL_KEY = '/pro/__app-shell__/workout';
   const $ = (id) => document.getElementById(id);
 
+  // The Progress card (estimated 1RM per lift + 12-week volume) is Daily Success's own card (progress-charts-ui.js); it reads the same
+  // finished workouts, so it follows whatever the coach card follows. Empty when the card's script is missing: the page works without it.
+  function drawProgress() {
+    const box = $('waProgress'), ui = window.NBDProgressUI;
+    if (!box) return;
+    let html = '';
+    try { html = ui && typeof ui.cardHtml === 'function' ? ui.cardHtml() : ''; } catch (_) { html = ''; }
+    if (box.innerHTML !== html) box.innerHTML = html;
+  }
+
   function drawCard() {
     const ui = window.NBDCoachUI;
+    drawProgress();
     if (ui && typeof ui.refresh === 'function') { ui.refresh(); return true; }
     const el = $('wcCard');
     if (el) el.textContent = 'The workout coach did not load. Check your connection and reopen the app.';
@@ -63,6 +76,7 @@
     if (d.cloud) st.cloud = d.cloud;
     if (typeof d.signedIn === 'boolean') st.signedIn = d.signedIn;
     drawStatus();
+    if (d.cloud === 'synced') drawProgress();   // a pull may have brought in workouts from another device
   });
   window.addEventListener('online', () => { st.online = true; drawStatus(); });
   window.addEventListener('offline', () => { st.online = false; drawStatus(); });
@@ -164,7 +178,7 @@
   }
   window.addEventListener('nbd-ds-did', (ev) => {
     const d = (ev && ev.detail) || {};
-    if (d.kind === 'workout') askFloor(d.id);
+    if (d.kind === 'workout') { drawProgress(); askFloor(d.id); }
   });
 
   document.addEventListener('click', (ev) => {

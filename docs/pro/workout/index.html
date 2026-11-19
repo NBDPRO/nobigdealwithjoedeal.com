@@ -41,6 +41,8 @@
 <main class="wa-main">
   <div id="wcCard" class="wc-card wa-loading">Loading your workouts…</div>
   <a class="wa-link" id="waSignIn" href="/pro/login?redirect=workout" hidden>Sign in to back up your workouts and see them on every device</a>
+  <!-- The Progress card (estimated 1RM per lift, 12-week volume): the same card Daily Success shows, drawn by workout-app.js. -->
+  <div id="waProgress"></div>
   <a class="wa-link wa-link-quiet" href="/pro/daily-success">Open Daily Success</a>
   <!-- This app's own theme, or the Daily Success one (workout-theme.js setOwn). The names are the Daily Success theme names. -->
   <label class="wa-theme" for="waTheme">
@@ -89,6 +91,8 @@
 <script src="/pro/daily-success/js/workout-coach.js?v=32"></script>
 <script src="/pro/daily-success/js/floor-tick-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/look-sync.js?v=3"></script>
+<script src="/pro/daily-success/js/progress-charts-logic.js?v=2"></script>
+<script src="/pro/daily-success/js/progress-charts-ui.js?v=2"></script>
 <script src="/pro/workout/js/workout-app.js?v=5"></script>
 <script src="/pro/js/pages/sw-register.js" defer></script>
 <script type="module" src="/pro/daily-success/ds-firebase-sync.js?v=13"></script>
