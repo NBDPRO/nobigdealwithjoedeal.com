@@ -372,6 +372,9 @@ function _risks(scan, parsed, opts) {
     if (t.closing) return;
     const a = t.attrs;
     Object.keys(a).forEach((k) => { if (!(GLOBAL_ATTRS[k] === 1 || (TAG_ATTRS[t.name] && TAG_ATTRS[t.name][k] === 1))) add('bad_attr:' + String(k).slice(0, 30)); });
+    // Review 4 (item 3): a browser decodes entities in an attribute value (class="&#110;o-print" is no-print); these checks read the raw text, so
+    // the attributes they read may not carry one.
+    ['class', 'style', 'id', 'hidden'].forEach((k) => { if (typeof a[k] === 'string' && a[k].indexOf('&') !== -1) add('entity_attr'); });
     const cls = _classes(a.class);
     if (cls.indexOf('no-print') !== -1) {   // the print button's own wrapper is the only element that may carry it
       noPrint++;

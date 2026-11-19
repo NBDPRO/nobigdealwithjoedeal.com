@@ -97,6 +97,20 @@ const generated = async (docType, profileExtra) => {
     ok('control: </title/> closes the title', verify(GEN.replace('</title>', '</title/>')).ok === true);
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('3. an entity-encoded class, style or hidden attribute is refused');
+  {
+    const wrap = (cls) => GEN.replace('<div class="section">', '<div class="' + cls + '">');
+    ok('control: the generated form has a plain section div to wrap', GEN.indexOf('<div class="section">') !== -1);
+    refused('class="&#110;o-print" (decodes to no-print: hidden in print)', wrap('&#110;o-print'), 'entity_attr');
+    refused('class="no&#45;print"', wrap('no&#45;print'), 'entity_attr');
+    refused('class="&#x6e;o-print section"', wrap('&#x6e;o-print section'), 'entity_attr');
+    refused('class="nbd-sig-&#99;ontrols"', wrap('nbd-sig-&#99;ontrols'), 'entity_attr');
+    refused('a style attribute with an entity (&#100;isplay:none)', GEN.replace('<div class="section">', '<div class="section" style="&#100;isplay:none">'), 'entity_attr');
+    refused('an id with an entity', GEN.replace('<div class="section">', '<div class="section" id="a&amp;b">'), 'entity_attr');
+    ok('control: a plain class on the same div is accepted', verify(wrap('section')).ok === true);
+  }
+
   console.log('\n' + (failed ? 'FAILED ' + failed + ': ' + fails.join(' | ') : 'all ok') + ' (' + passed + ' passed)');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
