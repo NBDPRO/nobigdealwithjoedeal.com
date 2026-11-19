@@ -171,6 +171,7 @@
     "estimate-funnel-unblock-2026-10-03.test.js",
     "inspect-short-form-2026-10-06.test.js",
     "esign-pdf-format-2026-11-18.test.js",
+    "doc-phone-layout-letterhead-2026-11-18.test.js",
     "inspect-lexington-routing-2026-11-18.test.js",
     "lead-flow-cro-2026-11-17.test.js",
     "storm-check-intake-grant-2026-11-17.test.js",
@@ -1272,6 +1273,9 @@
       "divergent key vocabularies; hydrateDerivedFields must bridge them so a",
       "rep's entered value (carrier, payment amounts, job total, scope, dates…)",
       "actually reaches the rendered legal document instead of a fabricated default."
+    ],
+    "right-to-cancel-layout-2026-11-18.test.js": [
+      "Notice of Right to Cancel layout: the running footer band (negative bottom margin) must not overlap the detachable forms page; contract packet unaffected."
     ],
     "doc-template-library.test.js": [
       "Template library (2026-10-04): lien waivers (4 kinds x OH/KY), right-to-cancel",
