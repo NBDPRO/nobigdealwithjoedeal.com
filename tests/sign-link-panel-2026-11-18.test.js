@@ -197,6 +197,14 @@ const DAY = 86400000;
     const ts2 = tokens(db);
     ok('any document type, flag on: making a new link retires the old link of the SAME document', ts2.length === 2 && ts2.filter((t) => t.status === 'pending').length === 1 && ts2.some((t) => t.status === 'superseded'), JSON.stringify(ts2.map((t) => t.status)));
     ok('the answer says the old link was retired (the panel tells the rep so)', !!b.v && b.v.supersededOld === true);
+    {
+      // B: the CONTRACT retire query fails alone (the 2nd collection read of the mint; the 1st is the sequence read, the 3rd the same-document retire)
+      const bdb = world({ [FLAG]: true });
+      const oc2 = bdb.collection; let calls = 0;
+      bdb.collection = (n) => { if (n === 'doc_sign_tokens' && ++calls === 2) return { where: () => ({ where: () => ({ get: async () => { throw new Error('contract query down'); } }) }) }; return oc2(n); };
+      const br = await mint(bdb, { sendEmail: false });
+      ok('B: the contract retire query fails: the link is minted, the answer says supersededOld null + supersedeError (flag on)', !!br.v && !!br.v.signLink && br.v.supersededOld === null && br.v.supersedeError === true, JSON.stringify(br.v) + (br.e && br.e.message));
+    }
     // review: a tampered or missing row counter can never keep an old link alive (max of the live links' linkSeq and the row, plus 1)
     for (const bad of [0, 'x', NaN, -3, 1e308, 2.5, null, undefined]) {
       const tdb = world({ [FLAG]: true }, { type: 'attic_acknowledgment' });

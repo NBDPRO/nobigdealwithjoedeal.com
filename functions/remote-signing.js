@@ -247,8 +247,9 @@ async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why, lin
     }
   } catch (e) {
     logger.warn('[remoteSigning] supersede older contract links failed', { leadId, err: e && e.message });
+    return { n, error: true };
   }
-  return n;
+  return { n, error: false };
 }
 
 /**
@@ -660,7 +661,11 @@ exports.createSignRequest = onCall(
     // its type, so only one link per document is ever live. Flag off: only the contract rule above, as before.
     let supersededOld = false;
     let supersedeError = false;
-    if (isContract) supersededOld = (await supersedeContractTokens(db, leadId, lead.userId, token, 'new_link', signPanelOn ? linkSeq : undefined)) > 0;
+    if (isContract) {
+      const cr = await supersedeContractTokens(db, leadId, lead.userId, token, 'new_link', signPanelOn ? linkSeq : undefined);
+      supersededOld = cr.n > 0;
+      if (cr.error && signPanelOn) supersedeError = true; // flag off: best-effort and silent, as on main
+    }
     if (signPanelOn) {
       const sr = await supersedeDocTokens(db, leadId, lead.userId, docId, token, 'new_link', linkSeq);
       if (sr.error) supersedeError = true;
