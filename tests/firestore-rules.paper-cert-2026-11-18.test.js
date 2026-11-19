@@ -90,6 +90,17 @@ async function run() {
   await check('second_owner_records is not readable by a client', 'deny', require('firebase/firestore').getDoc(doc(owner, 'second_owner_records/L1')));
   await check('second_owner_records is not writable by a client (cannot lower or clear a recorded second owner)', 'deny', setDoc(doc(owner, 'second_owner_records/L1'), { name: '' }));
 
+  // ── re-review (2): lead.secondOwnerName pins the co-signer requirement, so only the lead's owner or a company admin writes it ──
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'leads/L3'), { userId: 'ownerX', companyId: 'CO3', firstName: 'Dana' }); });
+  const mgr = env.authenticatedContext('mgr', { role: 'manager', companyId: 'CO3' }).firestore();
+  const adm = env.authenticatedContext('adm', { role: 'company_admin', companyId: 'CO3' }).firestore();
+  const own = env.authenticatedContext('ownerX', { companyId: 'CO3' }).firestore();
+  await check('a manager cannot set secondOwnerName on a teammate\'s lead', 'deny', updateDoc(doc(mgr, 'leads/L3'), { secondOwnerName: 'Wrong Person' }));
+  await check('control: a manager can still edit the lead\'s other fields', 'allow', updateDoc(doc(mgr, 'leads/L3'), { firstName: 'Dana M' }));
+  await check('control: the lead\'s owner can set secondOwnerName', 'allow', updateDoc(doc(own, 'leads/L3'), { secondOwnerName: 'Pat' }));
+  await check('a manager cannot clear or change it afterwards', 'deny', updateDoc(doc(mgr, 'leads/L3'), { secondOwnerName: '' }));
+  await check('control: a company admin can correct it', 'allow', updateDoc(doc(adm, 'leads/L3'), { secondOwnerName: 'Patricia' }));
+
   await env.cleanup();
   const bad = results.filter((r) => !r.ok);
   results.forEach((r) => console.log((r.ok ? '  ✓ ' : '  ✗ ') + r.label + (r.note ? ' — ' + r.note : '')));

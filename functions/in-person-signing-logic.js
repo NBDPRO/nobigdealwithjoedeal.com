@@ -104,8 +104,15 @@ async function contractGapsFor(db, ctx, evidence) {
     try { secondOwner = await DE.secondOwnerFor(db, leadId, lead); }
     catch (e) { throw new RefusalError('unavailable', (e && e.message) || 'Could not check the co-owner record just now. Try again in a moment.'); }
   }
-  return DE.serverContractGaps(Object.assign({ type: docMeta.type, html, lead, profile, tenantKey, KyLaw: require('./ky-insurance-law'), priceCents },
+  const gaps = DE.serverContractGaps(Object.assign({ type: docMeta.type, html, lead, profile, tenantKey, KyLaw: require('./ky-insurance-law'), priceCents },
     secondOwner ? { secondOwnerName: secondOwner, signerRoles: DE.sigBlockRoles(html) } : {}));
+  // Re-review: a co-owner BLOCK is not a co-owner SIGNATURE. The row's signers[].required and signedSigners are client-written, so
+  // the stored copy decides: with the flag on, a homeowner2 block must be finalized in it.
+  if (evidence.clauseFlag === true && DE.sigBlockRoles(html).indexOf('homeowner2') !== -1
+      && !DE.signedRoles(html).some((r) => r.role === 'homeowner2')) {
+    gaps.push({ code: 'coOwnerUnsigned', message: 'The co-owner has not signed. Every owner on record must sign before this counts as signed.' });
+  }
+  return gaps;
 }
 
 /**

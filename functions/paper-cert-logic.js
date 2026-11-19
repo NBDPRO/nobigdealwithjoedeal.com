@@ -45,11 +45,15 @@ function filedFieldFor(docType) {
   try { return require('./job-spine-logic').FILED_FIELD_BY_DOC_TYPE[docType] || null; } catch (_) { return null; }
 }
 
-/** docs/<uid>/<leadId>/<file>: the shape the paper upload writes, confined to THIS lead. */
-function uploadPathOk(p, leadId) {
+/**
+ * docs/<uid>/<leadId>/<file>: the shape the paper upload writes, confined to THIS lead, and the owner folder must be the lead's
+ * owner, the lead's company, or the person certifying (re-review 2026-11-19, LOW): a file under some unrelated user's folder is refused.
+ */
+function uploadPathOk(p, leadId, ownerIds) {
   if (typeof p !== 'string' || p.length > 400 || p.indexOf('..') !== -1) return false;
   const parts = p.split('/');
-  return parts.length === 4 && parts[0] === 'docs' && parts[1] !== '' && parts[2] === leadId && parts[3] !== '';
+  if (!(parts.length === 4 && parts[0] === 'docs' && parts[1] !== '' && parts[2] === leadId && parts[3] !== '')) return false;
+  return Array.isArray(ownerIds) ? ownerIds.filter(Boolean).indexOf(parts[1]) !== -1 : true;
 }
 
 const sha256Hex = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
@@ -116,7 +120,7 @@ async function attestWetSigned(db, auth, data, deps) {
 
   // The uploaded file must really exist, under THIS lead (MED3). Its path, size, content type and Storage hash are recorded, so the
   // attestation says which bytes were certified. An empty row, a path under another lead, a missing or zero-byte object is refused.
-  if (!uploadPathOk(row.storagePath, leadId)) throw new RefusalError('failed-precondition', 'This upload has no file on record. Upload the signed copy again, then certify it.');
+  if (!uploadPathOk(row.storagePath, leadId, [lead.userId, lead.companyId, uid])) throw new RefusalError('failed-precondition', 'This upload has no file on record. Upload the signed copy again, then certify it.');
   if (typeof dp.statFile !== 'function') throw new RefusalError('unavailable', 'Could not check the uploaded file just now. Try again in a moment.');
   let stat = null;
   try { stat = await dp.statFile(row.storagePath); } catch (_) { throw new RefusalError('unavailable', 'Could not check the uploaded file just now. Try again in a moment.'); }

@@ -997,6 +997,21 @@ exports.submitSignature = onRequest(
           return;
         }
         record = rebuilt.html;
+        // Co-owners (Q52, re-review): the stored original is rep-authored, so its own data-required flags are not believed. A
+        // homeowner2 block must be signed in the rebuilt record, and a second owner on the server's record (a contract-class
+        // document) needs that block to exist and be signed. Before the burn; a record that cannot be read refuses (retryable).
+        {
+          const hasCoBlock = DE.sigBlockRoles(originalHtml).indexOf('homeowner2') !== -1;
+          let needCo = hasCoBlock;
+          if (!needCo && DE.isContractClass(p.docType) && p.leadId) {
+            try { const rs = await db.doc(`second_owner_records/${p.leadId}`).get(); needCo = !!(rs && rs.exists && String((rs.data() || {}).name || '').trim()); }
+            catch (_) { res.status(503).json({ error: 'Could not record your signature right now. Nothing was used up; please try again shortly.' }); return; }
+          }
+          if (needCo && !DE.signedRoles(rebuilt.html).some((r) => r.role === 'homeowner2')) {
+            res.status(422).json({ error: 'Both owners must sign this contract. The co-owner has not signed yet. Please ask the co-owner to sign, or contact your rep for a corrected copy.' });
+            return;
+          }
+        }
         // Phase 3 (attic acknowledgment): a document with tick controls is recorded with the ticks the signer made,
         // taken from the submission for the controls the ORIGINAL has and nothing else. Every required tick and a
         // Yes or No on every line is enforced here, not only in the page. Before the burn.

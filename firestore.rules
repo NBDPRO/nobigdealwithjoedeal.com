@@ -993,6 +993,9 @@ service cloud.firestore {
           // (functions/jobs-mirror.js). Server-owned in phase 1: a client
           // re-saving the same value is fine, changing it is not.
           && didNotChange(['activeJobId'])
+          // The second owner a contract needs a co-signer for (docClauseSetV1, re-review 2026-11-19): the lead's owner or a company
+          // admin writes it; a manager cannot pin a wrong name that only an admin could then clear.
+          && (isOwner(resource.data.userId) || isCompanyAdmin() || didNotChange(['secondOwnerName']))
           // paymentBackfill is set once at create by the owner side, never toggled after.
           && didNotChange(['paymentBackfill'])
           // leads/{id}.carePlan mirrors the Roof Care Plan membership

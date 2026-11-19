@@ -47,6 +47,9 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
       'leads/L1/documents/DELORIG': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'image/jpeg', wetSignedDocType: 'contract', originalDocId: 'DELETED', wetSignedOn: '2026-11-17', uploadedBy: 'REP', storagePath: 'docs/REP/L1/1_scan.jpg' },
       'leads/L1/documents/UPORIG': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'image/jpeg', wetSignedDocType: 'contract', originalDocId: 'UPLOADED', wetSignedOn: '2026-11-17', uploadedBy: 'REP', storagePath: 'docs/REP/L1/1_scan.jpg' },
       'leads/L1/documents/GHOSTORIG': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'image/jpeg', wetSignedDocType: 'contract', originalDocId: 'NOSUCH', wetSignedOn: '2026-11-17', uploadedBy: 'REP', storagePath: 'docs/REP/L1/1_scan.jpg' },
+      'leads/L1/documents/STRANGERPATH': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'image/jpeg', wetSignedDocType: 'other', wetSignedOn: '2026-11-17', uploadedBy: 'REP', storagePath: 'docs/STRANGER/L1/1_scan.jpg' },
+      'leads/L1/documents/COMPANYPATH': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'image/jpeg', wetSignedDocType: 'other', wetSignedOn: '2026-11-17', uploadedBy: 'REP', storagePath: 'docs/CO/L1/1_scan.jpg' },
+      'leads/L1/documents/CALLERPATH': { source: 'signed_upload', status: 'wet_signed_uploaded', type: 'image/jpeg', wetSignedDocType: 'other', wetSignedOn: '2026-11-17', uploadedBy: 'M1', storagePath: 'docs/M1/L1/1_scan.jpg' },
       'leads/L1/documents/DELETED': { type: 'contract', status: 'draft', deleted: true, htmlPath: 'documents/REP/L1/d-1.html' },
       'leads/L1/documents/UPLOADED': { source: 'signed_upload', type: 'contract', status: 'signed' },
       'leads/L1/documents/LEGACY': { source: 'signed_upload', status: 'signed', type: 'image/jpeg', name: 'old.jpg' },
@@ -59,8 +62,8 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
       const deps = Object.assign({
         flagOn: async () => true,
         readBytes: async (p) => { if (p === 'documents/REP/L1/d-1.html') return ORIG_HTML; throw new Error('nope'); },
-        statFile: async (p) => (p === 'docs/REP/L1/1_scan.jpg' ? { size: 1234, contentType: 'image/jpeg', md5Hash: 'abc123==' }
-          : (p === 'docs/REP/L1/empty.jpg' ? { size: 0, contentType: 'image/jpeg' } : null)),
+        // any docs/ object exists except the two the cases below name: "never-uploaded" (absent) and "empty" (zero bytes)
+        statFile: async (p) => (/never-uploaded/.test(p) ? null : (/empty\.jpg$/.test(p) ? { size: 0, contentType: 'image/jpeg' } : { size: 1234, contentType: 'image/jpeg', md5Hash: 'abc123==' })),
         toTimestamp: (ms) => ({ toMillis: () => ms }),
         now: () => Date.parse('2026-11-18T15:00:00Z'),
         facts: { ip: '203.0.113.9', ipSource: 'socket', ua: 'UA' },
@@ -146,6 +149,16 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
       const e = await rejects(() => L.attestWetSigned(db, REP, { leadId: 'L1', docId: id }, deps));
       ok('refused: ' + why, !!e && e.code === 'failed-precondition' && db._get('leads/L1/documents/' + id).status === 'wet_signed_uploaded' && events.length === 0, e && (e.code + ' ' + e.message));
     }
+    // re-review (3): the owner segment of docs/<uid>/<lead>/<file> must be the lead's owner, its company, or the certifier
+    { const { db, deps } = mk();
+      const e = await rejects(() => L.attestWetSigned(db, REP, { leadId: 'L1', docId: 'STRANGERPATH' }, deps));
+      ok('a path under some other user\'s folder is refused', !!e && e.code === 'failed-precondition' && db._get('leads/L1/documents/STRANGERPATH').status === 'wet_signed_uploaded', e && e.code);
+      ok('a path under the company folder is accepted', (await rejects(() => L.attestWetSigned(db, REP, { leadId: 'L1', docId: 'COMPANYPATH' }, deps))) === null);
+      const mgrCert = { uid: 'M1', token: { companyId: 'CO', role: 'manager', name: 'M' } };
+      ok('a path under the certifying manager\'s own folder is accepted', (await rejects(() => L.attestWetSigned(db, mgrCert, { leadId: 'L1', docId: 'CALLERPATH' }, deps))) === null);
+      const fresh = mk();
+      const e2 = await rejects(() => L.attestWetSigned(fresh.db, { uid: 'A1', token: { companyId: 'CO', role: 'company_admin', name: 'A' } }, { leadId: 'L1', docId: 'CALLERPATH' }, fresh.deps));
+      ok('...but not when someone else certifies it (the folder is M1\'s, the certifier is A1)', !!e2 && e2.code === 'failed-precondition' && fresh.db._get('leads/L1/documents/CALLERPATH').status === 'wet_signed_uploaded', e2 && e2.code); }
     for (const [id, why] of [['DELORIG', 'a deleted original'], ['UPORIG', 'an original that is itself an upload'], ['GHOSTORIG', 'an original that is not on this lead']]) {
       const { db, deps } = mk();
       const e = await rejects(() => L.attestWetSigned(db, REP, { leadId: 'L1', docId: id }, deps));
@@ -559,6 +572,10 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
     const sigBlk = (r) => '<div data-nbd-sig="' + r + '" data-nbd-sig-required="1"><canvas width="300" height="100"></canvas></div>';
     const htmlWith = (...roles) => CONTRACT.replace(sigBlk('homeowner'), roles.map(sigBlk).join(''));
     const BOTH_HTML = htmlWith('homeowner', 'homeowner2', 'rep'); const ONE_HTML = htmlWith('homeowner', 'rep');
+    // Re-review: the co-owner must have SIGNED (a finalized block in the stored copy), not merely have a block.
+    const finBlk = (r) => '<div data-nbd-sig="' + r + '" data-nbd-sig-required="1" data-nbd-sig-finalized="1" data-nbd-sig-signed-at="2026-11-18T15:00:00.000Z"><img src="data:image/png;base64,AAAA"></div>';
+    const SIGNED_BOTH = CONTRACT.replace(sigBlk('homeowner'), finBlk('homeowner') + finBlk('homeowner2'));
+    const CO_UNSIGNED = CONTRACT.replace(sigBlk('homeowner'), finBlk('homeowner') + sigBlk('homeowner2'));
     const mint = async (flags, lead, signers, html, mod) => {
       const db = kit.makeDb(seedRS(flags, lead, signers));
       if (mod) mod(db);
@@ -612,8 +629,19 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
     ok('in person: flag on, two owners listed, the co-owner never a signer: refused', !!c.e && /Pat Whitfield/.test(String(c.e.message)), c.e && c.e.message);
     c = await callIP(FLAG, leadX({ secondOwnerName: 'Pat Whitfield' }), [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], [{ role: 'homeowner', signedAt: 1 }, { role: 'rep', signedAt: 3 }]);
     ok('in person: the co-owner is a required signer who did not sign: not recorded as signed', !!c.e && /not signed|missing_required_signer/.test(String(c.e.message)), c.e && c.e.message);
-    c = await callIP(FLAG, PAT, [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], signedBoth, BOTH_HTML);
-    ok('in person: both owners signed: recorded', !!c.v && c.v.ok === true, c.e && c.e.message);
+    c = await callIP(FLAG, PAT, [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], signedBoth, SIGNED_BOTH);
+    ok('in person: both owners signed (both blocks finalized in the stored copy): recorded', !!c.v && c.v.ok === true, c.e && c.e.message);
+    // re-review (1): the client-written signers[] / signedSigners are not believed about the co-owner
+    const NOT_REQ = [ROLE('homeowner'), { role: 'homeowner2', required: false }, ROLE('rep')];
+    const noCoSigned = [{ role: 'homeowner', signedAt: 1 }, { role: 'rep', signedAt: 3 }];
+    c = await callIP(FLAG, PAT, NOT_REQ, noCoSigned, CO_UNSIGNED);
+    ok('in person: co-owner block NOT finalized + the client marks the co-owner not required and leaves them out of signedSigners: refused', !!c.e && /co-owner|Pat Whitfield/i.test(String(c.e.message)) && !c.db._get('leads/L1/documents/d1').signatureEvidence, c.e && c.e.message);
+    c = await callIP(FLAG, leadX(), NOT_REQ, noCoSigned, CO_UNSIGNED);
+    ok('in person: the same with NO second owner on the lead: a co-owner block in the copy still has to be signed', !!c.e && /co-owner/i.test(String(c.e.message)), c.e && c.e.message);
+    c = await callIP(FLAG, leadX({ secondOwnerName: '' }), NOT_REQ, noCoSigned, CO_UNSIGNED, (db) => db._store.set('second_owner_records/L1', { name: 'Pat Whitfield', recordedAt: 1 }));
+    ok('in person: a recorded second owner with an unsigned co-owner block: refused', !!c.e && /co-owner|Pat Whitfield/i.test(String(c.e.message)), c.e && c.e.message);
+    c = await callIP(null, PAT, NOT_REQ, noCoSigned, CO_UNSIGNED);
+    ok('in person: flag off: unchanged (no co-owner check)', !!c.v && c.v.ok === true, c.e && c.e.message);
     c = await callIP(null, PAT, [ROLE('homeowner'), ROLE('rep')], [{ role: 'homeowner', signedAt: 1 }, { role: 'rep', signedAt: 3 }], ONE_HTML);
     ok('in person: flag off: unchanged', !!c.v && c.v.ok === true, c.e && c.e.message);
     // security review HIGH2, in person
@@ -623,10 +651,58 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
     ok('in person: a row claiming both signers over a stored copy with one block is refused', !!c.e && /Pat Whitfield/.test(String(c.e.message)), c.e && c.e.message);
     c = await callIP(FLAG, leadX({ secondOwnerName: '' }), [ROLE('homeowner'), ROLE('rep')], [{ role: 'homeowner', signedAt: 1 }, { role: 'rep', signedAt: 3 }], ONE_HTML, (db) => db._store.set('second_owner_records/L1', { name: 'Pat Whitfield', recordedAt: 1 }));
     ok('in person: a second owner recorded earlier cannot be lowered by clearing the lead field', !!c.e && /Pat Whitfield/.test(String(c.e.message)), c.e && c.e.message);
-    c = await callIP(FLAG, PAT, [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], signedBoth, BOTH_HTML);
+    c = await callIP(FLAG, PAT, [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], signedBoth, SIGNED_BOTH);
     ok('in person: the second owner is recorded by the server', !!c.v && !!c.db._get('second_owner_records/L1') && c.db._get('second_owner_records/L1').name === 'Pat Whitfield');
-    c = await callIP(FLAG, PAT, [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], signedBoth, BOTH_HTML, (db) => { const o = db.doc; db.doc = (p) => (/^second_owner_records\//.test(p) ? { get: async () => { throw new Error('down'); }, set: async () => { throw new Error('down'); } } : o(p)); });
+    c = await callIP(FLAG, PAT, [ROLE('homeowner'), ROLE('homeowner2'), ROLE('rep')], signedBoth, SIGNED_BOTH, (db) => { const o = db.doc; db.doc = (p) => (/^second_owner_records\//.test(p) ? { get: async () => { throw new Error('down'); }, set: async () => { throw new Error('down'); } } : o(p)); });
     ok('in person: the record cannot be read: retryable "unavailable"', !!c.e && c.e.code === 'unavailable', c.e && c.e.code); }
+
+  section('3. re-review: the remote signing page cannot record a contract the co-owner did not sign');
+  { const K = require(path.join(FN, 'ky-insurance-law.js')); const ESL = require(path.join(FN, 'esign-logic.js')); const DE = require(path.join(FN, 'doc-evidence.js'));
+    const GOOD = 'documents/U1/L1/d-1.html';
+    const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const sigBox = (role, label, required) => '<div class="nbd-sig-block" data-nbd-sig="' + role + '" data-label="' + label + '" data-required="' + required + '"><div class="nbd-sig-label">' + label + '</div><canvas class="nbd-sig-canvas"></canvas><div class="nbd-sig-controls"><button type="button" data-nbd-sig-action="clear">Clear</button><span class="nbd-sig-state"></span></div><div class="nbd-sig-print-name">Print Name &amp; Date</div></div>';
+    const page = (blocks) => '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Roofing Agreement</title></head><body><h1>Roofing Agreement</h1><p>Prepared for Dana Whitfield.</p><table><tr><td>Total</td><td>$28,400.00</td></tr></table>' + blocks + '<script src="/pro/js/signature-widget.js"></script></body></html>';
+    // the signer signs the homeowner block only; the page's own required flag for the co-owner was set by the rep ("false")
+    const signHomeowner = (orig) => orig.replace('<div class="nbd-sig-block" data-nbd-sig="homeowner"', '<div class="nbd-sig-block" data-nbd-sig="homeowner" data-nbd-sig-finalized="1" data-nbd-sig-signed-at="2026-11-18T15:00:00.000Z"')
+      .replace(/(data-nbd-sig="homeowner"[\s\S]*?)<canvas class="nbd-sig-canvas"><\/canvas>/, '$1<img src="' + PNG + '" alt="Homeowner" class="nbd-sig-img">')
+      .replace(/(data-nbd-sig="homeowner"[\s\S]*?)<div class="nbd-sig-controls">[\s\S]*?<\/span><\/div>/, '$1<div class="nbd-sig-date">Signed November 18, 2026</div>');
+    const signBoth = (orig) => signHomeowner(orig).replace('<div class="nbd-sig-block" data-nbd-sig="homeowner2"', '<div class="nbd-sig-block" data-nbd-sig="homeowner2" data-nbd-sig-finalized="1" data-nbd-sig-signed-at="2026-11-18T15:01:00.000Z"')
+      .replace(/(data-nbd-sig="homeowner2"[\s\S]*?)<canvas class="nbd-sig-canvas"><\/canvas>/, '$1<img src="' + PNG + '" alt="Co-owner" class="nbd-sig-img">')
+      .replace(/(data-nbd-sig="homeowner2"[\s\S]*?)<div class="nbd-sig-controls">[\s\S]*?<\/span><\/div>/, '$1<div class="nbd-sig-date">Signed November 18, 2026</div>');
+    const TWO = page(sigBox('homeowner', 'Homeowner', 'true') + sigBox('homeowner2', 'Homeowner (co-owner)', 'false'));
+    const ONE = page(sigBox('homeowner', 'Homeowner', 'true'));
+    const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './doc-evidence', './await-briefly', './signed-price', 'crypto'];
+    const sub = async (original, signed, extraSeed, flag) => {
+      const o = Object.assign({
+        'leads/L1': { userId: 'U1', companyId: 'C1', firstName: 'Dana', email: 'dana@example.test', address: '12 Oak St, Cincinnati, OH 45202', jobType: 'cash' },
+        'leads/L1/documents/d1': { name: 'Roofing Agreement', status: 'sent', type: 'contract', htmlPath: GOOD },
+        'doc_sign_tokens/TOKCO00000001': { status: 'pending', leadId: 'L1', docId: 'd1', ownerUid: 'U1', mintedBy: 'U1', htmlPath: GOOD, signerName: 'Dana Whitfield', docType: 'contract', clauseSetVersion: 'CS-TEST.9', clauseIds: ['PAYMENT_V1'] },
+      }, extraSeed || {});
+      if (flag) o['feature_flags/_default'] = { docClauseSetV1: true };
+      const db = kit.makeDb(o);
+      const L = kit.loadHandler('remote-signing.js', db, kit.makeStorage({ [GOOD]: original }), {
+        './cancel-window': require(path.join(FN, 'cancel-window.js')), './ky-insurance-law': K, './lead-artifact-paths': require(path.join(FN, 'lead-artifact-paths.js')),
+        './esign-logic': ESL, './doc-evidence': DE, './await-briefly': require(path.join(FN, 'await-briefly.js')), './signed-price': require(path.join(FN, 'signed-price.js')) }, REAL);
+      const s = kit.reqRes({ token: 'TOKCO00000001', signedHtml: signed }, { ip: '198.51.100.9', ua: 'UA' });
+      await L.fns.submitSignature(s.req, s.res);
+      return { res: s.res, db, tok: db._get('doc_sign_tokens/TOKCO00000001') };
+    };
+    let x = await sub(TWO, signHomeowner(TWO));
+    ok('remote: a co-owner block the rep marked data-required="false", left unsigned: the page is refused (422), the link is not burned', x.res.statusCode === 422 && /co-owner|both owners/i.test(JSON.stringify(x.res.body)) && x.tok.status === 'pending', JSON.stringify(x.res.body));
+    x = await sub(TWO, signBoth(TWO));
+    ok('remote: both blocks signed: recorded', x.res.statusCode === 200 && x.res.body.ok === true, JSON.stringify(x.res.body));
+    x = await sub(ONE, signHomeowner(ONE), { 'second_owner_records/L1': { name: 'Pat Whitfield', recordedAt: 1 } });
+    ok('remote: a second owner on record but a document with no co-owner block: refused, link not burned', x.res.statusCode === 422 && x.tok.status === 'pending', JSON.stringify(x.res.body));
+    x = await sub(ONE, signHomeowner(ONE));
+    ok('remote: one owner, no record, no co-owner block: recorded as before', x.res.statusCode === 200 && x.res.body.ok === true, JSON.stringify(x.res.body));
+    // the record read failing fails closed before anything is burned
+    { const o = { 'leads/L1': { userId: 'U1', companyId: 'C1', firstName: 'Dana', email: 'dana@example.test', address: '12 Oak St, Cincinnati, OH 45202', jobType: 'cash' }, 'leads/L1/documents/d1': { name: 'Roofing Agreement', status: 'sent', type: 'contract', htmlPath: GOOD },
+        'doc_sign_tokens/TOKCO00000001': { status: 'pending', leadId: 'L1', docId: 'd1', ownerUid: 'U1', mintedBy: 'U1', htmlPath: GOOD, signerName: 'Dana Whitfield', docType: 'contract', clauseSetVersion: 'CS-TEST.9', clauseIds: ['PAYMENT_V1'] } };
+      const db = kit.makeDb(o); const od = db.doc; db.doc = (p) => (/^second_owner_records\//.test(p) ? { get: async () => { throw new Error('down'); } } : od(p));
+      const L = kit.loadHandler('remote-signing.js', db, kit.makeStorage({ [GOOD]: ONE }), { './cancel-window': require(path.join(FN, 'cancel-window.js')), './ky-insurance-law': K, './lead-artifact-paths': require(path.join(FN, 'lead-artifact-paths.js')), './esign-logic': ESL, './doc-evidence': DE, './await-briefly': require(path.join(FN, 'await-briefly.js')), './signed-price': require(path.join(FN, 'signed-price.js')) }, REAL);
+      const s = kit.reqRes({ token: 'TOKCO00000001', signedHtml: signHomeowner(ONE) }, { ip: '198.51.100.9', ua: 'UA' });
+      await L.fns.submitSignature(s.req, s.res);
+      ok('remote: the co-owner record cannot be read: 503, nothing burned', s.res.statusCode === 503 && db._get('doc_sign_tokens/TOKCO00000001').status === 'pending', String(s.res.statusCode)); } }
 
   section('3. co-owner: evidence records both signers; saved signatures are looked up per role');
   { const DE = require(path.join(FN, 'doc-evidence.js'));
