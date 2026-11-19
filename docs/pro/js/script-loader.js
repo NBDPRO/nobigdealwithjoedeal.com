@@ -531,7 +531,7 @@
     // under Settings → AI Texting. Hooks the tab, and paints a tab already open.
     tenantsettings: [
       'js/tenant-rules-settings.js?v=1',
-      'js/tenant-account-ui.js?v=2',
+      'js/tenant-account-ui.js?v=8',
       'js/sms-compliance-settings.js?v=2',
       'js/away-mode-settings.js?v=1',
       'js/prod-flags-panel.js?v=1'
