@@ -593,6 +593,24 @@ const isoAt = (ymd, hm) => new Date(SW.localToUtcMs(ymd, hm)).toISOString();
     ok('empty / null input gives no rows', PL.parseSubList('', []).length === 0 && PL.parseSubList(null).length === 0);
   }
 
+  // ═══ 15. sub rate card ═════════════════════════════════════════════════
+  console.log('\n15. sub rate card');
+  {
+    const r = PL.parseRates('Tear-off & install: $85 / SQ\nGutter repair 350 job\n\nSmall repairs $45.50 per hour\n30-year shingle 1,250.5 Day');
+    ok('four rates, blank line skipped', r.ok && r.rates.length === 4);
+    ok('per-square rate: type, basis, cents', r.rates[0].type === 'Tear-off & install' && r.rates[0].basis === 'sq' && r.rates[0].cents === 8500);
+    ok('flat per job, no dollar sign', r.rates[1].type === 'Gutter repair' && r.rates[1].basis === 'job' && r.rates[1].cents === 35000);
+    ok('hourly with "per", cents kept', r.rates[2].type === 'Small repairs' && r.rates[2].basis === 'hour' && r.rates[2].cents === 4550);
+    ok('digits in the type name do not become the money (the LAST number wins)', r.rates[3].type === '30-year shingle' && r.rates[3].basis === 'day' && r.rates[3].cents === 125050);
+    ok('rateLine output parses back to the same rate', r.rates.every((x) => { const b = PL.parseRates(PL.rateLine(x)); return b.ok && b.rates[0].type === x.type && b.rates[0].basis === x.basis && b.rates[0].cents === x.cents; }));
+    const bad = PL.parseRates('Roof 85 sq\nGutters sq');
+    ok('a line with no amount refuses the whole card and names the line', !bad.ok && /^Line 2/.test(bad.message));
+    ok('a line with no basis is refused', !PL.parseRates('Roof 85').ok && /SQ, job, hour or day/.test(PL.parseRates('Roof 85').message));
+    ok('zero and over-cap amounts are refused', !PL.parseRates('Roof 0 sq').ok && !PL.parseRates('Roof 100000 job').ok);
+    ok('more than 20 rates is refused', !PL.parseRates(Array.from({ length: 21 }, () => 'A 1 sq').join('\n')).ok && PL.parseRates(Array.from({ length: 20 }, () => 'A 1 sq').join('\n')).ok);
+    ok('empty text is an empty card, not an error', PL.parseRates('').ok && PL.parseRates('').rates.length === 0);
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n  - ' + fails.join('\n  - ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

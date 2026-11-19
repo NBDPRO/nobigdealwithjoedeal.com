@@ -84,6 +84,45 @@
   }
 
   /**
+   * parseRates(text) — a sub's rate card. One rate per line, in the words a
+   * contractor uses: "Tear-off & install: $85 / SQ", "Gutter repair 350 job",
+   * "Small repairs $45 hour". The LAST number is the money, the LAST basis word
+   * (sq / job / hour / day) is the pay basis, and what is left is the job type.
+   * Money is integer cents, $0.01 to $99,999.99; at most 20 rates. A bad line
+   * refuses the whole save and says which line, so nothing is half-saved.
+   * rateLine() prints one back in a shape parseRates reads again.
+   */
+  const RATE_BASES = { sq: 'SQ', job: 'job', hour: 'hour', day: 'day' };
+  function rateLine(r) {
+    return str(r.type) + (str(r.type) ? ': ' : '') + '$' + (r.cents / 100).toFixed(2) + ' / ' + (RATE_BASES[r.basis] || r.basis);
+  }
+  function parseRates(text) {
+    const rates = [];
+    const lines = String(text == null ? '' : text).split(/\r\n|\r|\n/);
+    for (let i = 0; i < lines.length; i++) {
+      let line = str(lines[i]);
+      if (!line) continue;
+      const at = 'Line ' + (i + 1) + ' ("' + line.slice(0, 30) + '"): ';
+      const nums = [...line.matchAll(/\$?\s*(\d[\d,]*(?:\.\d{1,2})?)/g)];
+      if (!nums.length) return { ok: false, message: at + 'add the dollar amount.' };
+      const n = nums[nums.length - 1];
+      const bases = [...line.matchAll(/\b(sq|squares?|job|flat|hours?|hrs?|hourly|day|daily)\b/gi)];
+      if (!bases.length) return { ok: false, message: at + 'say SQ, job, hour or day.' };
+      const b = bases[bases.length - 1];
+      const w = b[1].toLowerCase();
+      const basis = /^s/.test(w) ? 'sq' : /^(job|flat)/.test(w) ? 'job' : /^h/.test(w) ? 'hour' : 'day';
+      const cents = Math.round(parseFloat(n[1].replace(/,/g, '')) * 100);
+      if (!(cents >= 1 && cents <= 9999999)) return { ok: false, message: at + 'the amount must be between $0.01 and $99,999.99.' };
+      const cut = [[n.index, n.index + n[0].length], [b.index, b.index + b[0].length]].sort((x, y) => y[0] - x[0]);
+      cut.forEach((c) => { line = line.slice(0, c[0]) + ' ' + line.slice(c[1]); });
+      const type = str(line.replace(/\bper\b|\beach\b/gi, ' ').replace(/[:/$,;|]+/g, ' ').replace(/\s+/g, ' ')).slice(0, 40);
+      if (rates.length >= 20) return { ok: false, message: 'A rate card holds up to 20 rates.' };
+      rates.push({ type, basis, cents });
+    }
+    return { ok: true, rates };
+  }
+
+  /**
    * parseSubList(text, existingSubs) — the paste-a-list roster add. One sub per
    * line, in whatever shape a phone gives: "Mike Ruiz 513-555-0142 Gutters",
    * "Mike Ruiz, (513) 555-0142", or just "Mike Ruiz". The phone is the first
@@ -578,7 +617,7 @@
 
   const api = {
     COMMITTED, JOB_STAGES, TRADES, STORES, ORDER_STATUS, AFTER_CHECKLIST, STRIP_FIRST_HOUR, STRIP_LAST_HOUR,
-    shortDate, longDate, jobRange, cleanSub, parseSubList, certStatus, subFieldsFor, subConflicts, subWarnings, crewMigration,
+    shortDate, longDate, jobRange, cleanSub, parseSubList, parseRates, rateLine, certStatus, subFieldsFor, subConflicts, subWarnings, crewMigration,
     permitState, permitPatch, orderItemsFromList, hdSkusForLead, cleanOrder, deliveryWarning, summarizeOrders,
     stripSteps, jobSheet, addWorkingDays, rainPushPlan, showAfterChecklist, finalPhotosWarning,
     crewEmailFields, reminderText, tomorrowInstalls, needsWeek, busyStrip,

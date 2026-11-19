@@ -90,6 +90,7 @@
     if (!c.ok) throw new Error(c.message);
     const t = tenantKey();
     if (!t) throw new Error('Not signed in yet.');
+    if (Array.isArray(input.rates)) c.sub.rates = input.rates;
     const data = Object.assign({}, c.sub, { updatedAt: ts() });
     if (id) await window.setDoc(window.doc(window.db, 'companies', t, 'subs', id), data, { merge: true });
     else { data.createdAt = ts(); await window.addDoc(window.collection(window.db, 'companies', t, 'subs'), data); }
@@ -361,6 +362,7 @@
       (list.length ? list.map((s) => {
         const c = P().certStatus(s, todayYmd());
         return '<div class="pr-sub' + (s.active === false ? ' pr-archived' : '') + '"><b>' + esc(s.name) + '</b> · ' + esc(s.trade || '') + (s.phone ? ' · ' + esc(s.phone) : '') +
+          (Array.isArray(s.rates) && s.rates.length ? '<div class="pr-muted">' + s.rates.map((r) => esc(P().rateLine(r))).join(' · ') + '</div>' : '') +
           '<div class="pr-cert pr-cert-' + esc(c.state) + '">' + esc(c.label) + '</div>' +
           '<button type="button" class="btn btn-ghost pr-small" data-pr-action="edit-sub" data-pr-sub="' + esc(s.id) + '">Edit</button></div>';
       }).join('') : '<div class="pr-muted">No subs yet. Add the crews you sub work to.</div>') +
@@ -397,6 +399,7 @@
       '<label class="pr-field">Name<input type="text" id="prSubName" maxlength="80" value="' + esc(x.name || '') + '"></label>' +
       '<label class="pr-field">Phone<input type="tel" id="prSubPhone" maxlength="40" value="' + esc(x.phone || '') + '"></label>' +
       '<label class="pr-field">Trade<select id="prSubTrade">' + trades + '</select></label>' +
+      '<label class="pr-field">Rates (one per line: job type, amount, SQ / job / hour / day)<textarea id="prSubRates" rows="3" maxlength="1500" placeholder="Tear-off &amp; install: $85 / SQ">' + esc((x.rates || []).map((r) => P().rateLine(r)).join('\n')) + '</textarea></label>' +
       '<label class="pr-field">Insurance certificate expires<input type="date" id="prSubExp" value="' + esc(x.insuranceExpiry || '') + '"></label>' +
       '<label class="pr-field">Notes<textarea id="prSubNotes" maxlength="1000" rows="2">' + esc(x.notes || '') + '</textarea></label>' +
       (x.id ? '<label class="pr-check"><input type="checkbox" id="prSubActive"' + (x.active === false ? '' : ' checked') + '> On the roster</label>' : '') +
@@ -538,7 +541,9 @@
       if (act === 'save-roster') {
         const form = btn.closest('.pr-subform');
         const id = form && form.dataset.prSubid;
-        await saveSub({ name: $('prSubName').value, phone: $('prSubPhone').value, trade: $('prSubTrade').value, insuranceExpiry: $('prSubExp').value, notes: $('prSubNotes').value,
+        const rr = P().parseRates($('prSubRates') ? $('prSubRates').value : '');
+        if (!rr.ok) { msg(rr.message); return; }
+        await saveSub({ name: $('prSubName').value, phone: $('prSubPhone').value, trade: $('prSubTrade').value, insuranceExpiry: $('prSubExp').value, notes: $('prSubNotes').value, rates: rr.rates,
           active: $('prSubActive') ? $('prSubActive').checked : true }, id || null);
         _cp.editSub = null; toast('Roster saved ✓', 'success'); renderPanel();
         return;
