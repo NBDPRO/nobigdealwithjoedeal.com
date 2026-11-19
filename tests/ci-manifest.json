@@ -1274,6 +1274,9 @@
       "rep's entered value (carrier, payment amounts, job total, scope, dates…)",
       "actually reaches the rendered legal document instead of a fabricated default."
     ],
+    "right-to-cancel-layout-2026-11-18.test.js": [
+      "Notice of Right to Cancel layout: the running footer band (negative bottom margin) must not overlap the detachable forms page; contract packet unaffected."
+    ],
     "doc-template-library.test.js": [
       "Template library (2026-10-04): lien waivers (4 kinds x OH/KY), right-to-cancel",
       "notice, material selection, Good-Better-Best options, insurance next-steps",
