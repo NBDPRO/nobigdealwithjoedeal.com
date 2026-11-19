@@ -195,6 +195,29 @@ const generated = async (docType, profileExtra) => {
     ok('remote createSignRequest: a contract row naming the trivial estimate is still gated on E1 (no form: refused)', !!r.e && r.e.code === 'failed-precondition' && r.dbm._all('doc_sign_tokens').length === 0, r.e && r.e.code + ' ' + r.e.message);
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('5. the tag count is capped (fails closed) and a stored copy is scanned once');
+  {
+    const flood = (n) => GEN.replace('</body>', '<br>'.repeat(n) + '</body>');
+    const big = flood(30000);
+    let r = verify(big);
+    ok('30,000 extra tags: refused as too_many_tags', r.ok === false && r.reasons.indexOf('too_many_tags') !== -1, JSON.stringify(r.reasons));
+    const t0 = Date.now();
+    const huge = flood(450000);   // about 1.8 MB, under the byte cap
+    r = verify(huge);
+    ok('the largest copy the byte cap allows is refused as too_many_tags, quickly', huge.length < AG.MAX_HTML && r.reasons.indexOf('too_many_tags') !== -1 && Date.now() - t0 < 3000, (Date.now() - t0) + ' ms ' + JSON.stringify(r.reasons));
+    const ap = AG.applyAcks(big, tick(sign(big)), 'attic_acknowledgment');
+    ok('applyAcks of an over-cap original is not complete', ap.complete === false && ap.manifestOk === false);
+    ok('resultFor an over-cap signed copy is not complete', AG.resultFor('attic_acknowledgment', tick(sign(big)), null).complete === false);
+    ok('control: the real signed form is far under the cap', verify(tick(sign(GEN)), { signed: true }).ok === true);
+    ok('the scan counter is exported', typeof AG._scanCalls === 'function');
+    if (typeof AG._scanCalls === 'function') {
+      const c0 = AG._scanCalls();
+      verify(GEN + ' '); verify(GEN + ' ');
+      ok('the same copy verified twice is scanned once', AG._scanCalls() - c0 === 1, String(AG._scanCalls() - c0));
+    }
+  }
+
   console.log('\n' + (failed ? 'FAILED ' + failed + ': ' + fails.join(' | ') : 'all ok') + ' (' + passed + ' passed)');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

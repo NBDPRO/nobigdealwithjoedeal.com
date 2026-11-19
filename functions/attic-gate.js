@@ -58,6 +58,8 @@ const VOID_ELEMENTS = { area: 1, base: 1, br: 1, col: 1, embed: 1, hr: 1, img: 1
 // Classes that hide an element's text in the printed or signed copy (see the style allowlist): text inside one is not wording.
 const HIDDEN_CLASSES = { 'no-print': 1, 'nbd-sig-controls': 1, 'nbd-sig-state': 1 };
 const MAX_DEPTH = 400;
+// Review 4 (item 5): the real form has well under 1,000 tags; a copy with more is refused (the scan stops at the cap, so the work is bounded).
+const MAX_TAGS = 20000;
 function _classes(v) { return String(v == null ? '' : v).toLowerCase().split(/\s+/).filter(Boolean); }
 function _hiddenClass(attrs) { return _classes(attrs && attrs.class).some((c) => HIDDEN_CLASSES[c] === 1); }
 const ATTR_RE = /([^\s"'<>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
@@ -68,12 +70,23 @@ const ATTR_RE = /([^\s"'<>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))
  * A comment, tag, quote or raw element that never closes swallows the rest of the document, as a browser does: what follows it is not read as
  * wording. An element nested deeper than MAX_DEPTH ends the scan (too_deep).
  */
+let _scanRuns = 0; const _scanCache = [];
+/** _scanRaw, memoised for the large strings a request holds (verifyManifest, applyAcks and resultFor read the same stored copy). */
 function _scan(html) {
+  const s0 = String(html == null ? '' : html);
+  if (s0.length < 4096) return _scanRaw(s0);
+  for (let k = 0; k < _scanCache.length; k++) if (_scanCache[k].s === s0) return _scanCache[k].r;
+  _scanRuns++;   // counts the scans of whole copies (the paragraphs of the packet are small)
+  const r = _scanRaw(s0);
+  _scanCache.push({ s: s0, r }); if (_scanCache.length > 4) _scanCache.shift();
+  return r;
+}
+function _scanRaw(html) {
   const s = String(html == null ? '' : html);
   const low = s.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));   // same length as s
   const n = s.length;
   const text = []; const tags = []; const styles = [];
-  let unterminated = false; let tooDeep = false;
+  let unterminated = false; let tooDeep = false; let tooMany = false;
   const stack = []; const open = {}; let hid = 0;   // open elements, how many of each name, how many carry a hidden class
   const say = (t) => { if (hid === 0) text.push(t); };
   let i = 0;
@@ -103,6 +116,7 @@ function _scan(html) {
       j++;
     }
     if (end === -1) { unterminated = true; break; }
+    if (tags.length > MAX_TAGS) { tooMany = true; break; }
     const raw = s.slice(i, end + 1);
     const nm = /^<(\/?)([a-z][a-z0-9:-]*)/.exec(low.slice(i, Math.min(end + 1, i + 40)));
     const attrs = {};
@@ -133,7 +147,7 @@ function _scan(html) {
       }
     }
   }
-  return { text: text.join(''), tags, styles, unterminated, tooDeep };
+  return { text: text.join(''), tags, styles, unterminated, tooDeep, tooMany };
 }
 
 // Review 4 (item 2): a raw element ends at </name followed by white space, '/' or '>' (as a browser reads it), never at </namez.
@@ -365,6 +379,7 @@ function _risks(scan, parsed, opts) {
   const bad = [];
   const add = (c) => { if (bad.indexOf(c) === -1) bad.push(c); };
   if (scan.tooDeep) add('too_deep');
+  if (scan.tooMany) add('too_many_tags');
   let noPrint = 0;
   scan.tags.forEach((t) => {
     // Review 3 (item 3): the tags and attributes of the form are an allowlist (what the server render and the signing step write).
@@ -706,4 +721,4 @@ async function recordOverride(db, auth, data, fail, deps) {
 
 const TOO_LARGE_MSG = 'This attic acknowledgment is too large to verify. Open the customer, create a fresh copy of the form and try again.';
 
-module.exports = { estimateStamp, manifestFor, verifyManifest, OVERRIDES, MAX_HTML, TOO_LARGE_MSG, NOT_ON_LEAD_MSG, formBasis, gated, isAtticDoc, applyAcks, resultFor, decide, recordOverride };
+module.exports = { _scanCalls: () => _scanRuns, estimateStamp, manifestFor, verifyManifest, OVERRIDES, MAX_HTML, TOO_LARGE_MSG, NOT_ON_LEAD_MSG, formBasis, gated, isAtticDoc, applyAcks, resultFor, decide, recordOverride };
