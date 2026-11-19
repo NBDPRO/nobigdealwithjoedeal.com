@@ -577,10 +577,9 @@
   // tick controls (data-nbd-ack), recorded with the signature: the signing paths here only support signature
   // canvases, so "initials" are implemented as recorded ticks + signature (documented deviation).
   // ═════════════════════════════════════════════════════════════════
-  var ATTIC_CSS = '<style>.aa-p{font-size:13px;line-height:1.55;margin:0 0 9px;}.aa-ver{text-align:right;font-size:9px;color:#888;margin:0 0 6px;}' +
-    '.aa-row{display:flex;gap:9px;align-items:flex-start;font-size:13px;line-height:1.5;margin:0 0 9px;}.aa-row input{margin-top:3px;flex:0 0 auto;width:18px;height:18px;}' +
-    '.aa-sel{font-size:13px;line-height:1.5;margin:0 0 6px;}.aa-thumbs img{max-height:90px;max-width:130px;margin:4px 6px 0 0;border:1px solid #ccc;}' +
-    '.aa-note{font-size:11px;color:#555;margin:0 0 10px;}.aa-opt{text-align:center;width:60px;}.aa-opt input{width:18px;height:18px;}</style>';
+  // The form's own CSS is the twinned module's constant (window.NBDAtticAck.ATTIC_FORM_CSS): functions/attic-gate.js accepts this block in a
+  // stored form only when it equals it.
+  function atticCss() { return '<style>' + window.NBDAtticAck.ATTIC_FORM_CSS + '</style>'; }
 
   function aaMd(s) { return esc(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>'); }
 
@@ -621,7 +620,7 @@
     };
     var mark = function (on) { return on ? '[x]' : '[ ]'; };
     var parts = [];
-    parts.push(ATTIC_CSS + T.letterhead() +
+    parts.push(atticCss() + T.letterhead() +
       '<h1 class="lib-h1">Attic, Ventilation &amp; Moisture Acknowledgment</h1>' +
       '<p class="lib-sub">' + esc(d.homeownerName) + ' &middot; ' + esc(d.address) + '</p>' +
       '<p class="aa-ver">' + esc(X.VERSION) + (d.formDate ? ' &middot; ' + esc(atticLongDate(d.formDate)) : '') + '</p>' +

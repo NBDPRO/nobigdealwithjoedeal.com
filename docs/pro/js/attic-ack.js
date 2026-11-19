@@ -257,7 +257,32 @@
     return null;
   }
 
+  // ── The form's own CSS (review 3, item 1) ─────────────────────────
+  // The server holds the style blocks an attic form may carry (functions/attic-gate.js compares each <style> in a stored copy to these,
+  // after white space is normalised, and rejects any other block). The generator reads the same constants, so the two cannot drift.
+  // SIG_STYLES_CSS is the body of generate()'s <style id="nbd-sig-styles"> block (document-generator.js _injectSignatureAssets).
+  // PRINT_RULE_CSS is the print rule that opens the page's own style block (document-generator-templates.js printCSS).
+  // ATTIC_FORM_CSS is the body of the form's own <style> block (document-generator-library.js).
+  var SIG_STYLES_CSS =
+    '.nbd-sig-block{margin:0.2in 0 0.4in;padding:0;page-break-inside:avoid;}' +
+    '.nbd-sig-label{font-size:11px;font-weight:700;color:#1A3057;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;}' +
+    '.nbd-sig-canvas{display:block;width:100%;height:120px;border:1px dashed #999;border-radius:6px;background:#fafafa;cursor:crosshair;box-sizing:border-box;touch-action:none;}' +
+    '.nbd-sig-img{display:block;max-width:100%;height:auto;background:#fff;border-bottom:1px solid #1A3057;padding-bottom:4px;}' +
+    '.nbd-sig-controls{margin-top:6px;display:flex;gap:8px;align-items:center;}' +
+    '.nbd-sig-controls button{font-size:11px;padding:4px 10px;background:#fff;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-family:inherit;}' +
+    '.nbd-sig-controls button:hover{background:#f5f5f5;}' +
+    '.nbd-sig-state{font-size:10px;color:#2d7a2d;font-weight:600;margin-left:auto;}' +
+    '.nbd-sig-date{margin-top:4px;font-size:10px;color:#666;font-style:italic;}' +
+    '.nbd-sig-print-name{margin-top:8px;font-size:10px;color:#666;}' +
+    '@media print{.nbd-sig-controls,.nbd-sig-state{display:none!important;}.nbd-sig-canvas{border:1px solid #333;background:#fff;}}';
+  var PRINT_RULE_CSS = '@media print { .no-print { display:none!important; } body { margin:0; } @page { margin:0.5in; } }';
+  var ATTIC_FORM_CSS = '.aa-p{font-size:13px;line-height:1.55;margin:0 0 9px;}.aa-ver{text-align:right;font-size:9px;color:#888;margin:0 0 6px;}' +
+    '.aa-row{display:flex;gap:9px;align-items:flex-start;font-size:13px;line-height:1.5;margin:0 0 9px;}.aa-row input{margin-top:3px;flex:0 0 auto;width:18px;height:18px;}' +
+    '.aa-sel{font-size:13px;line-height:1.5;margin:0 0 6px;}.aa-thumbs img{max-height:90px;max-width:130px;margin:4px 6px 0 0;border:1px solid #ccc;}' +
+    '.aa-note{font-size:11px;color:#555;margin:0 0 10px;}.aa-opt{text-align:center;width:60px;}.aa-opt input{width:18px;height:18px;}';
+
   return {
+    SIG_STYLES_CSS: SIG_STYLES_CSS, PRINT_RULE_CSS: PRINT_RULE_CSS, ATTIC_FORM_CSS: ATTIC_FORM_CSS,
     FLAG: FLAG, VERSION: VERSION, DOC_TYPES: DOC_TYPES, SCOPES: SCOPES, SCOPE_LABELS: SCOPE_LABELS, STATUSES: STATUSES,
     REASONS: REASONS, REASON_LINE: REASON_LINE, REASON_WHO: REASON_WHO, CONDITION_KEYS: CONDITION_KEYS, RULES: RULES, ACCESS: ACCESS,
     REC_DEFS: REC_DEFS, TEXT: TXT,
