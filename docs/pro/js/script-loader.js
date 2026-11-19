@@ -221,7 +221,7 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=34',
+      'js/document-generator.js?v=42',
       'js/document-generator-templates.js?v=23',
       'js/document-generator-library.js?v=20', // 2026-10-04 template library; needs -templates' _tpl
       'js/doc-preflight.js?v=26',
@@ -533,7 +533,7 @@
     // under Settings → AI Texting. Hooks the tab, and paints a tab already open.
     tenantsettings: [
       'js/tenant-rules-settings.js?v=1',
-      'js/tenant-account-ui.js?v=8',
+      'js/tenant-account-ui.js?v=16',
       'js/sms-compliance-settings.js?v=2',
       'js/away-mode-settings.js?v=1',
       'js/prod-flags-panel.js?v=1'

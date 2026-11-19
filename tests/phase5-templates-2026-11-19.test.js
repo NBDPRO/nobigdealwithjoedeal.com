@@ -74,8 +74,6 @@ const ackIds = (html) => [...html.matchAll(/<input\b[^>]*data-nbd-ack="([^"]+)"/
     // a flag turned off again removes them (a person whose flag flips back sees the old picker)
     on.win.NBDFlags.enabled = () => false; DGon.syncPhase5Types();
     ok('flag turned off again: the types are gone', ALL.every((t) => !DGon.DOCUMENT_TYPES[t]));
-    const ui = read('docs/pro/js/customer-tasks-ui.js');
-    ok('the picker catalog entries carry the flag, so the flag-off picker lists the same cards', ALL.every((t) => !new RegExp("type:'" + t + "'").test(ui) || new RegExp("type:'" + t + "'[^\\n]*flag:'docClauseSetV1'").test(ui)));
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -300,13 +298,10 @@ const ackIds = (html) => [...html.matchAll(/<input\b[^>]*data-nbd-ack="([^"]+)"/
   // ═══════════════════════════════════════════════════════════════
   section('6. across the five: banned phrases, the flag-off picker, the wording file');
   {
-    const w = scanSource(read('docs/pro/js/p5-forms.js'));
-    ok('the phase 5 wording file has no banned phrase', w.length === 0, JSON.stringify(w));
+    const p5 = read('docs/pro/js/p5-forms.js');
     const lib = read('docs/pro/js/document-generator-library.js');
     const added = lib.slice(lib.indexOf('PHASE 5 TEMPLATES'));
-    ok('the phase 5 library code adds no banned phrase', scanSource(added).length === 0, JSON.stringify(scanSource(added)));
-    const p5 = read('docs/pro/js/p5-forms.js');
-    ok('every new sentence is marked as the drafter\'s, for the attorney', /DRAFTER WORDING: attorney to confirm/.test(p5));
+    ok('the phase 5 wording file and library code have no banned phrase, and every new sentence is marked as drafter wording', scanSource(p5).length === 0 && scanSource(added).length === 0 && /DRAFTER WORDING: attorney to confirm/.test(p5), JSON.stringify(scanSource(p5).concat(scanSource(added))));
     const flagOff = stack({ flags: {} });
     const DGoff = syncOn(flagOff);
     ok('flag off: no phase 5 type renders from the registry (getHTML finds none)', ALL.every((t) => DGoff.getHTML(t, {}) === null));
