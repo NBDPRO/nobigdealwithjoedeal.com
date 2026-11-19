@@ -451,7 +451,9 @@
         currentContext.signedSigners = Array.isArray(reply.signers) ? reply.signers : [];
         if (typeof currentContext.onPersistFinalized === 'function') {
           try {
-            const r = currentContext.onPersistFinalized(reply.html, reply.signers || []);
+            const r = currentContext.consent
+              ? currentContext.onPersistFinalized(reply.html, reply.signers || [], { consentTick: !!(currentContext.consentState && currentContext.consentState.agreed) })
+              : currentContext.onPersistFinalized(reply.html, reply.signers || []);
             if (r && typeof r.then === 'function') {
               r.catch(function (e) { console.warn('[NBDDocViewer] onPersistFinalized rejected:', e); });
             }
@@ -722,6 +724,7 @@
     // Clear iframe so the next open starts clean
     const iframe = document.getElementById('nbdv-iframe');
     if (iframe) iframe.removeAttribute('srcdoc');
+    removeConsentBar();
     if (escHandler) {
       document.removeEventListener('keydown', escHandler);
       escHandler = null;
@@ -734,6 +737,40 @@
   //   { html: '...' }  — legacy html2canvas/jsPDF generators (rendered in-iframe)
   //   { url: '...' }   — D-1+ server-side Puppeteer renders (signed PDF URL,
   //                      browser's native PDF viewer takes over inside the iframe)
+  // ─── In-person consent (flag docClauseSetV1, Jo's decision Q62) ──────
+  // opts.consent = { label, text }: the generator asks for it on a contract-class document with signers. A bar above the
+  // document shows the sentence and a required tick; until the homeowner ticks it the signing widget ignores strokes
+  // (see signature-widget.js), and the tick is handed to onPersistFinalized so it is recorded with the signing.
+  // Built from plain DOM calls and no innerHTML, so the sentence is text, never markup.
+  function consentBar(doc, consent, onChange) {
+    const state = { agreed: false };
+    const el = doc.createElement('div');
+    el.setAttribute('id', 'nbdv-consent');
+    el.setAttribute('style', 'flex:0 0 auto;background:#FFF8F2;border-bottom:2px solid #BD5728;padding:10px 14px;color:#14181F;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;');
+    const row = doc.createElement('label');
+    row.setAttribute('style', 'display:flex;gap:10px;align-items:center;font-weight:700;min-height:44px;cursor:pointer;');
+    const tick = doc.createElement('input');
+    tick.setAttribute('type', 'checkbox');
+    tick.setAttribute('style', 'width:28px;height:28px;flex:0 0 auto;accent-color:#BD5728;');
+    const lab = doc.createElement('span');
+    lab.textContent = String(consent.label || 'I agree to sign electronically');
+    row.appendChild(tick); row.appendChild(lab);
+    const txt = doc.createElement('div');
+    txt.setAttribute('style', 'font-size:13px;color:#4C4C4D;margin-top:2px;');
+    txt.textContent = String(consent.text || '');
+    el.appendChild(row); el.appendChild(txt);
+    tick.addEventListener('change', function () {
+      state.agreed = !!tick.checked;
+      try { if (typeof onChange === 'function') onChange(state.agreed); } catch (_) { /* the widget message is best effort */ }
+    });
+    return { el: el, state: state };
+  }
+
+  function removeConsentBar() {
+    const old = document.getElementById('nbdv-consent');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+  }
+
   function open(opts) {
     opts = opts || {};
     const hasHtml = typeof opts.html === 'string' && opts.html.length > 0;
@@ -773,8 +810,12 @@
       // passes a closure that mints a doc_sign_tokens link + emails it.
       onSendForSignature: opts.onSendForSignature || null,
       signerEmailDefault: opts.signerEmailDefault || '',
-      signedSigners: null
+      signedSigners: null,
+      // In-person consent (flag docClauseSetV1): null = none asked, today's behaviour.
+      consent: (opts.consent && typeof opts.consent.text === 'string' && opts.consent.text) ? opts.consent : null,
+      consentState: null
     };
+    removeConsentBar();
     // Toggle the remote-signature button per doc (signable docs only).
     const _signBtnEl = document.getElementById('nbdv-sign-btn');
     if (_signBtnEl) _signBtnEl.style.display = (typeof currentContext.onSendForSignature === 'function') ? '' : 'none';
@@ -808,6 +849,17 @@
         // hand this lead's previously-saved signatures across the
         // boundary so the widget can offer "Use saved". Skipped when
         // there are none, so non-signature docs pay zero cost.
+        if (currentContext.consent) {
+          const _sendConsent = (agreed) => {
+            try { iframe.contentWindow.postMessage({ __nbd_sig: 'consent', required: true, agreed: !!agreed }, '*'); } catch (_) { /* not ready: the load handler sends it */ }
+          };
+          const _bar = consentBar(document, currentContext.consent, _sendConsent);
+          currentContext.consentState = _bar.state;
+          const _bodyEl = iframe.parentNode;
+          if (_bodyEl && _bodyEl.parentNode) _bodyEl.parentNode.insertBefore(_bar.el, _bodyEl);
+          // Locked from the first paint: the widget starts locked as soon as the document has loaded.
+          iframe.addEventListener('load', () => _sendConsent(_bar.state.agreed), { once: true });
+        }
         const _savedSigs = currentContext.savedSigs;
         if (_savedSigs && typeof _savedSigs === 'object' && Object.keys(_savedSigs).length) {
           iframe.addEventListener('load', () => {
@@ -855,6 +907,7 @@
     __sentinel: 'nbd-doc-viewer-v1',
     open: open,
     close: close,
+    _consentBar: consentBar,
     // Expose the flash helper so generators can push their own status
     flashStatus: flashStatus
   };

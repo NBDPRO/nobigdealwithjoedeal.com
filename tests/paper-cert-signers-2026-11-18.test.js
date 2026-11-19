@@ -518,6 +518,157 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
     const html = env.win.NBDDocGen.renderSignatureBlock([{ role: 'homeowner', label: 'Homeowner', required: true }, { role: 'homeowner2', label: 'Homeowner (co-owner)', required: true }, { role: 'rep', label: 'Rep', required: true }]);
     ok('the co-owner renders as its own signature block with its own role', /data-nbd-sig="homeowner2"[^>]*data-label="Homeowner \(co-owner\)"/.test(html) && (html.match(/data-nbd-sig="homeowner"/g) || []).length === 1); }
 
+  // ───────────────────────── 4. in-person consent tick (Q62) ─────────────────────────
+  section('4. the sentence: ESIGN-1 verbatim from the registry');
+  const packet = src('tests/fixtures/attorney-packet-2026-11-18.md');
+  const esignFromPacket = (() => {
+    const i = packet.indexOf('#### ESIGN-1');
+    const block = packet.slice(i, packet.indexOf('Today the in-person signing path', i));
+    return block.split('\n').filter((l) => l.startsWith('> ')).map((l) => l.slice(2).trim()).join(' ');
+  })();
+  { const CSbrowser = H.docs({}).win.NBDClauseSet;
+    const CSserver = require(path.join(FN, 'clause-set.js'));
+    ok('the packet\'s ESIGN-1 text was found', esignFromPacket.length > 100 && /^You agree to sign this contract/.test(esignFromPacket), esignFromPacket.slice(0, 60));
+    ok('NBDClauseSet.esignConsentText(true) is the packet sentence verbatim', CSbrowser.esignConsentText(true) === esignFromPacket, CSbrowser.esignConsentText(true));
+    ok('the server twin answers the same sentence', CSserver.esignConsentText(true) === esignFromPacket);
+    ok('another tenant reads "Contractor" for the defined term NBD', CSbrowser.esignConsentText(false) === esignFromPacket.replace(/\bNBD\b/g, 'Contractor') && !/\bNBD\b/.test(CSbrowser.esignConsentText(false)));
+    ok('clause-set.js twins stay byte-identical', src('docs/pro/js/clause-set.js') === src('functions/clause-set.js')); }
+
+  section('4. the viewer: a required tick above the document, passed to the signing widget');
+  { const viewerSrc = src('docs/pro/js/nbd-doc-viewer.js');
+    const VS = vm.createContext({ window: {}, document: { getElementById() { return null; }, createElement() { return {}; }, addEventListener() {}, body: {} }, console, setTimeout, clearTimeout });
+    VS.window = VS; try { vm.runInContext(viewerSrc, VS, { filename: 'nbd-doc-viewer.js' }); } catch (e) { ok('the viewer loads in a stub page', false, e.message); }
+    const V = VS.NBDDocViewer;
+    ok('the viewer exposes the consent bar builder', !!V && typeof V._consentBar === 'function');
+    if (V && typeof V._consentBar === 'function') {
+      const made = [];
+      const fakeDoc = { createElement: (tag) => { const el = { tag, children: [], attrs: {}, listeners: {}, style: {}, textContent: '', checked: false,
+        appendChild(c) { this.children.push(c); return c; }, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(t, fn) { this.listeners[t] = fn; } }; made.push(el); return el; } };
+      const changes = [];
+      const bar = V._consentBar(fakeDoc, { label: 'I agree to sign electronically', text: esignFromPacket }, (agreed) => changes.push(agreed));
+      const flat = (e) => [e].concat((e.children || []).flatMap(flat));
+      const all = flat(bar.el);
+      const tick = all.find((e) => e.tag === 'input' && e.attrs.type === 'checkbox');
+      ok('a checkbox is the control', !!tick);
+      ok('the label reads "I agree to sign electronically"', all.some((e) => e.textContent === 'I agree to sign electronically'));
+      ok('the packet sentence is shown on the bar, verbatim', all.some((e) => e.textContent === esignFromPacket));
+      ok('the tick starts off (nothing agreed until the homeowner ticks)', bar.state.agreed === false);
+      tick.checked = true; tick.listeners.change(); ok('ticking records agreement and tells the widget', bar.state.agreed === true && changes[changes.length - 1] === true);
+      tick.checked = false; tick.listeners.change(); ok('unticking withdraws it and tells the widget', bar.state.agreed === false && changes[changes.length - 1] === false);
+      ok('the tick is 24px or larger for a finger', /(^|;)\s*width:\s*(2[4-9]|[3-9]\d)px/.test(tick.attrs.style || '') || (tick.style && parseInt(tick.style.width, 10) >= 24)); }
+    ok('open() reports the tick to the persist callback as consentTick', /onPersistFinalized\(reply\.html, reply\.signers \|\| \[\], \{ consentTick: /.test(viewerSrc)); }
+
+  section('4. the signing widget: no drawing, no saved signature and no finalize until the tick');
+  { const wsrc = src('docs/pro/js/signature-widget.js');
+    const mkWidget = () => {
+      const listeners = {}; const msgs = [];
+      const ctx = { calls: 0, scale() {}, beginPath() { this.calls++; }, moveTo() {}, lineTo() {}, stroke() {}, clearRect() {}, drawImage() {}, fillRect() {}, fillStyle: '' };
+      const handlers = {};
+      const canvas = { getContext: () => ctx, getBoundingClientRect: () => ({ width: 300, height: 120, left: 0, top: 0 }), style: {}, width: 0, height: 0,
+        addEventListener(t, fn) { handlers[t] = fn; }, dispatchEvent() {}, setPointerCapture() {}, parentNode: null, toDataURL: () => 'data:image/png;base64,AA' };
+      const attrs = { 'data-nbd-sig': 'homeowner', 'data-label': 'Homeowner', 'data-required': 'true' };
+      const block = { getAttribute: (k) => (k in attrs ? attrs[k] : null), setAttribute(k, v) { attrs[k] = v; }, querySelector: (sel) => (/canvas/.test(sel) ? canvas : null) };
+      const heads = [];
+      const document = { readyState: 'complete', head: { appendChild(e) { heads.push(e); }, removeChild(e) { const i = heads.indexOf(e); if (i >= 0) heads.splice(i, 1); } },
+        body: {}, documentElement: { outerHTML: '<html></html>' }, querySelectorAll: (s) => (/data-nbd-sig\]$/.test(s) ? [block] : []),
+        createElement: () => ({ style: {}, setAttribute() {}, getContext: () => ctx, toDataURL: () => 'data:image/png;base64,AA' }), addEventListener() {} };
+      const win = { __NBD_LOADED: {}, devicePixelRatio: 1, addEventListener(t, fn) { listeners[t] = fn; }, parent: { postMessage(m) { msgs.push(m); } }, CustomEvent: function () {} };
+      const sb = { window: win, document, console, setTimeout, clearTimeout, Image: function () {}, CustomEvent: function () {}, MutationObserver: function () { this.observe = function () {}; } };
+      win.window = win; Object.assign(win, sb); vm.createContext(sb);
+      vm.runInContext(wsrc, sb, { filename: 'signature-widget.js' });
+      const send = (d) => listeners.message({ data: d, source: win.parent });
+      const down = () => handlers.pointerdown({ preventDefault() {}, clientX: 5, clientY: 5, pointerId: 1 });
+      const move = () => handlers.pointermove({ preventDefault() {}, clientX: 20, clientY: 20 });
+      const up = () => handlers.pointerup({});
+      const draw = () => { const before = ctx.calls; down(); move(); up(); return ctx.calls > before; };
+      return { send, draw, msgs, heads, ctx };
+    };
+    { const w = mkWidget();
+      ok('no consent message: drawing works exactly as before', w.draw() === true);
+      w.send({ __nbd_sig: 'finalize' }); const fin = w.msgs[w.msgs.length - 1];
+      ok('no consent message: finalize succeeds for a signed pad', fin && fin.ok === true, JSON.stringify(fin && { ok: fin.ok })); }
+    { const w = mkWidget();
+      w.send({ __nbd_sig: 'consent', required: true, agreed: false });
+      ok('consent required, not agreed: a stroke is ignored', w.draw() === false);
+      w.send({ __nbd_sig: 'consent', required: true, agreed: true });
+      ok('consent agreed: drawing works', w.draw() === true);
+      w.send({ __nbd_sig: 'consent', required: true, agreed: false });
+      w.send({ __nbd_sig: 'finalize' }); const fin = w.msgs[w.msgs.length - 1];
+      ok('consent withdrawn after drawing: finalize refuses with needsConsent', fin && fin.ok === false && fin.needsConsent === true, JSON.stringify(fin && { ok: fin.ok, nc: fin.needsConsent }));
+      w.send({ __nbd_sig: 'consent', required: true, agreed: true });
+      w.send({ __nbd_sig: 'finalize' }); const fin2 = w.msgs[w.msgs.length - 1];
+      ok('consent agreed again: finalize succeeds', fin2 && fin2.ok === true);
+      ok('the lock sheet is cut out of the saved record', !/nbd-sig-consent-lock/.test(String(fin2 && fin2.html))); }
+    { const w = mkWidget();
+      w.send({ __nbd_sig: 'consent', required: true, agreed: false });
+      w.send({ __nbd_sig: 'finalize' }); const fin = w.msgs[w.msgs.length - 1];
+      ok('locked and nothing signed: the existing "required signature missing" answer, not a consent one', fin && fin.ok === false && !fin.needsConsent && Array.isArray(fin.missing) && fin.missing[0] === 'homeowner', JSON.stringify(fin && { ok: fin.ok, missing: fin.missing })); } }
+
+  section('4. the generator: the tick is asked for on contract-class in-person signing, and recorded');
+  const genSigned = async (flagOn, type, signers) => {
+    const brand = { legalName: 'No Big Deal Home Solutions', entityName: 'No Big Deal Solutions LLC', dbaName: 'No Big Deal Home Solutions', signerTitle: 'Manager', colors: {},
+      contact: { email: 'info@nobigdealwithjoedeal.com', phone: '(859) 420-7382', mailingAddress: H.BIZ_ADDR } };
+    const env = H.docs({ flags: flagOn ? { docClauseSetV1: true } : {}, brand });
+    const W = env.win;
+    env.sandbox.Blob = Blob; env.sandbox.TextEncoder = TextEncoder; W.crypto = require('crypto').webcrypto;
+    const calls = []; const updates = []; let viewer = null;
+    W.db = {}; W.storage = {}; W._user = { uid: 'REP', email: 'rep@x.test' }; W.auth = { currentUser: { uid: 'REP', email: 'rep@x.test' } };
+    W.collection = (_d, ...p) => ({ path: p.join('/') }); W.doc = (c, ...p) => ({ id: p.length ? p[p.length - 1] : 'AUTO1234', path: (c && c.path ? c.path : 'x') + '/' + p.join('/') });
+    W.serverTimestamp = () => 'TS'; W.ref = (_s, p) => ({ p }); W.uploadBytes = async () => {};
+    W.addDoc = async () => ({ id: 'ADDED1' }); W.setDoc = async () => {}; W.updateDoc = async (r, patch) => { updates.push({ path: r.path, patch }); };
+    W._functions = {}; W._httpsCallable = (_f, name) => async (payload) => { calls.push({ name, payload }); return { data: { ok: true } }; };
+    W.NBDDocViewer = { open: (o) => { viewer = o; return {}; } };
+    const cp = Object.assign({}, H.profileFor(W, H.BIZ_ADDR), { paymentTerms: { deckingPerSheetCents: 10000 } });
+    const v = H.VARIANTS.oh_cash;
+    W._legal = () => cp; W._leadDoc = { id: 'L1', address: v.address, jobType: v.jobType };
+    await W.NBDDocGen.generate(type, Object.assign(H.contractData(W, v), { companyProfile: cp, signers }));
+    await new Promise((r) => setTimeout(r, 30));
+    return { viewer, calls, updates, W };
+  };
+  const HO_REP = [{ role: 'homeowner', label: 'Homeowner', required: true }, { role: 'rep', label: 'Authorized NBD Representative', required: true }];
+  { const g = await genSigned(true, 'contract', HO_REP);
+    ok('flag on: a contract with signers asks for the tick, with the registry\'s ESIGN-1 sentence', !!g.viewer && !!g.viewer.consent
+      && g.viewer.consent.label === 'I agree to sign electronically' && g.viewer.consent.text === esignFromPacket, g.viewer && JSON.stringify(g.viewer.consent));
+    const signed = '<html><body><div data-nbd-sig="homeowner" data-nbd-sig-finalized="1"></div></body></html>';
+    await g.viewer.onPersistFinalized(signed, [{ role: 'homeowner', label: 'Homeowner', signedAt: '2026-11-18T15:00:00Z', png: 'data:image/png;base64,AA' }], { consentTick: true });
+    const rec = g.calls.find((c) => c.name === 'recordInPersonSignature');
+    ok('ticked: the in-person record call carries consentTick', !!rec && rec.payload.consentTick === true, JSON.stringify(g.calls));
+    ok('ticked: the document is saved as signed', g.updates.some((u) => u.patch && u.patch.status === 'signed')); }
+  { const g = await genSigned(true, 'contract', HO_REP);
+    const signed = '<html><body><div data-nbd-sig="homeowner" data-nbd-sig-finalized="1"></div></body></html>';
+    await g.viewer.onPersistFinalized(signed, [{ role: 'homeowner', label: 'Homeowner', signedAt: '2026-11-18T15:00:00Z', png: 'data:image/png;base64,AA' }], { consentTick: false });
+    ok('not ticked: nothing is saved as signed (signing is blocked without the tick)', !g.updates.some((u) => u.patch && u.patch.status === 'signed') && !g.calls.some((c) => c.name === 'recordInPersonSignature'), JSON.stringify(g.updates.map((u) => u.patch && u.patch.status))); }
+  { const g = await genSigned(false, 'contract', HO_REP);
+    ok('flag off: no consent bar is requested', !!g.viewer && !('consent' in g.viewer));
+    const signed = '<html><body><div data-nbd-sig="homeowner" data-nbd-sig-finalized="1"></div></body></html>';
+    await g.viewer.onPersistFinalized(signed, [{ role: 'homeowner', label: 'Homeowner', signedAt: '2026-11-18T15:00:00Z', png: 'data:image/png;base64,AA' }]);
+    const rec = g.calls.find((c) => c.name === 'recordInPersonSignature');
+    ok('flag off: signing saves as before and the call has no consentTick', g.updates.some((u) => u.patch && u.patch.status === 'signed') && !!rec && !('consentTick' in rec.payload), JSON.stringify(rec)); }
+  { const g = await genSigned(true, 'contract', [{ role: 'rep', label: 'Rep', required: true }]);
+    ok('flag on, a rep-only document: no homeowner tick', !!g.viewer && !('consent' in g.viewer)); }
+
+  section('4. the server records the tick as the evidence consent, not "not asked"');
+  { const DE = require(path.join(FN, 'doc-evidence.js')); const Lg = require(path.join(FN, 'in-person-signing-logic.js'));
+    const P = 'documents/U1/L1/d-1.html';
+    const mkDb = (lead) => kit.makeDb({ 'leads/L1': lead, 'leads/L1/documents/d1': { type: 'work_authorization', status: 'signed', signedAt: { toMillis: () => 1 }, signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner' }], htmlPath: P } });
+    const run = async (clauseFlag, data, lead) => {
+      const db = mkDb(lead || { userId: 'U1', companyId: 'U1' });
+      return Lg.recordEvidence(db, { leadId: 'L1', docId: 'd1', lead: lead || { userId: 'U1', companyId: 'U1' }, docMeta: db._get('leads/L1/documents/d1'), uid: 'U1', data: data || {} },
+        { enabled: true, clauseFlag, ip: '203.0.113.5', ipSource: 'socket', ua: 'UA', readBytes: async () => Buffer.from('<html><body>signed</body></html>') });
+    };
+    const CSserver = require(path.join(FN, 'clause-set.js'));
+    let r = await run(true, { consentTick: true });
+    ok('flag on + tick: consent agreed, with the server\'s own copy of the ESIGN-1 sentence', r.consent.agreed === true && r.consent.text === CSserver.esignConsentText(false) && r.consent.text === esignFromPacket.replace(/\bNBD\b/g, 'Contractor'), JSON.stringify(r.consent).slice(0, 120));
+    ok('flag on + tick: the source is in_person_tick and the time is recorded', r.consentSource === 'in_person_tick' && Number.isFinite(r.consent.at), JSON.stringify({ s: r.consentSource, at: r.consent.at }));
+    r = await run(true, {});
+    ok('flag on, no tick sent: still recorded as not asked', r.consent.agreed === null && !('consentSource' in r && r.consentSource === 'in_person_tick'));
+    r = await run(false, { consentTick: true });
+    ok('flag off: a tick the call claims is ignored (not asked, as before)', r.consent.agreed === null && r.consentSource === undefined, JSON.stringify(r.consent));
+    r = await run(true, { consentTick: 'yes' });
+    ok('a non-boolean tick is not a tick', r.consent.agreed === null);
+    const nbd = await run(true, { consentTick: true }, { userId: DE.NBD_OWNER_UID_FOR_TESTS, companyId: DE.NBD_OWNER_UID_FOR_TESTS });
+    ok('the NBD tenant reads the sentence with NBD verbatim', nbd.consent.text === esignFromPacket, nbd.consent.text && nbd.consent.text.slice(0, 60)); }
+
   console.log('\npaper-cert-signers: ' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log(fails.join('\n')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

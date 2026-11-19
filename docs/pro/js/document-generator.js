@@ -332,6 +332,22 @@ window.NBDDocGen = {
     return false;
   },
 
+  /**
+   * In-person consent (flag docClauseSetV1, Jo's decision Q62): the tick the homeowner makes before drawing on a
+   * contract-class document, with the registry's ESIGN-1 sentence. null = not asked (flag off, not contract class, no
+   * homeowner signer, or the wording did not load), and then nothing about signing changes.
+   */
+  _inPersonConsentFor(type, signers) {
+    if (!this._paperFooterWanted(type)) return null;
+    if (!Array.isArray(signers) || !signers.some((s) => s && s.role === 'homeowner')) return null;
+    const CS = window.NBDClauseSet;
+    if (!CS || typeof CS.esignConsentText !== 'function') return null;
+    let isNbd = true;
+    try { isNbd = this._nbdGate().isNbd !== false; } catch (_) { isNbd = true; }
+    const t = CS.esignConsentText(isNbd);
+    return t ? { label: 'I agree to sign electronically', text: t } : null;
+  },
+
   /** Flag docClauseSetV1 (Q51): the homeowner signature and release lines on the documents that had static ones. */
   _signEaseOn() {
     try { return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('docClauseSetV1')); }
@@ -1151,7 +1167,10 @@ window.NBDDocGen = {
       // signature: "Send for signature" is not offered, the rep signs it in the viewer. The server refuses it too.
       const _repOnly = this._signEaseOn() && Array.isArray(data.signers) && data.signers.length > 0
         && data.signers.every((s) => s && s.role === 'rep');
+      // Flag docClauseSetV1 (Q62): the homeowner ticks "I agree to sign electronically" before drawing. null = not asked.
+      const _consent = (!_repOnly && !data._isBlankPreview) ? this._inPersonConsentFor(type, data.signers) : null;
       window.NBDDocViewer.open({
+        ...(_consent ? { consent: _consent } : {}),
         html: _viewHtml,
         title: typeName + (customerName ? ' — ' + customerName : ''),
         filename: _filename,
@@ -1202,7 +1221,12 @@ window.NBDDocGen = {
         // inside the iframe. Re-uploads the signed HTML to the same
         // Storage path so reopening the doc shows the embedded sigs,
         // and stamps signedAt + signedSigners on the Firestore doc.
-        onPersistFinalized: async (signedHtml, signedSigners) => {
+        onPersistFinalized: async (signedHtml, signedSigners, _extra) => {
+          // In-person consent (flag docClauseSetV1, Q62): a document that asked for the tick is not saved as signed without it.
+          if (_consent && !(_extra && _extra.consentTick === true)) {
+            if (typeof showToast === 'function') showToast('Not saved as signed: the homeowner must tick "I agree to sign electronically" first.', 'error');
+            return;
+          }
           if (_persistPromise) { try { await _persistPromise; } catch (_) {} }
           let _signedSaved = false;
           // The Notice of Right to Cancel is dated the day the homeowner
@@ -1319,11 +1343,11 @@ window.NBDDocGen = {
           // already saved above: a failure here never blocks signing, it only
           // logs and tells the rep to move the card by hand.
           if (type === 'contract' && _signedSaved && _docMetaRef && _leadIdEarly) {
-            await this._recordInPersonSignature(_leadIdEarly, _docMetaRef.id, { presentedSha256: _presentedSha });
-          } else if (_evidenceOn && _signedSaved && _docMetaRef && _leadIdEarly) {
+            await this._recordInPersonSignature(_leadIdEarly, _docMetaRef.id, _consent ? { presentedSha256: _presentedSha, consentTick: true } : { presentedSha256: _presentedSha });
+          } else if ((_evidenceOn || _consent) && _signedSaved && _docMetaRef && _leadIdEarly) {
             // Any other signed document (flag docEvidenceFoundation): the server records the
             // signing evidence only; it never moves the card for a non-contract.
-            await this._recordInPersonSignature(_leadIdEarly, _docMetaRef.id, { presentedSha256: _presentedSha, evidenceOnly: true });
+            await this._recordInPersonSignature(_leadIdEarly, _docMetaRef.id, _consent ? { presentedSha256: _presentedSha, evidenceOnly: true, consentTick: true } : { presentedSha256: _presentedSha, evidenceOnly: true });
           }
           // Repaint so the row picks up its '✓ Signed' state immediately.
           if (window.NBDCustomerDocs) {
@@ -1401,7 +1425,10 @@ window.NBDDocGen = {
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
       const fn = window._httpsCallable(window._functions, 'recordInPersonSignature');
-      const res = await fn(opts.presentedSha256 ? { leadId, docId, presentedSha256: opts.presentedSha256 } : { leadId, docId });
+      const payload = opts.presentedSha256 ? { leadId, docId, presentedSha256: opts.presentedSha256 } : { leadId, docId };
+      // In-person consent (flag docClauseSetV1, Q62): the homeowner ticked "I agree to sign electronically" in the viewer.
+      if (opts.consentTick === true) payload.consentTick = true;
+      const res = await fn(payload);
       const out = (res && res.data) || null;
       if (out && out.moved && typeof showToast === 'function') showToast('✓ Contract signed — card moved to Contract Signed', 'success');
       return out;

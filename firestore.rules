@@ -704,10 +704,10 @@ service cloud.firestore {
     // not stamped" warning) and evidenceRefused (the in-person evidence gate refused the row) are
     // server-owned the same way, so a rep cannot clear or forge them on a not-yet-signed row.
     function documentEvidenceCreateOk() {
-      return !request.resource.data.keys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused', 'atticAckResult', 'atticGateUnverified', 'wetSignedAttestation', 'wetSignedEvidence']);
+      return !request.resource.data.keys().hasAny(['signatureEvidence', 'wetSignedAttestation', 'wetSignedEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused', 'atticAckResult', 'atticGateUnverified']);
     }
     function documentEvidenceUpdateOk() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['signatureEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused', 'atticAckResult', 'atticGateUnverified', 'wetSignedAttestation', 'wetSignedEvidence'])
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['signatureEvidence', 'wetSignedAttestation', 'wetSignedEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused', 'atticAckResult', 'atticGateUnverified'])
         && wetStatusUpdateOk();
     }
     function signedDocumentUpdateOk(leadId) {
