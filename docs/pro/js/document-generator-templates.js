@@ -528,6 +528,20 @@
       return (window.NBDClauseSet && typeof window.NBDClauseSet.lateInvoiceLine === 'function' && window.NBDClauseSet.lateInvoiceLine()) || '';
     } catch (_) { return ''; }
   }
+  // Flag docClauseSetV1 (Jo's decision Q51): documents that printed static lines get real homeowner signatures.
+  function signEaseOn() {
+    try { return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('docClauseSetV1')); }
+    catch (_) { return false; }
+  }
+  // A titled paragraph above a signature block. `key` is how a test (and the evidence record) finds it.
+  function authBlock(key, title, html) {
+    return '<div class="section" data-nbd-auth="' + key + '"><div class="section-title">' + title + '</div>' +
+      '<p style="font-size:13px;line-height:1.5;">' + html + '</p></div><!--end-auth-->';
+  }
+  function localToday() {
+    const n = new Date(); const p = (x) => (x < 10 ? '0' + x : String(x));
+    return n.getFullYear() + '-' + p(n.getMonth() + 1) + '-' + p(n.getDate());
+  }
   function tenantCp(d) {
     if (d && d.companyProfile) return d.companyProfile;
     if (typeof window !== 'undefined' && typeof window._legal === 'function') {
@@ -812,7 +826,12 @@
         ${photoGrid(4,2)}
       </div>
 
-      ${sigBlock(['Contractor — '+C.name])}
+      ${signEaseOn()
+        // DRAFTER WORDING: attorney to confirm. Neutral: the homeowner has read the request and lets the contractor pass a copy on.
+        // No claim-handling language and no statement about what the insurer will do.
+        ? authBlock('supplement', 'Homeowner authorization', 'I have read this supplement request. I authorize ' + esc(C.name) + ' to give a copy of it, with the photographs and documents listed above, to my insurance company.')
+          + sigBlock(['Homeowner authorization', 'Contractor — ' + C.name], d)
+        : sigBlock(['Contractor — '+C.name])}
       ${footer('Supplement Request — Claim #' + d.claimNumber)}
     `);
   };
@@ -1751,7 +1770,11 @@
         </ul>
       </div>` : ''}
 
-      ${sigBlock(['Homeowner Acknowledgment'])}
+      ${signEaseOn()
+        // The empty "Homeowner Acknowledgment" line becomes a real receipt: the date, and the homeowner's signature.
+        ? authBlock('received', 'Received', '<strong>Received on ' + esc(longDate(d.receivedDate || localToday())) + '</strong>')
+          + sigBlock(['Homeowner'], d)
+        : sigBlock(['Homeowner Acknowledgment'])}
       ${affiliateRow()}
       ${footer('Before & After Report')}
     `);

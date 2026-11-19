@@ -421,6 +421,13 @@ exports.createSignRequest = onCall(
     if ((docMeta.signedAt || docMeta.status === 'signed') && docMeta.signedSaveFailed !== true) {
       throw new HttpsError('failed-precondition', 'This document is already signed. Open the signed copy from the Documents tab; to change it, generate a new document and send that one.');
     }
+    // Flag docClauseSetV1 (Q51): a document only the company signs (a lien waiver) is never emailed to the homeowner.
+    // The flag is read only for such a document, and strictly: a read that fails refuses (retryable).
+    if (Array.isArray(docMeta.signers) && docMeta.signers.length > 0
+        && docMeta.signers.every((s) => s && s.role === 'rep')
+        && await DE.clauseFlagForGate(db, uid, HttpsError)) {
+      throw new HttpsError('failed-precondition', 'Only your company signs this document, so it is not sent to the homeowner. Open it and sign it yourself.');
+    }
     const htmlPath = docMeta.htmlPath || null;
     if (!htmlPath) throw new HttpsError('failed-precondition', 'This document has no signable HTML on file');
     // htmlPath is client-written: confine it to THIS lead's own documents/

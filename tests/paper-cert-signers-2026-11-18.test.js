@@ -265,6 +265,128 @@ async function rejects(fn) { try { await fn(); return null; } catch (e) { return
   { const wa = await genWith(true, 'testimonial_sheet').catch((e) => ({ err: e }));
     ok('flag on: a document that is not contract class gets no footer', !wa.err && !!wa.viewer && !/Document ID/.test(wa.viewer.html), wa.err && wa.err.message); }
 
+  // ───────────────────────── 2. signable documents (Q51) ─────────────────────────
+  section('2. flag OFF: the five documents are byte-identical (goldens recorded from origin/main)');
+  const GOLD2 = JSON.parse(src('tests/fixtures/paper-cert-signers-golden.json'));
+  const SIGN2 = [{ role: 'homeowner', label: 'Homeowner', required: true }, { role: 'rep', label: 'Authorized NBD Representative', required: true }];
+  const Q51 = ['supplement_request', 'inspectionInsurance', 'warranty_certificate', 'before_after_report', 'lien_waiver'];
+  const q51Env = (flagOn) => {
+    const env = H.docs({ flags: flagOn ? { docClauseSetV1: true } : {} });
+    H.load(env, 'docs/pro/js/document-generator-library.js');
+    env.win._leadDoc = { id: 'L1', address: H.OH_ADDR, jobType: 'cash' };
+    return env;
+  };
+  const q51Data = (W, extra) => Object.assign({
+    homeownerName: 'Jane Smith', address: H.OH_ADDR, phone: '5135550100', email: 'jane@example.test', claimNumber: 'CLM-8', insuranceCompany: 'State Farm',
+    companyProfile: H.profileFor(W, H.BIZ_ADDR), leadId: 'L1', issueDate: '2026-11-18', completionDate: '2026-11-10', certificateNumber: 'WC-1',
+    originalApproved: '10000', supplementItems: [], workDescription: 'Roof replacement', amount: '1000', amountPaid: '1000',
+  }, extra || {});
+  const q51Html = (env, t, signers, extra) => String(env.win.NBDDocGen.getHTML(t, q51Data(env.win, Object.assign(signers ? { signers } : {}, extra || {}))));
+  { const off = q51Env(false);
+    Q51.forEach((t) => {
+      ok(t + ': flag off, no signers = golden', H.sha(q51Html(off, t, null)) === GOLD2[t + '.plain']);
+      ok(t + ': flag off, with seeded signers = golden', H.sha(q51Html(off, t, SIGN2)) === GOLD2[t + '.signers']);
+    });
+    ok('flag off: defaultSignersFor is the registry\'s own defaultSigners, unchanged',
+      ['supplement_request', 'inspectionInsurance', 'warranty_certificate', 'before_after_report'].every((t) => off.win.NBDDocGen.defaultSignersFor(t).length === 0)
+      && JSON.stringify(off.win.NBDDocGen.defaultSignersFor('lien_waiver')) === JSON.stringify(off.win.NBDDocGen.DOCUMENT_TYPES.lien_waiver.defaultSigners)
+      && off.win.NBDDocGen.defaultSignersFor('contract') === off.win.NBDDocGen.DOCUMENT_TYPES.contract.defaultSigners); }
+
+  section('2. flag ON: signers, labels and wording');
+  { const on = q51Env(true);
+    const D = on.win.NBDDocGen;
+    const roles = (t) => D.defaultSignersFor(t).map((s) => s.role).join(',');
+    ok('supplement_request signs homeowner + rep, the homeowner line labelled "Homeowner authorization"',
+      roles('supplement_request') === 'homeowner,rep' && D.defaultSignersFor('supplement_request')[0].label === 'Homeowner authorization' && D.defaultSignersFor('supplement_request').every((s) => s.required));
+    ok('inspectionInsurance gets a homeowner release signer', roles('inspectionInsurance') === 'homeowner' && D.defaultSignersFor('inspectionInsurance')[0].label === 'Homeowner release');
+    ok('warranty_certificate gets defaultSigners homeowner + rep', roles('warranty_certificate') === 'homeowner,rep');
+    ok('before_after_report gets the homeowner as its one signer', roles('before_after_report') === 'homeowner');
+    ok('lien_waiver stays rep-signed', roles('lien_waiver') === 'rep');
+    ok('a contract keeps its own signers', roles('contract') === 'homeowner,rep');
+    const auth = (html, key) => { const m = new RegExp('<div[^>]*data-nbd-auth="' + key + '"[^>]*>([\\s\\S]*?)<!--end-auth-->').exec(html); return m ? m[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : null; };
+    // supplement
+    { const h = q51Html(on, 'supplement_request', D.defaultSignersFor('supplement_request'));
+      ok('supplement: homeowner block is interactive and labelled', /data-nbd-sig="homeowner"[^>]*data-label="Homeowner authorization"/.test(h));
+      ok('supplement: rep block is interactive', /data-nbd-sig="rep"/.test(h));
+      const t = auth(h, 'supplement');
+      ok('supplement: the authorization paragraph prints', !!t && t.length > 30, String(t));
+      ok('supplement: neutral wording (no claim-handling, coverage or payment language)', !!t && !/handle|manage|claim|coverage|covered|approv|guarantee|payment|settle|negotiat/i.test(t), t);
+      ok('supplement: the wording is marked for the attorney in the source', /DRAFTER WORDING: attorney to confirm/.test(src('docs/pro/js/document-generator-templates.js')));
+      ok('supplement: the old lone "Contractor" static line is gone when signers are seeded', !/Contractor — /.test(h.replace(/<[^>]*>/g, ' ')) || /data-nbd-sig="rep"/.test(h)); }
+    { const h = q51Html(on, 'supplement_request', null);
+      ok('supplement with no seeded signers still prints the authorization paragraph and a static homeowner line', !!auth(h, 'supplement') && /Homeowner authorization/.test(h)); }
+    // inspection report (insurance)
+    { const h = q51Html(on, 'inspectionInsurance', D.defaultSignersFor('inspectionInsurance'));
+      ok('inspectionInsurance: homeowner release block is interactive and labelled', /data-nbd-sig="homeowner"[^>]*data-label="Homeowner release"/.test(h));
+      const t = auth(h, 'release');
+      ok('inspectionInsurance: the release paragraph prints', !!t && t.length > 30, String(t));
+      ok('inspectionInsurance: no coverage, claim-outcome or payment language', !!t && !/coverage|covered|approv|guarantee|payment|settle|owed|entitled|claim/i.test(t), t);
+      ok('inspectionInsurance: the assessor certification line is kept', /Damage Assessor/.test(h)); }
+    { const h = q51Html(on, 'inspectionInsurance', null);
+      ok('inspectionInsurance with no seeded signers prints the release and a static line', !!auth(h, 'release') && /Homeowner release/.test(h)); }
+    // warranty certificate
+    { const h = q51Html(on, 'warranty_certificate', D.defaultSignersFor('warranty_certificate'));
+      ok('warranty: homeowner and rep are real signature blocks', /data-nbd-sig="homeowner"/.test(h) && /data-nbd-sig="rep"/.test(h)); }
+    // before / after
+    { const h = q51Html(on, 'before_after_report', D.defaultSignersFor('before_after_report'), { receivedDate: '2026-11-18' });
+      const text = h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+      ok('before/after: "Homeowner Acknowledgment" is gone', !/Homeowner Acknowledgment/.test(h));
+      ok('before/after: reads "Received on <date>"', /Received on November 18, 2026/.test(text), text.slice(-300));
+      ok('before/after: the homeowner signature is a real block', /data-nbd-sig="homeowner"/.test(h)); }
+    { const h = q51Html(on, 'before_after_report', null, { receivedDate: '2026-11-18' });
+      ok('before/after with no seeded signers: "Received on" and a static line, no empty "Acknowledgment"', /Received on November 18, 2026/.test(h.replace(/<[^>]*>/g, ' ')) && !/Homeowner Acknowledgment/.test(h)); }
+  }
+
+  section('2. lien waiver: never emailed to the homeowner');
+  const viewerFor = async (flagOn, type, signers, extra) => {
+    const env = q51Env(flagOn); const W = env.win;
+    const brand = null; void brand;
+    env.sandbox.Blob = Blob; env.sandbox.TextEncoder = TextEncoder; W.crypto = require('crypto').webcrypto;
+    let viewer = null;
+    W.db = {}; W.storage = {}; W._user = { uid: 'REP', email: 'rep@x.test' }; W.auth = { currentUser: { uid: 'REP', email: 'rep@x.test' } };
+    W.collection = (_d, ...p) => ({ path: p.join('/') }); W.doc = (c) => ({ id: 'AUTO1234', path: c.path + '/AUTO1234' });
+    W.ref = (_s, p) => ({ p }); W.uploadBytes = async () => {}; W.addDoc = async () => ({ id: 'ADDED1' }); W.setDoc = async () => {};
+    W.serverTimestamp = () => 'TS';
+    W.NBDDocViewer = { open: (o) => { viewer = o; return {}; } };
+    await W.NBDDocGen.generate(type, q51Data(W, Object.assign({ signers }, extra || {})));
+    await new Promise((r) => setTimeout(r, 20));
+    return viewer;
+  };
+  { const REP_ONLY = [{ role: 'rep', label: 'Authorized NBD Representative', required: true }];
+    const on = await viewerFor(true, 'lien_waiver', REP_ONLY);
+    ok('flag on: a rep-only document offers no "send for signature" (it would email the homeowner)', !!on && on.onSendForSignature === null, on && typeof on.onSendForSignature);
+    const off = await viewerFor(false, 'lien_waiver', REP_ONLY);
+    ok('flag off: the lien waiver behaves exactly as before (send offered)', !!off && typeof off.onSendForSignature === 'function');
+    const two = await viewerFor(true, 'warranty_certificate', SIGN2);
+    ok('flag on: a document with a homeowner signer still offers send for signature', !!two && typeof two.onSendForSignature === 'function'); }
+  { // the server refuses too: a rep-only row is never given a homeowner sign link.
+    const P = 'documents/U1/L1/d-1.html';
+    const html = '<!DOCTYPE html><html><body><h1>Lien Waiver</h1><div data-nbd-sig="rep" data-nbd-sig-required="1"><canvas width="300" height="100"></canvas></div></body></html>';
+    const K = require(path.join(FN, 'ky-insurance-law.js'));
+    const ESL = require(path.join(FN, 'esign-logic.js'));
+    const DE = require(path.join(FN, 'doc-evidence.js'));
+    const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './doc-evidence', './await-briefly', './signed-price', 'crypto'];
+    const stubs = { './cancel-window': require(path.join(FN, 'cancel-window.js')), './ky-insurance-law': K, './lead-artifact-paths': require(path.join(FN, 'lead-artifact-paths.js')),
+      './esign-logic': ESL, './doc-evidence': DE, './await-briefly': require(path.join(FN, 'await-briefly.js')), './signed-price': require(path.join(FN, 'signed-price.js')) };
+    const mint = async (flagOn, signers) => {
+      const db = kit.makeDb({
+        'leads/L1': { userId: 'U1', companyId: 'U1', firstName: 'Dana', lastName: 'Whitfield', email: 'dana@example.test', address: '12 Oak St, Cincinnati, OH 45202' },
+        'leads/L1/documents/d1': { type: 'lien_waiver', typeName: 'Lien Waiver', htmlPath: P, userId: 'U1', signers },
+        'companyProfile/U1': { brand: { legalName: 'Acme Roofing LLC', entityName: 'Acme Roofing LLC', contact: { mailingAddress: '1 Main St, Cincinnati, OH 45202' } } },
+        'feature_flags/_default': flagOn ? { docClauseSetV1: true } : {},
+      });
+      const Lh = kit.loadHandler('remote-signing.js', db, kit.makeStorage({ [P]: html }), stubs, REAL);
+      try { return { v: await Lh.fns.createSignRequest({ auth: { uid: 'U1', token: {} }, data: { leadId: 'L1', docId: 'd1', signerEmail: 'dana@example.test', signerName: 'Dana' } }), db }; }
+      catch (e) { return { e, db }; }
+    };
+    const repOnly = [{ role: 'rep', label: 'Rep', required: true }];
+    let r = await mint(true, repOnly);
+    ok('server, flag on: a rep-only document is refused (failed-precondition) and no token is minted', !!r.e && r.e.code === 'failed-precondition' && r.db._all('doc_sign_tokens').length === 0, r.e && r.e.code + ' ' + r.e.message);
+    r = await mint(true, [{ role: 'homeowner', required: true }, { role: 'rep', required: true }]);
+    ok('server, flag on: a document with a homeowner signer is still sent', !!r.v && r.db._all('doc_sign_tokens').length === 1, r.e && r.e.message);
+    r = await mint(false, repOnly);
+    ok('server, flag off: unchanged (a rep-only document still sends)', !!r.v && r.db._all('doc_sign_tokens').length === 1, r.e && r.e.message); }
+
   console.log('\npaper-cert-signers: ' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log(fails.join('\n')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

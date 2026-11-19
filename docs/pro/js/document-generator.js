@@ -327,6 +327,12 @@ window.NBDDocGen = {
     return false;
   },
 
+  /** Flag docClauseSetV1 (Q51): the homeowner signature and release lines on the documents that had static ones. */
+  _signEaseOn() {
+    try { return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('docClauseSetV1')); }
+    catch (_) { return false; }
+  },
+
   /**
    * Paper copies (flag docClauseSetV1, default off; Jo's decision Q49): a printed contract-class document carries its
    * document id and a short digest in a footer line, so a paper-signed copy can be linked back to the original it
@@ -797,6 +803,31 @@ window.NBDDocGen = {
     certificate_of_completion: 'cocFiledAt',
   },
 
+  // Signers added by flag docClauseSetV1 (Jo's decision Q51, 2026-11-18) to documents that printed static lines or none.
+  // Flag off, defaultSignersFor() answers exactly DOCUMENT_TYPES[type].defaultSigners, so nothing changes.
+  // The homeowner labels name what the signature is for; the wording each one sits under is in the template
+  // (DRAFTER WORDING: attorney to confirm).
+  FLAG_ON_SIGNERS: {
+    supplement_request:   [ { role: 'homeowner', label: 'Homeowner authorization', required: true },
+                            { role: 'rep',       label: 'Authorized NBD Representative', required: true } ],
+    inspectionInsurance:  [ { role: 'homeowner', label: 'Homeowner release', required: true } ],
+    warranty_certificate: [ { role: 'homeowner', label: 'Homeowner', required: true },
+                            { role: 'rep',       label: 'Authorized NBD Representative', required: true } ],
+    before_after_report:  [ { role: 'homeowner', label: 'Homeowner', required: true } ],
+  },
+
+  /** The signers the pre-flight seeds for a document type. */
+  defaultSignersFor(type) {
+    const entry = (this.DOCUMENT_TYPES && this.DOCUMENT_TYPES[type]) || {};
+    try {
+      if (window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('docClauseSetV1')
+          && this.FLAG_ON_SIGNERS[type] && !Array.isArray(entry.defaultSigners)) {
+        return this.FLAG_ON_SIGNERS[type];
+      }
+    } catch (_) { /* flag unreadable: today's signers */ }
+    return Array.isArray(entry.defaultSigners) ? entry.defaultSigners : [];
+  },
+
   // ============================================================================
   // SECTION 2: CORE ENGINE METHODS
   // ============================================================================
@@ -1111,6 +1142,10 @@ window.NBDDocGen = {
       // can hand them to the widget for one-tap "Use saved" reuse. Only
       // fetched when the doc actually has signers — zero cost otherwise.
       const _savedSigs = hasSigners ? await this._fetchSavedSignatures(_leadIdEarly) : null;
+      // Flag docClauseSetV1 (Q51): a document only the company signs (a lien waiver) is never sent to the homeowner for
+      // signature: "Send for signature" is not offered, the rep signs it in the viewer. The server refuses it too.
+      const _repOnly = this._signEaseOn() && Array.isArray(data.signers) && data.signers.length > 0
+        && data.signers.every((s) => s && s.role === 'rep');
       window.NBDDocViewer.open({
         html: _viewHtml,
         title: typeName + (customerName ? ' — ' + customerName : ''),
@@ -1119,7 +1154,7 @@ window.NBDDocGen = {
         // Signatures PR4: remote signing. Only for signable docs tied to a
         // lead. Awaits the doc's persist (so it has a real docId/htmlPath),
         // then mints + emails a doc_sign_tokens link via createSignRequest.
-        onSendForSignature: (hasSigners && _leadIdEarly) ? (async (signerEmail) => {
+        onSendForSignature: (hasSigners && _leadIdEarly && !_repOnly) ? (async (signerEmail) => {
           if (_persistPromise) { try { await _persistPromise; } catch (_) {} }
           const docId = _docMetaRef && _docMetaRef.id;
           if (!docId) throw new Error('Document is still saving — try again in a moment.');
@@ -3616,7 +3651,15 @@ window.NBDDocGen = {
                 I certify that I have personally inspected the subject property and that the damages, measurements, and repair estimates contained in this report are accurate to the best of my knowledge and belief.
               </div>
               ${this.renderSignatureBlock(['Damage Assessor'])}
-            </div>
+            </div>${this._signEaseOn() ? `
+            <!-- HOMEOWNER RELEASE (flag docClauseSetV1) -->
+            <div class="section" data-nbd-auth="release">
+              <div class="section-title">Homeowner release</div>
+              <div style="font-size: 9px; margin: 0.1in 0;">
+                ${/* DRAFTER WORDING: attorney to confirm. Neutral: permission to send the report, nothing about coverage, outcome or payment. */''}I authorize ${this._escHtml(this._resolveCompany().name || '')} to send a copy of this inspection report to my insurance company.
+              </div>
+              ${this.renderSignatureBlock((Array.isArray(data.signers) && data.signers.length) ? data.signers : ['Homeowner release'])}
+            </div><!--end-auth-->` : ''}
           </div>
 
           ${this.renderFooter({ pageNumber: '1' })}

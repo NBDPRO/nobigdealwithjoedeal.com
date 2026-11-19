@@ -1,0 +1,13 @@
+{
+  "_about": "SHA-256 of the flag-OFF render (NBDDocGen.getHTML) of the Q51 documents, with and without seeded signers, recorded from origin/main before any template changed. tests/paper-cert-signers-2026-11-18.test.js compares today's render to these: with docClauseSetV1 off every document is byte-identical. Regenerate only on purpose.",
+  "supplement_request.plain": "57bba5c3ee6f8b7302f6e6f6754a5f2307432661da493a82c122d462305d4950",
+  "supplement_request.signers": "57bba5c3ee6f8b7302f6e6f6754a5f2307432661da493a82c122d462305d4950",
+  "inspectionInsurance.plain": "78d827ddfce6c39ce3a979d8bf8c29d3468e2d7ee861cddab562a1c9f220855a",
+  "inspectionInsurance.signers": "78d827ddfce6c39ce3a979d8bf8c29d3468e2d7ee861cddab562a1c9f220855a",
+  "warranty_certificate.plain": "06d343b30dda7d7591a9cce5a2842b20491b19572350862a83398f4af18d8065",
+  "warranty_certificate.signers": "36bede2258855eef305e87f863719e06166189708e4586ebe9a1dd38093f0708",
+  "before_after_report.plain": "4f85e2d880c169827c6ae1b46f20d0397d2f51f4e3718693e57dc6f500f8573d",
+  "before_after_report.signers": "4f85e2d880c169827c6ae1b46f20d0397d2f51f4e3718693e57dc6f500f8573d",
+  "lien_waiver.plain": "15aabe85d4dd22f18f3bc1d13aab1d4e5786e2d839cfda341558517fb6897abc",
+  "lien_waiver.signers": "b29bb7edfb12752bc294de30c3edaf4a286f4259176b8f9564e43f01e5de8e78"
+}

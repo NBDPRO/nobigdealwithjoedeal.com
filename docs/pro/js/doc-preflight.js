@@ -3296,7 +3296,9 @@
     // NBDDocGen.DOCUMENT_TYPES entry). Each becomes a toggleable row;
     // the rep can uncheck, rename inline, or add ad-hoc signers.
     var docTypeEntry = (window.NBDDocGen && window.NBDDocGen.DOCUMENT_TYPES && window.NBDDocGen.DOCUMENT_TYPES[type]) || {};
-    var defaults = Array.isArray(docTypeEntry.defaultSigners) ? docTypeEntry.defaultSigners : [];
+    var defaults = (window.NBDDocGen && typeof window.NBDDocGen.defaultSignersFor === 'function')
+      ? window.NBDDocGen.defaultSignersFor(type)
+      : (Array.isArray(docTypeEntry.defaultSigners) ? docTypeEntry.defaultSigners : []);
     // De-brand the seeded labels. DOCUMENT_TYPES.defaultSigners carries NBD
     // defaults like "Authorized NBD Representative" and "NBD Inspector"; the
     // EMITTED pdf is already corrected, because renderSignatureBlock runs every
