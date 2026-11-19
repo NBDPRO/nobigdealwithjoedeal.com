@@ -685,6 +685,114 @@
     return T.page('Attic, Ventilation & Moisture Acknowledgment', parts.join(''));
   };
 
+  // ═════════════════════════════════════════════════════════════════
+  // PHASE 5 TEMPLATES (flag docClauseSetV1, default OFF). Registered only while the flag is on (syncPhase5Types), so with it off
+  // the picker, DOCUMENT_TYPES, FORM_FIELDS and the pre-flight schemas are exactly what they were. Wording: the clause registry
+  // (printed verbatim through NBDClauseSet.textV1) and p5-forms.js TEXT (the drafter's, marked there). Acknowledgments are
+  // required recorded ticks (data-nbd-ack), the same mechanism as the attic form; the server verifies them (attic-gate.js).
+  // ═════════════════════════════════════════════════════════════════
+  var P5_ENTRIES = {
+    property_condition: { name: 'Property Condition & Access Acknowledgment', template: 'renderPropertyCondition', defaultSigners: [HOMEOWNER, REP] }
+  };
+  var P5_FIELDS = {
+    property_condition: ['homeownerName', 'address', 'walkedOn', 'pcPhotoIds']
+  };
+  function p5Wanted() {
+    var w = typeof window !== 'undefined' ? window : null;
+    return !!(w && w.NBDFlags && typeof w.NBDFlags.enabled === 'function' && w.NBDFlags.enabled('docClauseSetV1')
+      && w.NBDP5Forms && w.NBDClauseSet && typeof w.NBDClauseSet.textV1 === 'function' && w.NBDClauseText && w.NBDClauseText.CLAUSES);
+  }
+  DG.syncPhase5Types = function () {
+    var on = p5Wanted();
+    Object.keys(P5_ENTRIES).forEach(function (t) {
+      if (on) { DG.DOCUMENT_TYPES[t] = Object.assign({}, P5_ENTRIES[t]); if (DG.FORM_FIELDS) DG.FORM_FIELDS[t] = P5_FIELDS[t].slice(); }
+      else { delete DG.DOCUMENT_TYPES[t]; if (DG.FORM_FIELDS) delete DG.FORM_FIELDS[t]; }
+    });
+    try { if (window.DocPreflight && typeof window.DocPreflight.syncPhase5 === 'function') window.DocPreflight.syncPhase5(on); } catch (_) { /* the schema side retries at open */ }
+    return on;
+  };
+  DG.syncPhase5Types();
+  try { if (typeof window.addEventListener === 'function') window.addEventListener('nbd:flags-loaded', function () { DG.syncPhase5Types(); }); } catch (_) { /* no events */ }
+
+  // The pieces every phase 5 form shares: the party sentence, the registry paragraphs, the signature block.
+  function p5Ctx(type, d) {
+    var P = window.NBDP5Forms, CS = window.NBDClauseSet;
+    if (!P || !CS || !window.NBDClauseText || !window.NBDClauseText.CLAUSES) throw new Error('The form wording did not load. Reload the page and try again.');
+    var g = (typeof DG._nbdGate === 'function') ? DG._nbdGate() : { isNbd: true, brand: {} };
+    var cp = d.companyProfile || {};
+    var party = CS.partyFor(g.brand || {}, g.isNbd);
+    var terms = CS.paymentTermsFor(cp.paymentTerms, g.isNbd);
+    var st = stateOf(d);
+    var o = { state: st, paymentSource: '', terms: terms, party: party,
+      facts: { ownerNames: CS.plain(d.homeownerName), propertyAddress: CS.plain(d.address), date: '{{date}}', companyPhone: '' } };
+    return { P: P, CS: CS, B: T.brand(), g: g, cp: cp, party: party, terms: terms, state: st, X: P.TEXT, o: o, type: type };
+  }
+  function p5Paras(c, id) { return c.CS.textV1(id, c.o); }
+  function p5Words(s) { return esc(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>'); }
+  function p5Fill(text, c, d) {
+    return String(text).replace(/\{\{contractor\}\}/g, function () { return c.party.nameLine ? c.party.nameLine : '{{contractor}}'; })
+      .replace(/\{\{owner\}\}/g, function () { return String(d.homeownerName == null ? '' : d.homeownerName); })
+      .replace(/\{\{address\}\}/g, function () { return String(d.address == null ? '' : d.address); });
+  }
+  function p5Tick(id, html, required) {
+    return '<label class="aa-row"><input type="checkbox" data-nbd-ack="' + esc(id) + '"' + (required ? ' data-nbd-required="1"' : '') + '><span>' + html + '</span></label>';
+  }
+  function p5Sig(c, d) {
+    var signers = Array.isArray(d.signers) ? d.signers.filter(Boolean) : [];
+    if (signers.length && typeof DG.renderSignatureBlock === 'function') {
+      var mapped = signers.map(function (s) {
+        return (s && typeof s === 'object' && s.role === 'rep') ? Object.assign({}, s, { label: c.party.signerLabel }) : s;
+      });
+      return '<div class="section">' + DG.renderSignatureBlock(mapped, { v1party: c.party }) + '</div>';
+    }
+    return T.sigBlock(['Homeowner', c.party.signerLabel], d);
+  }
+  function p5Head(c, d, subExtra) {
+    var X = c.X;
+    return '<style>' + c.P.FORM_CSS + '</style>' + T.letterhead() +
+      '<h1 class="lib-h1">' + esc(X.NAMES[c.type]) + '</h1>' +
+      '<p class="lib-sub">' + esc(d.homeownerName) + ' &middot; ' + esc(d.address) + (subExtra ? ' &middot; ' + esc(subExtra) : '') + '</p>' +
+      '<p class="aa-ver">' + esc(c.P.VERSION) + '</p>' +
+      '<div class="section"><p class="aa-p">' + p5Words(p5Fill(X.PARTY, c, d)) + '</p></div>';
+  }
+  function p5Photos(ids, urls) {
+    if (!ids.length) return '';
+    return '<div class="aa-thumbs">' + ids.map(function (id) {
+      return urls && urls[id] ? '<img src="' + esc(urls[id]) + '" alt="Photo">' : '<span class="lib-fine">Photo on file (' + esc(id) + ')</span> ';
+    }).join('') + '</div>';
+  }
+
+  // ── 1. PROPERTY CONDITION & ACCESS ACKNOWLEDGMENT ──
+  DG.renderPropertyCondition = function (data) {
+    T.refresh();
+    var d = Object.assign({ homeownerName: '[Homeowner Name]', address: '[Property Address]' }, data);
+    var c = p5Ctx('property_condition', d), X = c.X;
+    var pc = d.propertyCondition && typeof d.propertyCondition === 'object' ? d.propertyCondition : {};
+    var notes = pc.notes && typeof pc.notes === 'object' ? pc.notes : {};
+    var urls = (d.propertyPhotoUrls && typeof d.propertyPhotoUrls === 'object') ? d.propertyPhotoUrls : {};
+    var photos = Array.isArray(pc.photos) ? pc.photos.filter(function (p) { return p && p.id; }) : [];
+    var flat = String(d.pcPhotoIds || '').split(/[,\s]+/).filter(function (s) { return /^[A-Za-z0-9_-]{1,64}$/.test(s); });
+    var walked = String(pc.walkedOn || d.walkedOn || '').trim();
+    var sch2 = p5Paras(c, 'SCH-2'), disp6 = p5Paras(c, 'DISP-6'), media = p5Paras(c, 'MEDIA-1');
+    var mediaLine = media.length ? media[0].split(' [ ]')[0] : '';
+    var parts = [];
+    parts.push(p5Head(c, d, walked ? 'Walked ' + (T.longDate(walked) || walked) : ''));
+    parts.push(c.P.marker('property_condition', 'base', ['SCH-2', 'DISP-6', 'MEDIA-1']));
+    parts.push('<div class="section">' + sch2.concat(disp6, mediaLine ? [mediaLine] : []).map(function (p) { return '<p class="aa-p">' + p5Words(p) + '</p>'; }).join('') + '</div>');
+    parts.push('<div class="section"><p class="aa-p">' + esc(X.PC_INTRO) + '</p>' + p5Tick('ack:pc_notice', esc(X.PC_NOTICE), true) + '</div>');
+    parts.push('<div class="section">' + c.P.PC_KEYS.map(function (k) {
+      var note = String(notes[k] != null ? notes[k] : (d['pcNote_' + k] || '')).trim();
+      var ph = photos.filter(function (p) { return p.item === k; }).map(function (p) { return p.id; });
+      return '<div class="p5-item">' + p5Tick('ack:pc_' + k, '<strong>' + esc(X.PC_ITEMS[k]) + '</strong>', true) +
+        '<p class="p5-note">' + esc(note || X.PC_NOTE_NONE) + '</p>' + p5Photos(ph, urls) + '</div>';
+    }).join('') + '</div>');
+    var other = photos.filter(function (p) { return !p.item || c.P.PC_KEYS.indexOf(p.item) === -1; }).map(function (p) { return p.id; }).concat(flat);
+    if (other.length) parts.push('<div class="section"><p class="aa-note">' + esc(X.PC_PHOTOS) + '</p>' + p5Photos(other, urls) + '</div>');
+    parts.push('<div class="section"><p class="aa-note">' + esc(X.TICK_NOTE) + '</p></div>');
+    parts.push(p5Sig(c, d), T.affiliateRow() + T.footer(X.NAMES.property_condition));
+    return T.page(X.NAMES.property_condition, parts.join(''));
+  };
+
   // Brand refresh is done inside each renderer (T.refresh()), so these are
   // tenant-aware without the templates file's wrapping loop.
   if (DG.FORM_FIELDS) {

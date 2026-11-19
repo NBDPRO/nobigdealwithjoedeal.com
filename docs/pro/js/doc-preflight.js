@@ -3186,6 +3186,8 @@
    * @param {string} customerId — current lead id
    */
   function open(type, customerId) {
+    // Phase 5 (flag docClauseSetV1): register the flag-gated schemas before the lookup (a no-op with the flag off).
+    try { if (window.NBDDocGen && typeof window.NBDDocGen.syncPhase5Types === 'function') window.NBDDocGen.syncPhase5Types(); } catch (_) { /* fall through to the lookup */ }
     if (!DOC_SCHEMAS[type]) {
       console.warn('[DocPreflight] No schema for type:', type, '— falling back to direct generate.');
       if (window.NBDDocGen && typeof window.NBDDocGen.generate === 'function') {
@@ -3750,6 +3752,35 @@
   }
 
   // ═══════════════════════════════════════════════════════════════
+  // PHASE 5 SCHEMAS (flag docClauseSetV1, default OFF). Added to DOC_SCHEMAS only while the flag is on
+  // (NBDDocGen.syncPhase5Types calls syncPhase5 with the answer), so flag off leaves DOC_SCHEMAS as it was.
+  // ═══════════════════════════════════════════════════════════════
+  var P5_SCHEMAS = {};
+  (function () {
+    var items = [['driveway', 'Driveway and walkways'], ['landscaping', 'Landscaping, plants and fences'], ['gutters', 'Gutters and downspouts'],
+      ['satellite_dish', 'Satellite dish or antenna'], ['solar', 'Solar panels'], ['skylights', 'Skylights'], ['wall_items', 'Items on interior walls'],
+      ['attic_items', 'Items stored in the attic'], ['ceilings', 'Interior ceilings (cracks, nail pops)'], ['pets', 'Pets'],
+      ['utilities', 'Power and water'], ['parking', 'Parking for crew and dumpster']];
+    P5_SCHEMAS.property_condition = {
+      title: 'Property Condition & Access Acknowledgment',
+      subtitle: 'Walk the property with the homeowner before work starts. The homeowner ticks each item and signs.',
+      sections: [
+        CUSTOMER_SECTION,
+        { id: 'walk', title: 'Walk-through', collapsed: false, fields: [
+          { key: 'walkedOn', label: 'Date walked', type: 'date', source: 'computed.todayISO', persist: PERSIST.EPHEMERAL },
+          { key: 'pcPhotoIds', label: 'Photo IDs (this customer\u2019s photos, separated by commas)', type: 'text', source: 'literal:', persist: PERSIST.DOCUMENT }
+        ] },
+        { id: 'notes', title: 'Notes by item', collapsed: false, fields: items.map(function (it) {
+          return { key: 'pcNote_' + it[0], label: it[1], type: 'textarea', rows: 2, source: 'literal:', persist: PERSIST.DOCUMENT };
+        }) }
+      ]
+    };
+  })();
+  function syncPhase5(on) {
+    Object.keys(P5_SCHEMAS).forEach(function (t) { if (on) DOC_SCHEMAS[t] = P5_SCHEMAS[t]; else delete DOC_SCHEMAS[t]; });
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   // SECTION 11: PUBLIC API
   // ═══════════════════════════════════════════════════════════════
 
@@ -3758,6 +3789,7 @@
     close: close,
     submit: submit,
     DOC_SCHEMAS: DOC_SCHEMAS,
+    syncPhase5: syncPhase5,
     // Internal helpers exposed for debugging / testing only:
     _state: state,
     _resolveFieldValue: resolveFieldValue,
