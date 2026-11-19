@@ -211,7 +211,31 @@ async function handleInPersonSignature(db, auth, data, deps) {
   // rep's browser already wrote the row as signed, so a refusal marks it (evidenceRefused is server-owned).
   const attic = deps && deps.attic;
   // The flag is read here, after the lead is loaded (the acting user's OR the tenant owner's; a failed read throws a retryable refusal).
-  if (attic && (attic.on === true || (typeof attic.flagOn === 'function' && await attic.flagOn(lead)))) {
+  // Review 3 (item 5): flagOn may answer { on, unverified }: unverified means the flag could not be read (read as not on, so flag-off signing is
+  // unchanged), and for a document the gate would apply to that is recorded for audit, below, instead of passing silently.
+  let atticOn = false; let atticUnverified = false;
+  if (attic && attic.on === true) atticOn = true;
+  else if (attic && typeof attic.flagOn === 'function') {
+    const st = await attic.flagOn(lead);
+    atticOn = st === true || !!(st && st.on === true);
+    atticUnverified = !!(st && st.unverified === true) && !atticOn;
+  }
+  if (atticUnverified) {
+    const AGu = require('./attic-gate');
+    if (AGu.gated(docMeta.type) || AGu.isAtticDoc(docMeta.type)) {
+      // Server-written (rules-guarded like evidenceRefused) so the owner can audit the signing the gate could not check; best-effort, and the
+      // activity row is the second channel. The signing itself is recorded as before.
+      try { await db.doc('leads/' + leadId + '/documents/' + docId).set({ atticGateUnverified: { at: Date.now(), reason: 'attic_flag_unreadable', docType: String(docMeta.type || '') } }, { merge: true }); } catch (_) { /* the activity row below is the other channel */ }
+      try {
+        await db.collection('leads/' + leadId + '/activity').add({
+          userId: String(lead.userId || uid || ''), type: 'attic_gate_unverified', label: 'Signed in person, attic check not run',
+          message: 'The attic acknowledgment setting could not be read when this document was signed in person, so the attic check did not run. Open the customer and confirm a signed attic form exists for the estimate.',
+          docId, createdAt: new Date(),
+        });
+      } catch (_) { /* best-effort */ }
+    }
+  }
+  if (attic && atticOn) {
     const AG = require('./attic-gate');
     const refuse = async (message) => {
       try { await db.doc('leads/' + leadId + '/documents/' + docId).set({ evidenceRefused: { reasons: [{ code: 'atticAck', message }], at: Date.now() } }, { merge: true }); } catch (_) { /* the refusal is the signal */ }
@@ -231,7 +255,7 @@ async function handleInPersonSignature(db, auth, data, deps) {
       result.attests = 'rep_device_and_time_only';
       // Review 2 (item 4): the form covers the estimate it was signed against (id and stamp), the same binding an override has.
       let fb;
-      try { fb = await AG.formBasis(db, leadId, lead); } catch (_) { throw new RefusalError('unavailable', 'Could not check the attic acknowledgment just now. Try again in a moment.'); }
+      try { fb = await AG.formBasis(db, leadId, lead, { estimateId: docMeta.estimateId }); } catch (_) { throw new RefusalError('unavailable', 'Could not check the attic acknowledgment just now. Try again in a moment.'); }
       result.estimateId = fb.id; result.estimateStamp = fb.stamp;
       await db.doc('leads/' + leadId + '/documents/' + docId).set({ atticAckResult: result }, { merge: true });
     } else if (AG.gated(docMeta.type)) {

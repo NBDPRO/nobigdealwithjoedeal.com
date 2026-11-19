@@ -123,7 +123,18 @@ window.NBDDocGen = {
   _jurisdiction(data) {
     const J = (typeof window !== 'undefined') && window.NBDJurisdiction;
     if (!J) return null;
-    const d = data || {};
+    let d = data || {};
+    // "Preview blank template" fills empty fields with bracket placeholders ('[Claim #]', '[Carrier]', '[123 Main St,
+    // City, State]'). They are display text, not facts: read as facts they made every blank preview an insurance job of
+    // unknown state. Blank them here so the lead's own facts (window._leadDoc below: state, address, job type, claim)
+    // decide, so a Kentucky cash lead previews as Kentucky cash; no facts at all = unknown.
+    if (d._isBlankPreview) {
+      d = Object.assign({}, d, { jurisdiction: null });
+      ['address', 'homeownerAddress', 'propertyAddress', 'projectAddress', 'state', 'zip', 'jobType', 'claimNumber',
+        'insCarrier', 'insuranceCarrier', 'insuranceCompany'].forEach((k) => {
+        if (/^\s*\[[^\]]*\]\s*$/.test(String(d[k] == null ? '' : d[k]))) d[k] = '';
+      });
+    }
     let lead = {};
     try {
       const leadId = d.leadId || (d.customer && d.customer.id) || null;
@@ -339,10 +350,21 @@ window.NBDDocGen = {
     const d = data || {};
     const co = this._resolveCompany();
     const B = (typeof window !== 'undefined' && typeof window._brand === 'function') ? (() => { try { return window._brand() || {}; } catch (_) { return {}; } })() : {};
+    // Clause set v1 (flag docClauseSetV1): the notice names the same legal party as the contract ("<entity> d/b/a <name>"),
+    // from the brand's entityName / dbaName (NBD's own by default, a tenant's only if it set them; a tenant with no
+    // entityName keeps its own legalName). Only the seller name token changes; the statutory wording does not.
+    let sellerName = (B && B.legalName) || co.name || '';
+    if (this._clauseV1On()) {
+      try {
+        const g = this._nbdGate();
+        const pn = window.NBDClauseSet.partyFor(g.brand || {}, g.isNbd).nameLine;
+        if (pn) sellerName = pn;
+      } catch (_) { /* keep the legalName */ }
+    }
     return {
       transactionDate: d.contractDate || new Date(),
       timeZone: J ? J.resolveTimeZone(cp) : undefined,
-      sellerName: (B && B.legalName) || co.name || '',
+      sellerName,
       sellerAddress: this._contractorPhysicalAddress(cp),
       email: co.email || '',
       fax: String((cp && cp.businessFax) || '').trim(),
@@ -433,8 +455,8 @@ window.NBDDocGen = {
 
   _clauseItemsHtml(items) {
     return (items || []).filter(function (i) { return !i.byRef; }).map((i) => i.paragraphs.map((p) =>
-      '<div class="nbd-clause" data-clause="' + i.id + '"><span class="nbd-clause-id">' +
-      i.id + '</span> ' + this._clauseHtml(p) + '</div>').join('')).join('');
+      // The id stays as the data-clause attribute (the evidence reads it); it is not printed to the customer.
+      '<div class="nbd-clause" data-clause="' + i.id + '">' + this._clauseHtml(p) + '</div>').join('')).join('');
   },
 
   _clauseSectionHtml(title, inner) {
@@ -483,7 +505,7 @@ window.NBDDocGen = {
     }
     return {
       refs: r.refs, missing: r.missing, party: party, set: r, variant: r.variant,
-      css: '<style>.nbd-clause{margin:.05in 0;font-size:9px}.nbd-clause-id{color:#888;font-size:7px}.nbd-clause-lead{margin:.1in 0;font-size:10px}</style>',
+      css: '<style>.nbd-clause{margin:.05in 0;font-size:9px}.nbd-sig-caption,.sig-caption{font-size:9px;color:#444;margin:.02in 0 .15in}.sig-role{font-size:10px;font-weight:bold;margin:.1in 0 .02in}.nbd-clause-lead{margin:.1in 0;font-size:10px}</style>',
       // The marker lists every clause this document printed; the server reads it back for the signing evidence.
       partyHtml: '<!-- nbd:clause-set ' + CS.CLAUSE_SET_VERSION + ' ' + r.refs.join(',') + ' -->' + (r.party ? '<div class="section"><div class="section-title">Parties</div><div class="nbd-clause nbd-clause-lead" data-clause="PARTY-1">' +
         this._clauseHtml(r.party.paragraphs[0]) + '</div></div>' : ''),
@@ -1007,6 +1029,8 @@ window.NBDDocGen = {
                 signers: Array.isArray(data.signers)
                   ? data.signers.map(s => ({ role: s.role, label: s.label, required: !!s.required }))
                   : null,
+                // The estimate an attic form was generated for (flag docAtticAckV1; attic types only, so every other row is unchanged).
+                ...((type === 'attic_acknowledgment' || type === 'attic_not_inspected') && typeof data.estimateId === 'string' && data.estimateId ? { estimateId: data.estimateId } : {}),
                 snapshot: {
                   total: (data.estimate && data.estimate.grandTotal) || data.total || null,
                   address: (data.customer && data.customer.address) || null
@@ -2410,8 +2434,10 @@ window.NBDDocGen = {
   _injectSignatureAssets(html) {
     if (typeof html !== 'string' || !html.length) return html;
     const scriptSrc = this._assetOrigin() + '/pro/js/signature-widget.js';
-    const css =
-      '<style id="nbd-sig-styles">' +
+    // The CSS text is the twinned module's constant when it is loaded (functions/attic-gate.js holds the same text and accepts this
+    // block in a stored attic form only when it equals it); the literal below is that same text, for a page without attic-ack.js.
+    const AA = (typeof window !== 'undefined' && window.NBDAtticAck) || null;
+    const sigCss = AA && typeof AA.SIG_STYLES_CSS === 'string' ? AA.SIG_STYLES_CSS :
       '.nbd-sig-block{margin:0.2in 0 0.4in;padding:0;page-break-inside:avoid;}' +
       '.nbd-sig-label{font-size:11px;font-weight:700;color:#1A3057;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;}' +
       '.nbd-sig-canvas{display:block;width:100%;height:120px;border:1px dashed #999;border-radius:6px;background:#fafafa;cursor:crosshair;box-sizing:border-box;touch-action:none;}' +
@@ -2422,8 +2448,8 @@ window.NBDDocGen = {
       '.nbd-sig-state{font-size:10px;color:#2d7a2d;font-weight:600;margin-left:auto;}' +
       '.nbd-sig-date{margin-top:4px;font-size:10px;color:#666;font-style:italic;}' +
       '.nbd-sig-print-name{margin-top:8px;font-size:10px;color:#666;}' +
-      '@media print{.nbd-sig-controls,.nbd-sig-state{display:none!important;}.nbd-sig-canvas{border:1px solid #333;background:#fff;}}' +
-      '</style>';
+      '@media print{.nbd-sig-controls,.nbd-sig-state{display:none!important;}.nbd-sig-canvas{border:1px solid #333;background:#fff;}}';
+    const css = '<style id="nbd-sig-styles">' + sigCss + '</style>';
     const scriptTag = '<script src="' + scriptSrc + '" defer></' + 'script>';
     let out = html;
     if (/<\/head>/i.test(out)) {
@@ -2593,7 +2619,17 @@ window.NBDDocGen = {
    * @param {array} signers - Array of signer names/titles
    * @returns {string} HTML
    */
-  renderSignatureBlock(signers = ['Homeowner', 'Contractor']) {
+  renderSignatureBlock(signers = ['Homeowner', 'Contractor'], opts) {
+    // Clause set v1 (flag docClauseSetV1, contract only): each label sits ABOVE its own signature line, the contractor
+    // line is labelled "Contractor" and the legal-party caption ("<entity> d/b/a <name> - By: <signer>, <title>") sits
+    // directly under that line; a second "Homeowner" is the co-owner. The data-nbd-sig attributes are not touched.
+    const v1p = opts && opts.v1party;
+    let homeCount = 0;
+    const shown = (raw) => {
+      if (v1p && raw === v1p.signerLabel) return { label: 'Contractor', caption: v1p.signerLabel };
+      if (v1p && raw === 'Homeowner') { homeCount++; if (homeCount > 1) return { label: 'Homeowner (co-owner)', caption: '' }; }
+      return { label: raw, caption: '' };
+    };
     // Signers may be strings (legacy: static sig-line + printed label)
     // or config objects (new: interactive canvas widget). Object shape:
     //   { role: 'homeowner', label: 'Homeowner', required: true }
@@ -2613,10 +2649,13 @@ window.NBDDocGen = {
         const role = escRole(isObj ? signer.role : String(signer).toLowerCase().replace(/[^a-z0-9]+/g, '-'));
         const label = escAttr(this._deBrandSignerLabel(isObj ? (signer.label || signer.role) : signer));
         const required = isObj ? signer.required !== false : true;
+        const sh = v1p ? shown(this._deBrandSignerLabel(isObj ? (signer.label || signer.role) : signer)) : null;
+        const shownLabel = sh ? escAttr(sh.label) : label;
+        const capHtml = sh && sh.caption ? '<div class="sig-caption">' + escAttr(sh.caption) + '</div>' : '';
         html += `
           <div class="nbd-sig-block" data-nbd-sig="${role}" data-label="${label}" data-required="${required ? 'true' : 'false'}">
-            <div class="nbd-sig-label">${label}${required ? '' : ' <span style="font-weight:400;color:#888;text-transform:none;letter-spacing:0;">(optional)</span>'}</div>
-            <canvas class="nbd-sig-canvas"></canvas>
+            <div class="nbd-sig-label">${shownLabel}${required ? '' : ' <span style="font-weight:400;color:#888;text-transform:none;letter-spacing:0;">(optional)</span>'}</div>
+            <canvas class="nbd-sig-canvas"></canvas>${capHtml}
             <div class="nbd-sig-controls">
               <button type="button" data-nbd-sig-action="clear">Clear</button>
               <button type="button" data-nbd-sig-action="undo">Undo last stroke</button>
@@ -2628,6 +2667,23 @@ window.NBDDocGen = {
       });
     } else {
       signers.forEach(signer => {
+        if (v1p) {
+          const sh = shown(this._deBrandSignerLabel(signer));
+          html += `
+          <div class="sig-role">${this._escHtml(sh.label)}</div>
+          <div class="signature-line">
+            <div class="sig-field">
+              <div class="sig-underline"></div>
+              <div class="sig-label">Signature</div>
+            </div>
+            <div class="sig-field">
+              <div class="sig-underline"></div>
+              <div class="sig-label">Date</div>
+            </div>
+          </div>${sh.caption ? '<div class="sig-caption">' + this._escHtml(sh.caption) + '</div>' : ''}
+        `;
+          return;
+        }
         html += `
           <div class="signature-line">
             <div class="sig-field">
@@ -2701,7 +2757,7 @@ window.NBDDocGen = {
    * @param {object} [data] - the document's merge data (line items, extended warranty)
    * @returns {string} HTML
    */
-  renderWarrantyBadge(tier = 'better', data) {
+  renderWarrantyBadge(tier = 'better', data, opts) {
     const cfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
     const TR = (typeof window !== 'undefined') ? window.NBDTenantRules : null;
     const tenant = !!(TR && typeof TR.isPlatformTenant === 'function' && TR.isPlatformTenant() === false);
@@ -2737,9 +2793,17 @@ window.NBDDocGen = {
           : (yrs ? yrs + '-year written workmanship (labor) warranty.' : 'Written workmanship (labor) warranty per your package — see your estimate.'));
       const work = yrs ? (yrs + '-Year Workmanship') : 'Workmanship';
       const pledge = lines.pledge || (cfg && cfg.PLEDGE_PROMISE) || 'NBD Pledge: for as long as you own the home, we\'ll come back and make it right.';
-      head = label + ': NBD Pledge + ' + work;
-      strong = '<div><strong>' + work + ' Warranty (written, labor)</strong></div>';
-      workText = e(pledge) + '<br>' + warrantyText + '<br>';
+      if (opts && opts.v1) {
+        // Clause set v1 (flag docClauseSetV1): WAR-6 is the one definition of the NBD Pledge, so the old broad sentence
+        // does not print in this box. The tier, labor and manufacturer lines stay.
+        head = label + ': ' + work;
+        strong = '<div><strong>' + work + ' Warranty (written, labor)</strong></div>';
+        workText = warrantyText + '<br>';
+      } else {
+        head = label + ': NBD Pledge + ' + work;
+        strong = '<div><strong>' + work + ' Warranty (written, labor)</strong></div>';
+        workText = e(pledge) + '<br>' + warrantyText + '<br>';
+      }
     }
 
     return `
@@ -2771,9 +2835,9 @@ window.NBDDocGen = {
   },
 
   /** The Warranty Coverage body: the job-type sentence, else the tier badge. */
-  renderWarrantyFor(data) {
+  renderWarrantyFor(data, opts) {
     const text = this._jobWarrantyText(data);
-    if (text === null) return this.renderWarrantyBadge(data.warrantyTier, data);
+    if (text === null) return this.renderWarrantyBadge(data.warrantyTier, data, opts);
     const years = Number(data.workmanshipWarrantyYears);
     const headline = (Number.isFinite(years) && years > 0)
       ? years + '-Year Workmanship Warranty'
@@ -3138,7 +3202,7 @@ window.NBDDocGen = {
             ${this._jobWarrantyText(merged) === '' ? '' : `<!-- WARRANTY -->
             <div class="section">
               <div class="section-title">Warranty Coverage</div>
-              ${this.renderWarrantyFor(merged)}
+              ${this.renderWarrantyFor(merged, v1 ? { v1: true } : undefined)}
             </div>`}
 
             ${v1 ? v1.slotChange : `<!-- CHANGE ORDERS -->
@@ -3204,7 +3268,8 @@ window.NBDDocGen = {
                   ? v1.signers((Array.isArray(data.signers) && data.signers.length) ? data.signers : ['Homeowner', this._contractorSignerLabel()])
                   : ((Array.isArray(data.signers) && data.signers.length)
                     ? data.signers
-                    : ['Homeowner', this._contractorSignerLabel()])
+                    : ['Homeowner', this._contractorSignerLabel()]),
+                  v1 ? { v1party: v1.party } : undefined
                 )}
               </div>
             </div>

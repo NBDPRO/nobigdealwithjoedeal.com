@@ -94,7 +94,7 @@ exports.recordInPersonSignature = onCall(
       // as before the attic lane (the evidence-flag reads above are the only strict ones here, and they already were).
       const attic = { flagOn: async (lead) => {
         try { return await DE.atticGateOn(db, uid, lead, HttpsError); }
-        catch (e) { logger.warn('[recordInPersonSignature] attic flag unreadable, treated as not on', { uid, err: e && e.message }); return false; }
+        catch (e) { logger.warn('[recordInPersonSignature] attic flag unreadable, treated as not on (recorded for audit)', { uid, err: e && e.message }); return { on: false, unverified: true }; }
       }, readBytes: async (p, max) => {
         const f = getStorage().bucket().file(p);
         const [md] = await f.getMetadata();
