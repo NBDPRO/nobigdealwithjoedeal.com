@@ -86,6 +86,27 @@ async function run() {
   await check('owner creates a row carrying evidenceRefused', 'deny', setDoc(doc(owner, 'leads/L1/documents/new6'), { name: 'x', status: 'draft', userId: 'owner1', evidenceRefused: { reasons: [], at: 1 } }));
   await check('control: owner may still flip sharedWithHomeowner on a signed row', 'allow', updateDoc(d('signed'), { sharedWithHomeowner: true }));
 
+  // security review 2026-11-18: linkSeq / linkMintedAt (the sign-link sequence number and mint stamp) are server-owned too: a client
+  // that could reset linkSeq would keep an old sign link alive when it makes a new one.
+  const mgr = env.authenticatedContext('mgr1', { role: 'manager', companyId: 'owner1' }).firestore();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'leads/L1/documents/seq'), { name: 'c', status: 'sent', userId: 'owner1', linkSeq: 5 });
+    await setDoc(doc(ctx.firestore(), 'documents/legacySeq'), { userId: 'owner1', name: 'old', status: 'draft', linkSeq: 5 });
+  });
+  for (const [who, db] of [['owner', owner], ['manager', mgr]]) {
+    const s = doc(db, 'leads/L1/documents/seq');
+    await check('control: ' + who + ' edits an ordinary field on a row that carries linkSeq', 'allow', updateDoc(s, { name: 'r-' + who }));
+    await check(who + ' sets linkSeq to 0', 'deny', updateDoc(s, { linkSeq: 0 }));
+    await check(who + ' sets linkSeq to a string', 'deny', updateDoc(s, { linkSeq: 'x' }));
+    await check(who + ' deletes linkSeq', 'deny', updateDoc(s, { linkSeq: deleteField() }));
+    await check(who + ' sets linkMintedAt', 'deny', updateDoc(s, { linkMintedAt: new Date() }));
+    await check(who + ' plants linkSeq on a draft', 'deny', updateDoc(doc(db, 'leads/L1/documents/draft'), { linkSeq: 0 }));
+    await check(who + ' creates a row carrying linkSeq', 'deny', setDoc(doc(db, 'leads/L1/documents/seqnew-' + who), { name: 'x', status: 'draft', userId: 'owner1', linkSeq: 0 }));
+    await check(who + ' creates a row carrying linkMintedAt', 'deny', setDoc(doc(db, 'leads/L1/documents/mintnew-' + who), { name: 'x', status: 'draft', userId: 'owner1', linkMintedAt: new Date() }));
+  }
+  await check('owner resets linkSeq on a legacy document', 'deny', updateDoc(doc(owner, 'documents/legacySeq'), { linkSeq: 0 }));
+  await check('owner creates a legacy document carrying linkMintedAt', 'deny', setDoc(doc(owner, 'documents/legacySeq2'), { userId: 'owner1', name: 'x', status: 'draft', linkMintedAt: new Date() }));
+
   await check('control: owner edits notes on an open deal room', 'allow', updateDoc(doc(owner, 'deal_rooms/open'), { notes: 'n' }));
   await check('control: owner edits notes on a closed deal room', 'allow', updateDoc(doc(owner, 'deal_rooms/closed'), { notes: 'n' }));
   await check('owner rewrites acceptedEvidence on a closed deal room', 'deny', updateDoc(doc(owner, 'deal_rooms/closed'), { acceptedEvidence: { ip: '6.6.6.6', clauseSetVersion: 'CS-FORGED' } }));

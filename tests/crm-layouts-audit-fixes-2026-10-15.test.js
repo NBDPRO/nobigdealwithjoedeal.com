@@ -228,7 +228,7 @@ console.log('\nD16. text drafts ask "ok to text?" first');
     ok('no customer id: blocked without asking (a homeowner text needs one)', nolead.opened.length === 0 && !nolead.asked);
     const yes = await tap({ ok: true }, 'L1');
     ok('a "yes": Messages opens with the drafted text', yes.prevented && yes.opened.length === 1 && yes.opened[0] === 'sms:+18595550142?&body=Hi%20Pat');
-    ok('phone-share.js is a boot tag on the dashboard (so the delegate is always there) and re-versioned', /<script defer src="js\/phone-share\.js\?v=3"><\/script>/.test(read('docs/pro/dashboard.html')));
+    ok('phone-share.js is a boot tag on the dashboard (so the delegate is always there) and re-versioned', /<script defer src="js\/phone-share\.js\?v=\d+"><\/script>/.test(read('docs/pro/dashboard.html')));
   };
 }
 

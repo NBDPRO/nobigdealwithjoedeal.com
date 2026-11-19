@@ -33,6 +33,8 @@ const FLAG_DEFAULT = false;
 const CLAUSE_FLAG_NAME = 'docClauseSetV1';
 // Phase 3 (2026-11-18): the attic acknowledgment and the gate behind it. Per person, default OFF.
 const ATTIC_FLAG_NAME = 'docAtticAckV1';
+// Signing-ease lane (2026-11-18, Q48/Q59/Q60): a sign link without an email (QR / text / copy panel), 14-day expiry. Per person, default OFF.
+const SIGN_PANEL_FLAG_NAME = 'docSignPanelV1';
 
 // The platform tenant's legal entity (company-profile.js brand.entityName default,
 // the same string). A tenant key-less record, or the NBD owner's, is NBD's; any
@@ -113,6 +115,8 @@ function _s(v, max) { return typeof v === 'string' && v ? v.slice(0, max) : null
  *   signedSha256    digest of the executed record, when there is one
  *   consent         { agreed: true | false | null, text, at } — null = no consent step on this path
  */
+const DELIVERY_CHANNELS = ['email', 'link_only'];
+
 function buildEvidence(input) {
   const i = input || {};
   const at = Number.isFinite(Number(i.signedAtMs)) ? Number(i.signedAtMs) : Date.now();
@@ -137,6 +141,9 @@ function buildEvidence(input) {
     ipSource: _s(i.ipSource, 80),
     ua: _s(i.ua, 300),
     recordedByUid: _s(i.recordedByUid, 128),
+    // Security review 2026-11-18, item 3 (flag docSignPanelV1 only; absent otherwise, so the earlier shape is untouched): how the
+    // signing link reached the signer and who minted it. A link-only link has no email on it: this records that the rep held the link.
+    ...(DELIVERY_CHANNELS.indexOf(i.deliveryChannel) !== -1 ? { deliveryChannel: i.deliveryChannel, mintedBy: _s(i.mintedBy, 128) } : {}),
   };
 }
 
@@ -323,6 +330,20 @@ async function clauseFlagForGate(db, uid, HttpsError) {
   catch (_) { throw new HttpsError('unavailable', FLAG_UNREADABLE_MSG); }
 }
 
+/** The sign-link panel flag as createSignRequest reads it (a read error is a retryable refusal, never "off"). */
+async function signPanelFlagForGate(db, uid, HttpsError) {
+  try { return await flagForUid(db, uid, { strict: true, flag: SIGN_PANEL_FLAG_NAME }); }
+  catch (_) { throw new HttpsError('unavailable', FLAG_UNREADABLE_MSG); }
+}
+
+/**
+ * The sign-link panel flag for a caller that did NOT ask for a link-only mint (security review 2026-11-18, item 1): a loose read, a
+ * failed read is "off", so flag-off behaviour (and any outage) is exactly what it was before the flag existed.
+ */
+async function signPanelFlagLoose(db, uid) {
+  return flagForUid(db, uid, { flag: SIGN_PANEL_FLAG_NAME });
+}
+
 /** The attic flag as a send gate reads it (a read error is a retryable refusal, never "off"). */
 async function atticFlagForGate(db, uid, HttpsError) {
   try { return await flagForUid(db, uid, { strict: true, flag: ATTIC_FLAG_NAME }); }
@@ -397,7 +418,7 @@ function clauseFlagForUid(db, uid) { return flagForUid(db, uid, { flag: CLAUSE_F
 module.exports = {
   CLAUSE_FLAG_NAME, clauseFlagForUid, ATTIC_FLAG_NAME, atticFlagForGate, atticGateOn,
   FLAG_NAME, FLAG_DEFAULT, NBD_ENTITY_NAME, CLAUSE_SET_VERSION: ClauseSet.CLAUSE_SET_VERSION,
-  NBD_OWNER_UID_FOR_TESTS: NBD_OWNER_UID, clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, buildClauseSetFor, clauseFlagForGate, printedByRef, expectedV1Refs, pdfByRef, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
+  NBD_OWNER_UID_FOR_TESTS: NBD_OWNER_UID, clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, buildClauseSetFor, clauseFlagForGate, signPanelFlagForGate, signPanelFlagLoose, DELIVERY_CHANNELS, printedByRef, expectedV1Refs, pdfByRef, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
   serverContractGaps, estimateCents, isContractClass: Checks.isContractClass,
   describeGaps: Checks.describeGaps,
 };
