@@ -373,7 +373,7 @@ function boot(opts) {
     const cust = read('docs/pro/customer.html');
     ok('dashboard + customer pages load the new launcher (v>=5) and coordinator (v>=3)',
       [html, cust].every((p) => /visit-recorder-launcher\.js\?v=([5-9]|\d\d+)"/.test(p) && /fab-stack-coordinator\.js\?v=([3-9]|\d\d+)"/.test(p)));
-    ok('the stylesheet is re-versioned in both places (v=5)', (L.match(/visit-recorder\.css\?v=5/g) || []).length === 2);
+    ok('the stylesheet is re-versioned in both places (v=6)', (L.match(/visit-recorder\.css\?v=6/g) || []).length === 2);
     const M = read('docs/pro/js/visit-recorder-menu.js');
     ok('menu: no innerHTML and no inline styles (strict CSP)', !/\.(innerHTML|outerHTML)\s*=|insertAdjacentHTML|\.style\.|setAttribute\(\s*['"]style/.test(M.replace(/\/\*[\s\S]*?\*\//g, '')));
     ok('menu: Record and Recent ride the launcher\'s own delegates (one path for every entry point)',

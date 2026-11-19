@@ -48,6 +48,7 @@
     "layout-field-header-wraps-2026-11-19.test.js",
 
     "push-optin-waits-for-calm-2026-11-19.test.js",
+    "visit-recorder-tab-2026-11-19.test.js",
     "ky-home-solicitation-notice-2026-10-16.test.js",
     "home-strips-2026-10-16.test.js",
     "storm-strip-app-badge-2026-10-16.test.js",
