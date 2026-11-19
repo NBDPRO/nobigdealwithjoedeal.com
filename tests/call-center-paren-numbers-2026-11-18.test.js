@@ -1,7 +1,7 @@
 /**
  * tests/call-center-paren-numbers-2026-11-18.test.js — functions/call-center-logic.js
  * parseCubeAcrName for a Cube ACR name whose only "label" is the number in
- * US format: "2026-11-11 13-12-10 (phone) (513) 732-7290 ↗.m4a".
+ * US format: "2026-11-11 13-12-10 (phone) (513) 555-0199 ↗.m4a".
  *
  * 2026-11-18: that form parsed with phoneDigits '' and the number as the
  * contact name, so those calls never matched a lead, and the re-upload guard
