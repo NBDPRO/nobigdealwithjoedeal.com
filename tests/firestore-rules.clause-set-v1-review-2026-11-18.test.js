@@ -74,6 +74,8 @@ async function run() {
   await check('decking sheets 201 denied', 'deny', pt({ deckingSheetsBeforeChangeOrder: 201 }));
   await check('decking cents over 100000 denied', 'deny', pt({ deckingPerSheetCents: 100001 }));
   await check('unknown key denied', 'deny', pt({ lateGraceDays: 15, surprise: 1 }));
+  await check('atticFreeCheckDays 0 denied (the form would print "at least 0 days"; review 2026-11-18 item 7)', 'deny', pt({ atticFreeCheckDays: 0 }));
+  await check('control: atticFreeCheckDays 1 allowed', 'allow', pt({ atticFreeCheckDays: 1 }));
   await check('paymentTerms as a string denied', 'deny', updateDoc(cp(), { paymentTerms: 'free' }));
   await check('a dotted out-of-range field denied', 'deny', updateDoc(cp(), { 'paymentTerms.restockPct': 500 }));
   await check('create with an out-of-range term denied', 'deny', setDoc(doc(env.authenticatedContext('owner3', {}).firestore(), 'companyProfile/owner3'), { paymentTerms: { restockPct: 500 } }));

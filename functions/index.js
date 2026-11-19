@@ -420,6 +420,7 @@ Object.assign(exports, remoteSigningFunctions);
 // leads and unsigned documents. By name only: in-person-signing.js also
 // exports _test. See functions/in-person-signing.js.
 exports.recordInPersonSignature = require('./in-person-signing').recordInPersonSignature;
+exports.recordAtticOverride = require('./attic-override').recordAtticOverride;
 
 // PDF-native envelope signing: a rep uploads ANY PDF (supplier form,
 // insurance scope, manufacturer warranty), places typed fields on it, and the

@@ -14,6 +14,7 @@
  */
 'use strict';
 
+const AA = require('./attic-ack');
 const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 // The most bytes of a stored document the gap check will read (review 2, item 5). The callable passes
 // it to readBytes, which refuses to download an object over it.
@@ -134,6 +135,8 @@ async function recordEvidence(db, ctx, evidence) {
     consent: { agreed: null },
     signedAtMs: Date.now(), ip: evidence.ip, ipSource: evidence.ipSource, ua: evidence.ua, recordedByUid: uid,
   });
+  // Phase 3: the ticks a signed attic form carries, read from the stored signed copy (never from the call).
+  if (signedHtml && AA.DOC_TYPES.indexOf(String(docMeta.type || '')) !== -1) record.acknowledgments = AA.evidenceAcks(AA.parseAcks(signedHtml));
   record.signedCopySha256 = signedSha256;
   record.signedAtClientReported = clientSignedAt;
   // What this record proves: the rep's signed-in device made the call, at this server time, from this
@@ -202,6 +205,64 @@ async function handleInPersonSignature(db, auth, data, deps) {
     // The evidence write never blocks the card move below: the contract is saved either way.
     try { await recordEvidence(db, { leadId, docId, lead, docMeta, uid, data: d }, evidence); }
     catch (e) { if (typeof evidence.onError === 'function') evidence.onError(e); }
+  }
+  // Phase 3 (flag docAtticAckV1, deps.attic): a signed attic form is read back and its server-owned result written;
+  // a contract-class document is refused when a re-roof has no signed attic form. Like the gap check above, the
+  // rep's browser already wrote the row as signed, so a refusal marks it (evidenceRefused is server-owned).
+  const attic = deps && deps.attic;
+  // The flag is read here, after the lead is loaded (the acting user's OR the tenant owner's; a failed read throws a retryable refusal).
+  // Review 3 (item 5): flagOn may answer { on, unverified }: unverified means the flag could not be read (read as not on, so flag-off signing is
+  // unchanged), and for a document the gate would apply to that is recorded for audit, below, instead of passing silently.
+  let atticOn = false; let atticUnverified = false;
+  if (attic && attic.on === true) atticOn = true;
+  else if (attic && typeof attic.flagOn === 'function') {
+    const st = await attic.flagOn(lead);
+    atticOn = st === true || !!(st && st.on === true);
+    atticUnverified = !!(st && st.unverified === true) && !atticOn;
+  }
+  if (atticUnverified) {
+    const AGu = require('./attic-gate');
+    if (AGu.gated(docMeta.type) || AGu.isAtticDoc(docMeta.type)) {
+      // Server-written (rules-guarded like evidenceRefused) so the owner can audit the signing the gate could not check; best-effort, and the
+      // activity row is the second channel. The signing itself is recorded as before.
+      try { await db.doc('leads/' + leadId + '/documents/' + docId).set({ atticGateUnverified: { at: Date.now(), reason: 'attic_flag_unreadable', docType: String(docMeta.type || '') } }, { merge: true }); } catch (_) { /* the activity row below is the other channel */ }
+      try {
+        await db.collection('leads/' + leadId + '/activity').add({
+          userId: String(lead.userId || uid || ''), type: 'attic_gate_unverified', label: 'Signed in person, attic check not run',
+          message: 'The attic acknowledgment setting could not be read when this document was signed in person, so the attic check did not run. Open the customer and confirm a signed attic form exists for the estimate.',
+          docId, createdAt: new Date(),
+        });
+      } catch (_) { /* best-effort */ }
+    }
+  }
+  if (attic && atticOn) {
+    const AG = require('./attic-gate');
+    const refuse = async (message) => {
+      try { await db.doc('leads/' + leadId + '/documents/' + docId).set({ evidenceRefused: { reasons: [{ code: 'atticAck', message }], at: Date.now() } }, { merge: true }); } catch (_) { /* the refusal is the signal */ }
+      throw new RefusalError('failed-precondition', message);
+    };
+    if (AG.isAtticDoc(docMeta.type)) {
+      const htmlPath = typeof docMeta.htmlPath === 'string' ? docMeta.htmlPath : '';
+      let buf = null;
+      try { buf = htmlPathOk(htmlPath, leadId) && attic.readBytes ? await attic.readBytes(htmlPath, READ_CAP_BYTES) : null; } catch (_) { buf = null; }
+      if (!buf) throw new RefusalError('unavailable', 'Could not read the signed attic form. Try again in a moment.');
+      const storedHtml = Buffer.from(buf).toString('utf8');
+      const result = AG.resultFor(docMeta.type, storedHtml, Date.now());
+      if (storedHtml.length > AG.MAX_HTML) await refuse(AG.TOO_LARGE_MSG);
+      if (!result.complete) await refuse('Every box on the attic form must be ticked and every line answered Yes or No before it counts as signed.');
+      // What this proves (review 2026-11-18): the rep's signed-in device made the call, at this server time, over a copy of the form that
+      // matches the server's manifest. It does not prove the homeowner ticked or signed it (the same limit as the evidence record's attests).
+      result.attests = 'rep_device_and_time_only';
+      // Review 2 (item 4): the form covers the estimate it was signed against (id and stamp), the same binding an override has.
+      let fb;
+      try { fb = await AG.formBasis(db, leadId, lead, { estimateId: docMeta.estimateId }); } catch (_) { throw new RefusalError('unavailable', 'Could not check the attic acknowledgment just now. Try again in a moment.'); }
+      result.estimateId = fb.id; result.estimateStamp = fb.stamp;
+      await db.doc('leads/' + leadId + '/documents/' + docId).set({ atticAckResult: result }, { merge: true });
+    } else if (AG.gated(docMeta.type)) {
+      let dec;
+      try { dec = await AG.decide(db, leadId, lead, { estimateId: docMeta.estimateId }); } catch (_) { throw new RefusalError('unavailable', 'Could not check the attic acknowledgment just now. Try again in a moment.'); }
+      if (!dec.satisfied) await refuse(dec.message);
+    }
   }
   if (String(docMeta.type || '') !== 'contract') return { ok: true, skipped: 'not_a_contract' };
 

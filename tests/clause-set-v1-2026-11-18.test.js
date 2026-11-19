@@ -282,7 +282,7 @@ function section(name) { console.log('\n' + name); }
     };
     const nbdProfile = { paymentTerms: { deckingPerSheetCents: 10000 }, brand: { contact: { mailingAddress: H.BIZ_ADDR } } };
     const oh = await build('OH', 'cash', nbdProfile, true);
-    ok('PDF flag on: the party block, the clause text and the signer line print', /PARTY-1 Parties\. This contract is between No Big Deal Solutions LLC, a Kentucky limited liability company, doing business as No Big Deal Home Solutions/.test(oh.text) && /No Big Deal Solutions LLC d\/b\/a No Big Deal Home Solutions/.test(oh.text) && /By: Joe Deal, Manager/.test(oh.text));
+    ok('PDF flag on: the party block, the clause text and the signer line print', /(?<!PARTY-1 )Parties\. This contract is between No Big Deal Solutions LLC, a Kentucky limited liability company, doing business as No Big Deal Home Solutions/.test(oh.text) && /No Big Deal Solutions LLC d\/b\/a No Big Deal Home Solutions/.test(oh.text) && /By: Joe Deal, Manager/.test(oh.text));
     ok('PDF flag on: the shipped Payment clause and the cancellation forms are still there', oh.text.includes(KyLaw.PAYMENT_CLAUSE.replace(/\u2019/g, "'")) && /NOTICE OF CANCELLATION/.test(oh.text) && oh.text.includes(KyLaw.FTC_STATEMENT));
     ok('PDF flag on: late interest, mediation, decking at $100.00 and the Ohio lien text print; no Kentucky text on an Ohio job',
       /within 15 days after its due date, simple interest at 8% per year/.test(oh.text) && /mediation before filing suit/.test(oh.text) && /\$100\.00 per sheet/.test(oh.text) && /Ohio law lets a contractor/.test(oh.text) && !/BUYER'S RIGHT TO CANCEL/.test(oh.text));

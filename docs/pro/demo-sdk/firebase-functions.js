@@ -237,6 +237,7 @@ const WOULD = {
   setSiteSlug: 'reserve your website address',
   previewAiPersona: 'preview the AI texting persona',
   recordInPersonSignature: 'record the in-person signature on NBD Pro servers',
+  recordAtticOverride: 'record that a job proceeds without a signed attic page, on NBD Pro servers',
   // Wave 3: on a real address only.
   attachStormProof: 'look up verified hail reports near this address and attach a server-stamped storm proof to the customer',
   reverifyCompanyKnocks: 're-check every door address against Google and county parcel records',
