@@ -171,7 +171,21 @@ function _plain(s) { return _norm(_scan(s).text); }
 
 // Review 2 (2026-11-18), item 3: wording that is in the markup but not on the page. The form the server issues has no template element,
 // no hidden attribute, and no inline style except a margin; its style blocks are the allowlist below. Anything else fails.
-const SAFE_STYLE_RE = /^(?:\s*margin(?:-(?:top|bottom|left|right))?\s*:\s*[0-9.]+(?:px|em|rem|pt)?\s*;?)+\s*$/i;
+// Review 4 (PR re-review): a margin is bounded (a large one moves wording off the page): up to 100px or pt, 10em or rem, unitless only 0.
+const SAFE_MARGIN_RE = /^\s*margin(?:-(?:top|bottom|left|right))?\s*:\s*([0-9]{1,3}(?:\.[0-9]{1,2})?)(px|em|rem|pt)?\s*$/i;
+function _safeInlineStyle(style) {
+  const parts = String(style).split(';');
+  let n = 0;
+  for (const p of parts) {
+    if (!p.trim()) continue;
+    const m = SAFE_MARGIN_RE.exec(p);
+    if (!m) return false;
+    const v = parseFloat(m[1]); const u = (m[2] || '').toLowerCase();
+    if (u === '' ? v !== 0 : (u === 'em' || u === 'rem' ? v > 10 : v > 100)) return false;
+    n++;
+  }
+  return n > 0;
+}
 const SIG_IMG_STYLE = 'max-width:100%;height:auto;display:block;background:#fff;';
 const HIDING_CSS_RES = [
   /display:none/, /visibility:(?:hidden|collapse)/, /content-visibility:hidden/, /font-size:(?:0+(?:\.0*)?|\.0+)(?:px|pt|em|rem|ex|%)?(?![0-9.])/, /opacity:(?:0+(?:\.0*)?|\.0+)(?![0-9.])/,
@@ -191,6 +205,12 @@ const TAG_ATTRS = {
 // once the style blocks are an allowlist, but an unknown class on a paragraph is not the server's form).
 const WORD_CARRIERS = { p: 1, label: 1, strong: 1, em: 1, h1: 1, h2: 1, h3: 1, li: 1, span: 1 };
 const WORD_CLASSES = { 'aa-p': 1, 'aa-note': 1, 'aa-ver': 1, 'aa-row': 1, 'lib-sub': 1, 'lib-h1': 1, 'lib-fine': 1, 'footer-brand': 1, 'nbd-sig-state': 1 };
+// Every class the generated form and the signing step (signature-widget.js, finalizeBlock) write. Pinned against a real generate() in
+// tests/attic-ack-review3-2026-11-18.test.js (the real form passes verifyManifest).
+const FORM_CLASSES = {};
+('doc-page letterhead letterhead-brand letterhead-logo-img letterhead-name letterhead-tagline letterhead-contact lib-h1 lib-sub lib-fine lib-table aa-ver section aa-p aa-note aa-thumbs aa-opt aa-row ' +
+  'signature-block nbd-sig-block nbd-sig-label nbd-sig-canvas nbd-sig-controls nbd-sig-state nbd-sig-print-name nbd-sig-img nbd-sig-date affiliates affiliate affiliate-name affiliate-num footer footer-brand ' +
+  'no-print print-btn sig-label sig-line').split(' ').forEach((c) => { FORM_CLASSES[c] = 1; });
 // The signing widget's script: no body, and a source on this site's own path.
 const SCRIPT_SRC_RE = /^(?:https?:\/\/(?:[a-z0-9-]{1,63}\.){0,4}(?:nobigdealwithjoedeal\.com|localhost|127\.0\.0\.1)(?::[0-9]{1,5})?)?\/pro\/js\/signature-widget\.js$/i;
 const WORDING_TAGS = { p: 1, label: 1, span: 1, strong: 1, em: 1, td: 1, th: 1, tr: 1, tbody: 1, thead: 1, table: 1, li: 1, ul: 1, ol: 1, h1: 1, h2: 1, h3: 1, input: 1 };
@@ -350,10 +370,20 @@ function _pageCssCanon(css) {
     let fgs = _hexes(r.decls.color || '');
     if (!r.decls.color && own.length) fgs = [bodyFg];
     if (r.decls.color && !fgs.length) continue;   // an rgba() white, as the generator writes it
-    for (const f of fgs) for (const b of bgs) if (_contrast(_hexRgb(f), b) < 3) return false;
+    if (r.sel.indexOf(':after') !== -1 || r.sel.indexOf(':before') !== -1) continue;   // a decorative bar (content:"") carries no text
+    for (const f of fgs) for (const b of bgs) if (_contrast(_hexRgb(f), b) < 4.5) return false;
+  }
+  // Review 4 (PR re-review): every font stack is the shape a tenant's brand fonts produce ('Face','Segoe UI',Helvetica,Arial,sans-serif, or
+  // the fallback alone), with no symbol face.
+  const stacks = flat.match(/font-family:[^;}]*/g) || [];
+  for (const st of stacks) {
+    const v = st.slice('font-family:'.length).replace(/\s+/g, ' ').trim();
+    const m = /^(?:'([a-z0-9][a-z0-9 ._&-]{0,39})',)?'segoe ui',helvetica,arial,sans-serif$/.exec(v.replace(/,\s+/g, ','));
+    if (!m || (m[1] && SYMBOL_FONT_RE.test(m[1]))) return false;
   }
   return true;
 }
+const SYMBOL_FONT_RE = /wingding|webding|symbol|dingbat|marlett|emoji|ornament|zapf|bookshelf|icon|glyph|awesome|material/i;
 /** Reason codes for the page's style blocks (empty when every block is one the server knows). */
 function _styleReasons(blocks) {
   const bad = []; const add = (c) => { if (bad.indexOf(c) === -1) bad.push(c); };
@@ -398,12 +428,14 @@ function _risks(scan, parsed, opts) {
     if (cls.indexOf('nbd-sig-controls') !== -1 && t.name !== 'div') add('hidden_class');
     if (cls.indexOf('nbd-sig-state') !== -1 && t.name !== 'span') add('hidden_class');
     if (WORD_CARRIERS[t.name] === 1 && cls.some((c) => WORD_CLASSES[c] !== 1)) add('bad_class');
+    // Review 4 (PR re-review): containers (div, td, th, ul, table ...) take only the classes the generator and the signing step write.
+    if (cls.some((c) => FORM_CLASSES[c] !== 1)) add('bad_class');
     if (t.name === 'script' && (!(t.bodyLength === 0) || !SCRIPT_SRC_RE.test(String(a.src || '').slice(0, 200)))) add('script');
     if (t.name === 'template') add('template');
     if (Object.prototype.hasOwnProperty.call(a, 'hidden')) add('hidden_attr');
     // The one inline style a signed copy gets is the signature image's own (signature-widget.js and remote-signing.js finalizeBlock write it).
     const sigImg = t.name === 'img' && /(?:^|\s)nbd-sig-img(?:\s|$)/.test(a.class || '') && String(a.style || '').replace(/\s+/g, '').toLowerCase() === SIG_IMG_STYLE;
-    if (Object.prototype.hasOwnProperty.call(a, 'style') && !sigImg && !SAFE_STYLE_RE.test(a.style)) add('inline_style');
+    if (Object.prototype.hasOwnProperty.call(a, 'style') && !sigImg && !_safeInlineStyle(a.style)) add('inline_style');
     if (t.name === 'link' && /stylesheet/i.test(a.rel || '')) add('css_hidden');
     if (WORDING_TAGS[t.name] === 1 && /(?:^|\s)no-print(?:\s|$)/i.test(a.class || '')) add('no_print_wording');
     if (Object.prototype.hasOwnProperty.call(a, 'data-nbd-ack')) {
@@ -559,7 +591,9 @@ async function _estimateSet(db, leadId, lead, o) {
     if (s && s.exists) add(pid, s.data() || {});
   }
   if (okId(leadId)) {
-    const q = await db.collection('estimates').where('leadId', '==', leadId).limit(20).get();
+    // Review 4 (PR re-review): an unordered limit would read an arbitrary 20; more than 20 fails closed instead.
+    const q = await db.collection('estimates').where('leadId', '==', leadId).limit(21).get();
+    if (q.docs.length > 20) return Object.assign({}, none, { tooMany: true });
     q.docs.map((d) => ({ id: d.id, x: d.data() || {} })).filter((d) => d.x.deleted !== true).sort((p, r) => (p.id < r.id ? -1 : 1)).forEach((d) => add(d.id, d.x));
   }
   const rank = (c) => AA.scopeRank(AA.scopeFromEstimate(c.data));
@@ -568,6 +602,7 @@ async function _estimateSet(db, leadId, lead, o) {
   return { list: cand, basis: top ? { id: top.id, stamp: estimateStamp(top.data) } : { id: '', stamp: '' }, rejected: false };
 }
 
+const TOO_MANY_MSG = 'This customer has more than 20 estimates, so the attic acknowledgment cannot be checked. Archive the old estimates, then try again. Nothing was sent.';
 const NOT_ON_LEAD_MSG = "This document's estimate is not one of this customer's estimates, so the attic acknowledgment cannot be checked. Use the customer's own estimate, then try again. Nothing was sent.";
 
 /**
@@ -578,7 +613,7 @@ const NOT_ON_LEAD_MSG = "This document's estimate is not one of this customer's 
 async function formBasis(db, leadId, lead, opts) {
   const want = opts && okId(opts.estimateId) ? opts.estimateId : '';
   const set = await _estimateSet(db, leadId, lead || {}, want ? { estimateId: want } : {});
-  if (set.rejected) { const e = new Error('estimate_not_on_lead'); e.code = 'estimate_not_on_lead'; throw e; }
+  if (set.rejected || set.tooMany) { const c = set.tooMany ? 'too_many_estimates' : 'estimate_not_on_lead'; const e = new Error(c); e.code = c; throw e; }
   return set.basis;
 }
 
@@ -594,6 +629,9 @@ async function decide(db, leadId, lead, opts) {
   const o = opts || {};
   const L = lead || {};
   const set = await _estimateSet(db, leadId, L, o);
+  if (set.tooMany) {
+    return { scope: 'unknown', basis: set.basis, required: true, satisfied: false, how: null, warn: false, message: TOO_MANY_MSG };
+  }
   if (set.rejected) {
     return { scope: 'unknown', basis: set.basis, required: true, satisfied: false, how: null, warn: false, message: NOT_ON_LEAD_MSG };
   }

@@ -218,6 +218,44 @@ const generated = async (docType, profileExtra) => {
     }
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('6. PR re-review: inline margins, fonts, container classes, contrast floor, the estimate list');
+  {
+    for (const [type, form] of [['attic_acknowledgment', GEN], ['attic_not_inspected', GEN_NI]]) {
+      const v = (h, o) => AG.verifyManifest(type, h, o);
+      const bad = (name, h, code) => { const r = v(h); ok(type + ': ' + name, r.ok === false && r.reasons.indexOf(code) !== -1, JSON.stringify(r.reasons)); };
+      ok(type + ': control: the generated form passes', v(form).ok === true, JSON.stringify(v(form).reasons));
+      bad('margin-left:99999px on a wording paragraph', form.replace('<p class="aa-p">', '<p class="aa-p" style="margin-left:99999px">'), 'inline_style');
+      bad('margin-top:-5000px', form.replace('<p class="aa-p">', '<p class="aa-p" style="margin-top:-5000px">'), 'inline_style');
+      bad('margin-left:101px', form.replace('<p class="aa-p">', '<p class="aa-p" style="margin-left:101px">'), 'inline_style');
+      bad('margin-left:50em', form.replace('<p class="aa-p">', '<p class="aa-p" style="margin-left:50em">'), 'inline_style');
+      ok(type + ': control: margin-left:40px is still accepted', v(form.replace('<p class="aa-p">', '<p class="aa-p" style="margin-left:40px">')).ok === true);
+      const font = (val) => withPage(form, (b) => b.replace(/(body \{ font-family:)[^;]*;/, '$1' + val + ';'));
+      bad('body font-family:Wingdings', font('Wingdings'), 'style_block');
+      bad('a symbol font in a full-looking stack', font("'Wingdings','Segoe UI',Helvetica,Arial,sans-serif"), 'style_block');
+      bad('Webdings', font("'Webdings','Segoe UI',Helvetica,Arial,sans-serif"), 'style_block');
+      bad('a stack with no generic fallback', font("'Lato','Segoe UI'"), 'style_block');
+      bad('a stack that is not the tenant shape', font("'Lato',Wingdings,Arial,sans-serif"), 'style_block');
+      ok(type + ': control: a tenant face with the standard fallback stack is accepted', v(font("'Open Sans','Segoe UI',Helvetica,Arial,sans-serif")).ok === true);
+      bad('an unknown class on a div', form.replace('<div class="section">', '<div class="zz-hide">'), 'bad_class');
+      bad('an unknown class on a table', form.replace('</body>', '<table class="zz"><tr><td>x</td></tr></table></body>'), 'bad_class');
+      bad('an unknown class on a td', form.replace('</body>', '<table><tr><td class="zz">x</td></tr></table></body>'), 'bad_class');
+      bad('an unknown class on a ul', form.replace('</body>', '<ul class="zz"><li>x</li></ul></body>'), 'bad_class');
+      bad('body text at 4.2:1 (#7a7a7a) on white', withPage(form, (b) => b.replace('color:#14181F; line-height', 'color:#7a7a7a; line-height')), 'style_block');
+      ok(type + ': control: body text at #595959 is accepted', v(withPage(form, (b) => b.replace('color:#14181F; line-height', 'color:#595959; line-height'))).ok === true);
+    }
+    // the estimate list: more than 20 on the lead is a closed gate, never "the first 20"
+    const mk = (n) => { const s = { 'leads/L1': { userId: 'REP', companyId: 'CO', primaryEstimateId: 'E0', jobType: 'cash' } };
+      for (let i = 0; i < n; i++) s['estimates/E' + i] = { userId: 'REP', leadId: 'L1', grandTotal: 100 + i, rows: [{ code: i === 25 ? 'LAB TO1' : 'GTR 5K' }] };
+      return kit.makeDb(s); };
+    let d = await AG.decide(mk(30), 'L1', { userId: 'REP', companyId: 'CO', primaryEstimateId: 'E0' }, {});
+    ok('a lead with more than 20 estimates: the gate is closed with a plain message', d.satisfied === false && d.required === true && /more than 20/i.test(d.message), JSON.stringify(d).slice(0, 160));
+    let threw = null; try { await AG.formBasis(mk(30), 'L1', { userId: 'REP', companyId: 'CO', primaryEstimateId: 'E0' }, {}); } catch (e) { threw = e; }
+    ok('...and formBasis throws too_many_estimates', !!threw && threw.code === 'too_many_estimates');
+    d = await AG.decide(mk(20), 'L1', { userId: 'REP', companyId: 'CO', primaryEstimateId: 'E0' }, {});
+    ok('control: exactly 20 estimates is read as before (not a re-roof, no form needed)', d.required === false, JSON.stringify(d).slice(0, 160));
+  }
+
   console.log('\n' + (failed ? 'FAILED ' + failed + ': ' + fails.join(' | ') : 'all ok') + ' (' + passed + ' passed)');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
