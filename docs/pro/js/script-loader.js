@@ -222,7 +222,7 @@
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
       'js/document-generator.js?v=42',
-      'js/document-generator-templates.js?v=23',
+      'js/document-generator-templates.js?v=32',
       'js/document-generator-library.js?v=20', // 2026-10-04 template library; needs -templates' _tpl
       'js/doc-preflight.js?v=26',
       // Mobile job-detail Documents tab (dashboard-actions.js
@@ -246,6 +246,8 @@
       'js/attic-ack-text.js?v=1',
       'js/attic-ack.js?v=5',
       'js/attic-panel.js?v=6',
+      // 2026-11-18 card fee v1 (flag docCardFeeV1): pure fee rules, read by the invoice and receipt at call time. No fee is charged.
+      'js/card-fee.js?v=1',
       // 2026-11-19 phase 5 forms (flag docClauseSetV1): wording + specs shared with the server. Read at render time.
       'js/p5-forms.js?v=1'
     ],
