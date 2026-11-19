@@ -98,6 +98,7 @@ function docs(opts) {
   const files = ['docs/pro/js/estimate-config.js', 'docs/pro/js/deposit-rule.js', 'docs/pro/js/ky-insurance-law.js'];
   // o.noClauseText: the wording file did not load (review 2026-11-18, item 5).
   ['docs/pro/js/clause-set-text.js', 'docs/pro/js/clause-set.js'].forEach((f) => { if (o.noClauseText && /clause-set-text/.test(f)) return; if (fs.existsSync(path.join(ROOT, f))) files.push(f); });
+  if (fs.existsSync(path.join(ROOT, 'docs/pro/js/card-fee.js'))) files.push('docs/pro/js/card-fee.js');
   files.push('docs/pro/js/customer-estimate-rows.js', 'docs/pro/js/document-generator.js',
     'docs/pro/js/document-generator-templates.js', 'docs/pro/js/doc-preflight.js');
   if (fs.existsSync(path.join(ROOT, 'docs/pro/js/doc-send-checks.js'))) files.push('docs/pro/js/doc-send-checks.js');
