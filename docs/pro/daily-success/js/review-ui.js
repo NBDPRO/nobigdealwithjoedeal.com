@@ -175,6 +175,9 @@
     const x = _x, w = x.week, saved = x.s.weeks[today()] || {};
     const rows = w.rows.map((r) => '<div class="rv-row"><span>' + esc(r.label) + '</span><b class="' + (r.hit >= 6 ? 'rv-good' : r.hit <= 3 ? 'rv-bad' : '') + '">' + r.hit + '/' + r.of + '</b></div>').join('');
     const wt = x.weight;
+    const audit = R().auditSuggest ? R().auditSuggest(w.rows) : { kept: '', bailed: '' };   // a suggestion from the floors; nothing is written until Use is tapped
+    const sugHtml = (text, boxId) => text ? '<div class="rv-sug" data-for="' + boxId + '"><span class="wc-meta">From your floors: ' + esc(text) + '</span>' +
+      '<button type="button" class="btn btn-ghost rv-use" data-rv-action="use" data-for="' + boxId + '" data-text="' + esc(text) + '">Use</button></div>' : '';
     const lastScary = x.last && x.last.scary ? '<div class="wc-lbl">Last week\'s hard thing</div><div class="rv-quote">"' + esc(x.last.scary) + '"' + (x.last.scaryDue ? ' <small>by ' + esc(x.last.scaryDue) + '</small>' : '') + '</div>' +
       '<div class="rv-yn"><label><input type="radio" name="rvLastDone" value="yes"' + (saved.lastDone === true ? ' checked' : '') + '> Done</label>' +
       '<label><input type="radio" name="rvLastDone" value="no"' + (saved.lastDone === false ? ' checked' : '') + '> Not done</label></div>' : '';
@@ -195,8 +198,8 @@
       '<div id="rvActs">' + actsHtml() + '</div>' +
       (lastScary ? '<div class="wc-lbl">3 · Accountability</div>' + lastScary : '') +
       '<div class="wc-lbl">' + (lastScary ? '4' : '3') + ' · Promise audit</div>' +
-      '<textarea class="wc-in rv-ta" id="rvKept" rows="2" maxlength="600" placeholder="What I said I\'d do — and did">' + esc(saved.kept || '') + '</textarea>' +
-      '<textarea class="wc-in rv-ta" id="rvBailed" rows="2" maxlength="600" placeholder="Where I bailed (honest, no excuses)">' + esc(saved.bailed || '') + '</textarea>' +
+      '<textarea class="wc-in rv-ta" id="rvKept" rows="2" maxlength="600" placeholder="What I said I\'d do — and did">' + esc(saved.kept || '') + '</textarea>' + sugHtml(audit.kept, 'rvKept') +
+      '<textarea class="wc-in rv-ta" id="rvBailed" rows="2" maxlength="600" placeholder="Where I bailed (honest, no excuses)">' + esc(saved.bailed || '') + '</textarea>' + sugHtml(audit.bailed, 'rvBailed') +
       '<div class="wc-lbl">' + (lastScary ? '5' : '4') + ' · One hard thing this week</div>' +
       '<input class="wc-in" id="rvScary" maxlength="200" placeholder="The thing you\'ve been avoiding" value="' + esc(saved.scary || '') + '">' +
       '<label class="rv-due">Deadline <input class="wc-in" type="date" id="rvScaryDue" value="' + esc(saved.scaryDue || R().addDays(today(), 6)) + '"></label>' +
@@ -262,6 +265,14 @@
     if (box) box.innerHTML = actsHtml();
     toast(it.label + ' set to ' + it.to);
   }
+  // Use: put the floors suggestion into its box. An empty box takes it as is, a box with text gets it on a new line, and tapping again changes nothing.
+  function doUse(btn) {
+    const box = document.getElementById(btn.dataset.for), text = btn.dataset.text || '';
+    if (!box || !text) return;
+    const cur = String(box.value || '');
+    if (cur.indexOf(text) < 0) box.value = (cur.trim() ? cur.replace(/\s+$/, '') + '\n' : '') + text;
+    btn.textContent = 'Added';
+  }
   async function doCopy() {
     const text = scorecard();
     try { await navigator.clipboard.writeText(text); toast('Scorecard copied'); }
@@ -302,6 +313,7 @@
     else if (a === 'close') close();
     else if (a === 'save') doSave();
     else if (a === 'accept') doAccept(t.dataset.id);
+    else if (a === 'use') doUse(t);
     else if (a === 'copy') doCopy();
   });
   document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && document.querySelector('#rvOverlay.open')) close(); });
