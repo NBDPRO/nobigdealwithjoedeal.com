@@ -74,7 +74,7 @@
       var err = h('div', { style: 'color:#B3261E;font-size:13px;margin-top:10px;min-height:16px;', role: 'alert' });
       box.appendChild(err);
       var cancel = h('button', { type: 'button', text: 'Cancel', style: 'flex:1;min-height:46px;font-size:15px;border:1px solid #DFE2E7;background:#fff;border-radius:10px;cursor:pointer;' });
-      var okBtn = h('button', { type: 'button', text: okLabel, style: 'flex:1;min-height:46px;font-size:15px;font-weight:700;border:0;background:#BD5728;color:#fff;border-radius:10px;cursor:pointer;' });
+      var okBtn = h('button', { type: 'button', text: okLabel, style: 'flex:1;min-height:46px;font-size:15px;font-weight:700;border:0;background:var(--orange,#BD5728);color:#fff;border-radius:10px;cursor:pointer;' });
       box.appendChild(h('div', { style: 'display:flex;gap:10px;margin-top:14px;' }, [cancel, okBtn]));
       overlay.appendChild(box);
       function close(v) { try { overlay.parentNode && overlay.parentNode.removeChild(overlay); } catch (_) {} resolve(v); }
@@ -171,12 +171,12 @@
     var state = { agreed: false };
     var el = doc.createElement('div');
     el.setAttribute('id', 'nbdv-consent');
-    el.setAttribute('style', 'flex:0 0 auto;background:#FFF8F2;border-bottom:2px solid #BD5728;padding:10px 14px;color:#14181F;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;');
+    el.setAttribute('style', 'flex:0 0 auto;background:#FFF8F2;border-bottom:2px solid var(--orange,#BD5728);padding:10px 14px;color:#14181F;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;');
     var row = doc.createElement('label');
     row.setAttribute('style', 'display:flex;gap:10px;align-items:center;font-weight:700;min-height:44px;cursor:pointer;');
     var tick = doc.createElement('input');
     tick.setAttribute('type', 'checkbox');
-    tick.setAttribute('style', 'width:28px;height:28px;flex:0 0 auto;accent-color:#BD5728;');
+    tick.setAttribute('style', 'width:28px;height:28px;flex:0 0 auto;accent-color:var(--orange,#BD5728);');
     var lab = doc.createElement('span');
     lab.textContent = String(consent.label || 'I agree to sign electronically');
     row.appendChild(tick); row.appendChild(lab);

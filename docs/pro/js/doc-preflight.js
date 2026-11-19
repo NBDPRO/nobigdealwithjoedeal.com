@@ -3245,6 +3245,8 @@
    * @param {string} customerId — current lead id
    */
   function open(type, customerId) {
+    // Phase 5 (flag docClauseSetV1): register the flag-gated schemas before the lookup (a no-op with the flag off).
+    try { if (window.NBDDocGen && typeof window.NBDDocGen.syncPhase5Types === 'function') window.NBDDocGen.syncPhase5Types(); } catch (_) { /* fall through to the lookup */ }
     if (!DOC_SCHEMAS[type]) {
       console.warn('[DocPreflight] No schema for type:', type, '— falling back to direct generate.');
       if (window.NBDDocGen && typeof window.NBDDocGen.generate === 'function') {
@@ -3821,6 +3823,82 @@
   }
 
   // ═══════════════════════════════════════════════════════════════
+  // PHASE 5 SCHEMAS (flag docClauseSetV1, default OFF). Added to DOC_SCHEMAS only while the flag is on
+  // (NBDDocGen.syncPhase5Types calls syncPhase5 with the answer), so flag off leaves DOC_SCHEMAS as it was.
+  // ═══════════════════════════════════════════════════════════════
+  var P5_SCHEMAS = {};
+  (function () {
+    var items = [['driveway', 'Driveway and walkways'], ['landscaping', 'Landscaping, plants and fences'], ['gutters', 'Gutters and downspouts'],
+      ['satellite_dish', 'Satellite dish or antenna'], ['solar', 'Solar panels'], ['skylights', 'Skylights'], ['wall_items', 'Items on interior walls'],
+      ['attic_items', 'Items stored in the attic'], ['ceilings', 'Interior ceilings (cracks, nail pops)'], ['pets', 'Pets'],
+      ['utilities', 'Power and water'], ['parking', 'Parking for crew and dumpster']];
+    P5_SCHEMAS.property_condition = {
+      title: 'Property Condition & Access Acknowledgment',
+      subtitle: 'Walk the property with the homeowner before work starts. The homeowner ticks each item and signs.',
+      sections: [
+        CUSTOMER_SECTION,
+        { id: 'walk', title: 'Walk-through', collapsed: false, fields: [
+          { key: 'walkedOn', label: 'Date walked', type: 'date', source: 'computed.todayISO', persist: PERSIST.EPHEMERAL },
+          { key: 'pcPhotoIds', label: 'Photo IDs (this customer\u2019s photos, separated by commas)', type: 'text', source: 'literal:', persist: PERSIST.DOCUMENT }
+        ] },
+        { id: 'notes', title: 'Notes by item', collapsed: false, fields: items.map(function (it) {
+          return { key: 'pcNote_' + it[0], label: it[1], type: 'textarea', rows: 2, source: 'literal:', persist: PERSIST.DOCUMENT };
+        }) }
+      ]
+    };
+  })();
+  P5_SCHEMAS.decking_authorization = {
+    title: 'Hidden Conditions / Decking Authorization',
+    subtitle: 'Damaged decking found at tear-off: the homeowner approves or declines replacing it. The per-sheet price is Company Profile\u2019s.',
+    sections: [
+      CUSTOMER_SECTION,
+      { id: 'found', title: 'What was found', collapsed: false, fields: [
+        { key: 'deckingSheets', label: 'Sheets to replace', type: 'number', required: true, source: 'literal:', persist: PERSIST.DOCUMENT },
+        { key: 'deckingFoundOn', label: 'Date found', type: 'date', source: 'computed.todayISO', persist: PERSIST.EPHEMERAL },
+        { key: 'deckingWhere', label: 'Where on the roof', type: 'text', source: 'literal:', persist: PERSIST.DOCUMENT },
+        { key: 'deckingPhotoIds', label: 'Photo IDs (this customer\u2019s photos, separated by commas)', type: 'text', source: 'literal:', persist: PERSIST.DOCUMENT }
+      ] }
+    ]
+  };
+  P5_SCHEMAS.emergency_services_request = {
+    title: 'Emergency Services Request',
+    subtitle: 'A separate request the homeowner signs and dates, for tarp or dry-in work before the cancellation period ends.',
+    sections: [
+      CUSTOMER_SECTION,
+      { id: 'work', title: 'Work requested', collapsed: false, fields: [
+        { key: 'emergencyWork', label: 'Work the homeowner is asking for', type: 'textarea', rows: 3, required: true, source: 'literal:', persist: PERSIST.DOCUMENT,
+          placeholder: 'e.g., tarp the north slope and dry in the opening over the kitchen' }
+      ] }
+    ]
+  };
+  P5_SCHEMAS.final_walkthrough = {
+    title: 'Final Walkthrough & Punch List',
+    subtitle: 'Sign-off after the walkthrough: the dates and any open items. Leave the items blank only if there are none.',
+    sections: [
+      CUSTOMER_SECTION,
+      { id: 'walk', title: 'Walkthrough', collapsed: false, fields: [
+        { key: 'completionDate', label: 'Completion date', type: 'date', required: true, source: 'computed.todayISO', persist: PERSIST.EPHEMERAL },
+        { key: 'walkthroughDate', label: 'Walkthrough date', type: 'date', required: true, source: 'computed.todayISO', persist: PERSIST.EPHEMERAL },
+        { key: 'punchItemsText', label: 'Open items (one per line; add " | 150" for the dollar amount held; blank = none)', type: 'textarea', rows: 4, source: 'literal:', persist: PERSIST.DOCUMENT }
+      ] }
+    ]
+  };
+  P5_SCHEMAS.ohio_insurance_ack = {
+    title: 'Ohio Insurance Job Acknowledgment',
+    subtitle: 'For an Ohio property whose repair may be paid by insurance. Kentucky jobs use the Kentucky notices instead.',
+    sections: [
+      CUSTOMER_SECTION,
+      { id: 'claim', title: 'Homeowner\u2019s insurance', collapsed: false, fields: [
+        { key: 'insCarrier', label: 'Homeowner\u2019s insurance company', type: 'text', source: 'lead.insCarrier', persist: PERSIST.LEAD },
+        { key: 'claimNumber', label: 'Homeowner\u2019s claim number', type: 'text', source: 'lead.claimNumber', persist: PERSIST.LEAD }
+      ] }
+    ]
+  };
+  function syncPhase5(on) {
+    Object.keys(P5_SCHEMAS).forEach(function (t) { if (on) DOC_SCHEMAS[t] = P5_SCHEMAS[t]; else delete DOC_SCHEMAS[t]; });
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   // SECTION 11: PUBLIC API
   // ═══════════════════════════════════════════════════════════════
 
@@ -3833,6 +3911,7 @@
     schemaFor: schemaFor,
     signerToAdd: signerToAdd,
     ensureCoOwner: ensureCoOwner,
+    syncPhase5: syncPhase5,
     // Internal helpers exposed for debugging / testing only:
     _state: state,
     _resolveFieldValue: resolveFieldValue,
