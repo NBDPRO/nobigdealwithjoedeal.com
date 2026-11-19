@@ -2445,11 +2445,7 @@ window.syncMobileToolsMenuActive = syncMobileToolsMenuActive;
     // dashboard-app.css gives #d2dContent launcher-sized bottom clearance
     // so the D2D value/streak cards can always scroll clear of it.
     const onMap = document.getElementById('view-map')?.classList.contains('active');
-    // Map/D2D only since 2026-11-19 (phone sweep): on the CRM list the ⋯ button sat
-    // over lead cards. Capture inbox lives in More; Quick Capture is "Voice Note" in +.
-    // 'map' redirects to the d2d view, so d2d is the one that is ever active.
-    const onD2d = document.getElementById('view-d2d')?.classList.contains('active');
-    document.body.classList.toggle('show-field-tools', !!(onMap || onD2d));
+    document.body.classList.toggle('show-field-tools', !!(onCrm || onMap));
   };
   const install = () => {
     const _origGoTo = window.goTo;

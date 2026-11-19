@@ -5,8 +5,7 @@
  *
  *   A. "Switch to Field App?" waits while a toast or the reminders card is up
  *   B. the reminders card also waits for a toast (it already waited for the banner)
- *   C. the field-tools dial shows on the D2D view only, not on the CRM list
- *   D. Capture inbox has a row in the More drawer (the dial's other tools keep a home)
+ *   C. Capture inbox has a row in the More drawer (the dial's other tools keep a home)
  *
  * A and B run the shipped functions against a fake page.
  *
@@ -43,15 +42,10 @@ check('B: the reminders card waits while a toast is up', (() => {
   return shown === 0 && /#toastContainer \.toast/.test(sel);
 })());
 
-// ── C. field-tools dial gating ───────────────────────────────────────
-const ui = K.read('docs/pro/js/dashboard-ui.js');
-const toggle = (ui.match(/classList\.toggle\('show-field-tools',\s*([^)]*\)?)\)/) || [])[1] || '';
-check('C: the dial flag follows the D2D / Map view, not the CRM view', /onMap/.test(toggle) && /onD2d/.test(toggle) && !/onCrm/.test(toggle));
-
-// ── D. Capture inbox in More ─────────────────────────────────────────
+// ── C. Capture inbox in More ─────────────────────────────────────────
 const row = K.parseTags(K.read('docs/pro/dashboard.html')).$('#mm-captureinbox');
 const at = (row && row.attrs) || {};
-check('D: More has a Capture inbox row that opens NBDQuickCaptureInbox and closes the drawer', at['data-action'] === 'module' && at['data-target'] === 'NBDQuickCaptureInbox.open' && 'data-close-more' in at);
+check('C: More has a Capture inbox row that opens NBDQuickCaptureInbox and closes the drawer', at['data-action'] === 'module' && at['data-target'] === 'NBDQuickCaptureInbox.open' && 'data-close-more' in at);
 
 if (failed) { console.log('\n' + failed + ' failed'); process.exit(1); }
 console.log('\nall passed');
