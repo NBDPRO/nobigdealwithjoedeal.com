@@ -489,7 +489,8 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-18  1154/74/1308 -> 1156/74/1311: supplier pricing product photos add price-ledger-photos-2026-11 (node) and storage-rules.product-photos (wired-individually); the floor was already stale by 1 node on main. MEASURED via --check.
 //   2026-11-18  1156/74/1311 -> 1158/74/1313: supplier pricing slice 7 adds price-logic-materials-2026-11 (node), after merging main (#3164, #3166; main was stale by 1). MEASURED via --check.
 //   2026-11-18  -> 1161/74/1316: supplier pricing slice 9 adds price-import-doc-read-2026-11 (node); main was stale by the suites other PRs added. MEASURED via --check.
-const FLOORS = { node: 1177, smoke: 75, disk: 1336 };
+//   2026-11-19  1177/75/1336 -> 1182/75/1342: phase 5 templates add phase5-templates-2026-11-19 and phase5-templates-server-2026-11-19 (node); main was stale by 3. MEASURED via --check.
+const FLOORS = { node: 1182, smoke: 75, disk: 1342 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
