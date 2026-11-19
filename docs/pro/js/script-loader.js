@@ -221,9 +221,9 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=33',
-      'js/document-generator-templates.js?v=22',
-      'js/document-generator-library.js?v=7', // 2026-10-04 template library; needs -templates' _tpl
+      'js/document-generator.js?v=34',
+      'js/document-generator-templates.js?v=23',
+      'js/document-generator-library.js?v=8', // 2026-10-04 template library; needs -templates' _tpl
       'js/doc-preflight.js?v=18',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
@@ -244,8 +244,8 @@
       'js/clause-set.js?v=5',
       // 2026-11-18 attic acknowledgment (flag docAtticAckV1): wording, then logic. Same group, loaded together.
       'js/attic-ack-text.js?v=1',
-      'js/attic-ack.js?v=4',
-      'js/attic-panel.js?v=5'
+      'js/attic-ack.js?v=5',
+      'js/attic-panel.js?v=6'
     ],
     // Estimate engine (PR 2c). The revenue-critical builder + its product/
     // catalog data. Only needed when the rep builds an estimate, opens the

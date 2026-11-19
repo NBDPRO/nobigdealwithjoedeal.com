@@ -212,7 +212,7 @@
     var type = S.rec.status === 'not_inspected' ? 'attic_not_inspected' : 'attic_acknowledgment';
     close();
     var name = [L.firstName, L.lastName].filter(Boolean).join(' ') || L.name || '';
-    w.NBDDocGen.generate(type, { leadId: S.leadId, homeownerName: name, address: L.address || '', atticCheck: S.rec, atticPhotoUrls: S.urls, formDate: new Date().toISOString().slice(0, 10), contractDate: new Date().toISOString().slice(0, 10),
+    w.NBDDocGen.generate(type, { leadId: S.leadId, estimateId: L.primaryEstimateId || undefined, homeownerName: name, address: L.address || '', atticCheck: S.rec, atticPhotoUrls: S.urls, formDate: new Date().toISOString().slice(0, 10), contractDate: new Date().toISOString().slice(0, 10),
       signers: ((w.NBDDocGen.DOCUMENT_TYPES[type] || {}).defaultSigners || []).map(function (s) { return { role: s.role, label: s.label, required: !!s.required }; }) });
   }
   async function override() {
