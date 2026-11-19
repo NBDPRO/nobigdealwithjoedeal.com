@@ -327,6 +327,22 @@
     return { clauseSetVersion: CLAUSE_SET_VERSION, state: base.state, paymentSource: base.paymentSource, failClosed: base.failClosed, clauses: clauses };
   }
 
+  /**
+   * The wording of ONE v1 clause as a document that quotes it prints it (phase 5 forms): the same fill as renderV1, but
+   * for a named clause regardless of its "prints" rule. [] for an unknown or by-reference clause. opts = { state,
+   * paymentSource, terms, facts, party }. A number that is not set stays a {{token}} (the send check refuses it).
+   */
+  function textV1(id, opts) {
+    var c = Object.prototype.hasOwnProperty.call(T, id) ? T[id] : null;
+    if (!c || !Array.isArray(c.parts)) return [];
+    var o = opts || {};
+    var v = variantOf(o);
+    var terms = o.terms || {};
+    var out = [];
+    c.parts.forEach(function (p) { if (_partOk(p.only, v, terms)) out.push(_fill(p.text, terms, o.facts, o.party || null)); });
+    return out;
+  }
+
   return {
     CLAUSE_SET_VERSION: CLAUSE_SET_VERSION,
     VARIANTS: VARIANTS.slice(),
@@ -345,6 +361,7 @@
     renderV1: renderV1,
     missingConfig: missingConfig,
     describeV1: describeV1,
+    textV1: textV1,
     V1_IDS: Object.keys(T).concat(Object.keys(BYREF)).filter(function (x, i, a) { return a.indexOf(x) === i; })
   };
 });

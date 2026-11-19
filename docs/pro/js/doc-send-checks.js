@@ -34,7 +34,11 @@
   // Of those, the ones that print a contract price.
   var PRICED = ['contract', 'proposal', 'estimate_esign'];
 
-  function isContractClass(type) { return CONTRACT_CLASS.indexOf(String(type || '')) !== -1; }
+  // Phase 5 (flag docClauseSetV1): the forms that carry a name, an address and a signature, and go through the same
+  // fail-closed check (no price: none of them is priced; the decking authorization checks its per-sheet price below).
+  var P5_CLASS = ['property_condition', 'decking_authorization', 'emergency_services_request', 'final_walkthrough', 'ohio_insurance_ack'];
+  function isP5(type) { return P5_CLASS.indexOf(String(type || '')) !== -1; }
+  function isContractClass(type) { return CONTRACT_CLASS.indexOf(String(type || '')) !== -1 || isP5(type); }
   function carriesPrice(type) { return PRICED.indexOf(String(type || '')) !== -1; }
 
   function _blank(v) { return v == null || String(v).replace(/[\s\u00a0]+/g, '') === ''; }
@@ -177,6 +181,10 @@
       gap('mailingAddress', 'The company mailing address is not set (Company Profile, Mailing Address).');
     }
     if (_blank(x.entityName)) gap('entityName', 'The company legal entity name is not set (Company Profile).');
+    // Phase 5: the Ohio insurance acknowledgment is for Ohio only (Kentucky insurance jobs use the Kentucky notices and forms). An unreadable state fails closed.
+    if (String(x.type || '') === 'ohio_insurance_ack' && String(x.state || '').toUpperCase() !== 'OH') {
+      gap('ohioOnly', 'This acknowledgment is for Ohio properties only. Kentucky insurance jobs use the Kentucky notices and forms in the contract and the Notice of Right to Cancel.');
+    }
     if (String(x.type || '') === 'contract') {
       if (_blank(x.startDate)) gap('startDate', 'The start date is blank.');
       if (_blank(x.estimatedCompletion)) gap('estimatedCompletion', 'The estimated completion is blank.');
@@ -204,6 +212,8 @@
   return {
     CONTRACT_CLASS: CONTRACT_CLASS.slice(),
     isContractClass: isContractClass,
+    isP5: isP5,
+    P5_CLASS: P5_CLASS.slice(),
     carriesPrice: carriesPrice,
     tooLarge: tooLarge,
     MAX_TEXT: MAX_TEXT,
