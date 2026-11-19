@@ -223,6 +223,7 @@
   "publicRoofMeasure": "./integrations/public-measure",
   "publicVisualizerAI": "./handlers/ai",
   "publishTenantSite": "./handlers/public-site",
+  "attestWetSigned": "./paper-cert",
   "recordAtticOverride": "./attic-override",
   "recordCustomerEvent": "./customer-audit",
   "recordEstimateShared": "./estimate-send",
