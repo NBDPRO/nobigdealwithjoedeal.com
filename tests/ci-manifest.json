@@ -854,6 +854,8 @@
     "attic-ack-review-2026-11-18.test.js",
     "attic-ack-review2-2026-11-18.test.js",
     "attic-ack-review3-2026-11-18.test.js",
+    "phase5-templates-2026-11-19.test.js",
+    "phase5-templates-server-2026-11-19.test.js",
     "sign-link-panel-2026-11-18.test.js",
     "tenant-hardening.test.js",
     "tenant-legal.test.js",
