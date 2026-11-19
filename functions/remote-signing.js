@@ -1009,7 +1009,10 @@ exports.submitSignature = onRequest(
           atticResult = AG.resultFor(signedDocType, applied.html, null);
           // Review 2 (item 4): the form is bound to the estimate it covers (id and stamp), read before the burn; a read that fails refuses.
           try { const dm = await db.doc(`leads/${p.leadId}/documents/${p.docId}`).get(); const b = await AG.formBasis(db, p.leadId, lead || {}, { estimateId: dm && dm.exists ? (dm.data() || {}).estimateId : undefined }); atticResult.estimateId = b.id; atticResult.estimateStamp = b.stamp; }
-          catch (_) { res.status(503).json({ error: 'Could not record your signature right now. Nothing was used up; please try again shortly.' }); return; }
+          catch (be) {
+            if (be && be.code === 'estimate_not_on_lead') { res.status(422).json({ error: 'This acknowledgment could not be verified. Please contact your rep for a corrected copy.' }); return; }
+            res.status(503).json({ error: 'Could not record your signature right now. Nothing was used up; please try again shortly.' }); return;
+          }
         }
       }
     }

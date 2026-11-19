@@ -515,51 +515,56 @@ function estimateStamp(est) {
 }
 
 /**
- * Every estimate in play for this send (review 2026-11-18, finding 1): the one actually being sent (o.estimate / o.estimateId),
- * the lead's primary, and - only when neither resolves - the lead's own estimates. The first of these is the BASIS an override
- * is bound to. A read that fails throws (the caller fails closed).
+ * Every estimate in play for this send, and the BASIS an override or signed form is bound to (review 4, item 4).
+ * The estimate being sent (o.estimateId / o.estimate) must be one of THIS lead's (the lead's primary, or its leadId, in the lead's tenant);
+ * otherwise the result is { rejected: true } and the caller refuses. The basis is the estimate with the highest scope among the one being
+ * sent, the lead's primary and the lead's own estimates (ties: the one being sent, then the primary, then by id), so binding a form to a
+ * trivial estimate while the real re-roof estimate is re-priced does not satisfy the gate. A read that fails throws (the caller fails closed).
  */
 async function _estimateSet(db, leadId, lead, o) {
-  const list = [];
+  const L = lead || {};
+  const none = { list: [], basis: { id: '', stamp: '' }, rejected: false };
+  const ownedBy = (id, e) => !!e && e.deleted !== true && (id === L.primaryEstimateId || (okId(leadId) && e.leadId === leadId))
+    && !(e.companyId && L.companyId && e.companyId !== L.companyId);
+  const cand = [];
   const seen = {};
-  const add = (id, data) => { if (data && !seen[id]) { seen[id] = true; list.push({ id, data }); } };
-  let basis = null;
-  if (o.estimate && typeof o.estimate === 'object') { basis = { id: okId(o.estimateId) ? o.estimateId : '', data: o.estimate }; }
-  else if (okId(o.estimateId)) {
+  const add = (id, data) => { if (data && !seen[id]) { seen[id] = true; cand.push({ id, data }); } };
+  if (o.estimateId != null && o.estimateId !== '') {
+    if (!okId(o.estimateId)) return Object.assign({}, none, { rejected: true });
     const s = await db.doc('estimates/' + o.estimateId).get();
-    if (s && s.exists) basis = { id: o.estimateId, data: s.data() || {} };
+    const e = s && s.exists ? (s.data() || {}) : null;
+    if (!e || (okId(leadId) && !ownedBy(o.estimateId, e))) return Object.assign({}, none, { rejected: true });
+    add(o.estimateId, o.estimate && typeof o.estimate === 'object' ? o.estimate : e);   // the estimate actually being sent, once its id is known to be this lead's
+  } else if (o.estimate && typeof o.estimate === 'object') {
+    add('', o.estimate);
   }
-  if (basis) add(basis.id, basis.data);
-  const pid = okId(lead && lead.primaryEstimateId) ? lead.primaryEstimateId : '';
+  const pid = okId(L.primaryEstimateId) ? L.primaryEstimateId : '';
   if (pid && !seen[pid]) {
     const s = await db.doc('estimates/' + pid).get();
-    if (s && s.exists) { const d = s.data() || {}; add(pid, d); if (!basis) basis = { id: pid, data: d }; }
+    if (s && s.exists) add(pid, s.data() || {});
   }
-  if (!list.length && okId(leadId)) {
+  if (okId(leadId)) {
     const q = await db.collection('estimates').where('leadId', '==', leadId).limit(20).get();
-    q.docs.forEach((d) => { const x = d.data() || {}; if (x.deleted !== true) add(d.id, x); });
-    if (!basis && list.length === 1) basis = list[0];
+    q.docs.map((d) => ({ id: d.id, x: d.data() || {} })).filter((d) => d.x.deleted !== true).sort((p, r) => (p.id < r.id ? -1 : 1)).forEach((d) => add(d.id, d.x));
   }
-  return { list, basis: basis ? { id: basis.id, stamp: estimateStamp(basis.data) } : { id: '', stamp: '' } };
+  const rank = (c) => AA.scopeRank(AA.scopeFromEstimate(c.data));
+  let top = null;
+  cand.forEach((c) => { if (!top || rank(c) > rank(top)) top = c; });
+  return { list: cand, basis: top ? { id: top.id, stamp: estimateStamp(top.data) } : { id: '', stamp: '' }, rejected: false };
 }
 
+const NOT_ON_LEAD_MSG = "This document's estimate is not one of this customer's estimates, so the attic acknowledgment cannot be checked. Use the customer's own estimate, then try again. Nothing was sent.";
+
 /**
- * The estimate (id and stamp) a form signed NOW covers. Review 3 (item 6): the estimate the form was generated for (opts.estimateId, written on
- * the document row by the generator from the rep's choice in the attic panel) when it is one of THIS lead's estimates (its leadId, or the
- * lead's primary); otherwise the lead's primary estimate (else its only one). The send paths bind to the estimate they send, so a form for a
- * non-primary estimate satisfies the gate for that estimate and for no other. A read that fails throws.
+ * The estimate (id and stamp) a form signed NOW covers: the basis described above, with the estimate the form was generated for
+ * (opts.estimateId, written on the document row by the generator) as the preferred one among equals. An estimate that is not on this lead
+ * THROWS an error with code 'estimate_not_on_lead' (the signing paths refuse); a read that fails throws.
  */
 async function formBasis(db, leadId, lead, opts) {
-  const L = lead || {};
   const want = opts && okId(opts.estimateId) ? opts.estimateId : '';
-  if (want) {
-    const s = await db.doc('estimates/' + want).get();
-    const e = s && s.exists ? (s.data() || {}) : null;
-    if (e && e.deleted !== true && (want === L.primaryEstimateId || (okId(leadId) && e.leadId === leadId))) {
-      return (await _estimateSet(db, leadId, L, { estimate: e, estimateId: want })).basis;
-    }
-  }
-  return (await _estimateSet(db, leadId, L, {})).basis;
+  const set = await _estimateSet(db, leadId, lead || {}, want ? { estimateId: want } : {});
+  if (set.rejected) { const e = new Error('estimate_not_on_lead'); e.code = 'estimate_not_on_lead'; throw e; }
+  return set.basis;
 }
 
 /**
@@ -574,6 +579,9 @@ async function decide(db, leadId, lead, opts) {
   const o = opts || {};
   const L = lead || {};
   const set = await _estimateSet(db, leadId, L, o);
+  if (set.rejected) {
+    return { scope: 'unknown', basis: set.basis, required: true, satisfied: false, how: null, warn: false, message: NOT_ON_LEAD_MSG };
+  }
   // A deal with no resolvable lead and no estimate cannot be classified: refuse (never assume "not a re-roof").
   if (o.requireResolved === true && !set.list.length && AA.effectiveScope(L, []) === 'other') {
     return { scope: 'unknown', basis: set.basis, required: true, satisfied: false, how: null, warn: false,
@@ -698,4 +706,4 @@ async function recordOverride(db, auth, data, fail, deps) {
 
 const TOO_LARGE_MSG = 'This attic acknowledgment is too large to verify. Open the customer, create a fresh copy of the form and try again.';
 
-module.exports = { estimateStamp, manifestFor, verifyManifest, OVERRIDES, MAX_HTML, TOO_LARGE_MSG, formBasis, gated, isAtticDoc, applyAcks, resultFor, decide, recordOverride };
+module.exports = { estimateStamp, manifestFor, verifyManifest, OVERRIDES, MAX_HTML, TOO_LARGE_MSG, NOT_ON_LEAD_MSG, formBasis, gated, isAtticDoc, applyAcks, resultFor, decide, recordOverride };

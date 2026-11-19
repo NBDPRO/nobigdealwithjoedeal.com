@@ -255,7 +255,7 @@ async function handleInPersonSignature(db, auth, data, deps) {
       result.attests = 'rep_device_and_time_only';
       // Review 2 (item 4): the form covers the estimate it was signed against (id and stamp), the same binding an override has.
       let fb;
-      try { fb = await AG.formBasis(db, leadId, lead, { estimateId: docMeta.estimateId }); } catch (_) { throw new RefusalError('unavailable', 'Could not check the attic acknowledgment just now. Try again in a moment.'); }
+      try { fb = await AG.formBasis(db, leadId, lead, { estimateId: docMeta.estimateId }); } catch (e) { if (e && e.code === 'estimate_not_on_lead') await refuse(AG.NOT_ON_LEAD_MSG); throw new RefusalError('unavailable', 'Could not check the attic acknowledgment just now. Try again in a moment.'); }
       result.estimateId = fb.id; result.estimateStamp = fb.stamp;
       await db.doc('leads/' + leadId + '/documents/' + docId).set({ atticAckResult: result }, { merge: true });
     } else if (AG.gated(docMeta.type)) {

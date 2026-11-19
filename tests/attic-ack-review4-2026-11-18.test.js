@@ -111,6 +111,90 @@ const generated = async (docType, profileExtra) => {
     ok('control: a plain class on the same div is accepted', verify(wrap('section')).ok === true);
   }
 
+  // ═══════════════════════════════════════════════════════
+  section('4. the form binds to the lead\'s highest-scope estimate; an estimate not on the lead is refused on every path');
+  {
+    const E1 = { userId: 'REP', leadId: 'L1', grandTotal: 14500, rows: [{ code: 'LAB TO1' }] };
+    const TRIV = { userId: 'REP', leadId: 'L1', grandTotal: 120, rows: [{ code: 'GTR 5K' }] };
+    const EX = { userId: 'REP', leadId: 'OTHER', grandTotal: 9000, rows: [{ code: 'LAB TO1' }] };
+    const leadRow = { userId: 'REP', companyId: 'CO', firstName: 'Dana', lastName: 'Whitfield', email: 'dana@example.test', address: '12 Oak St, Cincinnati, OH 45202', jobType: 'cash', primaryEstimateId: 'E1' };
+    const Lg = require(path.join(FN, 'in-person-signing-logic.js'));
+    const SP = 'documents/REP/L1/d-9.html';
+    const world = (rowEstimateId, type, extra) => kit.makeDb(Object.assign({ 'leads/L1': leadRow, 'estimates/E1': E1, 'estimates/TRIV': TRIV, 'estimates/EX': EX, 'companyProfile/CO': {},
+      'feature_flags/CO': { docAtticAckV1: true },
+      'leads/L1/documents/d1': Object.assign({ name: 'Doc', type: type || 'attic_acknowledgment', status: 'signed', signedAt: { toMillis: () => 1766000000000 }, signers: [{ role: 'homeowner', required: true }], signedSigners: [{ role: 'homeowner' }], htmlPath: SP, userId: 'REP' }, rowEstimateId ? { estimateId: rowEstimateId } : {}) }, extra || {}));
+    const lead0 = () => leadRow;
+    const resOf = (db) => (db._get('leads/L1/documents/d1') || {}).atticAckResult || {};
+
+    // decide / formBasis
+    let db = world('TRIV');
+    let b = await AG.formBasis(db, 'L1', lead0(), { estimateId: 'TRIV' });
+    ok('formBasis: a trivial estimate on the lead cannot be the basis while the lead has a re-roof estimate (basis is E1)', b.id === 'E1' && b.stamp === AG.estimateStamp(E1), JSON.stringify(b));
+    let d = await AG.decide(db, 'L1', lead0(), { estimateId: 'TRIV' });
+    ok('decide: sending the trivial estimate is gated on E1 (the lead is a re-roof, the basis is E1)', d.required === true && d.basis.id === 'E1', JSON.stringify(d.basis));
+    db._store.set('leads/L1/documents/d1', Object.assign({}, db._get('leads/L1/documents/d1'), { atticAckResult: { version: AA.VERSION, complete: true, estimateId: 'TRIV', estimateStamp: AG.estimateStamp(TRIV) } }));
+    d = await AG.decide(db, 'L1', lead0(), { estimateId: 'TRIV' });
+    ok('a form recorded against the trivial estimate does not satisfy the gate', d.satisfied === false);
+    let threw = null; try { await AG.formBasis(db, 'L1', lead0(), { estimateId: 'EX' }); } catch (e) { threw = e; }
+    ok('formBasis: an estimate of another lead throws estimate_not_on_lead', !!threw && threw.code === 'estimate_not_on_lead', threw && threw.message);
+    threw = null; try { await AG.formBasis(db, 'L1', lead0(), { estimateId: 'GHOST' }); } catch (e) { threw = e; }
+    ok('formBasis: an estimate that does not exist throws too', !!threw && threw.code === 'estimate_not_on_lead');
+    d = await AG.decide(db, 'L1', lead0(), { estimateId: 'EX', estimate: EX });
+    ok('decide (the deal path\'s call): an estimate of another lead is refused, not read as the basis', d.satisfied === false && d.required === true && /not one of this customer/i.test(d.message), JSON.stringify(d).slice(0, 200));
+    ok('...and the gate stays closed when it is the only re-roof estimate in play', d.basis.id !== 'EX');
+
+    // in-person: the form row
+    const signIP = async (db2) => { try { await Lg.handleInPersonSignature(db2, { uid: 'REP', token: { companyId: 'CO' } }, { leadId: 'L1', docId: 'd1' }, { attic: { on: true, readBytes: async () => Buffer.from(tick(GEN), 'utf8') }, recordJobEvent: async () => ({}) }); return null; } catch (e) { return e; } };
+    db = world('TRIV');
+    let e = await signIP(db);
+    ok('in-person: a form whose row names the trivial estimate is recorded against E1', !e && resOf(db).estimateId === 'E1' && resOf(db).estimateStamp === AG.estimateStamp(E1), e && e.message);
+    db = world('EX');
+    e = await signIP(db);
+    ok('in-person: a row naming another lead\'s estimate is refused and nothing is recorded', !!e && e.code === 'failed-precondition' && !resOf(db).complete, e && e.code + ' ' + e.message);
+    db = world('EX', 'contract');
+    e = await signIP(db);
+    ok('in-person: a contract row naming another lead\'s estimate is refused', !!e && e.code === 'failed-precondition', e && e.code);
+
+    // remote: submitSignature and createSignRequest
+    const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './doc-evidence', './await-briefly', './signed-price', './attic-gate', './attic-ack', 'crypto'];
+    const stubs = () => ({ './cancel-window': require(path.join(FN, 'cancel-window.js')), './ky-insurance-law': K, './lead-artifact-paths': require(path.join(FN, 'lead-artifact-paths.js')),
+      './esign-logic': ESL, './doc-evidence': DE, './await-briefly': require(path.join(FN, 'await-briefly.js')), './signed-price': require(path.join(FN, 'signed-price.js')), './attic-gate': AG, './attic-ack': AA });
+    const submit = async (rowEst, tok) => {
+      const dbr = kit.makeDb({ 'leads/L1': leadRow, 'estimates/E1': E1, 'estimates/TRIV': TRIV, 'estimates/EX': EX, 'leads/L1/documents/d1': { name: 'Attic', status: 'sent', type: 'attic_acknowledgment', htmlPath: SP, estimateId: rowEst },
+        ['doc_sign_tokens/' + tok]: { status: 'pending', leadId: 'L1', docId: 'd1', ownerUid: 'REP', mintedBy: 'REP', htmlPath: SP, signerName: 'Dana Whitfield', docType: 'attic_acknowledgment', consentAsked: false } });
+      const Lr = kit.loadHandler('remote-signing.js', dbr, kit.makeStorage({ [SP]: GEN }), stubs(), REAL);
+      const sub = kit.reqRes({ token: tok, signedHtml: tick(sign(GEN)) });
+      await Lr.fns.submitSignature(sub.req, sub.res);
+      return { res: sub.res, dbr, tok: dbr._get('doc_sign_tokens/' + tok) };
+    };
+    let r = await submit('TRIV', 'TOKTRIV00001');
+    const rr = (r.dbr._get('leads/L1/documents/d1') || {}).atticAckResult || {};
+    ok('remote submit: a row naming the trivial estimate is recorded against E1', r.res.statusCode === 200 && rr.estimateId === 'E1', r.res.statusCode + ' ' + JSON.stringify(rr));
+    r = await submit('EX', 'TOKTRIV00002');
+    ok('remote submit: a row naming another lead\'s estimate is refused and the link is not burned', r.res.statusCode >= 400 && r.tok.status === 'pending', r.res.statusCode + ' ' + JSON.stringify(r.res.body));
+
+    const CONTRACT = '<!DOCTYPE html><html><head><title>Roofing Contract</title></head><body><h1>Roofing Contract</h1><p>Contract price: $14,500.00</p>'
+      + '<!--nbd-cancel-packet:start--><section data-nbd-cancel-by="2026-11-17"><h2>Notice of Right to Cancel</h2>'
+      + '<div data-nbd-noc="ftc"><p>NOTICE OF CANCELLATION. NOT LATER THAN MIDNIGHT OF November 17, 2026</p></div>'
+      + '<div data-nbd-noc="ftc"><p>NOTICE OF CANCELLATION. NOT LATER THAN MIDNIGHT OF November 17, 2026</p></div>'
+      + '</section><!--nbd-cancel-packet:end-->'
+      + '<div data-nbd-sig="homeowner" data-nbd-sig-required="1"><canvas width="300" height="100"></canvas></div></body></html>';
+    const CP = 'documents/U1/L1/d-1.html';
+    const mint = async (rowEst) => {
+      const dbm = kit.makeDb({ 'leads/L1': Object.assign({}, leadRow, { userId: 'U1', companyId: 'U1' }), 'estimates/E1': E1, 'estimates/TRIV': TRIV, 'estimates/EX': EX,
+        'companyProfile/U1': { brand: { legalName: 'Acme Roofing LLC', entityName: 'Acme Roofing LLC', contact: { mailingAddress: '1 Main St, Cincinnati, OH 45202' } } },
+        'feature_flags/_default': { docAtticAckV1: true },
+        'leads/L1/documents/sf': { type: 'attic_acknowledgment', status: 'signed', signedAt: { seconds: 1 }, atticAckResult: { version: AA.VERSION, complete: true, declined: false, estimateId: rowEst, estimateStamp: AG.estimateStamp({ EX, TRIV }[rowEst]) } },
+        'leads/L1/documents/d1': { type: 'contract', typeName: 'Roofing Contract', htmlPath: CP, userId: 'U1', estimateId: rowEst } });
+      const Lm = kit.loadHandler('remote-signing.js', dbm, kit.makeStorage({ [CP]: CONTRACT }), stubs(), REAL);
+      try { return { v: await Lm.fns.createSignRequest({ auth: { uid: 'U1', token: {} }, data: { leadId: 'L1', docId: 'd1', signerEmail: 'dana@example.test', signerName: 'Dana Whitfield' } }), dbm }; } catch (e2) { return { e: e2, dbm }; }
+    };
+    r = await mint('EX');
+    ok('remote createSignRequest: a contract row naming another lead\'s estimate is refused, no link', !!r.e && r.e.code === 'failed-precondition' && r.dbm._all('doc_sign_tokens').length === 0, r.e && r.e.code + ' ' + r.e.message);
+    r = await mint('TRIV');
+    ok('remote createSignRequest: a contract row naming the trivial estimate is still gated on E1 (no form: refused)', !!r.e && r.e.code === 'failed-precondition' && r.dbm._all('doc_sign_tokens').length === 0, r.e && r.e.code + ' ' + r.e.message);
+  }
+
   console.log('\n' + (failed ? 'FAILED ' + failed + ': ' + fails.join(' | ') : 'all ok') + ' (' + passed + ' passed)');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
