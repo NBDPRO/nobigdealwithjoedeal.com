@@ -1478,6 +1478,11 @@ jobs:
         run: |
           cd tests
           node ds-layouts-phone-fit-2026-10-25.test.js
+      # RPE history (Joe, 2026-11-18): the Top-set RPE line under a lift's 1RM chart and "· RPE 8" in the workout history; real browser, phone width, fixed clock. Same server, same Chromium.
+      - name: Run the RPE history screens check
+        run: |
+          cd tests
+          node ds-rpe-history-ui-2026-11-18.test.js
       # Daily Success phone fit (audit 2026-11-14): coach header and toast clear the iPhone insets, no zoom in landscape, 44 px targets. Same server, same Chromium.
       - name: Run the Daily Success phone safe-area check
         run: |
