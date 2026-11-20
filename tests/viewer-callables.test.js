@@ -574,6 +574,8 @@ const VERDICTS = {
   callPipelineHealth: 'role-gated',
   // Visit recordings (2026-10-13): assertNotViewer + a role allowlist (owner / company_admin / manager / admin), on the caller's OWN capture only.
   attachVisitCapture: 'role-gated',
+  // Recordings Bin (2026-11-20): assertNotViewer + owner / admin only (a role allowlist that excludes manager), every target checked to be in the caller's company.
+  visitCaptureAdmin: 'role-gated',
   // Optional game card: read-only, the caller's OWN records only (game.js).
   getGameCard: 'self',
   // Tenant-ready (2026-10-04, tenant-ops.js): the admin Tenants list is
