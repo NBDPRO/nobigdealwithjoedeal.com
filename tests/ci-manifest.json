@@ -1136,6 +1136,8 @@
     "integrity-2-guards-2026-11-06.test.js",
     "price-ledger-migrate-2026-11.test.js",
     "visit-capture-pipeline-2026-10-13.test.js",
+    "recordings-bin-logic-2026-11-20.test.js",
+    "recordings-bin-server-2026-11-20.test.js",
     "visit-recorder-ui-2026-10-15.test.js",
     "a11y-audit-2026-10-23.test.js",
     "public-e2e-webkit-split-2026-10-24.test.js",

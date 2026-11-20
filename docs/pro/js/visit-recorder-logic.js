@@ -52,6 +52,8 @@
     'appointmentId', 'audioPath', 'uploadedAtMs', 'chunkCount',
     'backgroundSec', 'partOf', 'disclosureAckedAtMs', 'recoveredAtMs',
     'attachedAtMs', 'discardedAtMs', 'createdAtMs',
+    // Bin and Keep (2026-11-20): the phone writes these; the server owns legalHold / holdBy / holdAtMs.
+    'keptAtMs', 'binnedAtMs', 'hardDeleteAtMs', 'binnedFrom', 'binnedLeadId',
   ];
 
   // ── ids / mime / paths ────────────────────────────────────────────────
@@ -424,11 +426,49 @@
 
   // ── one meaning of "unfiled" (the Home count and the Today row) ────────
   var DEAD_PIPELINE = { discarded: 1, skipped: 1, quarantined_consent: 1, purge_pending: 1 };
-  /** On no customer, not thrown away, not still being recorded. */
+  /** On no customer, not thrown away, not still being recorded, not in the Bin, not Kept. */
   function isUnfiled(r) {
     if (!r || !r.id || r.leadId) return false;
     if (r.status === 'discarded' || r.status === 'recording') return false;
+    if (isBinned(r) || isKept(r)) return false;
     return !(r.pipelineStatus && DEAD_PIPELINE[r.pipelineStatus]);
+  }
+
+  // ── Bin and Keep (2026-11-20, recordings Bin PR 1; the screens come in PR 2, behind the flag recordingsBin) ──
+  // Discard used to destroy a recording at once. BINNING keeps the audio, transcript and notes for BIN_DAYS and Restore puts it back;
+  // KEEP means "reviewed, needs no customer". These are the pure patches the phone writes; firestore.rules pins the shape and the
+  // 30-day deadline, and functions/visit-capture-logic.js has the server's twin (isBinned, nextStep).
+  var BIN_DAYS = 30;
+  var BIN_MS = BIN_DAYS * 86400000;
+  function isBinned(r) { return !!r && Number(r.binnedAtMs) > 0 && r.status !== 'discarded'; }
+  function isKept(r) { return !!r && Number(r.keptAtMs) > 0; }
+  /** What to write to move a recording to the Bin. A customer it was attached to is remembered (binnedLeadId) and taken off (leadId null). */
+  function binPatch(r, nowMs) {
+    var now = Number(nowMs) || 0;
+    return { binnedAtMs: now, hardDeleteAtMs: now + BIN_MS, binnedFrom: r && r.leadId ? 'attached' : 'unfiled', binnedLeadId: r && r.leadId ? String(r.leadId) : null, leadId: null, keptAtMs: null };
+  }
+  /** What to write to take it out of the Bin: back on its customer if it was attached, else unassigned again. */
+  function restorePatch(r) {
+    var back = r && r.binnedFrom === 'attached' && r.binnedLeadId ? String(r.binnedLeadId) : null;
+    return { binnedAtMs: null, hardDeleteAtMs: null, binnedFrom: null, binnedLeadId: null, leadId: back };
+  }
+  function keepPatch(nowMs) { return { keptAtMs: Number(nowMs) || 0 }; }
+  function unkeepPatch() { return { keptAtMs: null }; }
+  /** Whole days left before the Bin purges it (0 = today), or null when it is not in the Bin or is on Hold (a Hold does not expire). */
+  function binDaysLeft(r, nowMs) {
+    if (!isBinned(r) || r.legalHold === true || !(Number(r.hardDeleteAtMs) > 0)) return null;
+    return Math.max(0, Math.ceil((Number(r.hardDeleteAtMs) - Number(nowMs)) / 86400000));
+  }
+  /**
+   * Whole days until the 90-day (company setting) audio expiry, 0 = today, or null when there is no audio left to expire or no
+   * server stamp yet. Only the audio expires; the transcript and notes stay. A Hold does not expire.
+   */
+  function audioDaysLeft(r, retentionDays, nowMs) {
+    if (!r || r.audioLive === false || r.legalHold === true) return null;
+    var base = Number(r.firstSeenAtMs) || 0;
+    var days = Number(retentionDays);
+    if (!base || !(days > 0)) return null;
+    return Math.max(0, Math.ceil((base + days * 86400000 - Number(nowMs)) / 86400000));
   }
 
   // ── the phone's row + the server's doc for one visit ───────────────────
@@ -526,7 +566,7 @@
     pipelineBadge: pipelineBadge, mergeChips: mergeChips,
     FAIL_WORDS: FAIL_WORDS, failureWords: failureWords, RETRANSCRIBE_NOTES: RETRANSCRIBE_NOTES.slice(), canRetryTranscription: canRetryTranscription,
     attachNoteWords: attachNoteWords,
-    isUnfiled: isUnfiled, mergeVisit: mergeVisit, recentVisits: recentVisits, visitStatus: visitStatus,
+    isUnfiled: isUnfiled, isBinned: isBinned, isKept: isKept, binPatch: binPatch, restorePatch: restorePatch, keepPatch: keepPatch, unkeepPatch: unkeepPatch, binDaysLeft: binDaysLeft, audioDaysLeft: audioDaysLeft, BIN_DAYS: BIN_DAYS, mergeVisit: mergeVisit, recentVisits: recentVisits, visitStatus: visitStatus,
     reconcileLead: reconcileLead, sheetTitle: sheetTitle, attachToast: attachToast,
   };
 });

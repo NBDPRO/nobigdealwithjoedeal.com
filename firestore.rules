@@ -2655,13 +2655,24 @@ service cloud.firestore {
                   'mime', 'sizeBytes', 'status', 'leadId', 'source', 'consentMode',
                   'appointmentId', 'audioPath', 'uploadedAtMs', 'chunkCount',
                   'backgroundSec', 'partOf', 'disclosureAckedAtMs', 'recoveredAtMs',
-                  'attachedAtMs', 'discardedAtMs', 'createdAtMs'];
+                  'attachedAtMs', 'discardedAtMs', 'createdAtMs',
+                  // Bin and Keep (2026-11-20). legalHold / holdBy / holdAtMs are NOT here: server-owned.
+                  'keptAtMs', 'binnedAtMs', 'hardDeleteAtMs', 'binnedFrom', 'binnedLeadId'];
         }
         function vcNum(d, k, lo, hi) {
           return d.get(k, null) == null || (d[k] is number && d[k] >= lo && d[k] <= hi);
         }
         function vcStr(d, k, max) {
           return d.get(k, null) == null || (d[k] is string && d[k].size() <= max);
+        }
+        // The Bin (2026-11-20): a recording is in the Bin while binnedAtMs is set. The deadline is pinned: hardDeleteAtMs must be exactly
+        // binnedAtMs + 30 days and binnedAtMs within a day of the server clock, so a phone cannot set a past deadline (the daily job would
+        // purge it) or a far-future one (it would never expire). Restore clears them (null).
+        function vcBinOk(d) {
+          return d.get('binnedAtMs', null) == null
+            || (d.get('hardDeleteAtMs', null) == d.binnedAtMs + 2592000000
+                && d.binnedAtMs <= request.time.toMillis() + 86400000
+                && d.binnedAtMs >= request.time.toMillis() - 86400000);
         }
         // The per-field checks, valid for a whole doc that may ALSO carry
         // server-owned fields (PR 2: transcript, notes, suggestions, pipelineStatus,
@@ -2687,6 +2698,12 @@ service cloud.firestore {
             && vcNum(d, 'attachedAtMs', 0, 99999999999999)
             && vcNum(d, 'discardedAtMs', 0, 99999999999999)
             && vcNum(d, 'createdAtMs', 0, 99999999999999)
+            && vcNum(d, 'keptAtMs', 0, 99999999999999)
+            && vcNum(d, 'binnedAtMs', 0, 99999999999999)
+            && vcNum(d, 'hardDeleteAtMs', 0, 99999999999999)
+            && (d.get('binnedFrom', null) == null || d.binnedFrom in ['unfiled', 'attached'])
+            && vcStr(d, 'binnedLeadId', 128)
+            && vcBinOk(d)
             && vcStr(d, 'mime', 64)
             && (d.get('mime', null) == null || d.mime.matches('^audio/.*'))
             && vcStr(d, 'appointmentId', 128)
@@ -2721,6 +2738,8 @@ service cloud.firestore {
           && vcFieldsOk(request.resource.data)
           && request.resource.data.startedAtMs == resource.data.startedAtMs
           && request.resource.data.consentMode == resource.data.consentMode
+          // a binned recording is deleted for good only by the server (the admin callable / the daily Bin job), never by a phone write
+          && !(resource.data.get('binnedAtMs', null) != null && request.resource.data.status == 'discarded')
           && vcLeadOk(request.resource.data);
         allow delete: if (isOwner(uid) && notViewer()) || isAdmin();
       }
