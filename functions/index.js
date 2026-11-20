@@ -1026,6 +1026,8 @@ exports.callPipelineHealth = require('./pipeline-health').callPipelineHealth;
 exports.onVisitCaptureWrite = require('./visit-capture').onVisitCaptureWrite;
 exports.visitCaptureSweep = require('./visit-capture').visitCaptureSweep;
 exports.attachVisitCapture = require('./visit-capture').attachVisitCapture;
+exports.visitBinSweep = require('./visit-capture').visitBinSweep;
+exports.visitCaptureAdmin = require('./visit-capture').visitCaptureAdmin;
 // Optional game card (2026-10-03): level, XP and this week vs last week,
 // derived on request from the caller's own records — nothing stored.
 exports.getGameCard = require('./game').getGameCard;
