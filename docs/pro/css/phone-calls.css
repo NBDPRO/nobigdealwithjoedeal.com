@@ -135,3 +135,59 @@
 /* Call to Close Q11 (2026-11-09): a viewer cannot read phone_calls; a quiet note says so (call-center-view.js, customer-calls.js). */
 .cc-hidden-note { padding: 10px 12px; font-size: 13px; }
 .pc-hidden-note { padding: 10px 12px; text-align: center; }
+
+/* ── Call Center compact view (2026-11-20, phone sweep; feature flag callCenterCompact, js/call-center-view.js) ──────
+   Scoped to .cc-compact so the layout with the flag off is untouched. Every control is a 44px target. */
+.cc-compact { padding: 12px; }
+.cc-compact .cc-hdr { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; text-align: left; gap: 4px 10px; margin: 0 0 8px; padding: 0; }
+.cc-compact .cc-title { display: flex; align-items: center; gap: 6px; flex: 0 1 auto; margin: 0; }
+.cc-compact .cc-info { flex: none; }
+/* dashboard-app.css makes every .page-hdr a column on a phone with 100%-wide buttons; the compact header is one row */
+.cc-compact .cc-hdr button, .cc-compact .cc-hdr .btn { width: auto; }
+.cc-compact .cc-toolbar, .cc-compact .cc-toolbar > *, .cc-compact .cc-cbar { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.cc-compact .cc-filters { min-width: 0; max-width: 100%; }
+.cc-cbtn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-compact .cc-title { font-size: 20px; }
+.cc-compact .cc-info { min-width: 44px; min-height: 44px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 18px;
+  background: transparent; color: var(--m); border: 0; }
+.cc-compact .cc-sub { flex: 1 0 100%; margin: 0 0 4px; }
+.cc-compact .cc-deck-btn { min-height: 44px; padding: 0 14px; margin: 0; }
+.cc-panels-btn { display: block; width: 100%; min-height: 44px; margin: 0 0 8px; padding: 0 12px; text-align: left; cursor: pointer; font: inherit;
+  font-size: 13px; font-weight: 700; color: var(--m); background: transparent; border: 1px dashed var(--br, rgba(255,255,255,.15)); border-radius: 8px; }
+.cc-panels { margin-bottom: 8px; }
+.cc-compact .cc-toolbar { gap: 8px; margin-bottom: 8px; }
+.cc-compact .cc-filters { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.cc-compact .cc-filters::-webkit-scrollbar { display: none; }
+.cc-compact .cc-tab { flex: none; padding: 0 12px; }
+.cc-more-tabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px; border: 1px solid var(--br, rgba(255,255,255,.15)); border-radius: 12px; background: var(--s2, rgba(255,255,255,.05)); }
+.cc-cbar { display: flex; gap: 8px; }
+.cc-cbtn { flex: 1 1 0; min-height: 44px; padding: 0 12px; cursor: pointer; font: inherit; font-weight: 700; border-radius: 8px;
+  background: var(--s2, rgba(255,255,255,.05)); color: var(--t, inherit); border: 1px solid var(--br, rgba(255,255,255,.15)); }
+.cc-cbtn.is-on { border-color: var(--orange, #BD5728); color: var(--orange, #BD5728); }
+.cc-compact .cc-filter-sum { margin: 0; }
+/* a collapsed call: name + time, chips, a two-line summary, then one row of four 44px buttons */
+.cc-row { padding: 10px 12px; margin: 0 0 8px; }
+.cc-row-main { display: block; width: 100%; min-height: 44px; margin: 0; padding: 0; text-align: left; cursor: pointer; font: inherit; color: inherit;
+  background: none; border: 0; }
+.cc-row-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.cc-row-top .pc-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.cc-row-top .pc-meta { flex: none; font-size: 12px; }
+.cc-row .pc-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.cc-row-sum { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 4px; font-size: 14px; line-height: 1.35; opacity: .92; }
+.cc-row-acts { display: flex; gap: 6px; margin-top: 6px; }
+.cc-row-acts .btn, .cc-row-acts .pc-play { flex: 1 1 0; min-width: 0; min-height: 44px; margin: 0; padding: 0 6px; font-size: 13px; text-align: center; }
+.cc-chip-why { background: transparent; border: 1px solid var(--orange, #BD5728); color: var(--orange, #BD5728); }
+.cc-exp { margin: 0 0 8px; }
+.cc-less { display: block; width: 100%; min-height: 44px; margin: -4px 0 0; cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; color: var(--m);
+  background: transparent; border: 0; }
+/* the sort / filter bottom sheet */
+.cc-sheet-back { position: fixed; inset: 0; z-index: 10040; background: rgba(0, 0, 0, .45); }
+.cc-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10041; max-height: 82vh; overflow-y: auto; box-sizing: border-box;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--s2, #181C22); color: var(--t, #E8EAF0);
+  border-radius: 16px 16px 0 0; border: 1px solid var(--br, rgba(255,255,255,.15)); border-bottom: 0; }
+.cc-sheet-h { margin: 0 0 8px; font-size: 18px; font-weight: 700; }
+.cc-sheet-opt { display: block; width: 100%; min-height: 48px; margin: 0 0 6px; padding: 0 14px; text-align: left; cursor: pointer; font: inherit; font-size: 16px;
+  color: inherit; background: transparent; border: 1px solid var(--br, rgba(255,255,255,.15)); border-radius: 10px; }
+.cc-sheet-opt.is-on { border-color: var(--orange, #BD5728); font-weight: 700; }
+.cc-sheet-done { width: 100%; min-height: 48px; margin-top: 10px; }
+.cc-sheet .cc-fbar { margin-bottom: 8px; }
