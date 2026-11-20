@@ -30,11 +30,20 @@ Estimator and scheduler (not built yet):
 3. Schedule suggester (flag `scheduleSuggest`), a "Suggest dates" button in Plan Jobs.
 4. Confirmation drafts on a confirmed suggestion.
 
+## Step 2a status (2026-11-19, later the same day)
+
+Steps 0, 1a and 1b are merged; the board is on main, dark behind `subJobBoard`. Step 2 is split because the pieces are independent:
+
+- **2a (built): the pure estimator**, [labor-hours-logic.js](../../docs/pro/js/labor-hours-logic.js) with 30 checks and 14 mutations caught. It sums an estimate's resolved lines (`laborId`, `quantity`, which the estimate engine already produces) against the company's own hours per unit, applies additive factors, and converts to crew-days. Nothing is invented: a labor action with no hours is listed as missing, a factor with no percent does not apply, a real 0 counts as set. Factors ADD (they do not compound). It touches no pricing code, so the pricing suites are not involved.
+- **The book already exists as a shape.** `catalogCosts/{companyId}.laborOps[laborId]` already holds `{ rate, hoursPerUnit, crewSize }` with an owner / company_admin write and a tenant read (`NBDCatalogCosts.laborOp / recordLaborOp`). No editor writes `hoursPerUnit` yet. Reps can READ catalogCosts, so hours are internal-to-the-company, not owner-only; they must still never reach a customer, the portal or a sub sheet.
+- **2b (next): the editor** (hours per unit by labor action, the factor percents, and `crewSize` on each sub doc, which the sub rule already accepts) behind `laborHoursBook`. Where the factor percents are stored is an open detail: `catalogCosts.defaults` is the likely home, and its readers must be checked first.
+- **2c: show it** on a job (which estimate lines feed it, and the "N lines have no hours yet" prompt).
+- The privacy guard (`catalog-cost-privacy`) only forbids productivity keys in the published labor catalog; the new logic file carries no numbers beside those keys and the guard still passes. Fixture numbers in the test are synthetic.
 ## Step 2b status (2026-11-19, later still)
 
 - **2b (built, dark behind `laborHoursBook`): the editor.** [labor-book-logic.js](../../docs/pro/js/labor-book-logic.js) (29 checks, 14 mutations caught) and [labor-book.js](../../docs/pro/js/labor-book.js) (36 checks, 15 mutations caught). A panel under the Sub job board on the Schedule view, owner and company_admin only (the `catalogCosts` write rule), fetched by `schedule-planner.js` only when the flag is on. It has two parts: man-hours per unit for each of the 66 labor actions, saved as `{ hoursPerUnit }` only through `NBDCatalogCosts.recordLaborOp`; and a usual crew size per sub, saved as `{ crewSize, updatedAt }` on the sub's own doc (the sub rule already accepts it).
 - **The book starts empty and nothing is guessed.** A box is empty until Joe types a number; a real 0 is a valid number; a blank box leaves the stored value alone (clearing a number is not supported yet and the screen says so). Invalid input saves nothing and names the action. While the book is still loading the panel shows no boxes, because an empty box over a held number would lie.
-- **A data-loss bug had to be fixed first (PR #3225).** `NBD_LABOR.updateRate` wrote only `{ rate }` with a dotted-path `updateDoc`, which REPLACES the whole `laborOps.<id>` value, so editing a rate erased that action's hours and crew size. `recordLaborOp` now merges. The editor is safe on its own only once #3225 is merged.
+- **A data-loss bug had to be fixed first (PR #3225).** `NBD_LABOR.updateRate` wrote only `{ rate }` with a dotted-path `updateDoc`, which REPLACES the whole `laborOps.<id>` value, so editing a rate erased that action's hours and crew size. `recordLaborOp` now merges. #3225 is merged, so the editor is safe on its own.
 - **Not built:** the factor percents (steep pitch, extra layers / stories, cut-up roof, access). Their storage is still open: `catalogCosts` has a fixed list of maps (`BOOK_MAPS`) that the cost-basis registry and ops scripts also enumerate, so a new map needs those readers checked first. Until then the estimator applies no factors, which is the honest default (no percent means no factor).
 - **Next, 2c:** show the estimate on a job, and the "N lines have no hours yet" prompt.
 
@@ -51,7 +60,7 @@ Estimator and scheduler (not built yet):
 
 - **Storage.** Lowest-risk is reserved-prefix keys inside the existing `laborOps` map (for example `BOOK:replacement`), because a new top-level map must be added to `BOOK_MAPS` in catalog-costs.js and to the cost-basis registry and the ops scripts that enumerate maps (`functions/cost-basis-registry.js`, `scripts/import-cost-rotation.js`). Check that nothing iterates `laborOps` expecting only real labor ids before relying on it (the registry and importer validate IMPORTED rows, not live ones). The factor percents have the same question and the same likely answer.
 - **Where it shows.** On the Sub job board rows and the job card: "about N man-hours, about D crew-days", with "no book time for this job type yet" when the book has none. Never on an estimate, the portal, a customer document or a sub's job sheet.
-- **Order of dependencies.** #3225 (recordLaborOp merge) before 2b #3226 before any 2c work that writes the book.
+- **Order of dependencies.** #3225 (recordLaborOp merge, now merged) before 2b #3226 before any 2c work that writes the book.
 
 ## Gotchas found on the way
 

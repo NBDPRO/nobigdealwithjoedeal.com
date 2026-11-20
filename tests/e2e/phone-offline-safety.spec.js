@@ -26,6 +26,7 @@
 //   PLAYWRIGHT_TEST_USER_PASSWORD=nbd-e2e-password-1 \
 //   npx playwright test --config=playwright.config.js phone-offline-safety.spec.js --workers=1
 const { test, expect } = require('@playwright/test');
+const { autoDialogs } = require('./fixtures/dialogs'); // in-tab dialogs (native ones are gone)
 const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
 const { deleteSeededRun } = require('./fixtures/seeded-run');
 
@@ -98,7 +99,7 @@ test.describe('installed iPhone app — offline safety @shard3', () => {
     run = `phone-offline@390:${stamp}`;
     ctx = await browser.newContext(contextOptions(testInfo));
     page = await ctx.newPage();
-    page.on('dialog', (d) => d.accept().catch(() => {}));
+    await autoDialogs(page);
     // Kept for the failure message: what the app said while booting offline.
     page.on('console', (m) => { logs.push(m.type() + ': ' + m.text().slice(0, 200)); if (logs.length > 400) logs.shift(); });
     page.on('pageerror', (e) => logs.push('pageerror: ' + String(e && e.message).slice(0, 200)));

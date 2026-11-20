@@ -67,3 +67,29 @@ for (const pagePath of ['/pro/pricing.html', '/pro/login.html']) {
     });
   });
 }
+
+// The shared fixture the authed specs use to answer in-tab dialogs.
+test.describe('autoDialogs fixture', () => {
+  test('accepts, dismisses, types into a prompt, logs, and survives navigation', async ({ page }) => {
+    const { autoDialogs } = require('./fixtures/dialogs');
+    const dlg = await autoDialogs(page);
+    await page.goto('/pro/pricing.html');
+    await page.waitForFunction(() => typeof window.nbdConfirm === 'function');
+    expect(await page.evaluate(() => window.nbdConfirm('Delete it?'))).toBe(true);
+    dlg.dismissNext = true;
+    expect(await page.evaluate(() => window.nbdConfirm('Delete again?'))).toBe(false);
+    dlg.promptValue = '12.5';
+    expect(await page.evaluate(() => window.nbdPrompt('Length?', '9'))).toBe('12.5');
+    dlg.promptValue = null;
+    expect(await page.evaluate(() => window.nbdPrompt('Keep?', '9'))).toBe('9');
+    dlg.rule = (d) => /close without saving/i.test(d.text);
+    expect(await page.evaluate(() => window.nbdConfirm('Other?'))).toBe(false);
+    expect(await page.evaluate(() => window.nbdConfirm('Close without saving?'))).toBe(true);
+    await page.goto('/pro/login.html');
+    await page.waitForFunction(() => typeof window.nbdConfirm === 'function');
+    dlg.rule = null;
+    expect(await page.evaluate(() => window.nbdConfirm('After navigation?'))).toBe(true);
+    expect(dlg.log[0]).toBe('confirm: Delete it?');
+    expect(dlg.log.some((l) => l.startsWith('prompt: Length?'))).toBe(true);
+  });
+});
