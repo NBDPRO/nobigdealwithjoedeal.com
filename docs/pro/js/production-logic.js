@@ -84,6 +84,86 @@
   }
 
   /**
+   * parseRates(text) — a sub's rate card. One rate per line, in the words a
+   * contractor uses: "Tear-off & install: $85 / SQ", "Gutter repair 350 job",
+   * "Small repairs $45 hour". The LAST number is the money, the LAST basis word
+   * (sq / job / hour / day) is the pay basis, and what is left is the job type.
+   * Money is integer cents, $0.01 to $99,999.99; at most 20 rates. A bad line
+   * refuses the whole save and says which line, so nothing is half-saved.
+   * rateLine() prints one back in a shape parseRates reads again.
+   */
+  const RATE_BASES = { sq: 'SQ', job: 'job', hour: 'hour', day: 'day' };
+  function rateLine(r) {
+    return str(r.type) + (str(r.type) ? ': ' : '') + '$' + (r.cents / 100).toFixed(2) + ' / ' + (RATE_BASES[r.basis] || r.basis);
+  }
+  function parseRates(text) {
+    const rates = [];
+    const lines = String(text == null ? '' : text).split(/\r\n|\r|\n/);
+    for (let i = 0; i < lines.length; i++) {
+      let line = str(lines[i]);
+      if (!line) continue;
+      const at = 'Line ' + (i + 1) + ' ("' + line.slice(0, 30) + '"): ';
+      const nums = [...line.matchAll(/\$?\s*(\d[\d,]*(?:\.\d{1,2})?)/g)];
+      if (!nums.length) return { ok: false, message: at + 'add the dollar amount.' };
+      const n = nums[nums.length - 1];
+      const bases = [...line.matchAll(/\b(sq|squares?|job|flat|hours?|hrs?|hourly|day|daily)\b/gi)];
+      if (!bases.length) return { ok: false, message: at + 'say SQ, job, hour or day.' };
+      const b = bases[bases.length - 1];
+      const w = b[1].toLowerCase();
+      const basis = /^s/.test(w) ? 'sq' : /^(job|flat)/.test(w) ? 'job' : /^h/.test(w) ? 'hour' : 'day';
+      const cents = Math.round(parseFloat(n[1].replace(/,/g, '')) * 100);
+      if (!(cents >= 1 && cents <= 9999999)) return { ok: false, message: at + 'the amount must be between $0.01 and $99,999.99.' };
+      const cut = [[n.index, n.index + n[0].length], [b.index, b.index + b[0].length]].sort((x, y) => y[0] - x[0]);
+      cut.forEach((c) => { line = line.slice(0, c[0]) + ' ' + line.slice(c[1]); });
+      const type = str(line.replace(/\bper\b|\beach\b/gi, ' ').replace(/[:/$,;|]+/g, ' ').replace(/\s+/g, ' ')).slice(0, 40);
+      if (rates.length >= 20) return { ok: false, message: 'A rate card holds up to 20 rates.' };
+      rates.push({ type, basis, cents });
+    }
+    return { ok: true, rates };
+  }
+
+  /**
+   * parseSubList(text, existingSubs) — the paste-a-list roster add. One sub per
+   * line, in whatever shape a phone gives: "Mike Ruiz 513-555-0142 Gutters",
+   * "Mike Ruiz, (513) 555-0142", or just "Mike Ruiz". The phone is the first
+   * 10-digit number on the line, the trade is a word from TRADES, and what is
+   * left is the name. Nothing is saved here and nothing is guessed: a line with
+   * no name is 'invalid'; a phone or name already on the roster (or earlier in
+   * the paste) is 'duplicate'. Returns rows { line, name, phone, trade, status,
+   * reason }; the caller saves only the 'new' ones, through cleanSub.
+   */
+  function parseSubList(text, existing) {
+    const digits = (s) => String(s || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
+    const key = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const seenPhone = new Set(), seenName = new Set();
+    (existing || []).forEach((s) => {
+      if (digits(s && s.phone).length === 10) seenPhone.add(digits(s.phone));
+      if (key(s && s.name)) seenName.add(key(s.name));
+    });
+    const PHONE = /(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/;
+    const tradeRe = new RegExp('\\b(' + TRADES.join('|') + ')\\b', 'i');
+    const out = [];
+    String(text == null ? '' : text).split(/\r\n|\r|\n/).forEach((raw) => {
+      let line = str(raw);
+      if (!line) return;
+      let phone = '';
+      const pm = line.match(PHONE);
+      if (pm) { phone = str(pm[0]); line = line.replace(pm[0], ' '); }
+      let trade = '';
+      const tm = line.match(tradeRe);
+      if (tm) { trade = TRADES.find((t) => t.toLowerCase() === tm[1].toLowerCase()) || ''; line = line.replace(tm[0], ' '); }
+      const name = str(line.replace(/[,;|\t:\u2013\u2014]+/g, ' ').replace(/(^|\s)-+(\s|$)/g, ' ').replace(/\s+/g, ' ')).slice(0, 80);
+      const row = { line: str(raw), name, phone, trade, status: 'new', reason: '' };
+      if (!name) { row.status = 'invalid'; row.reason = 'No name on this line.'; }
+      else if (digits(phone).length === 10 && seenPhone.has(digits(phone))) { row.status = 'duplicate'; row.reason = 'That phone number is already on the roster.'; }
+      else if (seenName.has(key(name))) { row.status = 'duplicate'; row.reason = 'That name is already on the roster.'; }
+      if (row.status === 'new') { if (digits(phone).length === 10) seenPhone.add(digits(phone)); seenName.add(key(name)); }
+      out.push(row);
+    });
+    return out;
+  }
+
+  /**
    * The sub's insurance certificate on `onYmd` (the job's first day, else
    * today): none on file / ok / expiring within 30 days / expired.
    */
@@ -537,7 +617,7 @@
 
   const api = {
     COMMITTED, JOB_STAGES, TRADES, STORES, ORDER_STATUS, AFTER_CHECKLIST, STRIP_FIRST_HOUR, STRIP_LAST_HOUR,
-    shortDate, longDate, jobRange, cleanSub, certStatus, subFieldsFor, subConflicts, subWarnings, crewMigration,
+    shortDate, longDate, jobRange, cleanSub, parseSubList, parseRates, rateLine, certStatus, subFieldsFor, subConflicts, subWarnings, crewMigration,
     permitState, permitPatch, orderItemsFromList, hdSkusForLead, cleanOrder, deliveryWarning, summarizeOrders,
     stripSteps, jobSheet, addWorkingDays, rainPushPlan, showAfterChecklist, finalPhotosWarning,
     crewEmailFields, reminderText, tomorrowInstalls, needsWeek, busyStrip,
