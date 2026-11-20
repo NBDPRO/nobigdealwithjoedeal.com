@@ -12,6 +12,8 @@
   "node": [
     "labor-hours-2026-11-19.test.js",
     "labor-op-merge-2026-11-19.test.js",
+    "labor-book-ui-2026-11-19.test.js",
+    "labor-book-2026-11-19.test.js",
     "sub-job-board-2026-11-19.test.js",
     "sub-job-board-ui-2026-11-19.test.js",
     "storm-check-label-2026-11-17.test.js",
