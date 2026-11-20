@@ -32,7 +32,10 @@ async function autoDialogs(page, opts = {}) {
     if (ctl.dismissNext) { yes = false; ctl.dismissNext = false; }
     return { yes, value: d.kind === 'prompt' && yes && ctl.promptValue != null ? String(ctl.promptValue) : null };
   });
-  await page.addInitScript(() => {
+  // an init script only runs on the NEXT navigation: install the same observer in the document that is already open too
+  const install = () => {
+    if (window.__nbdDlgObserver) return;
+    window.__nbdDlgObserver = true;
     const seen = new WeakSet();
     const handle = async (ov) => {
       if (seen.has(ov)) return;
@@ -51,7 +54,9 @@ async function autoDialogs(page, opts = {}) {
     const scan = () => { const ov = document.getElementById('nbd-dialog'); if (ov) handle(ov); };
     const start = () => { new MutationObserver(scan).observe(document.documentElement, { childList: true, subtree: true }); scan(); };
     if (document.documentElement) start(); else document.addEventListener('DOMContentLoaded', start);
-  });
+  };
+  await page.addInitScript(install);
+  await page.evaluate(install).catch(() => {});
   return ctl;
 }
 
