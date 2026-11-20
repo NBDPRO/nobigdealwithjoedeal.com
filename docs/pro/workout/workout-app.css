@@ -43,6 +43,7 @@ body{background:var(--bg);font-family:'Barlow',sans-serif;color:var(--page-ink,v
 .wa-loading{color:var(--muted);font-size:14px;}
 .wa-link{display:flex;align-items:center;justify-content:center;min-height:48px;margin-top:12px;padding:10px 14px;border:1px solid var(--page-rule,var(--rule));border-radius:10px;color:var(--page-ac,var(--ac-text));font-size:14px;font-weight:600;text-align:center;text-decoration:none;}
 .wa-link[hidden]{display:none;}
+#waProgress:not(:empty){margin-top:12px;}
 .wa-link-quiet{border-color:transparent;color:var(--page-muted,var(--muted));font-weight:500;}
 .wa-link:focus-visible,.wa-status button:focus-visible,.wa-theme select:focus-visible{outline:2px solid var(--ac-text);outline-offset:2px;}
 .wa-theme{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid var(--page-rule,var(--rule));font-size:14px;color:var(--page-muted,var(--muted));}
