@@ -336,6 +336,8 @@
   "useAcceptedTier": "./deal-acceptance",
   "validateAccessCode": "./handlers/portal",
   "verifyCode": "./verify-functions",
+  "visitBinSweep": "./visit-capture",
+  "visitCaptureAdmin": "./visit-capture",
   "visitCaptureSweep": "./visit-capture",
   "visualizerImageGen": "./visualizer-image-gen",
   "voiceConsumer": "./voice-consumer",

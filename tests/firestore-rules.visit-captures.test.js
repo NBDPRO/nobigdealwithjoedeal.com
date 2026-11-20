@@ -48,6 +48,8 @@ function visit(uid, over) {
 }
 
 async function run() {
+  const BT = Date.now();                 // the Bin cases: now, in ms (the rules pin binnedAtMs to within a day of the server clock)
+  const BIN30 = 30 * 86400000;
   // ── parity: the client's field list == the rules allowlist ──────────────
   {
     const logic = require('../docs/pro/js/visit-recorder-logic.js');
@@ -62,7 +64,8 @@ async function run() {
 
   const env = await initializeTestEnvironment({
     projectId: PROJECT_ID,
-    firestore: { rules: fs.readFileSync(RULES_PATH, 'utf8'), host: '127.0.0.1', port: 8080 },
+    // emulators:exec sets FIRESTORE_EMULATOR_HOST (127.0.0.1:8080 in CI); reading it lets a machine whose 8080 is taken use another port
+    firestore: { rules: fs.readFileSync(RULES_PATH, 'utf8'), host: String(process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080').split(':')[0], port: Number(String(process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080').split(':')[1]) },
   });
   const ctx = (uid, claims) => env.authenticatedContext(uid, claims).firestore();
   const { setDoc, doc, getDoc, updateDoc, deleteDoc } = require('firebase/firestore');
@@ -91,6 +94,10 @@ async function run() {
         attachedLeadId: null, pipelineNextAtMs: 0, rejectedLeadIds: [],
       }));
     }
+    // Recordings Bin (2026-11-20): plain, already-binned, attached-then-binned, and a few more plain ones to write to
+    for (let i = 1; i <= 8; i++) await setDoc(doc(db, 'users/alice/visit_captures/vbinseed0000000' + i), visit('alice', { status: 'uploaded', audioPath: 'audio/alice/_inbox/vbinseed0000000' + i + '.webm', uploadedAtMs: 1760000100000 }));
+    await setDoc(doc(db, 'users/alice/visit_captures/vbinseed0000000b'), visit('alice', { status: 'uploaded', binnedAtMs: BT, hardDeleteAtMs: BT + BIN30, binnedFrom: 'unfiled', binnedLeadId: null }));
+    await setDoc(doc(db, 'users/alice/visit_captures/vbinseed0000000c'), visit('alice', { status: 'uploaded', leadId: null, binnedAtMs: BT, hardDeleteAtMs: BT + BIN30, binnedFrom: 'attached', binnedLeadId: 'lead-a1' }));
   });
 
   const alice = ctx('alice', { role: 'sales_rep', companyId: 'co-a' });
@@ -223,6 +230,39 @@ async function run() {
   await check('RR control: the plain id of their own lead is accepted', 'allow', setDoc(ref(alice, 'alice', 'vslash000000004'), visit('alice', { leadId: 'lead-a1' })));
   await check('RR: consentMode cannot be lowered after the fact', 'deny', updateDoc(ref(alice, 'alice', SV(10)), { consentMode: 'two_party_verbal' }));
   await check('RR control: writing the SAME consentMode again (the phone mirrors its row) is accepted', 'allow', setDoc(ref(alice, 'alice', SV(10)), { consentMode: 'one_party', status: 'uploaded' }, { merge: true }));
+
+  // ── Recordings Bin (2026-11-20): Bin, Keep, Restore; the deadline is pinned; Hold and the audit log are server-only ──
+  const BIN = (over) => Object.assign({ binnedAtMs: BT, hardDeleteAtMs: BT + BIN30, binnedFrom: 'unfiled', binnedLeadId: null, leadId: null, keptAtMs: null }, over || {});
+  const bref = (n) => ref(alice, 'alice', 'vbinseed0000000' + n);
+  await check('Bin control: the phone bins a recording with the exact 30-day deadline', 'allow', updateDoc(bref(1), BIN()));
+  await check('Bin: a deadline shorter than 30 days is refused (a short deadline would get the daily job to purge it early)', 'deny', updateDoc(bref(2), BIN({ hardDeleteAtMs: BT + 86400000 })));
+  await check('Bin: a deadline in the past is refused', 'deny', updateDoc(bref(2), BIN({ hardDeleteAtMs: BT - 86400000 })));
+  await check('Bin: a far-future deadline is refused (it would never expire)', 'deny', updateDoc(bref(2), BIN({ hardDeleteAtMs: BT + 365 * 86400000 })));
+  await check('Bin: binnedAtMs ten days ago (with its matching deadline) is refused: it must be within a day of the server clock', 'deny', updateDoc(bref(2), BIN({ binnedAtMs: BT - 10 * 86400000, hardDeleteAtMs: BT - 10 * 86400000 + BIN30 })));
+  await check('Bin: binnedAtMs a year ahead is refused', 'deny', updateDoc(bref(2), BIN({ binnedAtMs: BT + 365 * 86400000, hardDeleteAtMs: BT + 365 * 86400000 + BIN30 })));
+  await check('Bin: binnedFrom must be unfiled or attached', 'deny', updateDoc(bref(2), BIN({ binnedFrom: 'lost' })));
+  await check('Bin: binnedLeadId is capped at 128 characters', 'deny', updateDoc(bref(2), BIN({ binnedFrom: 'attached', binnedLeadId: 'x'.repeat(129) })));
+  await check('Bin control: the same write with a normal binnedLeadId is accepted', 'allow', updateDoc(bref(2), BIN({ binnedFrom: 'attached', binnedLeadId: 'lead-a1' })));
+  await check('Bin: another tenant cannot bin this recording', 'deny', updateDoc(ref(bob, 'alice', 'vbinseed00000004'), BIN()));
+  await check('Bin: a viewer cannot', 'deny', updateDoc(ref(vic, 'alice', 'vbinseed00000004'), BIN()));
+  await check('Bin: a same-company admin cannot write it either (admins go through the callable, never straight to the doc)', 'deny', updateDoc(ref(carol, 'alice', 'vbinseed00000004'), BIN()));
+  await check('Keep control: the phone marks a recording Kept', 'allow', updateDoc(bref(4), { keptAtMs: BT }));
+  await check('Keep: and un-keeps it', 'allow', updateDoc(bref(4), { keptAtMs: null }));
+  await check('Keep: keptAtMs must be a number', 'deny', updateDoc(bref(4), { keptAtMs: 'yesterday' }));
+  await check('Restore: clearing the Bin fields and putting the customer back is accepted (the customer is checked like any attach)', 'allow', updateDoc(bref('c'), { binnedAtMs: null, hardDeleteAtMs: null, binnedFrom: null, binnedLeadId: null, leadId: 'lead-a1' }));
+  await check('Restore: but not onto another tenants customer', 'deny', updateDoc(bref('b'), { binnedAtMs: null, hardDeleteAtMs: null, binnedFrom: null, binnedLeadId: null, leadId: 'lead-b1' }));
+  await check('Delete forever is the servers: the phone cannot write status discarded on a recording that is in the Bin', 'deny', updateDoc(bref(1), { status: 'discarded', discardedAtMs: BT }));
+  await check('Delete forever control: the older Discard (status discarded) on a recording NOT in the Bin is unchanged, so the flag-off flow keeps working', 'allow', updateDoc(bref(5), { status: 'discarded', discardedAtMs: BT }));
+  await check('Hold is server-owned: the phone cannot set legalHold', 'deny', updateDoc(bref(6), { legalHold: true }));
+  await check('Hold is server-owned: nor holdBy, nor holdAtMs', 'deny', updateDoc(bref(6), { holdBy: 'alice', holdAtMs: BT }));
+  await check('Hold is server-owned: nor a create that carries it', 'deny', setDoc(ref(alice, 'alice', 'vbinhold0000001'), visit('alice', { legalHold: false })));
+  await check('Bin on create: a new doc may not carry a wrong deadline either', 'deny', setDoc(ref(alice, 'alice', 'vbinnew00000001'), visit('alice', BIN({ hardDeleteAtMs: BT + 1 }))));
+  await check('Bin on create control: with the right deadline it is accepted', 'allow', setDoc(ref(alice, 'alice', 'vbinnew00000002'), visit('alice', BIN())));
+  const audit = (db) => doc(db, 'companies/co-a/recording_audit/probe1');
+  await check('the audit log is server-only: a company admin cannot read it from a client', 'deny', getDoc(audit(carol)));
+  await check('...nor a platform admin', 'deny', getDoc(audit(admin)));
+  await check('...nor write it (a company admin)', 'deny', setDoc(audit(carol), { action: 'hold', atMs: BT }));
+  await check('...nor the owner of the recordings', 'deny', setDoc(audit(alice), { action: 'hold', atMs: BT }));
 
   await env.cleanup();
 

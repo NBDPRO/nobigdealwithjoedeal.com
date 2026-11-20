@@ -496,8 +496,9 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-19  1192/75/1354 -> 1194/75/1356: labor-hours estimator logic adds labor-hours-2026-11-19 (node); main was stale by 1 (#3222 added a suite without raising the floor). MEASURED via --check.
 //   2026-11-19  1194/75/1356 -> 1195/75/1357: labor book fix adds labor-op-merge-2026-11-19 (node). MEASURED via --check.
 //   2026-11-19  1195/75/1357 -> 1197/75/1359: labor hours editor adds labor-book-2026-11-19 and labor-book-ui-2026-11-19 (node). MEASURED via --check.
-//   2026-11-20  1197/75/1359 -> 1198/75/1360: bottom-edge queue adds bottom-edge-queue-2026-11-19 (node). MEASURED via --check.
-const FLOORS = { node: 1198, smoke: 75, disk: 1360 };
+//   2026-11-20  1197/75/1359 -> 1199/75/1361: recordings Bin PR 1 adds recordings-bin-logic and recordings-bin-server (node). MEASURED via --check.
+//   2026-11-20  1199/75/1361 -> 1200/75/1362: bottom-edge queue adds bottom-edge-queue-2026-11-19 (node). MEASURED via --check.
+const FLOORS = { node: 1200, smoke: 75, disk: 1362 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
