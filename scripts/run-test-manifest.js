@@ -495,8 +495,9 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-19  -> 1192/75/1354: in-tab dialogs add nbd-dialog-2026-11-19 (node), after merging main. MEASURED via --check.
 //   2026-11-19  1192/75/1354 -> 1194/75/1356: labor-hours estimator logic adds labor-hours-2026-11-19 (node); main was stale by 1 (#3222 added a suite without raising the floor). MEASURED via --check.
 //   2026-11-19  1194/75/1356 -> 1195/75/1357: labor book fix adds labor-op-merge-2026-11-19 (node). MEASURED via --check.
-//   2026-11-20  1195/75/1357 -> 1197/75/1359: call center compact view adds two node suites.
-const FLOORS = { node: 1197, smoke: 75, disk: 1359 };
+//   2026-11-19  1195/75/1357 -> 1197/75/1359: labor hours editor adds labor-book-2026-11-19 and labor-book-ui-2026-11-19 (node). MEASURED via --check.
+//   2026-11-20  1197/75/1359 -> 1199/75/1361: call center compact view adds two node suites. MEASURED via --check.
+const FLOORS = { node: 1199, smoke: 75, disk: 1361 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

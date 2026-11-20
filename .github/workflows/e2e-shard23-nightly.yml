@@ -1,0 +1,65 @@
+# Nightly canary for the two Authed E2E legs that are NOT in the merge queue
+# (2026-11-19). @shard2 and @shard3 run on pull_request only (ci.yml `exclude:`),
+# and ci.yml has no push trigger (Jo, 2026-11-05: it repeated the queue run for
+# ~100 runner-min). Result: main could break them unseen. #3221 did exactly that
+# (in-tab dialogs; the specs on these two legs still answered native ones) and it
+# only showed up as red on unrelated PRs. This runs just those two legs against
+# main once a night, report-only: it is not a required check and blocks nothing.
+# A red run here means main broke a spec the queue never ran.
+name: Authed E2E canary (@shard2 @shard3, nightly)
+
+on:
+  schedule:
+    - cron: '17 7 * * *'   # 07:17 UTC, off the hour on purpose
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-shard23-nightly
+  cancel-in-progress: true
+
+jobs:
+  e2e-authed-emulator:
+    name: Authed E2E canary (emulators, ${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ['@shard2', '@shard3']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: main
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Install test deps
+        run: |
+          cd tests
+          npm install --silent --no-audit --no-fund
+      - name: Install Playwright chromium
+        run: |
+          cd tests
+          npx playwright install --with-deps chromium
+      - name: Run authed E2E against emulators
+        env:
+          PLAYWRIGHT_GREP: ${{ matrix.shard }}
+        run: |
+          set -o pipefail
+          cd tests
+          npm run test:e2e:authed:emu 2>&1 | grep --line-buffered -Ev 'hosting:.{0,20}127\.0\.0\.1 - - \['
+      - name: Upload Playwright traces on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-canary-traces-${{ strategy.job-index }}
+          path: tests/test-results/
+          retention-days: 7
