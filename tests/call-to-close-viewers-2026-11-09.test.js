@@ -109,7 +109,7 @@ const cols = (qs) => qs.map((q) => q.col);
       const el = { innerHTML: '' };
       const win = { _userClaims: { role } };
       const sb = { window: win, document: { getElementById: () => null, activeElement: null }, Object, String, Number,
-        root: () => el, leadsById: () => ({}), FX: null, flt: {}, FILTERS: [['all', 'All', () => true]],
+        root: () => el, leadsById: () => ({}), FX: null, compactOn: () => false, flt: {}, FILTERS: [['all', 'All', () => true]],
         filtersNow: () => [['all', 'All', () => true], ['attention', 'Needs attention', () => true]],
         groupNeeds: () => [], withAway: (rows) => rows, matchesSearch: () => true, healthPanel: () => '', tagPanel: () => '', autoBriefPanel: () => '',
         esc: (s) => String(s), promises: { items: [], loaded: false }, readProblems: () => [], capBanner: () => '', readBanner: () => '',
