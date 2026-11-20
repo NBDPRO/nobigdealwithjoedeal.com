@@ -42,6 +42,7 @@
 //     npx playwright test --config=playwright.config.js phone-draw-money.spec.js --workers=1
 const path = require('path');
 const { test, expect } = require('@playwright/test');
+const { autoDialogs } = require('./fixtures/dialogs'); // in-tab dialogs (native ones are gone)
 const { requireTestUser, loginAs, safeWaitForFunction } = require('./fixtures/auth');
 const T = require('./fixtures/draw-touch');
 const { legacyAutosave } = require('./fixtures/draw-legacy-autosave');
@@ -83,9 +84,11 @@ async function returningUser(context) {
 }
 // Native dialogs: accept (clearDraw's confirm, Save's lead confirmation) —
 // except when a test asks to dismiss the next one (main's "Classic" = Cancel).
-function dialogs(page) {
-  page.__dialogLog = [];
-  page.__dismissNext = false;
+async function dialogs(page) {
+  const dlg = await autoDialogs(page); // the in-tab twin of the native handler below
+  page.__dlg = dlg;
+  page.__dialogLog = dlg.log; // in-tab dialogs log here as 'confirm: …'
+  Object.defineProperty(page, '__dismissNext', { configurable: true, get: () => dlg.dismissNext, set: (v) => { dlg.dismissNext = v; } });
   page.on('dialog', (d) => {
     page.__dialogLog.push(d.message());
     const dismiss = page.__dismissNext;
@@ -207,7 +210,7 @@ function suite(label, ctxOpts, opts) {
       context = await browser.newContext(ctxOpts);
       await returningUser(context);
       page = await context.newPage();
-      dialogs(page);
+      await dialogs(page);
       await T.stubTiles(page);
       await stubNetwork(page);
       await loginAs(page, creds);

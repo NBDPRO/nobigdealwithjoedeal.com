@@ -14,6 +14,7 @@
 //   - at 1440 the desktop Home is unchanged (no toggle, widgets showing).
 // Nothing here calls a Cloud Function or sends anything to anyone.
 const { test, expect } = require('@playwright/test');
+const { autoDialogs } = require('./fixtures/dialogs'); // in-tab dialogs (native ones are gone)
 const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
 
 const IPHONE = {
@@ -149,6 +150,7 @@ test.describe('phone: Home leads with people who need you; field tools pinned; o
       await page.addInitScript(initStorage);
       let dialogs = 0;
       page.on('dialog', (d) => { dialogs++; d.accept().catch(() => {}); });
+      await autoDialogs(page);
       await loginAs(page, creds);
       await page.goto('/pro/customer.html?id=' + lead);
       await safeWaitForFunction(page, () => document.documentElement.style.opacity === '1', { timeout: 30_000 });
