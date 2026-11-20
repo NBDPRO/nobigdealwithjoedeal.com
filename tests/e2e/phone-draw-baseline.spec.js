@@ -108,7 +108,7 @@ for (const width of [412, 360]) {
       context = await browser.newContext(T.phoneContextOptions(width));
       await returningUser(context);
       page = await context.newPage();
-      T.acceptDialogs(page);
+      await T.acceptDialogs(page);
       await T.stubTiles(page);
       await stubNetwork(page);
       await loginAs(page, creds);
