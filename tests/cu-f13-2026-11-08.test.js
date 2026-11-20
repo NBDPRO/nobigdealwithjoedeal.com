@@ -43,7 +43,7 @@ console.log('\nSOURCE: no alert() left on the customer page bootstrap or the Rev
 {
   const boot = code(BOOT), links = code(LINKS);
   ok('control: comment stripping keeps code (_cbNotify calls and the D-012 prompt survive)',
-    /_cbNotify\(/.test(boot) && /window\.prompt\('Copy this link:'/.test(boot) && /addEventListener\('click'/.test(links));
+    /_cbNotify\(/.test(boot) && /window\.nbdPrompt\('Copy this link:'/.test(boot) && /addEventListener\('click'/.test(links));
   const bootHits = boot.split('\n').filter((l) => /\balert\s*\(/.test(l)).map((l) => l.trim());
   ok('customer-bootstrap.module.js calls no alert() / window.alert()', bootHits.length === 0, bootHits.join(' | '));
   const linkHits = links.split('\n').filter((l) => /\balert\s*\(/.test(l)).map((l) => l.trim());

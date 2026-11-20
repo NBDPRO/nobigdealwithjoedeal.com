@@ -177,7 +177,8 @@ async function buildRotatedForm() {
     ok('it types them, not just boxes them',
       autoTypes.includes('Signature') && autoTypes.includes('Date'), JSON.stringify(autoTypes));
 
-    await page.click('#suClear');   // window.confirm auto-accepts in Playwright
+    await page.click('#suClear');   // guarded by the in-tab dialog (nbd-dialog.js)
+    await page.click('#nbd-dialog-confirm', { timeout: 8000 });
     await page.waitForFunction('document.querySelectorAll(".su-field").length === 0', null, { timeout: 10000 });
     ok('clear all removes every field', true);
 

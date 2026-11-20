@@ -3025,7 +3025,7 @@
         try { await navigator.clipboard.writeText(url); shared = true; toast('Customer estimate link copied ✓', 'success'); }
         catch (e) { /* clipboard blocked — fall through to prompt */ }
       }
-      if (!shared) { window.prompt('Copy this link to send to your customer:', url); }
+      if (!shared) { window.nbdPrompt('Copy this link to send to your customer:', url); }
 
       // Feed the existing share-tracking widgets (last-shared chip, freshness).
       if (window.PortalLinkHelpers && typeof window.PortalLinkHelpers.recordShare === 'function') {

@@ -109,7 +109,7 @@ function walkJs(dir, base) {
 const files = walkJs(JS_DIR, '').sort();
 // standalone-compat.js DEFINES the patch and nbd-modal.js defines the modal —
 // both legitimately contain the word.
-const EXEMPT = new Set(['standalone-compat.js', 'nbd-modal.js']);
+const EXEMPT = new Set(['standalone-compat.js', 'nbd-modal.js', 'nbd-dialog.js']);
 
 console.log('\nNO NEW RAW confirm() — the PWA answers every one of them YES');
 {
