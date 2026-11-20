@@ -753,8 +753,11 @@
         if (isFinite(v) && v >= 0) clean[k] = v;
       });
       if (!Object.keys(clean).length) return Promise.resolve(false);
+      // writeEntries REPLACES the value at laborOps.<id>. updateRate() hands this only { rate }, so a
+      // plain write erased the hoursPerUnit and crewSize the company had entered for the action
+      // (tests/labor-op-merge-2026-11-19). Merge with what the book already holds.
       const entries = {};
-      entries[id] = clean;
+      entries[id] = Object.assign({}, window.NBDCatalogCosts.laborOp(id) || {}, clean);
       return writeEntries('laborOps', entries);
     },
 
