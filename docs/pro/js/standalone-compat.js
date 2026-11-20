@@ -28,8 +28,6 @@ let nbdAlert; // module-local (globals Tranche 1 — was window.*)
   // Expose for other modules to check
   window._isStandalone = isStandalone;
 
-  if (!isStandalone) return; // Only patch in standalone mode
-
   // =========================================================================
   // 1. MODAL-BASED alert / confirm / prompt REPLACEMENTS
   // =========================================================================
@@ -37,7 +35,7 @@ let nbdAlert; // module-local (globals Tranche 1 — was window.*)
   // Inject modal styles once
   const style = document.createElement('style');
   style.textContent = `
-    .sa-overlay{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.55);z-index:999999;display:flex;align-items:center;justify-content:center;padding:20px;-webkit-backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);animation:sa-fade-in .15s ease;}
+    .sa-overlay{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.55);z-index:999999;display:flex;align-items:center;justify-content:center;padding:20px;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);animation:sa-fade-in .15s ease;}
     @keyframes sa-fade-in{from{opacity:0}to{opacity:1}}
     .sa-box{background:var(--s2,#1c1c1e);border:1px solid var(--br,rgba(255,255,255,.1));border-radius:14px;padding:22px;max-width:320px;width:100%;color:var(--t,#fff);font-family:-apple-system,BlinkMacSystemFont,'Barlow',sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.5);animation:sa-pop .2s ease;}
     @keyframes sa-pop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
@@ -59,10 +57,16 @@ let nbdAlert; // module-local (globals Tranche 1 — was window.*)
 
       const box = document.createElement('div');
       box.className = 'sa-box';
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-modal', 'true');
+      overlay.id = 'nbd-dialog';
+      overlay.setAttribute('data-testid', 'nbd-dialog');
 
       // Title
       const title = document.createElement('div');
       title.className = 'sa-title';
+      title.id = 'nbd-dialog-title';
+      box.setAttribute('aria-labelledby', title.id);
       title.textContent = type === 'confirm' ? 'Confirm' : type === 'prompt' ? 'Input' : 'NBD Pro';
       box.appendChild(title);
 
@@ -76,6 +80,7 @@ let nbdAlert; // module-local (globals Tranche 1 — was window.*)
       let input;
       if (type === 'prompt') {
         input = document.createElement('input');
+        input.id = 'nbd-dialog-input';
         input.className = 'sa-input';
         input.type = 'text';
         input.value = defaultVal || '';
@@ -86,34 +91,34 @@ let nbdAlert; // module-local (globals Tranche 1 — was window.*)
       const btns = document.createElement('div');
       btns.className = 'sa-btns';
 
+      let cancelBtnRef;
       function close(val) {
+        document.removeEventListener('keydown', onKey);
         overlay.remove();
         resolve(val);
       }
 
       if (type === 'confirm' || type === 'prompt') {
         const cancelBtn = document.createElement('button');
+        cancelBtnRef = cancelBtn;
+        cancelBtn.id = 'nbd-dialog-cancel';
+        cancelBtn.setAttribute('data-testid', 'nbd-dialog-cancel');
         cancelBtn.className = 'sa-btn sa-btn-cancel';
         cancelBtn.textContent = 'Cancel';
-        cancelBtn.addEventListener('click', () => close(type === 'confirm' ? false : null));
-        cancelBtn.addEventListener('touchend', (e) => { e.preventDefault(); close(type === 'confirm' ? false : null); });
+        const no = () => close(type === 'confirm' ? false : null);
+        cancelBtn.addEventListener('click', no);
+        cancelBtn.addEventListener('touchend', (e) => { e.preventDefault(); no(); });
         btns.appendChild(cancelBtn);
       }
 
       const okBtn = document.createElement('button');
+      okBtn.id = 'nbd-dialog-confirm';
+      okBtn.setAttribute('data-testid', 'nbd-dialog-confirm');
       okBtn.className = 'sa-btn sa-btn-ok';
       okBtn.textContent = 'OK';
-      okBtn.addEventListener('click', () => {
-        if (type === 'prompt') close(input.value);
-        else if (type === 'confirm') close(true);
-        else close(undefined);
-      });
-      okBtn.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        if (type === 'prompt') close(input.value);
-        else if (type === 'confirm') close(true);
-        else close(undefined);
-      });
+      const yes = () => close(type === 'prompt' ? input.value : type === 'confirm' ? true : undefined);
+      okBtn.addEventListener('click', yes);
+      okBtn.addEventListener('touchend', (e) => { e.preventDefault(); yes(); });
       btns.appendChild(okBtn);
 
       box.appendChild(btns);
@@ -128,7 +133,7 @@ let nbdAlert; // module-local (globals Tranche 1 — was window.*)
         if (e.key === 'Escape') {
           document.removeEventListener('keydown', onKey);
           close(type === 'confirm' ? false : type === 'prompt' ? null : undefined);
-        } else if (e.key === 'Enter') {
+        } else if (e.key === 'Enter' && document.activeElement !== cancelBtnRef) {
           document.removeEventListener('keydown', onKey);
           if (type === 'prompt') close(input.value);
           else if (type === 'confirm') close(true);
@@ -200,15 +205,6 @@ let nbdAlert; // module-local (globals Tranche 1 — was window.*)
   // a deliberate improvement on a phone, and if a suppression path ever does
   // fire, a toast still shows the message where a native alert would show
   // nothing. Removing it would be a UX regression, not a fix.
-  window.alert = function(msg) {
-    // Use showToast if available for simple alerts (non-blocking)
-    if (window.showToast) {
-      window.showToast(String(msg).replace(/^[✅⚠️✓]/u, '').trim(), 'info');
-      return;
-    }
-    createModal(msg, { type: 'alert' });
-  };
-
   // Also provide async versions for code that CAN use them
   nbdAlert = function(msg) {
     return createModal(msg, { type: 'alert' });
@@ -219,6 +215,19 @@ let nbdAlert; // module-local (globals Tranche 1 — was window.*)
   window.nbdPrompt = function(msg, defaultVal) {
     return createModal(msg, { type: 'prompt', defaultVal: defaultVal || '' });
   };
+
+  window.alert = function(msg) {
+    // Use showToast if available for simple alerts (non-blocking)
+    if (window.showToast) {
+      window.showToast(String(msg).replace(/^[✅⚠️✓]/u, '').trim(), 'info');
+      return;
+    }
+    createModal(msg, { type: 'alert' });
+  };
+
+  // Dialogs above exist in every browser (agents need DOM buttons); the
+  // installed-app patches below stay standalone-only.
+  if (!isStandalone) return;
 
   // =========================================================================
   // 2. window.open() PATCH — stay in the web app
@@ -287,29 +296,9 @@ let nbdAlert; // module-local (globals Tranche 1 — was window.*)
     });
   }
 
-  // Prevent overscroll / bounce on the body (allows scroll inside content areas)
-  document.addEventListener('touchmove', function(e) {
-    // Allow scrolling inside scrollable containers
-    let el = e.target;
-    while (el && el !== document.body) {
-      const style = window.getComputedStyle(el);
-      if (style.overflowY === 'auto' || style.overflowY === 'scroll' ||
-          style.overflow === 'auto' || style.overflow === 'scroll') {
-        // This element is scrollable — allow the touch
-        return;
-      }
-      // Leaflet map container — always allow touch
-      if (el.classList.contains('leaflet-container')) return;
-      el = el.parentElement;
-    }
-    // If we got here, nothing is scrollable — prevent bounce
-    if (e.touches.length === 1) {
-      // Only prevent single-finger (scroll), not pinch-zoom
-      // Actually, don't prevent on the main content area
-      const main = document.querySelector('.content, .view-scroll, .app-body');
-      if (main && main.contains(e.target)) return;
-    }
-  }, { passive: true });
+  // (A passive touchmove listener that never called preventDefault was removed
+  // here, 2026-11-19: it was a no-op and its bytes are needed for the dialog
+  // a11y hooks above under the dashboard shipped-bytes ceiling.)
 
   // =========================================================================
   // 5. SAFE AREA PADDING — for notched iPhones

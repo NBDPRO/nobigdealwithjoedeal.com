@@ -265,7 +265,7 @@
   async function doCopy() {
     const text = scorecard();
     try { await navigator.clipboard.writeText(text); toast('Scorecard copied'); }
-    catch (_) { window.prompt('Copy your scorecard:', text); }
+    catch (_) { window.nbdPrompt('Copy your scorecard:', text); }
   }
 
   // ── hooks ──────────────────────────────────────────────────────────────

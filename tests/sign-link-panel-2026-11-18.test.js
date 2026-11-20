@@ -438,7 +438,7 @@ const DAY = 86400000;
     ok('found handleSendForSignature and openSignPanel in nbd-doc-viewer.js', !!fnOf('handleSendForSignature') && !!fnOf('openSignPanel'));
     const send = async (flags) => {
       const calls = { prompt: 0, panel: 0, mint: 0 };
-      const sb = { window: { prompt() { calls.prompt++; return 'pat@example.test'; }, showToast() {}, NBDFlags: flags }, flashStatus() {}, openSignPanel: async () => { calls.panel++; },
+      const sb = { window: { nbdPrompt() { calls.prompt++; return 'pat@example.test'; }, showToast() {}, NBDFlags: flags }, flashStatus() {}, openSignPanel: async () => { calls.panel++; },
         currentContext: { signerEmailDefault: '', onSendForSignature: async () => { calls.mint++; return { emailed: true, signLink: 'x' }; } } };
       await vm.runInNewContext(fnOf('handleSendForSignature'), sb)();
       return calls;

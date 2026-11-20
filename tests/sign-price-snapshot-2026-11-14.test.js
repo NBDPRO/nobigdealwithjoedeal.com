@@ -385,7 +385,7 @@ const activity = (db, type) => [...db.store.entries()].filter(([k, v]) => k.star
     if (at !== -1 && end !== -1) {
       const run = async (resp) => {
         const toasts = [];
-        const sb = { window: { prompt: () => 'pat@example.test', showToast: (m, t) => toasts.push([m, t]) }, flashStatus: () => {},
+        const sb = { window: { nbdPrompt: () => 'pat@example.test', showToast: (m, t) => toasts.push([m, t]) }, flashStatus: () => {},
           currentContext: { signerEmailDefault: '', onSendForSignature: async () => resp } };
         await require('vm').runInNewContext('(' + src.slice(at, end + 4).replace(/^async function handleSendForSignature\(\)/, 'async function ()') + ')', sb)();
         return toasts;

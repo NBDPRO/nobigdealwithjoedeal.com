@@ -260,6 +260,7 @@ body{font-family:'Barlow',sans-serif;background:var(--bg, #0A0C0F);color:var(--t
 <!-- Shared toast provider. Must load BEFORE the page module so
      window.showToast exists when it reports errors. toast.js self-guards
      (`if (window.showToast) return`) so it is a no-op where one exists. -->
+<script src="/pro/js/nbd-dialog.js?v=1" defer></script>
 <script src="js/toast.js?v=1"></script>
 <script type="module" src="js/pricing-page.module.js"></script>
 
