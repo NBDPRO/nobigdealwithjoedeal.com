@@ -95,6 +95,7 @@ const PLAN = {
   promiseCleanup:            { slug: 'daily-retention' }, // #2148: 02:30 ET
   reelCleanup:               { slug: 'daily-retention' }, // #2162: 04:15 ET
   callRetention:             { slug: 'daily-retention' }, // 2026-11-09: 03:20 ET, call transcripts/briefs 24 mo, CRM audio 12 mo
+  visitBinSweep:             { slug: 'daily-retention' }, // 2026-11-20: 03:40 ET, recordings Bin items past 30 days (never a Held one)
 
   dailyLeadDigest:           { slug: 'daily-customer-touches' },
   morningBrief:              { slug: 'daily-customer-touches' },
