@@ -49,7 +49,8 @@
       'js/opp-approval-logic.js?v=1',
       'js/opp-approval.js?v=1'
     ],
-    supplierpricing: ['js/price-materials.js?v=4']
+    supplierpricing: ['js/price-materials.js?v=4'],
+    recordvisittab: ['js/visit-recorder-tab.js?v=1']
   };
   var FLAG_BUNDLES = {
     bulkCloseStaleLeads: 'staleleads',
@@ -58,7 +59,8 @@
     reputationLoop: 'reputation',
     estimateFollowBoard: 'estimatefollowboard',
     followUpBoard: 'followupboard',
-    supplierPricing: 'supplierpricing'
+    supplierPricing: 'supplierpricing',
+    recordVisitTab: 'recordvisittab'
   };
   var requested = {};
 
