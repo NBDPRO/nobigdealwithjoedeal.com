@@ -286,7 +286,7 @@
   function showWhenCalm(t0) {
     var now = Date.now();
     if (!document.hidden && now - t0 > 15000 && now - _lastIn > 3000 &&
-        !document.querySelector('[aria-modal="true"]:not([hidden]), .modal-bg.open, .modal.open, .nbd-onb-skip, .lo-banner:not([hidden])')) {
+        !document.querySelector('[aria-modal="true"]:not([hidden]), .modal-bg.open, .modal.open, .nbd-onb-skip, .lo-banner:not([hidden]), #toastContainer .toast')) {
       showOptInCard();
     } else if (now - t0 < 600000) {
       setTimeout(function () { showWhenCalm(t0); }, 1500);
