@@ -44,6 +44,7 @@ const path = require('path');
 const { test, expect } = require('@playwright/test');
 const { requireTestUser, loginAs, safeWaitForFunction } = require('./fixtures/auth');
 const T = require('./fixtures/draw-touch');
+const { answerInTabDialogs } = require('./fixtures/in-tab-dialogs');
 const { legacyAutosave } = require('./fixtures/draw-legacy-autosave');
 const G = require(path.join(__dirname, '..', '..', 'docs', 'pro', 'js', 'draw-geom.js'));
 
@@ -81,9 +82,10 @@ async function returningUser(context) {
     } catch (e) { /* storage blocked */ }
   });
 }
-// Native dialogs: accept (clearDraw's confirm, Save's lead confirmation) —
+// Dialogs: accept (clearDraw's confirm, Save's lead confirmation) —
 // except when a test asks to dismiss the next one (main's "Classic" = Cancel).
-function dialogs(page) {
+// Since #3221 these are in-tab DOM dialogs (nbdConfirm), not native ones; both are answered.
+async function dialogs(page) {
   page.__dialogLog = [];
   page.__dismissNext = false;
   page.on('dialog', (d) => {
@@ -91,6 +93,12 @@ function dialogs(page) {
     const dismiss = page.__dismissNext;
     page.__dismissNext = false;
     (dismiss ? d.dismiss() : d.accept()).catch(() => {});
+  });
+  await answerInTabDialogs(page, (d) => {
+    page.__dialogLog.push(d.message);
+    const dismiss = page.__dismissNext;
+    page.__dismissNext = false;
+    return { accept: !dismiss };
   });
 }
 
@@ -207,7 +215,7 @@ function suite(label, ctxOpts, opts) {
       context = await browser.newContext(ctxOpts);
       await returningUser(context);
       page = await context.newPage();
-      dialogs(page);
+      await dialogs(page);
       await T.stubTiles(page);
       await stubNetwork(page);
       await loginAs(page, creds);

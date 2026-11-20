@@ -30,6 +30,7 @@
 //     npx playwright test --config=playwright.config.js phone-estbuilder.spec.js --workers=1
 const { test, expect } = require('@playwright/test');
 const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
+const { answerInTabDialogs } = require('./fixtures/in-tab-dialogs');
 
 const ANDROID = {
   isMobile: true,
@@ -381,6 +382,8 @@ test.describe('phone estbuilder: reopened estimate keeps contact @shard3', () =>
     page.on('dialog', async (d) => {
       if (/close without saving/i.test(d.message())) await d.accept(); else await d.dismiss();
     });
+    // since #3221 the same question is an in-tab dialog
+    await answerInTabDialogs(page, (d) => ({ accept: /close without saving/i.test(d.message) }));
     await signIn(page);
     const [A, B] = await seedLeads(page, 2);
     expect(A.id && B.id, 'two seeded customers').toBeTruthy();

@@ -375,7 +375,7 @@ for (const [width, height] of [[412, 860], [360, 640]]) {
       await installSeamStub(context);
       page = await context.newPage();
       page.on('request', (r) => urls.push(r.url()));
-      T.acceptDialogs(page);
+      await T.acceptDialogs(page);
       await T.stubTiles(page);
       await stubNetwork(page);
       await loginAs(page, creds);
@@ -1058,7 +1058,7 @@ test.describe.serial('crosshair beta switch, off by default 412x860 @shard2', ()
     await context.addInitScript(leakProbeInit);
     page = await context.newPage();
     page.on('pageerror', (e) => pageErrors.push(String((e && e.message) || e)));
-    T.acceptDialogs(page);
+    await T.acceptDialogs(page);
     await T.stubTiles(page);
     await stubNetwork(page);
     await loginAs(page, creds);
@@ -1328,7 +1328,7 @@ test.describe.serial('phone draw crosshair on the real engine (L3) 412x860 @shar
     context = await browser.newContext(T.phoneContextOptions(412, 860));
     await returningUser(context);
     page = await context.newPage();
-    T.acceptDialogs(page);
+    await T.acceptDialogs(page);
     await T.stubTiles(page);
     await stubNetwork(page);
     await loginAs(page, creds);
@@ -1714,7 +1714,7 @@ test.describe.serial('desktop draw (1280, mouse) has no crosshair screen @shard2
     await installSeamStub(context);
     page = await context.newPage();
     page.on('request', (r) => urls.push(r.url()));
-    T.acceptDialogs(page);
+    await T.acceptDialogs(page);
     await T.stubTiles(page);
     await stubNetwork(page);
     await loginAs(page, creds);

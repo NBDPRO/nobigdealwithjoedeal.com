@@ -20,6 +20,7 @@
 'use strict';
 
 const zlib = require('zlib');
+const { answerInTabDialogs } = require('./in-tab-dialogs');
 
 const PHONE_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Mobile Safari/537.36';
 
@@ -105,8 +106,11 @@ async function stubTiles(page) {
 // clearDraw() asks through native confirm() in a browser tab; Playwright
 // dismisses unhandled dialogs (confirm -> false), which would silently skip
 // the clear. Accept them for the page's lifetime.
-function acceptDialogs(page) {
+// Since #3221 clearDraw() asks through nbdConfirm, an in-tab DOM dialog in every browser,
+// so the in-tab one is answered too (fixtures/in-tab-dialogs.js); await this.
+async function acceptDialogs(page) {
   page.on('dialog', (d) => { d.accept().catch(() => {}); });
+  await answerInTabDialogs(page);
 }
 
 // Open the Draw view with no restored drawing and no first-use shortcut hint

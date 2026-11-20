@@ -44,6 +44,7 @@ const path = require('path');
 const { test, expect } = require('@playwright/test');
 const { requireTestUser, loginAs, safeWaitForFunction } = require('./fixtures/auth');
 const T = require('./fixtures/draw-touch');
+const { answerInTabDialogs } = require('./fixtures/in-tab-dialogs');
 const G = require(path.join(__dirname, '..', '..', 'docs', 'pro', 'js', 'draw-geom.js'));
 
 const { WING } = T;
@@ -77,13 +78,18 @@ async function returningUser(context) {
     });
   });
 }
-// Native dialogs: accept; a prompt() gets page.__promptValue when set.
-function dialogs(page) {
+// Dialogs: accept; a prompt gets page.__promptValue when set. Since #3221 they are in-tab
+// DOM dialogs (nbdConfirm / nbdPrompt), not native ones; both are answered and logged the same way.
+async function dialogs(page) {
   page.__dialogLog = [];
   page.on('dialog', (d) => {
     page.__dialogLog.push(d.type() + ': ' + d.message());
     const v = d.type() === 'prompt' && page.__promptValue != null ? String(page.__promptValue) : undefined;
     (v !== undefined ? d.accept(v) : d.accept()).catch(() => {});
+  });
+  await answerInTabDialogs(page, (d) => {
+    page.__dialogLog.push(d.kind + ': ' + d.message);
+    return { accept: true, value: d.kind === 'prompt' && page.__promptValue != null ? String(page.__promptValue) : undefined };
   });
 }
 
@@ -146,7 +152,7 @@ for (const width of [412, 360]) {
       context = await browser.newContext(T.phoneContextOptions(width));
       await returningUser(context);
       ctx.page = await context.newPage();
-      dialogs(page());
+      await dialogs(page());
       await T.stubTiles(page());
       await stubNetwork(page());
       await loginAs(page(), creds);
@@ -572,7 +578,7 @@ test.describe.serial('draw seam desktop 1280 @shard3', () => {
     context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
     await returningUser(context);
     ctx.page = await context.newPage();
-    dialogs(page());
+    await dialogs(page());
     await T.stubTiles(page());
     await stubNetwork(page());
     await loginAs(page(), creds);
