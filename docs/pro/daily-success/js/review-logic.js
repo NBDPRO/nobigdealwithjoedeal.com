@@ -184,7 +184,22 @@
     return Object.assign({ asOf: nowMs, sig }, body);
   }
 
-  const api = { snapshotDoc, addDays, metByDay, dayStatus, floorStreak, weekWindow, weekFloors, weightRule, goalProgress, scorecardText, reviewDue, lastReview };
+  /**
+   * Suggested promise-audit lines from the week's floors (Joe, 2026-11-18). rows = weekFloors().rows.
+   * kept: floors hit 6 or 7 days; bailed: floors hit 3 days or fewer (the sheet's own green / red); the middle is neither.
+   * -> { kept, bailed }, each "Label hit/of, Label hit/of" in the floors' order, '' when none. Only ever a suggestion: the sheet writes nothing until Use is tapped.
+   */
+  function auditSuggest(rows) {
+    const kept = [], bailed = [];
+    for (const r of Array.isArray(rows) ? rows : []) {
+      if (!r || !r.label || !Number.isFinite(Number(r.hit)) || !Number.isFinite(Number(r.of))) continue;
+      const hit = Number(r.hit), text = String(r.label) + ' ' + hit + '/' + Number(r.of);
+      if (hit >= 6) kept.push(text); else if (hit <= 3) bailed.push(text);
+    }
+    return { kept: kept.join(', '), bailed: bailed.join(', ') };
+  }
+
+  const api = { snapshotDoc, addDays, metByDay, dayStatus, floorStreak, weekWindow, weekFloors, weightRule, goalProgress, scorecardText, reviewDue, lastReview, auditSuggest };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof window !== 'undefined') window.NBDReview = api;
 })();
