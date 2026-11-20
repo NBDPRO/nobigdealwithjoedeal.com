@@ -35,7 +35,9 @@
   const claims = () => w._userClaims || {};
   const uid = () => (w._user && w._user.uid) || null;
   const tenant = () => claims().companyId || uid();
-  const allowed = () => !!uid() && ROLES.indexOf(claims().role || '') !== -1;
+  // A platform admin (role 'admin') passes only for their OWN tenant (company id = their uid): that is the tenant
+  // owner the rules admit. Without this the owner's panel stayed invisible, because the owner IS the platform admin.
+  const allowed = () => !!uid() && (ROLES.indexOf(claims().role || '') !== -1 || (claims().role === 'admin' && tenant() === uid()));
   const cc = () => w.NBDCatalogCosts;
   function enabled() {
     return !!(w.NBDFlags && typeof w.NBDFlags.enabled === 'function' && w.NBDFlags.enabled(FLAG))

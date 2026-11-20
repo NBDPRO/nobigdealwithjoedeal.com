@@ -137,6 +137,10 @@ function fireChange(e, form, key, value) {
     ok('a viewer sees no panel', vw.html() === null);
     const mgr = makeEnv(Object.assign({ claims: { role: 'manager', companyId: 'co-a' }, uid: 'mike' }, base)); mgr.fire('nbd:data-refreshed'); await tick();
     ok('control: a manager sees the panel', mgr.html() !== null);
+    const adm = makeEnv(Object.assign({ claims: { role: 'admin', companyId: 'co-a' }, uid: 'co-a' }, base)); adm.fire('nbd:data-refreshed'); await tick();
+    ok('the platform admin who OWNS the tenant (company id = their uid) sees it: the owner is the platform admin', adm.html() !== null);
+    const adm2 = makeEnv(Object.assign({ claims: { role: 'admin', companyId: 'co-a' }, uid: 'joe' }, base)); adm2.fire('nbd:data-refreshed'); await tick();
+    ok('a platform admin who does NOT own the tenant does not (the subJobs rule would refuse every save)', adm2.html() === null);
     const away = makeEnv(Object.assign({ hash: '#/leads' }, base)); away.fire('nbd:data-refreshed'); await tick();
     ok('control: off the Schedule view, nothing renders', away.html() === null);
   }

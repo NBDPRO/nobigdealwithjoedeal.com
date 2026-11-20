@@ -98,6 +98,8 @@ const start = async (opts) => { const e = makeEnv(opts); e.fire('nbd:data-refres
     ok('the solo owner sees it', (await start()).html() !== null);
     ok('a company_admin sees it', (await start({ claims: { role: 'company_admin', companyId: 'co-a' }, uid: 'carol' })).html() !== null);
     ok('a manager does NOT (the book is owner / company_admin write)', (await start({ claims: { role: 'manager', companyId: 'co-a' }, uid: 'mike' })).html() === null);
+    ok('the platform admin who OWNS the tenant (company id = their uid) sees it', (await start({ claims: { role: 'admin', companyId: 'co-a' }, uid: 'co-a' })).html() !== null);
+    ok('a platform admin who does NOT own the tenant does not', (await start({ claims: { role: 'admin', companyId: 'co-a' }, uid: 'joe' })).html() === null);
     ok('a sales rep does NOT', (await start({ claims: { role: 'sales_rep', companyId: 'co-a' }, uid: 'al' })).html() === null);
     ok('a viewer does NOT', (await start({ claims: { role: 'viewer', companyId: 'co-a' }, uid: 'vic' })).html() === null);
     ok('off the Schedule view, nothing renders', (await start({ hash: '#/leads' })).html() === null);
