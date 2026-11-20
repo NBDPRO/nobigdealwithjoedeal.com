@@ -493,7 +493,8 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-19  -> 1189/75/1351: sub job board rules add firestore-rules.sub-jobs (wired-individually, own CI step); disk was stale by 1. MEASURED via --check.
 //   2026-11-19  1189/75/1351 -> 1191/75/1353: sub job board adds sub-job-board-2026-11-19 and sub-job-board-ui-2026-11-19 (node). MEASURED via --check.
 //   2026-11-19  -> 1192/75/1354: in-tab dialogs add nbd-dialog-2026-11-19 (node), after merging main. MEASURED via --check.
-const FLOORS = { node: 1193, smoke: 75, disk: 1355 };
+//   2026-11-19  1193/75/1355 -> 1195/75/1357: labor hours editor adds labor-book-2026-11-19 and labor-book-ui-2026-11-19 (node). MEASURED via --check.
+const FLOORS = { node: 1195, smoke: 75, disk: 1357 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);

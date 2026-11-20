@@ -30,6 +30,14 @@ Estimator and scheduler (not built yet):
 3. Schedule suggester (flag `scheduleSuggest`), a "Suggest dates" button in Plan Jobs.
 4. Confirmation drafts on a confirmed suggestion.
 
+## Step 2b status (2026-11-19, later still)
+
+- **2b (built, dark behind `laborHoursBook`): the editor.** [labor-book-logic.js](../../docs/pro/js/labor-book-logic.js) (29 checks, 14 mutations caught) and [labor-book.js](../../docs/pro/js/labor-book.js) (36 checks, 15 mutations caught). A panel under the Sub job board on the Schedule view, owner and company_admin only (the `catalogCosts` write rule), fetched by `schedule-planner.js` only when the flag is on. It has two parts: man-hours per unit for each of the 66 labor actions, saved as `{ hoursPerUnit }` only through `NBDCatalogCosts.recordLaborOp`; and a usual crew size per sub, saved as `{ crewSize, updatedAt }` on the sub's own doc (the sub rule already accepts it).
+- **The book starts empty and nothing is guessed.** A box is empty until Joe types a number; a real 0 is a valid number; a blank box leaves the stored value alone (clearing a number is not supported yet and the screen says so). Invalid input saves nothing and names the action. While the book is still loading the panel shows no boxes, because an empty box over a held number would lie.
+- **A data-loss bug had to be fixed first (PR #3225).** `NBD_LABOR.updateRate` wrote only `{ rate }` with a dotted-path `updateDoc`, which REPLACES the whole `laborOps.<id>` value, so editing a rate erased that action's hours and crew size. `recordLaborOp` now merges. The editor is safe on its own only once #3225 is merged.
+- **Not built:** the factor percents (steep pitch, extra layers / stories, cut-up roof, access). Their storage is still open: `catalogCosts` has a fixed list of maps (`BOOK_MAPS`) that the cost-basis registry and ops scripts also enumerate, so a new map needs those readers checked first. Until then the estimator applies no factors, which is the honest default (no percent means no factor).
+- **Next, 2c:** show the estimate on a job, and the "N lines have no hours yet" prompt.
+
 ## Gotchas found on the way
 
 - The dashboard shipped-bytes ceiling (`dashboard-boot-budget-2026-10-03`) counts only scripts a page tag or bundle names. A file fetched by `ScriptLoader.load` from another file's code is not counted, which is why the board adds no shipped bytes. #3218 raised the ceiling twice (2613 to 2619 KB) with Joe's OK in chat.

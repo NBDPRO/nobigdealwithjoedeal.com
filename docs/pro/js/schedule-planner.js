@@ -454,9 +454,24 @@
       .then(() => SL.load('/pro/js/sub-job-board.js?v=1'))
       .then(() => { _boardP = null; });
   }
+  // Labor hours book (flag laborHoursBook, 2026-11-19, js/labor-book.js): fetched ONLY when the flag is on.
+  // It needs the company book and the labor catalog; a page that already has them is not asked twice.
+  let _hoursP = null;
+  function loadHoursPanel() {
+    const F = window.NBDFlags, SL = window.ScriptLoader;
+    if (window.NBDLaborBook || _hoursP || !SL || typeof SL.load !== 'function') return;
+    if (!F || typeof F.enabled !== 'function' || !F.enabled('laborHoursBook')) return;
+    _hoursP = Promise.resolve()
+      .then(() => (window.NBDCatalogCosts ? null : SL.load('/pro/js/catalog-costs.js?v=5')))
+      .then(() => (window.NBD_LABOR ? null : SL.load('/pro/js/estimate-labor-catalog.js?v=2')))
+      .then(() => SL.load('/pro/js/labor-book-logic.js?v=1'))
+      .then(() => SL.load('/pro/js/labor-book.js?v=1'))
+      .then(() => { _hoursP = null; });
+  }
   function maybeRender() {
     if (!/schedule/.test(location.hash || '')) return;
     loadBoardPanel();
+    loadHoursPanel();
     loadCalendarPanel();
     clearTimeout(_timer); _tries = 0;
     const tick = () => {
