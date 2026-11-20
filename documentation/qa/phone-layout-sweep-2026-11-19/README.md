@@ -16,7 +16,7 @@ Jo asked for a UI/UX sweep of every CRM layout at emulated phone size, since the
 
 1. **Overlays stack on the bottom of every layout.** The "Turn on appointment reminders" prompt sits over the lowest ~120 px on every view until dismissed, hides content, partly covers Island's Record visit pill, and its Not now is a small text link. The round red Record visit button (left, bottom) overlaps page content in Classic, Bento and OS: the same overlap on the Call/Text row in Jo's own screenshot. Needs one rule for what may sit at the bottom and a reserved bottom gutter.
 2. **Island spends about 170 px of 852 on fixed chrome** (floating top nav plus bottom pill). On Schedule the pill covers the calendar's day controls, and the content starts with an extra gap under the nav.
-3. **Classic-chrome views spend three rows before content**: top bar, a second breadcrumb row ("Home", "Schedule"), then a "Back to CRM" row on Schedule. The breadcrumb repeats what the bottom nav already shows.
+3. **Classic-chrome views spend three rows before content**: top bar, a second breadcrumb row ("Home", "Schedule"), then a "Back to CRM" row on Schedule. The breadcrumb repeats what the bottom nav already shows. (Corrected in the second pass below: the breadcrumb row is 19 px and the only title on 7 views.)
 4. **Field Home header clips at the right edge**: the chip row (Lead, Search, Sun...) runs past the edge and cuts the last chip.
 5. **Menu chip orphaned on its own row** in Crew, Focus, Mission and Inbox: a lone Menu (and Refresh) button wraps under the header, wasting a row and reading as a stray control.
 6. **Undersized tap targets, same offenders in all 9 layouts** (every one under 40 px; Jo's own target is 44): What's New bell 41x36, the user pill 38x36 (both on every view), Home hide button 36 wide, D2D map zoom buttons 30 wide, D2D layer toggle 93x36, Photos search box 37 tall and its "only with photos" checkbox 13x13, toast close buttons 20x20, Island's active tab 34 wide.
@@ -31,6 +31,23 @@ I re-checked the findings in the browser (hit-testing, element lookups, the CSS)
 - **Finding 4 (Field header clip) was real and is fixed**: the header row was a non-wrapping flex row. It now wraps; `+ Lead`, `Search` and `Sun` are all visible at 393 px. Pinned by `tests/layout-field-header-wraps-2026-11-19.test.js`.
 - **Finding 5 (Menu chip on its own row)** is deliberate wrapping (`flex-wrap` with `margin-left:auto` in each layout's CSS), caused by six controls sharing one row. Changing it is a design call, not a bug fix. Not changed.
 - **Findings 2 and 3 (Island chrome cost, the breadcrumb row)** are design judgement calls and were not changed.
+
+## Second pass (same day): the gaps, and the design calls
+
+**Gaps now covered** (393 px, 2x, touch, authed emulator, seeded with six leads including a 51-character name and a long unit address, one with an owed invoice):
+
+- **Daily Success, all 8 layouts** (classic, logbook, rings, cockpit, quest, arcade, onething, journal), day page and dashboard: sound. The existing gate (`ds-layouts-phone-fit-2026-10-25`) already pins overflow, 44 px controls and 16 px fields; the screenshots agree. Two cosmetic overlaps, judged harmless: the signed-out "Offline mode" badge sits over the "Quick start with defaults" button for 2.4 s but is `pointer-events:none`; the round GO button floats over content like any floating button.
+- **Populated CRM list in Classic, Field, Island, Inbox, Crew, Mission, Focus**: the long name and address wrap cleanly in every layout; no sideways scroll, no off-edge element, no page error.
+- **Customer record page** (long-name lead with an owed invoice, and a short-name lead): the roof-day action row (Call, Text, Note, Estimate, Payment, Navigate) is on the first screen, long names wrap, no sideways scroll. The tab row (Overview, Timeline, Photos, Files, Messages) scrolls sideways on purpose and shows a cut-off last tab as the hint.
+- **Estimate builder** (V3 wizard, opened from a lead): steps render in one column, 44 px choice buttons, no off-edge element.
+- Still not covered: the later builder steps with real catalog data, the installed-app `display-mode: standalone` rules, and a real iPhone (WebKit cannot run locally).
+
+**Design calls, decided with evidence. Nothing shipped for these four, on purpose:**
+
+1. **Record visit button.** Already has reserved room under Home's content (`html.nbd-vr-bar-on` adds 74 px of bottom padding, 2026-11-07), and Island, Field, Focus, Inbox, Mission and Crew hide it and draw Record visit in their own screens. What remains is the overlap mid-scroll, which any floating button has. Hiding it while scrolling does not help the case that was reported (it covering the Call row while you read, stationary). A real fix means moving it out of the content lane (an edge tab, or into the bottom nav), which is a product decision, not a CSS tweak.
+2. **Island's fixed bars.** Floating top nav plus bottom pill cost about 170 px of 852. That is the layout's design (it is the only layout with a dock); trimming it makes it a different layout.
+3. **Menu chip on its own row** (Crew, Focus, Mission, Inbox). Deliberate wrapping (`flex-wrap` with `margin-left:auto`) because six controls share one row. Nothing is broken; fewer controls on the row would be the fix.
+4. **Breadcrumb row.** Measured on all 32 views: it is 19 px tall (not the 30 first estimated), already 0 px on Pipeline and Prospects, and on 7 views (Door-to-Door, Drawing, Rep OS, Decision Engine, AI Usage, Deep Dive, Project Intel) it is the only title on screen. Hiding it saves about 2% of the screen and leaves those views untitled. Not worth it.
 
 ## Follow-up: bottom-edge queue (PR A, decided with Jo 2026-11-19)
 
