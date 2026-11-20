@@ -25,13 +25,19 @@
   const PANEL_ID = 'laborBookPanel';
   const LG = () => w.NBDLaborBookLogic;
   const MAX_ROWS = 60;
+  const JH = () => w.NBDJobHoursLogic;
+  // The whole-job book times (job-hours-logic TYPES): per SQ for a replacement, per job for a repair. They live
+  // beside the labor actions in the same private book under reserved BOOK: keys, so one writer saves both.
+  const bookActions = () => { const T = JH() && JH().TYPES; return T ? Object.keys(T).map((k) => ({ id: T[k].key, name: T[k].label, unit: T[k].unit, category: 'book time' })) : []; };
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = (m, k) => { if (typeof w.showToast === 'function') w.showToast(m, k || 'info'); };
   const claims = () => w._userClaims || {};
   const uid = () => (w._user && w._user.uid) || null;
   const tenant = () => claims().companyId || uid();
-  const allowed = () => !!uid() && ROLES.indexOf(claims().role || '') !== -1;
+  // A platform admin (role 'admin') passes only for their OWN tenant (company id = their uid): that is the tenant
+  // owner the rules admit. Without this the owner's panel stayed invisible, because the owner IS the platform admin.
+  const allowed = () => !!uid() && (ROLES.indexOf(claims().role || '') !== -1 || (claims().role === 'admin' && tenant() === uid()));
   const cc = () => w.NBDCatalogCosts;
   function enabled() {
     return !!(w.NBDFlags && typeof w.NBDFlags.enabled === 'function' && w.NBDFlags.enabled(FLAG))
@@ -54,6 +60,15 @@
           '<label class="sp-toggle">Man-hours per ' + esc(r.unit || 'unit') + '<input type="text" inputmode="decimal" class="sp-search" data-lb-hours="' + esc(r.id) + '" value="' + esc(val) + '" aria-label="Hours per ' + esc(r.unit || 'unit') + ' for ' + esc(r.name) + '"></label></div>';
       }).join('') + (rows.length > MAX_ROWS ? '<div class="sp-note">Showing ' + MAX_ROWS + ' of ' + rows.length + ': search to find the rest.</div>' : '')
         : '<div class="sp-note">Nothing matches.</div>');
+  }
+
+  function bookRows() {
+    return bookActions().map((r) => {
+      const held = op(r.id), h = held && held.hoursPerUnit != null ? String(held.hoursPerUnit) : '';
+      const val = Object.prototype.hasOwnProperty.call(S.typed, r.id) ? S.typed[r.id] : h;
+      return '<div class="sp-row"><div><span class="sp-name">' + esc(r.name) + '</span></div>' +
+        '<label class="sp-toggle">Man-hours per ' + esc(r.unit) + '<input type="text" inputmode="decimal" class="sp-search" data-lb-hours="' + esc(r.id) + '" value="' + esc(val) + '" aria-label="Man-hours per ' + esc(r.unit) + ' for ' + esc(r.name) + '"></label></div>';
+    }).join('');
   }
 
   function crewRows() {
@@ -97,6 +112,8 @@
     panel.innerHTML = '<div class="panel-hdr"><div><div class="panel-label">Your own flat-rate book</div><div class="panel-title">Labor hours</div></div></div>' +
       '<div class="panel-body">' +
       '<div class="sp-note">Man-hours one unit of each job step takes your crews. This starts empty and nothing is guessed: type your own numbers. Hours are for your planning only. They never go on an estimate, the portal, a customer document or a sub\'s job sheet. Leaving a box blank leaves it as it is.</div>' +
+      (bookActions().length ? '<div class="sp-h">Book time per job type</div>' +
+        '<div class="sp-note">How many man-hours a whole job of this type takes: per square for a replacement, per job for a repair. The Sub job board uses this to estimate a job. Leave it blank until you know.</div>' + bookRows() : '') +
       '<div class="sp-h">Hours per unit</div>' + hoursRows() +
       '<button type="button" class="btn btn-orange" data-lb-action="save-hours"' + (S.busy ? ' disabled' : '') + '>Save hours</button>' +
       '<div class="sp-note" role="status" data-lb-msg>' + esc(S.msg) + '</div>' +
@@ -108,7 +125,7 @@
   }
 
   async function saveHours() {
-    const p = LG().plan(actions(), op, S.typed);
+    const p = LG().plan(actions().concat(bookActions()), op, S.typed);
     if (p.errors.length) {
       S.msg = p.errors.slice(0, 3).map((e) => e.name + ': ' + e.message).join(' ') + (p.errors.length > 3 ? ' (and ' + (p.errors.length - 3) + ' more)' : '') + ' Nothing was saved.';
       return render();

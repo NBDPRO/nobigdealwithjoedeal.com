@@ -10,6 +10,7 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "job-hours-2026-11-20.test.js",
     "labor-hours-2026-11-19.test.js",
     "labor-op-merge-2026-11-19.test.js",
     "labor-book-ui-2026-11-19.test.js",

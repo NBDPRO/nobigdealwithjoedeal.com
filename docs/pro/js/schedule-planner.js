@@ -464,6 +464,8 @@
     _hoursP = Promise.resolve()
       .then(() => (window.NBDCatalogCosts ? null : SL.load('/pro/js/catalog-costs.js?v=5')))
       .then(() => (window.NBD_LABOR ? null : SL.load('/pro/js/estimate-labor-catalog.js?v=2')))
+      .then(() => SL.load('/pro/js/labor-hours-logic.js?v=1'))
+      .then(() => SL.load('/pro/js/job-hours-logic.js?v=1'))
       .then(() => SL.load('/pro/js/labor-book-logic.js?v=1'))
       .then(() => SL.load('/pro/js/labor-book.js?v=1'))
       .then(() => { _hoursP = null; });
