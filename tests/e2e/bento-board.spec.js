@@ -15,6 +15,7 @@
  * @shard2 — runs in the Authed E2E (emulators) job.
  */
 const { test, expect } = require('@playwright/test');
+const { autoDialogs } = require('./fixtures/dialogs'); // in-tab dialogs (native ones are gone)
 const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
 
 function adb() {
@@ -217,9 +218,9 @@ test.describe.serial('Bento Board @shard2', () => {
     expect(again.data().defaultWidgets.bento.length).toBe(cd.defaultWidgets.bento.length);
     // my own board changes after that; Reset my board returns to the company default
     await page.locator('[data-bn-id="map"] [data-bn-act="remove"]').click();
-    // Reset asks first (2026-10-15) through nbdConfirm, an in-tab dialog in every browser since #3221
+    // Reset asks first (2026-10-15); a browser tab has no nbdConfirm, so it is the native confirm
+    await autoDialogs(page); // Reset asks first: an in-tab dialog now
     await page.locator('[data-bn-top="reset"]').click();
-    await page.locator('#nbd-dialog-confirm').click();
     await expect(page.locator('[data-bn-id="map"]')).toHaveCount(1);
     await expect(page.locator('[data-bn-id="storm"]')).toHaveCount(0);
     // a "new hire": no saved board of their own -> the company default

@@ -31,6 +31,7 @@
 //     PLAYWRIGHT_TEST_USER_PASSWORD=nbd-e2e-password-1 \
 //     npx playwright test --config=playwright.config.js phone-chrome.spec.js --workers=1
 const { test, expect } = require('@playwright/test');
+const { autoDialogs } = require('./fixtures/dialogs'); // in-tab dialogs (native ones are gone)
 const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
 const { deleteSeededRun } = require('./fixtures/seeded-run');
 
@@ -72,7 +73,7 @@ async function prepare(page) {
     }, true);
   });
   // "Close without saving?" etc. — accept, as a rep would.
-  page.on('dialog', (d) => d.accept().catch(() => {}));
+  await autoDialogs(page);
   // _saveLead geocodes via OSM, which rate-limits CI (same stub as pro-authed).
   await page.route('**/nominatim.openstreetmap.org/**', (route) =>
     route.fulfill({ contentType: 'application/json', body: '[]' }));

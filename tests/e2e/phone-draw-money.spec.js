@@ -42,9 +42,9 @@
 //     npx playwright test --config=playwright.config.js phone-draw-money.spec.js --workers=1
 const path = require('path');
 const { test, expect } = require('@playwright/test');
+const { autoDialogs } = require('./fixtures/dialogs'); // in-tab dialogs (native ones are gone)
 const { requireTestUser, loginAs, safeWaitForFunction } = require('./fixtures/auth');
 const T = require('./fixtures/draw-touch');
-const { answerInTabDialogs } = require('./fixtures/in-tab-dialogs');
 const { legacyAutosave } = require('./fixtures/draw-legacy-autosave');
 const G = require(path.join(__dirname, '..', '..', 'docs', 'pro', 'js', 'draw-geom.js'));
 
@@ -82,23 +82,18 @@ async function returningUser(context) {
     } catch (e) { /* storage blocked */ }
   });
 }
-// Dialogs: accept (clearDraw's confirm, Save's lead confirmation) —
+// Native dialogs: accept (clearDraw's confirm, Save's lead confirmation) —
 // except when a test asks to dismiss the next one (main's "Classic" = Cancel).
-// Since #3221 these are in-tab DOM dialogs (nbdConfirm), not native ones; both are answered.
 async function dialogs(page) {
-  page.__dialogLog = [];
-  page.__dismissNext = false;
+  const dlg = await autoDialogs(page); // the in-tab twin of the native handler below
+  page.__dlg = dlg;
+  page.__dialogLog = dlg.log; // in-tab dialogs log here as 'confirm: …'
+  Object.defineProperty(page, '__dismissNext', { configurable: true, get: () => dlg.dismissNext, set: (v) => { dlg.dismissNext = v; } });
   page.on('dialog', (d) => {
     page.__dialogLog.push(d.message());
     const dismiss = page.__dismissNext;
     page.__dismissNext = false;
     (dismiss ? d.dismiss() : d.accept()).catch(() => {});
-  });
-  await answerInTabDialogs(page, (d) => {
-    page.__dialogLog.push(d.message);
-    const dismiss = page.__dismissNext;
-    page.__dismissNext = false;
-    return { accept: !dismiss };
   });
 }
 

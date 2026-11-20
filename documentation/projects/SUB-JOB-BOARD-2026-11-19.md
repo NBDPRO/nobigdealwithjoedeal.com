@@ -30,6 +30,16 @@ Estimator and scheduler (not built yet):
 3. Schedule suggester (flag `scheduleSuggest`), a "Suggest dates" button in Plan Jobs.
 4. Confirmation drafts on a confirmed suggestion.
 
+## Step 2a status (2026-11-19, later the same day)
+
+Steps 0, 1a and 1b are merged; the board is on main, dark behind `subJobBoard`. Step 2 is split because the pieces are independent:
+
+- **2a (built): the pure estimator**, [labor-hours-logic.js](../../docs/pro/js/labor-hours-logic.js) with 30 checks and 14 mutations caught. It sums an estimate's resolved lines (`laborId`, `quantity`, which the estimate engine already produces) against the company's own hours per unit, applies additive factors, and converts to crew-days. Nothing is invented: a labor action with no hours is listed as missing, a factor with no percent does not apply, a real 0 counts as set. Factors ADD (they do not compound). It touches no pricing code, so the pricing suites are not involved.
+- **The book already exists as a shape.** `catalogCosts/{companyId}.laborOps[laborId]` already holds `{ rate, hoursPerUnit, crewSize }` with an owner / company_admin write and a tenant read (`NBDCatalogCosts.laborOp / recordLaborOp`). No editor writes `hoursPerUnit` yet. Reps can READ catalogCosts, so hours are internal-to-the-company, not owner-only; they must still never reach a customer, the portal or a sub sheet.
+- **2b (next): the editor** (hours per unit by labor action, the factor percents, and `crewSize` on each sub doc, which the sub rule already accepts) behind `laborHoursBook`. Where the factor percents are stored is an open detail: `catalogCosts.defaults` is the likely home, and its readers must be checked first.
+- **2c: show it** on a job (which estimate lines feed it, and the "N lines have no hours yet" prompt).
+- The privacy guard (`catalog-cost-privacy`) only forbids productivity keys in the published labor catalog; the new logic file carries no numbers beside those keys and the guard still passes. Fixture numbers in the test are synthetic.
+
 ## Gotchas found on the way
 
 - The dashboard shipped-bytes ceiling (`dashboard-boot-budget-2026-10-03`) counts only scripts a page tag or bundle names. A file fetched by `ScriptLoader.load` from another file's code is not counted, which is why the board adds no shipped bytes. #3218 raised the ceiling twice (2613 to 2619 KB) with Joe's OK in chat.

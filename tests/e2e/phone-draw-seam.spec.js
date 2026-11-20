@@ -42,9 +42,9 @@
 //     npx playwright test --config=playwright.config.js phone-draw-seam.spec.js --workers=1
 const path = require('path');
 const { test, expect } = require('@playwright/test');
+const { autoDialogs } = require('./fixtures/dialogs'); // in-tab dialogs (native ones are gone)
 const { requireTestUser, loginAs, safeWaitForFunction } = require('./fixtures/auth');
 const T = require('./fixtures/draw-touch');
-const { answerInTabDialogs } = require('./fixtures/in-tab-dialogs');
 const G = require(path.join(__dirname, '..', '..', 'docs', 'pro', 'js', 'draw-geom.js'));
 
 const { WING } = T;
@@ -78,18 +78,15 @@ async function returningUser(context) {
     });
   });
 }
-// Dialogs: accept; a prompt gets page.__promptValue when set. Since #3221 they are in-tab
-// DOM dialogs (nbdConfirm / nbdPrompt), not native ones; both are answered and logged the same way.
+// Native dialogs: accept; a prompt() gets page.__promptValue when set.
 async function dialogs(page) {
-  page.__dialogLog = [];
+  const dlg = await autoDialogs(page);
+  page.__dialogLog = dlg.log; // 'prompt: …' / 'confirm: …' lines, same shape as the native log
+  Object.defineProperty(page, '__promptValue', { configurable: true, get: () => dlg.promptValue, set: (v) => { dlg.promptValue = v; } });
   page.on('dialog', (d) => {
     page.__dialogLog.push(d.type() + ': ' + d.message());
     const v = d.type() === 'prompt' && page.__promptValue != null ? String(page.__promptValue) : undefined;
     (v !== undefined ? d.accept(v) : d.accept()).catch(() => {});
-  });
-  await answerInTabDialogs(page, (d) => {
-    page.__dialogLog.push(d.kind + ': ' + d.message);
-    return { accept: true, value: d.kind === 'prompt' && page.__promptValue != null ? String(page.__promptValue) : undefined };
   });
 }
 

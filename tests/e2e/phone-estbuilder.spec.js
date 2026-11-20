@@ -29,8 +29,8 @@
 //     PLAYWRIGHT_TEST_USER_EMAIL=... PLAYWRIGHT_TEST_USER_PASSWORD=... \
 //     npx playwright test --config=playwright.config.js phone-estbuilder.spec.js --workers=1
 const { test, expect } = require('@playwright/test');
+const { autoDialogs } = require('./fixtures/dialogs'); // in-tab dialogs (native ones are gone)
 const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
-const { answerInTabDialogs } = require('./fixtures/in-tab-dialogs');
 
 const ANDROID = {
   isMobile: true,
@@ -312,6 +312,7 @@ test.describe('phone estbuilder: scope rows at 412px @shard3', () => {
     test.setTimeout(120_000);
     const dialogs = [];
     page.on('dialog', async (d) => { dialogs.push(d.type() + ': ' + d.message().slice(0, 60)); await d.dismiss(); });
+    const inTab = await autoDialogs(page, { accept: false }); // an in-tab dialog is Cancelled like the native dismiss was
     await signIn(page);
     const [lead] = await seedLeads(page, 1);
     await openBuilder(page, { leadId: lead.id });
@@ -347,6 +348,7 @@ test.describe('phone estbuilder: scope rows at 412px @shard3', () => {
       T1 = await scopeTotal(page);
       expect(T1, 'the override re-prices the estimate').not.toBe(T0);
       expect(dialogs, 'no native dialog on the way').toEqual([]);
+      expect(inTab.log, 'no in-tab dialog on the way').toEqual([]);
     });
 
     await test.step('estimate#6: × on a priced line can be undone, override intact', async () => {
@@ -379,11 +381,8 @@ test.describe('phone estbuilder: reopened estimate keeps contact @shard3', () =>
   test('save → reopen → Retail Quote still carries phone + email; the next customer starts clean', async ({ page }) => {
     test.setTimeout(150_000);
     // The document viewer asks "Close without saving?" — accept that one.
-    page.on('dialog', async (d) => {
-      if (/close without saving/i.test(d.message())) await d.accept(); else await d.dismiss();
-    });
-    // since #3221 the same question is an in-tab dialog
-    await answerInTabDialogs(page, (d) => ({ accept: /close without saving/i.test(d.message) }));
+    const inTab = await autoDialogs(page, { accept: false });
+    inTab.rule = (d) => /close without saving/i.test(d.text) ? true : undefined;
     await signIn(page);
     const [A, B] = await seedLeads(page, 2);
     expect(A.id && B.id, 'two seeded customers').toBeTruthy();
