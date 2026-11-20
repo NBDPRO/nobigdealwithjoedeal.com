@@ -109,6 +109,22 @@ async function boot(laborOps, o) {
     ok('and the book is unchanged', e.entry('op1').rate === 7 && e.entry('op1').hoursPerUnit === 1.5);
   }
 
+  console.log('4. whole-job book times (job-hours-logic) use the same book');
+  {
+    const e = await boot({ op1: { rate: 7, hoursPerUnit: 1.5, crewSize: 2 } });
+    const r = await e.cc.recordLaborOp('BOOK:replacement', { hoursPerUnit: 1.25 });
+    ok('a reserved BOOK: key is written through the same writer', r === true && e.entry('BOOK:replacement').hoursPerUnit === 1.25);
+    ok('and read back through laborOp, where job-hours-logic reads it', e.cc.laborOp('BOOK:replacement').hoursPerUnit === 1.25);
+    ok('only that key\'s dotted path is written, so real labor actions are untouched', Object.keys(e.state.lastPaths).join() === 'laborOps.BOOK:replacement' && JSON.stringify(e.entry('op1')) === JSON.stringify({ rate: 7, hoursPerUnit: 1.5, crewSize: 2 }));
+    await e.cc.recordLaborOp('BOOK:replacement', { hoursPerUnit: 0 });
+    ok('a book time of 0 is saved and read back as 0 (a real 0 is a number the company entered)', e.cc.laborOp('BOOK:replacement').hoursPerUnit === 0);
+    await e.cc.recordLaborOp('BOOK:repair', { hoursPerUnit: 6 });
+    ok('the two job types are separate entries', e.cc.laborOp('BOOK:replacement').hoursPerUnit === 0 && e.cc.laborOp('BOOK:repair').hoursPerUnit === 6);
+    const JH = require(path.join(__dirname, '..', 'docs', 'pro', 'js', 'job-hours-logic.js'));
+    const sized = JH.forEstimate({ estimate: { workKind: 'repair' }, book: (id) => e.cc.laborOp(id) });
+    ok('end to end: the real book feeds the real job-hours logic (a repair = the 6 hours entered)', sized.ok && sized.result.manHours === 6);
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n  - ' + fails.join('\n  - ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });
