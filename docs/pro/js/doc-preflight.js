@@ -2842,20 +2842,24 @@
         if (!role) return;
         el.value = ''; // reset so the same role can be added again
         var added = signerToAdd(state.signers, role);
-        var defaultLabel = added.label;
+        var pushSigner = function (label) {
+          state.signers.push({
+            role: added.role,
+            label: label,
+            required: added.required,
+            enabled: true,
+            removable: true,
+          });
+          renderModal();
+        };
         if (role === 'other') {
-          var custom = window.prompt('Label for this signer (e.g. "Project Manager"):', '');
-          if (custom === null) return; // cancelled
-          defaultLabel = custom.trim() || 'Signer';
+          window.nbdPrompt('Label for this signer (e.g. "Project Manager"):', '').then(function (custom) {
+            if (custom === null) return; // cancelled
+            pushSigner(custom.trim() || 'Signer');
+          });
+          return;
         }
-        state.signers.push({
-          role: added.role,
-          label: defaultLabel,
-          required: added.required,
-          enabled: true,
-          removable: true,
-        });
-        renderModal();
+        pushSigner(added.label);
         return;
       }
 

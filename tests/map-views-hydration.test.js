@@ -57,6 +57,7 @@ function loadMaps(opts) {
     querySelector(sel) { return sel === '[data-cust-view]' ? { value: state.selectValue } : null; },
   };
   const win = {
+    nbdPrompt: () => (opts.promptName == null ? 'New view' : opts.promptName),
     _companyProfile: opts.profile || {},
     _companyProfileLoaded: opts.loaded,
     _userClaims: { role: 'company_admin', companyId: 'co1' },
@@ -80,6 +81,7 @@ function loadMaps(opts) {
     L: {},
     showToast: (m, k) => { toasts.push({ m: String(m), k }); },
     prompt: () => (opts.promptName == null ? 'New view' : opts.promptName),
+    nbdPrompt: () => (opts.promptName == null ? 'New view' : opts.promptName),
     console: { log() {}, warn() {}, error() {} },
   };
   vm.createContext(sandbox);

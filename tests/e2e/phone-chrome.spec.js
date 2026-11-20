@@ -561,6 +561,8 @@ test.describe.serial('customer page chrome on a phone @audit', () => {
       expect(covered(footer), `viewer footer at ${width}px`).toEqual([]);
       expect(await chromeTopmostWhileOpen(page), `page chrome above the viewer at ${width}px`).toEqual([]);
       await page.locator('#nbdv-close').tap();
+      // "Close without saving?" is an in-tab dialog now (it was an auto-accepted native confirm).
+      await page.locator('#nbd-dialog-confirm').tap({ timeout: 2000 }).catch(() => {});
       await expect(page.locator('#nbd-doc-viewer-overlay.open')).toHaveCount(0);
     }
     await page.setViewportSize({ width: 412, height: 860 });

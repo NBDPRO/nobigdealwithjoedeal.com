@@ -441,7 +441,7 @@ window._sharePortalLink = async function (leadId) {
       usedChannel = 'sms';
     } else {
       // No phone — surface the URL so the rep can paste manually.
-      window.prompt('Share this link with the homeowner:', url);
+      window.nbdPrompt('Share this link with the homeowner:', url);
     }
     // Audit E: every share entry point must record so W44+ tracking
     // (badges, smart-followup, stale-shares filter, engagement score)

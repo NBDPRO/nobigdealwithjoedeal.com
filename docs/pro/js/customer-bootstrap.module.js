@@ -2338,7 +2338,7 @@ window.shareEstimateViewLink = async function(estId) {
     if (typeof showToast === 'function') showToast('Customer view link copied ✓', 'success');
   } catch (_) {
     // Last resort prompt — user can manually copy.
-    try { window.prompt('Copy this link:', url); } catch (_) {}
+    try { window.nbdPrompt('Copy this link:', url); } catch (_) {}
   }
 };
 

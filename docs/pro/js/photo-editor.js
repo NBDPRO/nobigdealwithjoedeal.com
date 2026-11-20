@@ -619,12 +619,14 @@
     }
 
     if (S.tool === TOOLS.CALLOUT) {
-      const label = prompt('Callout label (optional):') || '';
-      const num = S.autoNumber ? S.calloutNum++ : '';
-      pushUndo();
-      annotations.push({ id: uid(), type: 'callout', x: coords.x, y: coords.y, number: num, label, color: S.color, opacity: S.opacity });
-      render();
-      refreshAnnList();
+      Promise.resolve(window.nbdPrompt('Callout label (optional):')).then(function (l) {
+        const label = l || '';
+        const num = S.autoNumber ? S.calloutNum++ : '';
+        pushUndo();
+        annotations.push({ id: uid(), type: 'callout', x: coords.x, y: coords.y, number: num, label, color: S.color, opacity: S.opacity });
+        render();
+        refreshAnnList();
+      });
       return;
     }
 
@@ -771,8 +773,8 @@
     if (a.leaderX != null) { a.leaderX = orig.leaderX + dx; a.leaderY = orig.leaderY + dy; }
   }
 
-  function promptText(x, y) {
-    const text = prompt('Enter text:');
+  async function promptText(x, y) {
+    const text = await window.nbdPrompt('Enter text:');
     if (!text) return;
     pushUndo();
     annotations.push({ id: uid(), type: 'text', x, y, text, color: S.color, fontSize: 18, opacity: S.opacity });

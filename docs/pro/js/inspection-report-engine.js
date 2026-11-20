@@ -275,8 +275,8 @@
         }
         // Always surface the URL so the rep can copy/send it even if the
         // clipboard write was blocked (non-secure context / permissions).
-        if (typeof window.prompt === 'function') {
-          window.prompt('Report link for the homeowner (expires in 30 days):', url);
+        if (typeof window.nbdPrompt === 'function') {
+          window.nbdPrompt('Report link for the homeowner (expires in 30 days):', url);
         }
       } catch (err) {
         console.error('Error sharing report:', err);

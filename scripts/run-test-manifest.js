@@ -492,7 +492,8 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-19  1177/75/1336 -> 1182/75/1342: phase 5 templates add phase5-templates-2026-11-19 and phase5-templates-server-2026-11-19 (node); main was stale by 3. MEASURED via --check.
 //   2026-11-19  -> 1189/75/1351: sub job board rules add firestore-rules.sub-jobs (wired-individually, own CI step); disk was stale by 1. MEASURED via --check.
 //   2026-11-19  1189/75/1351 -> 1191/75/1353: sub job board adds sub-job-board-2026-11-19 and sub-job-board-ui-2026-11-19 (node). MEASURED via --check.
-const FLOORS = { node: 1192, smoke: 75, disk: 1354 };
+//   2026-11-19  -> 1192/75/1354: in-tab dialogs add nbd-dialog-2026-11-19 (node), after merging main. MEASURED via --check.
+const FLOORS = { node: 1193, smoke: 75, disk: 1355 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
