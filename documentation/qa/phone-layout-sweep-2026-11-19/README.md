@@ -49,6 +49,15 @@ I re-checked the findings in the browser (hit-testing, element lookups, the CSS)
 3. **Menu chip on its own row** (Crew, Focus, Mission, Inbox). Deliberate wrapping (`flex-wrap` with `margin-left:auto`) because six controls share one row. Nothing is broken; fewer controls on the row would be the fix.
 4. **Breadcrumb row.** Measured on all 32 views: it is 19 px tall (not the 30 first estimated), already 0 px on Pipeline and Prospects, and on 7 views (Door-to-Door, Drawing, Rep OS, Decision Engine, AI Usage, Deep Dive, Project Intel) it is the only title on screen. Hiding it saves about 2% of the screen and leaves those views untitled. Not worth it.
 
+## Follow-up: Record visit tab (PR B, decided with Jo 2026-11-19)
+
+Jo chose to move Record visit into the phone's bottom nav. Shipped dark behind the feature flag `recordVisitTab` as `docs/pro/js/visit-recorder-tab.js`, fetched by `dark-features.js` only when the flag is on (nothing downloads and nothing changes with it off). With the flag on, a rep who never saved a bottom-nav bar gets Home, CRM, +, Record, More: Record takes Ask Joe's slot (Ask Joe stays in More and the command palette). Tap opens the same menu the round button opened (Unfiled visits, Recent visits, Record visit), rising over the tab; hold 0.5 s and let go records straight away; the red unfiled-count badge and a red pulsing dot while recording move onto the tab. The round button is drawn invisible on a phone while the tab is there (its wrapper stays to anchor the menu) and Home no longer reserves its 74 px. The flag is flipped per account in `feature_flags/{uid}` and widened in `feature_flags/_default`. Pinned by `tests/visit-recorder-tab-2026-11-19.test.js`; checked live on the emulator at 393 px (flag off: unchanged; flag on: tab in place, menu fully on screen above the nav, hold reaches the recorder flow).
+
+Where this differs from what was agreed, and why:
+
+- **A rep with a saved bar cannot add the tab from the customizer yet.** The plan said they could add it themselves. The dashboard's script size budget has under 0.4 KB of headroom, and the customizer would need about 1 KB more in the boot path. Saved-bar reps keep their bar and their round button, unchanged. Adding the tab to the picker needs budget the conductor has to raise once; until then this is the honest limit.
+- **No role gating.** The plan said viewers would not get it. The round button never had any role gating (only the "do not record" and settings controls use it), so the tab follows the button: everyone with the nav gets it, and the recorder itself refuses where it cannot record.
+
 ## What would move the needle
 
 Fix 1 and 6 first: they touch every layout at once. Then the Island and Field specifics (2, 4), then the chrome trim (3, 5). Layout-specific polish beyond that has little payoff while seven layouts share one set of views.

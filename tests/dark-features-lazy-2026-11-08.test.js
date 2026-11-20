@@ -41,7 +41,7 @@ const FEATURES = {
   estimateFollowBoard: ['estimatefollowboard', 'docs/pro/js/estimate-follow-board.js'],
   followUpBoard: ['followupboard', 'docs/pro/js/follow-up-board.js'],
   // 2026-11-18: the materials list at the company's suppliers (live supplier pricing slice 7).
-  supplierPricing: ['supplierpricing', 'docs/pro/js/price-materials.js'],
+  supplierPricing: ['supplierpricing', 'docs/pro/js/price-materials.js'], recordVisitTab: ['recordvisittab', 'docs/pro/js/visit-recorder-tab.js'], // recordVisitTab 2026-11-19: the phone Record visit tab
 };
 
 // ── a window with a fake ScriptLoader and NBDFlags ──────────────────────────
@@ -82,7 +82,7 @@ console.log('\nDARK FEATURES: the loader');
   w.flags.followUpBoard = true;
   w.dispatch('nbd:flags-loaded');
   ok('a flag turned on later loads its bundle on the next flags read', w.loads.slice(2).join() === 'followupboard', w.loads);
-  ok('the API is exposed once, with the map', w.NBDDarkFeatures && w.NBDDarkFeatures.__sentinel === 'nbd-dark-features-v1' && typeof w.NBDDarkFeatures.sync === 'function' && Object.keys(w.NBDDarkFeatures.flags).length === 7);
+  ok('the API is exposed once, with the map', w.NBDDarkFeatures && w.NBDDarkFeatures.__sentinel === 'nbd-dark-features-v1' && typeof w.NBDDarkFeatures.sync === 'function' && Object.keys(w.NBDDarkFeatures.flags).length === 8);
 }
 {
   const w = run(makeWindow({ flags: { bulkCloseStaleLeads: true }, loaded: true }));
@@ -138,9 +138,9 @@ console.log('\nDARK FEATURES: the bundles registered on the real script-loader.j
   ok('control: script-loader.js itself does not carry the seven bundles (it is a blocking script at its byte ceiling)', !ctx.window.ScriptLoader.bundles.followupboard && !ctx.window.ScriptLoader.bundles.reputation);
   vm.runInContext(SRC, ctx, { filename: 'dark-features.js' });
   const B = ctx.window.ScriptLoader && ctx.window.ScriptLoader.bundles;
-  ok('dark-features.js registers exactly seven bundles on the real ScriptLoader, like today-home.js registers promise', !!B && Object.keys(B).length === before + 7);
+  ok('dark-features.js registers exactly eight bundles on the real ScriptLoader, like today-home.js registers promise', !!B && Object.keys(B).length === before + 8);
   vm.runInContext(SRC, ctx, { filename: 'dark-features.js' });
-  ok('running it again adds nothing (sentinel + registered-once guard)', Object.keys(B).length === before + 7);
+  ok('running it again adds nothing (sentinel + registered-once guard)', Object.keys(B).length === before + 8);
   const base = (s) => String(s).split('?')[0];
   Object.keys(FEATURES).forEach((flag) => {
     const [bundle, file] = FEATURES[flag];

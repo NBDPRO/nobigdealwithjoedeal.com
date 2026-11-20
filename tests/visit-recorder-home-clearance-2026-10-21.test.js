@@ -79,7 +79,8 @@ const dash = read('docs/pro/css/dashboard-app.css');
 const PHONE = (m) => /max-width:768px/.test(m);
 
 // What applies to #view-home .view-scroll on a phone with the bar on:
-const applies = (r) => /(^|[\s,])\.view-scroll$/.test(r.selector) || /^html\.nbd-vr-bar-on #view-home \.view-scroll$/.test(r.selector);
+// (Record visit TAB mode, html.nbd-vr-tab, is a different state: the round button is gone there, so Home keeps only the nav's 80px.)
+const applies = (r) => !/nbd-vr-tab/.test(r.selector) && (/(^|[\s,])\.view-scroll$/.test(r.selector) || /^html\.nbd-vr-bar-on #view-home \.view-scroll$/.test(r.selector));
 const competing = (css, onlyPhoneOrBase) => rules(css).filter((r) => applies(r) && (r.media === '' || PHONE(r.media)) && onlyPhoneOrBase(r));
 
 console.log('\n1. the competing rules exist (why the old rule lost)');
@@ -97,13 +98,13 @@ ok('...and it reserves the nav\'s 80px PLUS the bar\'s 74px (154px + safe-area),
 // Negative control: reconstruct the pre-fix stylesheet (the phone-only !important block removed) and show the bug.
 const preFix = vr.replace(/\/\* Phone \(2026-10-21\)[\s\S]*?\*\/\n@media \(max-width:768px\)\{\n[\s\S]*?\n\}\n/, '');
 ok('(control) the pre-fix stylesheet really is different from the fixed one: it has no phone-only Home rule',
-  preFix !== vr && !rules(preFix).some((r) => PHONE(r.media) && /nbd-vr-bar-on #view-home \.view-scroll/.test(r.selector)));
+  preFix !== vr && !rules(preFix).some((r) => PHONE(r.media) && !/nbd-vr-tab/.test(r.selector) && /nbd-vr-bar-on #view-home \.view-scroll/.test(r.selector)));
 const oldWin = winner(competing(preFix, () => true).concat(generic));
 ok('(control) BEFORE the fix the generic !important rule won: Home reserved only the nav\'s 80px, so the last card sat under the bar',
   oldWin && /^\.view-scroll$/.test(oldWin.selector) && pxSum(oldWin.pb.value) === 80, oldWin && oldWin.selector + ' ' + oldWin.pb.value);
 
 console.log('\n3. scope: phone only, only while the bar is on, other widths and layouts untouched');
-const phoneRule = rules(vr).filter((r) => PHONE(r.media) && /nbd-vr-bar-on #view-home \.view-scroll/.test(r.selector));
+const phoneRule = rules(vr).filter((r) => PHONE(r.media) && !/nbd-vr-tab/.test(r.selector) && /nbd-vr-bar-on #view-home \.view-scroll/.test(r.selector));
 ok('the new rule lives only inside @media (max-width:768px)', phoneRule.length === 1);
 ok('it is keyed on html.nbd-vr-bar-on, which the launcher toggles only while the bar shows',
   /classList\.toggle\('nbd-vr-bar-on', show\)/.test(read('docs/pro/js/visit-recorder-launcher.js')));
@@ -114,7 +115,7 @@ ok('the desktop rule gives the sidebar foot 96px, and the base rule is unchanged
 
 console.log('\n4. phones refetch the stylesheet');
 const launcher = read('docs/pro/js/visit-recorder-launcher.js');
-ok('the launcher asks for visit-recorder.css?v=5 in both places', (launcher.match(/visit-recorder\.css\?v=5/g) || []).length === 2 && !/visit-recorder\.css\?v=[34]\b/.test(launcher));
+ok('the launcher asks for visit-recorder.css?v=6 in both places', (launcher.match(/visit-recorder\.css\?v=6/g) || []).length === 2 && !/visit-recorder\.css\?v=[345]\b/.test(launcher));
 // v=3 since this fix; v=4 since the bar waits for its stylesheet (perf-1 2026-10-26); v=5 the round record button (2026-11-07). One URL on both pages, never behind v=3.
 const launcherV = (f) => Number((/visit-recorder-launcher\.js\?v=(\d+)/.exec(read(f)) || [])[1] || 0);
 ok('dashboard.html and customer.html load the same bumped launcher (?v=3 or later)', launcherV('docs/pro/dashboard.html') >= 3 && launcherV('docs/pro/dashboard.html') === launcherV('docs/pro/customer.html'));
