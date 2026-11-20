@@ -42,7 +42,7 @@
   function enabled() { return !!(w.NBDFlags && typeof w.NBDFlags.enabled === 'function' && w.NBDFlags.enabled(FLAG)) && !!LG() && !!SP() && allowed(); }
 
   // S: { subJobs{}, payments[], roster[], capped, loaded, loading, err, view, open (lead id), form }
-  const S = { subJobs: {}, payments: [], roster: [], capped: false, loaded: false, loading: false, tried: false, err: '', view: 'board', open: null, msg: '' };
+  const S = { subJobs: {}, payments: [], roster: [], capped: false, loaded: false, loading: false, tried: false, err: '', view: 'board', open: null, msg: '', hours: {} };
 
   async function load() {
     if (S.loading || !w.db || !w.getDocs || !tenant()) return;
@@ -101,6 +101,25 @@
       '<div class="sp-done-note" data-sjb-msg role="status">' + esc(S.msg) + '</div></div>';
   }
 
+  // Estimated hours (flag laborHoursBook, js/job-hours-logic.js): read the job's ONE estimate on demand, apply the
+  // company's own book time. Internal planning only; nothing here is customer-facing.
+  function canHours() {
+    return !!(w.NBDJobHoursLogic && w.NBDLaborHoursLogic && w.NBDCatalogCosts && typeof w.NBDCatalogCosts.laborOp === 'function' && w.getDoc && w.doc
+      && w.NBDFlags && typeof w.NBDFlags.enabled === 'function' && w.NBDFlags.enabled('laborHoursBook'));
+  }
+  function hoursText(r, crew) {
+    if (!r.ok) return r.reason;
+    if (r.noBookTime) return 'No book time for ' + r.label.toLowerCase() + ' yet. Add it under Labor hours.';
+    const x = r.result, f = x.factors.length ? ' (+' + x.factors.map((p) => p.pct + '% ' + p.label.toLowerCase()).join(', +') + ')' : '';
+    return 'About ' + x.manHours + ' man-hours' + f + ' for ' + r.quantity + ' ' + r.unit + ' of ' + r.label.toLowerCase() + '. That is ' + x.crewDays + ' crew-days with a crew of ' + x.crewSize + (crew ? '' : ' (the usual default: set it on the sub)') + ': book ' + x.daysToBook + ' day' + (x.daysToBook === 1 ? '' : 's') + '.';
+  }
+  function hoursBlock(r) {
+    if (!canHours()) return '';
+    const h = S.hours[r.leadId];
+    return (h ? '<div class="sp-sub" role="status">' + esc(h) + '</div>' : '') +
+      '<button type="button" class="btn btn-ghost" data-sjb-action="hours" data-id="' + esc(r.leadId) + '">' + (h ? 'Refresh hours' : 'Estimate hours') + '</button>';
+  }
+
   function rowHtml(r) {
     const bits = [];
     if (r.subName) bits.push(esc(r.subName)); else if (r.legacyCrew) bits.push('Crew name not on the roster: ' + esc(r.legacyCrew));
@@ -110,6 +129,7 @@
       '<div><span class="sp-name">' + esc(r.name) + '</span></div>' +
       '<div class="sp-sub">' + esc(String(r.stage).replace(/_/g, ' ')) + ' · ' + bits.join(' · ') + '</div>' +
       (S.open === r.leadId ? editorHtml(r) : '<button type="button" class="btn btn-ghost" data-sjb-action="edit" data-id="' + esc(r.leadId) + '">Set pay</button>') +
+      hoursBlock(r) +
       '</div>';
   }
 
@@ -202,6 +222,22 @@
     render();
   }
 
+  async function estimateHours(leadId) {
+    const lead = leadById(leadId);
+    const eid = lead && lead.primaryEstimateId;
+    if (!eid) { S.hours[leadId] = 'This job has no estimate yet, so there is nothing to size.'; return render(); }
+    S.hours[leadId] = 'Reading the estimate…'; render();
+    let est = null;
+    try { const snap = await w.getDoc(w.doc(w.db, 'estimates', eid)); est = snap && snap.exists && snap.exists() ? snap.data() : null; }
+    catch (e) { console.warn('[sub-job-board] estimate not read', e && e.code); S.hours[leadId] = 'Could not read the estimate. Try again.'; return render(); }
+    if (!est) { S.hours[leadId] = 'The estimate could not be found.'; return render(); }
+    const sj = S.subJobs[leadId], sub = S.roster.find((s) => s.id === ((sj && sj.subId) || lead.subId));
+    const crew = sub && Number(sub.crewSize) > 0 ? Number(sub.crewSize) : null;
+    const res = w.NBDJobHoursLogic.forEstimate({ estimate: est, book: (id) => w.NBDCatalogCosts.laborOp(id), crewSize: crew });
+    S.hours[leadId] = hoursText(res, crew);
+    render();
+  }
+
   function fillTotal(form) {
     const rate = SP().parseCents(field(form, 'rate').value);
     const basis = field(form, 'basis').value;
@@ -219,6 +255,7 @@
     else if (a === 'edit') { S.open = t.getAttribute('data-id'); S.msg = ''; render(); }
     else if (a === 'cancel') { S.open = null; S.msg = ''; render(); }
     else if (a === 'save') save(t.closest('[data-sjb-form]'));
+    else if (a === 'hours') estimateHours(t.getAttribute('data-id'));
   });
   document.addEventListener('change', (ev) => {
     const t = ev.target;

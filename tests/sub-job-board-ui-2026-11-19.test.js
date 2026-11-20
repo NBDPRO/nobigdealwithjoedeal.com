@@ -31,7 +31,7 @@ const RULE_KEYS = ['subId', 'basis', 'rateCents', 'qty', 'agreedCents', 'noSubNe
 function makeEnv(opts) {
   const o = Object.assign({ flag: true, claims: {}, uid: 'co-a', hash: '#/schedule', leads: [], roster: [], subJobs: [], payments: [] }, opts || {});
   const reg = {}, docL = {}, winL = {};
-  const calls = { setDoc: [], updateDoc: [], toasts: [] };
+  const calls = { setDoc: [], updateDoc: [], toasts: [], estReads: [] };
   const makeEl = () => ({
     id: '', className: '', innerHTML: '',
     remove() { if (this.id) delete reg[this.id]; },
@@ -49,7 +49,9 @@ function makeEnv(opts) {
     },
     location: { hash: o.hash },
     _leads: o.leads, _userClaims: o.claims, _user: { uid: o.uid }, db: {},
-    NBDFlags: { enabled: (n) => !!o.flag && n === 'subJobBoard' },
+    NBDFlags: { enabled: (n) => (n === 'subJobBoard' && !!o.flag) || (n === 'laborHoursBook' && !!o.hoursFlag) },
+    NBDCatalogCosts: o.hours ? { laborOp: (id) => (o.book || {})[id] || null } : undefined,
+    getDoc: async (ref) => { calls.estReads.push(ref.path.join('/')); if (o.estFail) { const e = new Error('offline'); e.code = 'unavailable'; throw e; } const d = (o.estimates || {})[ref.path[1]]; return { exists: () => !!d, data: () => d }; },
     NBDProduction: { loadSubs: async () => o.roster, subs: () => o.roster },
     showToast: (m) => calls.toasts.push(m),
     collection: (db, ...p) => ({ path: p }),
@@ -63,7 +65,7 @@ function makeEnv(opts) {
   sb.window = sb;
   sb.addEventListener = (t, fn) => { (winL[t] = winL[t] || []).push(fn); };
   vm.createContext(sb);
-  ['sub-payments-logic.js', 'sub-job-board-logic.js', 'production-logic.js', 'sub-job-board.js'].forEach((f) => {
+  (o.hours ? ['sub-payments-logic.js', 'sub-job-board-logic.js', 'production-logic.js', 'labor-hours-logic.js', 'job-hours-logic.js', 'sub-job-board.js'] : ['sub-payments-logic.js', 'sub-job-board-logic.js', 'production-logic.js', 'sub-job-board.js']).forEach((f) => {
     vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), sb, { filename: f });
   });
   const fire = (t) => (winL[t] || []).forEach((fn) => fn({}));
@@ -201,6 +203,48 @@ function fireChange(e, form, key, value) {
     ok('picking a rate-card entry fills the basis and rate, then the total (85 x 20 = 1700)', form.fields.basis.value === 'sq' && form.fields.rate.value === '85.00' && form.fields.total.value === '1700.00');
     e.click('view', { 'data-view': 'score' });
     ok('the scorecard lists each roster sub', /Mike Ruiz/.test(e.html()) && /Sam Lee/.test(e.html()) && /No per-SQ jobs yet/.test(e.html()));
+  }
+
+  console.log('7. estimated hours');
+  {
+    const BOOK = { 'BOOK:replacement': { hoursPerUnit: 1.25 }, 'BOOK:repair': { hoursPerUnit: 6 } };
+    const L1 = lead('L1', { primaryEstimateId: 'E1' });
+    const EST = { E1: { workKind: 'replacement', sq: 30, pl: 6 }, E2: { workKind: null, sq: 30 }, E3: { workKind: 'repair' } };
+    const mk = (over) => makeEnv(Object.assign({ roster, leads: [L1], hours: true, hoursFlag: true, book: BOOK, estimates: EST }, over || {}));
+    const go = async (e, id) => { e.fire('nbd:data-refreshed'); await tick(); e.click('hours', { 'data-id': id || 'L1' }); await tick(); return e.html(); };
+
+    const e = mk();
+    e.fire('nbd:data-refreshed'); await tick();
+    ok('the Estimate hours button shows when the flag, the book and the logic are all there', /data-sjb-action="hours"/.test(e.html()));
+    const h = await go(mk());
+    ok('a replacement: 30 SQ x the 1.25 book time = 37.5 man-hours', /About 37\.5 man-hours for 30 SQ of roof replacement/.test(h));
+    ok('with no crew size on the sub it says the default was used', /crew of 3 \(the usual default: set it on the sub\)/.test(h) && /1\.6 crew-days/.test(h) && /book 2 days/.test(h));
+    const rd = mk(); await go(rd);
+    ok('exactly one read, of estimates/E1', rd.calls.estReads.length === 1 && rd.calls.estReads[0] === 'estimates/E1');
+
+    const crew = await go(mk({ roster: [Object.assign({}, roster[0], { crewSize: 5 }), roster[1]], leads: [lead('L1', { primaryEstimateId: 'E1', subId: 's1' })] }));
+    ok('a sub with a crew size uses it and does not say "default"', /crew of 5/.test(crew) && !/usual default/.test(crew) && /0\.9 crew-days/.test(crew) && /book 1 day\./.test(crew));
+
+    const rep = await go(mk({ leads: [lead('L1', { primaryEstimateId: 'E3' })], estimates: Object.assign({}, EST, { E3: { workKind: 'repair', sq: 500 } }) }));
+    ok('a repair is one job: 6 man-hours whatever the squares', /About 6 man-hours for 1 job of repair/.test(rep));
+
+    const nb = await go(mk({ book: {} }));
+    ok('no book time for the job type says so and shows no number', /No book time for roof replacement yet/.test(nb) && !/man-hours for/.test(nb));
+    const nk = await go(mk({ leads: [lead('L1', { primaryEstimateId: 'E2' })] }));
+    ok('an estimate that does not say repair or replacement gets a reason, not a guess', /repair or a replacement/.test(nk) && !/man-hours for/.test(nk));
+    const ne = await go(mk({ leads: [lead('L1')] }));
+    ok('a job with no estimate says so (and reads nothing)', /no estimate yet/.test(ne));
+    const gone = await go(mk({ estimates: {} }));
+    ok('an estimate that cannot be found says so', /could not be found/.test(gone));
+    const fail = await go(mk({ estFail: true }));
+    ok('a failed read says so, never a number', /Could not read the estimate/.test(fail) && !/man-hours for/.test(fail));
+
+    const off = mk({ hoursFlag: false }); off.fire('nbd:data-refreshed'); await tick();
+    ok('the laborHoursBook flag off: no button', !/data-sjb-action="hours"/.test(off.html()));
+    const nl = makeEnv({ roster, leads: [L1], hoursFlag: true, estimates: EST }); nl.fire('nbd:data-refreshed'); await tick();
+    ok('control: without the hours logic and book loaded there is no button, and the board still works', !/data-sjb-action="hours"/.test(nl.html()) && /Sub job board/.test(nl.html()));
+    const line = (/<div class="sp-sub" role="status">([^<]*)<\/div>/.exec(h) || [])[1] || '';
+    ok('PRIVACY: the hours line itself is found and carries no money word or figure', /man-hours/.test(line) && !/\$|price|total|rate|margin|cost|paid|agreed/i.test(line));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

@@ -75,7 +75,7 @@ function makeEnv(opts) {
   sb.window = sb;
   sb.addEventListener = (t, fn) => { (winL[t] = winL[t] || []).push(fn); };
   vm.createContext(sb);
-  ['labor-book-logic.js', 'labor-book.js'].forEach((f) => vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), sb, { filename: f }));
+  (o.jobHours === false ? ['labor-book-logic.js', 'labor-book.js'] : ['labor-hours-logic.js', 'job-hours-logic.js', 'labor-book-logic.js', 'labor-book.js']).forEach((f) => vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), sb, { filename: f }));
   const html = () => (reg.laborBookPanel ? reg.laborBookPanel.innerHTML : null);
   const fire = (t) => (winL[t] || []).forEach((fn) => fn({}));
   const panelObj = () => reg.laborBookPanel;
@@ -194,6 +194,27 @@ const start = async (opts) => { const e = makeEnv(opts); e.fire('nbd:data-refres
     const f = await start({ failCrew: true });
     f.type('data-lb-crew', 's2', '5'); f.click('save-crew'); await tick();
     ok('a refused crew write is reported, not swallowed', /could not be saved/.test(f.html()));
+  }
+
+  console.log('7. book time per job type');
+  {
+    const e = await start();
+    const h = e.html();
+    ok('both job types get a whole-job book time box, empty until typed', /Book time per job type/.test(h) && /data-lb-hours="BOOK:replacement" value=""/.test(h) && /data-lb-hours="BOOK:repair" value=""/.test(h));
+    ok('a replacement is per SQ and a repair is per job', /Man-hours per SQ for Roof replacement/.test(h) && /Man-hours per job for Repair/.test(h));
+    const held = await start({ book: { 'BOOK:replacement': { hoursPerUnit: 1.25 }, 'BOOK:repair': { hoursPerUnit: 0 } } });
+    ok('held book times are prefilled, and a held 0 shows as 0', /data-lb-hours="BOOK:replacement" value="1.25"/.test(held.html()) && /data-lb-hours="BOOK:repair" value="0"/.test(held.html()));
+    e.type('data-lb-hours', 'BOOK:replacement', '1.5'); e.click('save-hours'); await tick();
+    ok('saving writes { hoursPerUnit } under the reserved key and nothing else', e.calls.record.length === 1 && e.calls.record[0].id === 'BOOK:replacement' && JSON.stringify(e.calls.record[0].entry) === JSON.stringify({ hoursPerUnit: 1.5 }));
+    const bad = await start();
+    bad.type('data-lb-hours', 'BOOK:repair', 'abc'); bad.click('save-hours'); await tick();
+    ok('an invalid book time saves nothing and says so', bad.calls.record.length === 0 && /Nothing was saved/.test(bad.html()));
+    const s = await start();
+    s.type('data-lb-f', null, 'zzz');
+    ok('the search never hides the book time rows', /data-lb-hours="BOOK:replacement"/.test(s.html()) && /Nothing matches/.test(s.html()));
+    const off = await start({ jobHours: false });
+    ok('control: without the job-hours logic there is no book time section, and the actions still list', !/Book time per job type/.test(off.html()) && /data-lb-hours="A1"/.test(off.html()));
+    ok('PRIVACY: a book time never writes a rate', e.calls.record.every((c) => !('rate' in c.entry)));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
