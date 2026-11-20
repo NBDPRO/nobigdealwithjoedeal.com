@@ -158,7 +158,19 @@
       '<text class="pg-ax" x="2" y="' + (H - 2) + '">' + esc(shortDate(ws[0].week)) + '</text><text class="pg-ax" x="' + (W - 2) + '" y="' + (H - 2) + '" text-anchor="end">this week</text></svg>';
   }
 
-  const api = { MAX_E1RM_REPS, liftSeries, topLifts, liftSummary, weekStart, weeklyVolume, lineChart, barChart };
+  /**
+   * "Top-set RPE 7 → 7.5 → 8 (getting harder)" for the line under a lift's 1RM chart (Joe, 2026-11-18). It is the coach's own trend
+   * (workout-coach-logic.js rpeTrend / rpeTrendText: the last 6 finished sessions of the lift that logged an RPE on their top sets), so this card
+   * and the lift card in the coach never disagree. '' until three sessions logged one: no RPE, no mention.
+   */
+  function rpeLine(exId, sessions) {
+    const C = coach();
+    if (!exId || !C || typeof C.rpeTrend !== 'function' || typeof C.rpeTrendText !== 'function') return '';
+    const t = C.rpeTrendText(C.rpeTrend(exId, live(sessions), 6));
+    return t ? 'Top-set ' + t : '';
+  }
+
+  const api = { MAX_E1RM_REPS, liftSeries, topLifts, liftSummary, weekStart, weeklyVolume, lineChart, barChart, rpeLine };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDProgress = api;
 })(typeof window !== 'undefined' ? window : null);

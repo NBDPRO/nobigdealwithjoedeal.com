@@ -44,11 +44,13 @@
     }
     const line = P().lineChart(series, 'Estimated 1RM for ' + cur.name + ' over time');
     const vol = P().barChart(P().weeklyVolume(sessions, t, 12), 'Weekly volume, last 12 weeks');
+    const rpe = P().rpeLine ? P().rpeLine(cur.exId, sessions) : '';   // "Top-set RPE 7 → 7.5 → 8 (getting harder)"; '' until three sessions logged one
     return '<div class="wc-card pg-card" id="pgCard"><div class="wc-card-h">📈 Progress</div>' +
       '<div class="pg-chips">' + chips + '</div>' +
       '<div class="wt-big">' + esc(Math.round(sum.latest)) + ' <small>lb est. 1RM · best ' + esc(Math.round(sum.best)) + '</small></div>' +
       '<div class="wc-meta">' + esc(sum.count) + ' session' + (sum.count === 1 ? '' : 's') + ' in 6 months' + delta + '</div>' +
       (line ? '<div class="pg-chart">' + line + '</div>' : '<div class="wc-meta">Do it once more to see a line.</div>') +
+      (rpe ? '<div class="wc-meta pg-rpe">' + esc(rpe) + '</div>' : '') +
       '<div class="wc-lbl">Weekly volume (lb lifted)</div>' +
       (vol ? '<div class="pg-chart pg-vol">' + vol + '</div>' : '') +
       '<div class="pg-note">Estimated 1RM ignores sets over 12 reps. Dots are new bests.</div></div>';

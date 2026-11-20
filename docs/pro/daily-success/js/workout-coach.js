@@ -600,6 +600,13 @@
   }
 
   // ── workout history ──────────────────────────────────────────────────
+  // A lift's top-set RPE in one finished workout, as " · RPE 8" after its sets; '' when none was logged (no RPE, no mention).
+  function histRpe(id, exId) {
+    const s = sessions().find((x) => String(x.id) === String(id));
+    const ex = s && (s.exercises || []).find((e) => e.exId === exId);
+    const r = ex ? C().topRpe(ex) : null;
+    return r == null ? '' : ' · RPE ' + r;
+  }
   function historyHtml() {
     const list = C().historyList(sessions());
     const rows = list.map((h) => {
@@ -608,7 +615,7 @@
       if (h.minutes) bits.push(h.minutes + ' min');
       const pr = h.prCount ? `<span class="wc-hist-pr" title="${esc(h.prs.map((p) => p.name).join(', '))}">\u{1F3C6} ${esc(h.prCount)}</span>` : '';
       const detail = open
-        ? `<div class="wc-hist-detail">${h.exercises.map((e) => `<div class="wc-hist-ex"><b>${esc(e.name)}</b><span>${esc(e.sets.join(', '))}</span></div>`).join('') || '<div class="wc-hint">No working sets logged.</div>'}${h.prs.length ? `<div class="wc-hist-prs">${h.prs.map((p) => '\u{1F3C6} ' + esc(p.name) + (p.kind === 'reps' ? ': ' + esc(p.reps) + ' reps' + (p.weight > 0 ? ' at ' + esc(p.weight) + ' lb' : '') : ': est. 1RM ' + esc(Math.round(p.e1rm)) + ' lb')).join('<br>')}</div>` : ''}</div>`
+        ? `<div class="wc-hist-detail">${h.exercises.map((e) => `<div class="wc-hist-ex"><b>${esc(e.name)}</b><span>${esc(e.sets.join(', ') + histRpe(h.id, e.exId))}</span></div>`).join('') || '<div class="wc-hint">No working sets logged.</div>'}${h.prs.length ? `<div class="wc-hist-prs">${h.prs.map((p) => '\u{1F3C6} ' + esc(p.name) + (p.kind === 'reps' ? ': ' + esc(p.reps) + ' reps' + (p.weight > 0 ? ' at ' + esc(p.weight) + ' lb' : '') : ': est. 1RM ' + esc(Math.round(p.e1rm)) + ' lb')).join('<br>')}</div>` : ''}</div>`
         : '';
       return `<div class="wc-hist-item${open ? ' open' : ''}"><button type="button" class="wc-hist-row" data-coach-action="hist-toggle" data-id="${esc(h.id)}" aria-expanded="${open ? 'true' : 'false'}">
         <span class="wc-hist-main"><b>${esc(fmtDay(h.date))}</b> · ${esc(h.label)}</span><span class="wc-hist-sub">${esc(bits.join(' · '))}</span>${pr}</button>${detail}</div>`;
