@@ -639,7 +639,7 @@
   // order chips, status chips (Unhandled / Handled / Urgent / Has promise / Short calls), and a one-line summary with a Clear button whenever something narrows the list.
   // Needs attention never holds a handled call, so Handled there is always empty: the chip is off and says why.
   var HANDLED_OFF = 'Handled calls are never on Needs attention. Open the All tab to see them.';
-  function filterBar(shown, people) {
+  function filterBar(shown, people, inSheet) {
     if (!FX) return '<div class="cc-filter-sum cc-filter-down" role="alert">Filters could not load, so the list below is NOT filtered. Reload the page to try again.</div>';
     function chipBtn(kind, id, label, on, off) {
       return '<button type="button" class="cc-tab cc-fchip' + (on ? ' is-on' : '') + '" aria-pressed="' + (on ? 'true' : 'false') + '" data-cc="' + kind + '" data-arg="' + id + '"' + (off ? ' disabled aria-disabled="true" title="' + esc(off) + '"' : '') + '>' + esc(label) + '</button>';
@@ -653,8 +653,8 @@
       : '';
     var dirs = FX.DIRS.map(function (d) { return chipBtn('dir', d[0], d[1], flt.dir === d[0]); }).join('');
     var stats = FX.STATUSES ? '<div class="cc-fbar cc-status" role="group" aria-label="Status">' + FX.STATUSES.map(function (s) { return chipBtn('status', s[0], s[1], flt.status === s[0], s[0] === 'handled' && state.filter === 'attention' ? HANDLED_OFF : ''); }).join('') + '</div>' : '';
-    var sorts = state.filter === 'attention' ? '' : '<span class="cc-sep" aria-hidden="true"></span>' + FX.SORTS.map(function (o) { return chipBtn('sort', o[0], o[1], flt.sort === o[0]); }).join('');
-    var sum = FX.isActive(flt)
+    var sorts = state.filter === 'attention' || inSheet ? '' : '<span class="cc-sep" aria-hidden="true"></span>' + FX.SORTS.map(function (o) { return chipBtn('sort', o[0], o[1], flt.sort === o[0]); }).join('');
+    var sum = !inSheet && FX.isActive(flt)
       ? '<div class="cc-filter-sum">Showing ' + shown + (people ? (shown === 1 ? ' person' : ' people') : ' of ' + state.calls.length) + ' \u00b7 ' + esc(FX.describe(flt, todayYmd()).join(' \u00b7 ')) + ' <button type="button" class="cc-clear" data-cc="clearfilters">Clear</button></div>'
       : '';
     return views + '<div class="cc-fbar cc-when" role="group" aria-label="When">' + when + '</div>' + dates +
@@ -679,6 +679,111 @@
     Object.keys(state.blobUrls).forEach(function (k) { try { URL.revokeObjectURL(state.blobUrls[k]); } catch (_) {} });
     state.blobUrls = {};
   });
+  state.expanded = {}; state.sheet = ''; state.panels = false; state.moreTabs = false; state.info = false;
+  // the flag arrives after the view may already be drawn; Escape closes the sheet
+  if (typeof window.addEventListener === 'function') window.addEventListener('nbd:flags-loaded', function () { if (state.loaded) render(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && state.sheet) { state.sheet = ''; render(); } });
+  // ── Compact view (2026-11-20, phone sweep; behind the feature flag callCenterCompact) ─────────────────────────
+  // The Call Center took 1,197 px of controls before the first call and 400+ px per call at 393 px wide. With the flag on:
+  // a slim header (the explainer is behind an info button, status and settings fold into one row), four tabs plus "More",
+  // ONE "Sort / Filter" row that opens a bottom sheet, and each call is a collapsed row (name, time, chips, a two-line summary,
+  // Call / Text / Handled / More). "More" opens the same full card as before. With the flag off none of this runs.
+  function compactOn() {
+    var F = window.NBDFlags;
+    return !!(F && typeof F.enabled === 'function' && F.enabled('callCenterCompact') && FX && FX.sortListBy);
+  }
+  var sortSel = FX && FX.loadSort ? FX.loadSort(lsStore()) : { list: 'new', people: 'smart' };
+  function sortSave() { if (FX && FX.saveSort) FX.saveSort(lsStore(), sortSel); }
+  function nameOfCall(c) { var lead = c.leadId ? leadsById()[c.leadId] : null; return c.contactName || leadName(lead) || ''; }
+  function nameOfGroup(g) { var c = g.calls[0], lead = c.leadId ? leadsById()[c.leadId] : null; return leadName(lead) || c.contactName || ''; }
+  var PRIMARY_TABS = ['attention', 'all', 'rescue', 'oldpromises'];
+
+  function compactPanels(html) {
+    if (!html) return '';
+    return '<button type="button" class="cc-panels-btn" data-cc="panels" aria-expanded="' + (!!state.panels) + '">' + (health && health.error ? '⚠ ' : '') +
+      'Status and settings <span aria-hidden="true">' + (state.panels ? '▴' : '▾') + '</span></button>' + (state.panels ? '<div class="cc-panels">' + html + '</div>' : '');
+  }
+  function compactTab(f, active, counts) {
+    return '<button type="button" role="tab" id="ccTab-' + f[0] + '" aria-controls="ccPanel" tabindex="' + (active[0] === f[0] ? '0' : '-1') + '" class="cc-tab' + (state.filter === f[0] ? ' is-on' : '') +
+      '" aria-selected="' + (state.filter === f[0]) + '" data-cc="filter" data-arg="' + f[0] + '">' + esc(f[1]) + ' <span class="cc-count">' + counts[f[0]] + '</span></button>';
+  }
+  function compactTabs(active, counts) {
+    var all = filtersNow();
+    var prim = all.filter(function (f) { return PRIMARY_TABS.indexOf(f[0]) > -1; });
+    var rest = all.filter(function (f) { return PRIMARY_TABS.indexOf(f[0]) === -1; });
+    var on = rest.filter(function (f) { return f[0] === state.filter; })[0];
+    var more = rest.length ? '<button type="button" class="cc-tab cc-tab-more' + (on || state.moreTabs ? ' is-on' : '') + '" data-cc="moretabs" aria-expanded="' + (!!state.moreTabs) + '">' +
+      esc(on ? on[1] : 'More') + ' <span aria-hidden="true">▾</span></button>' : '';
+    return prim.map(function (f) { return compactTab(f, active, counts); }).join('') + more;
+  }
+  function compactMoreTabs(active, counts) {
+    var rest = filtersNow().filter(function (f) { return PRIMARY_TABS.indexOf(f[0]) === -1; });
+    return state.moreTabs && rest.length ? '<div class="cc-more-tabs" role="group" aria-label="More categories">' + rest.map(function (f) { return compactTab(f, active, counts); }).join('') + '</div>' : '';
+  }
+  function compactBar(shownN, people) {
+    if (!FX) return filterBar(shownN, people);   // says the filters could not load
+    var list = people ? FX.SORT_PEOPLE : FX.SORT_LIST, cur = people ? sortSel.people : sortSel.list;
+    var curLabel = String((list.filter(function (s) { return s[0] === cur; })[0] || list[0])[1]).split(':')[0];
+    var n = FX.describe(flt, todayYmd()).length;
+    var sum = FX.isActive(flt)
+      ? '<div class="cc-filter-sum">Showing ' + shownN + (people ? (shownN === 1 ? ' person' : ' people') : ' of ' + state.calls.length) + ' · ' + esc(FX.describe(flt, todayYmd()).join(' · ')) +
+        ' <button type="button" class="cc-clear" data-cc="clearfilters">Clear</button></div>'
+      : '';
+    return '<div class="cc-cbar"><button type="button" class="cc-cbtn" data-cc="sheet" data-arg="sort" aria-haspopup="dialog">Sort: ' + esc(curLabel) + ' <span aria-hidden="true">▾</span></button>' +
+      '<button type="button" class="cc-cbtn' + (n ? ' is-on' : '') + '" data-cc="sheet" data-arg="filter" aria-haspopup="dialog">Filter' + (n ? ' (' + n + ')' : '') + ' <span aria-hidden="true">▾</span></button></div>' + sum;
+  }
+  function compactSheet(people) {
+    if (!state.sheet || !FX) return '';
+    var body;
+    if (state.sheet === 'sort') {
+      var list = people ? FX.SORT_PEOPLE : FX.SORT_LIST, cur = people ? sortSel.people : sortSel.list;
+      body = '<div class="cc-sheet-h">Sort ' + (people ? 'people' : 'calls') + '</div><div role="radiogroup" aria-label="Sort order">' + list.map(function (s) {
+        return '<button type="button" class="cc-sheet-opt' + (s[0] === cur ? ' is-on' : '') + '" role="radio" aria-checked="' + (s[0] === cur) + '" data-cc="cxsort" data-arg="' + s[0] + '">' + esc(s[1]) + (s[0] === cur ? ' ✓' : '') + '</button>';
+      }).join('') + '</div>';
+    } else {
+      body = '<div class="cc-sheet-h">Filter</div>' + filterBar(0, people, true);
+    }
+    return '<div class="cc-sheet-back" data-cc="sheet" data-arg=""></div><div class="cc-sheet" role="dialog" aria-modal="true" aria-label="' + (state.sheet === 'sort' ? 'Sort' : 'Filter') + '">' + body +
+      '<button type="button" class="btn btn-orange cc-sheet-done" data-cc="sheet" data-arg="">Done</button></div>';
+  }
+
+  // One collapsed row for a call (calls.length 1) or for a person with several open calls (g).
+  function compactRow(c, L, calls, key, g) {
+    var lead = c.leadId ? L[c.leadId] : null;
+    var who = (g ? (leadName(lead) || c.contactName) : (c.contactName || leadName(lead))) || fmtPhone(c.phoneDigits) || 'Unknown caller';
+    var when = c.startedAtMs ? new Date(c.startedAtMs).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+    var dir = c.direction === 'outbound' ? '↗ ' : c.direction === 'inbound' ? '↙ ' : '';
+    var np = calls.reduce(function (n, x) { return n + ((x.promises || []).length); }, 0);
+    var chips = (calls.some(function (x) { return x.urgent; }) ? chip('Urgent', 'cc-chip-urgent') : '') + (g ? chip(calls.length + ' open') : '') + (np ? chip('📌 ' + np) : '') +
+      (!g && c.handledAtMs ? chip('Handled', 'cc-chip-done') : '') + (c.status === 'personal' ? chip('Personal', '') : '') + labelChip(c);
+    var why = state.filter === 'attention' && sortSel.people === 'smart' && FX.smartReason ? FX.smartReason(g || { calls: calls }, Date.now()) : '';
+    if (why && why !== 'Urgent') chips += chip(why, 'cc-chip-why');
+    var sum = c.summary || (c.status === 'short' ? 'Short call, not transcribed.' : '');
+    var busy = calls.some(function (x) { return state.busy[x.id]; });
+    var ids = calls.map(function (x) { return x.id; });
+    var acts = reachButtons(c, lead);
+    if (!isViewer()) {
+      if (g) acts += '<button type="button" class="btn btn-ghost pc-play" data-cc="handledgroup" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>✓ Handled (all ' + calls.length + ')</button>';
+      else acts += '<button type="button" class="btn btn-ghost pc-play" data-cc="' + (c.handledAtMs ? 'unhandled' : 'handled') + '" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>';
+    }
+    acts += '<button type="button" class="btn btn-ghost pc-play cc-more" data-cc="expand" data-id="' + esc(key) + '" aria-expanded="false">More ▾</button>';
+    return '<div class="panel pc-card cc-card cc-row' + (!g && c.handledAtMs ? ' is-handled' : '') + '" data-call-id="' + esc(c.id) + '"' + (g ? ' data-group="' + esc(g.key) + '"' : '') + '>' +
+      '<button type="button" class="cc-row-main" data-cc="expand" data-id="' + esc(key) + '" aria-expanded="false" aria-label="Show everything for ' + esc(who) + '">' +
+      '<span class="cc-row-top"><span class="pc-who">' + esc(who) + '</span><span class="pc-meta">' + esc(dir + when) + (!g && c.durationSec ? ' · ' + esc(fmtDur(c.durationSec)) : '') + '</span></span>' +
+      (chips ? '<span class="pc-chips">' + chips + '</span>' : '') + (sum ? '<span class="cc-row-sum">' + esc(sum) + '</span>' : '') + '</button>' +
+      '<div class="cc-row-acts pc-actions">' + acts + '</div></div>';
+  }
+  function compactCall(c, L) {
+    if (c.channel === 'text') return renderCall(c, L);   // a day of texts keeps its own card
+    if (state.expanded['c:' + c.id]) return '<div class="cc-exp">' + renderCall(c, L) + '<button type="button" class="cc-less" data-cc="expand" data-id="' + esc('c:' + c.id) + '">Show less ▴</button></div>';
+    return compactRow(c, L, [c], 'c:' + c.id, null);
+  }
+  function compactPerson(g, L) {
+    if (g.calls.length === 1) return compactCall(g.calls[0], L);
+    if (state.expanded['g:' + g.key]) return '<div class="cc-exp">' + renderGroup(g, L) + '<button type="button" class="cc-less" data-cc="expand" data-id="' + esc('g:' + g.key) + '">Show less ▴</button></div>';
+    return compactRow(g.calls[0], L, g.calls, 'g:' + g.key, g);
+  }
+
   function renderList() {
     var el = root();
     if (!el) return;
@@ -697,7 +802,8 @@
     if (badge) { badge.textContent = navCount ? String(navCount) : ''; badge.classList.toggle('dn', !navCount); }
     var active = filtersNow().filter(function (f) { return f[0] === state.filter; })[0] || FILTERS[0];
     var rows = (state.filter === 'attention' || state.filter === 'oldpromises' ? promiseBase : base).filter(active[2]).filter(function (c) { return matchesSearch(c, L); });
-    if (FX && state.filter !== 'attention') rows = FX.sortCalls(rows, flt.sort);
+    var CX = compactOn();
+    if (FX && state.filter !== 'attention') rows = CX ? FX.sortListBy(rows, sortSel.list, nameOfCall) : FX.sortCalls(rows, flt.sort);
     // what the filter line reports: the people shown on Needs attention, the rows everywhere else
     var shownN = rows.length;
     if (state.filter === 'attention') {
@@ -706,20 +812,21 @@
       shownN = groupNeeds(promiseBase).filter(function (g) { return g.calls.some(function (c) { return seen[c.id]; }); }).length;
     }
     var head = '<div class="page-hdr cc-hdr"><h1 class="cc-title"><span aria-hidden="true">📞</span> Call Center</h1>' +
-      '<p class="cc-sub">Calls and texts from your phone, filed automatically. AI notes list who promised what. "Needs attention" covers the last 14 days.</p>' +
+      (CX ? '<button type="button" class="cc-info" data-cc="info" aria-expanded="' + (!!state.info) + '" aria-label="About this screen">ⓘ</button>' : '') +
+      ((!CX || state.info) ? '<p class="cc-sub">Calls and texts from your phone, filed automatically. AI notes list who promised what. "Needs attention" covers the last 14 days.</p>' : '') +
       (navCount && !isViewer() && window.NBDTriageDeck ? '<button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="deck">One at a time (' + navCount + ')</button>' : '') +
       (promises.items.length && !isViewer() && window.NBDTriageDeck ? ' <button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="promises">Said you\'d do (' + groupPromises(promises.items).length + ')</button>' : '') +
       // Owner only (the callable refuses anyone else; promises.denied = not the owner).
       (promises.loaded && !promises.denied && !isViewer() ? ' <button type="button" class="btn btn-ghost pc-play cc-deck-btn" data-cc="tagmatch">Match my tagged contacts</button>' : '') +
-      '</div>' + healthPanel() + tagPanel() + autoBriefPanel();
+      '</div>' + (CX ? compactPanels(healthPanel() + tagPanel() + autoBriefPanel()) : healthPanel() + tagPanel() + autoBriefPanel());
     // A viewer reads no calls or texts (Call to Close Q11): with nothing to search or
     // filter, the "hidden for your role" note shows without the toolbar's tabs and chips.
     var viewerNote = state.loaded && !state.error && !state.calls.length && isViewer();
     if (!viewerNote) head += '<div class="cc-toolbar"><input type="search" class="cc-search" id="ccSearch" placeholder="Search name, number, notes…" aria-label="Search calls" value="' + esc(state.q) + '">' +
-      '<div class="cc-filters" role="tablist" aria-label="Call categories">' + filtersNow().map(function (f) {
+      '<div class="cc-filters" role="tablist" aria-label="Call categories">' + (CX ? compactTabs(active, counts) : filtersNow().map(function (f) {
         return '<button type="button" role="tab" id="ccTab-' + f[0] + '" aria-controls="ccPanel" tabindex="' + (active[0] === f[0] ? '0' : '-1') + '" class="cc-tab' + (state.filter === f[0] ? ' is-on' : '') + '" aria-selected="' + (state.filter === f[0]) + '" data-cc="filter" data-arg="' + f[0] + '">' +
           esc(f[1]) + ' <span class="cc-count">' + counts[f[0]] + '</span></button>';
-      }).join('') + '</div>' + filterBar(shownN, state.filter === 'attention') + '</div>';
+      }).join('')) + '</div>' + (CX ? compactMoreTabs(active, counts) + compactBar(shownN, state.filter === 'attention') : filterBar(shownN, state.filter === 'attention')) + '</div>';
     var body;
     if (!state.loaded) body = '<div class="cc-empty">Loading calls…</div>';
     else if (state.error && !state.calls.length) body = '<div class="cc-empty">' + esc(state.error) + '</div>';
@@ -733,10 +840,11 @@
       // A person shows when any of their open calls matches the search.
       var hit = {};
       rows.forEach(function (c) { hit[c.id] = true; });
-      body = groupNeeds(promiseBase).filter(function (g) { return g.calls.some(function (c) { return hit[c.id]; }); })
-        .map(function (g) { return g.calls.length === 1 ? renderCall(g.calls[0], L) : renderGroup(g, L); }).join('');
+      var people = groupNeeds(promiseBase).filter(function (g) { return g.calls.some(function (c) { return hit[c.id]; }); });
+      if (CX) people = FX.sortPeopleBy(people, sortSel.people, nameOfGroup);
+      body = people.map(function (g) { return CX ? compactPerson(g, L) : (g.calls.length === 1 ? renderCall(g.calls[0], L) : renderGroup(g, L)); }).join('');
     }
-    else body = rows.slice(0, 150).map(function (c) { return renderCall(c, L); }).join('') +
+    else body = rows.slice(0, 150).map(function (c) { return CX ? compactCall(c, L) : renderCall(c, L); }).join('') +
       (rows.length > 150 ? '<div class="cc-empty">Showing the ' + (FX && flt.sort === 'old' ? 'oldest' : 'newest') + ' 150. Search or filter to narrow it down.</div>' : '');
     if (state.loaded && state.cappedBefore) body = capBanner() + body;
     if (state.loaded && readProblems().length) body = readBanner() + body;
@@ -746,7 +854,7 @@
     // A redraw drops keyboard focus: remember which control had it (or which one an arrow key is moving to) and put it back.
     var fk = state.refocus || focusKeyOf(document.activeElement);
     state.refocus = '';
-    el.innerHTML = '<div class="cc-wrap">' + head + (viewerNote ? '<div id="ccPanel" tabindex="-1">' : '<div id="ccPanel" role="tabpanel" aria-labelledby="ccTab-' + active[0] + '" tabindex="-1">') + thPanel + '<div class="cc-list">' + body + '</div></div></div>';
+    el.innerHTML = '<div class="cc-wrap' + (CX ? ' cc-compact' : '') + '">' + head + (viewerNote ? '<div id="ccPanel" tabindex="-1">' : '<div id="ccPanel" role="tabpanel" aria-labelledby="ccTab-' + active[0] + '" tabindex="-1">') + thPanel + '<div class="cc-list">' + body + '</div></div>' + (CX ? compactSheet(state.filter === 'attention') : '') + '</div>';
     focusedCard();
     a11yPass(el, shownN, active);
     if (hadFocus) { var s = document.getElementById('ccSearch'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }
@@ -1597,12 +1705,18 @@
     var b = e.target && e.target.closest ? e.target.closest('[data-cc]') : null;
     if (!b || !b.closest('#view-calls')) return;
     var a = b.getAttribute('data-cc'), id = b.getAttribute('data-id');
-    if (a === 'filter') { state.filter = b.getAttribute('data-arg') || 'attention'; state.focusId = null; render(); }
+    if (a === 'filter') { state.filter = b.getAttribute('data-arg') || 'attention'; state.moreTabs = false; state.focusId = null; render(); }
     else if (a === 'range') setFlt({ range: b.getAttribute('data-arg') });
     else if (a === 'dir') setFlt({ dir: b.getAttribute('data-arg') });
     else if (a === 'status') setFlt({ status: b.getAttribute('data-arg') });
     else if (a === 'sort') setFlt({ sort: b.getAttribute('data-arg') });
     else if (a === 'view') applyViewNow(b.getAttribute('data-arg'));
+    else if (a === 'sheet') { state.sheet = b.getAttribute('data-arg') || ''; render(); }
+    else if (a === 'cxsort') { if (state.filter === 'attention') sortSel.people = b.getAttribute('data-arg'); else sortSel.list = b.getAttribute('data-arg'); sortSel = FX.normalizeSort(sortSel); sortSave(); state.sheet = ''; render(); }
+    else if (a === 'expand') { state.expanded[id] = !state.expanded[id]; render(); }
+    else if (a === 'panels') { state.panels = !state.panels; render(); }
+    else if (a === 'moretabs') { state.moreTabs = !state.moreTabs; render(); }
+    else if (a === 'info') { state.info = !state.info; render(); }
     else if (a === 'clearfilters') clearFlt();
     else if (a === 'play') play(id);
     else if (a === 'handled' || a === 'unhandled' || a === 'notpersonal') act(id, a);

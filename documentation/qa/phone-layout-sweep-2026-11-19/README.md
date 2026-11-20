@@ -62,6 +62,23 @@ Where this differs from what was agreed, and why:
 - **A rep with a saved bar cannot add the tab from the customizer yet.** The plan said they could add it themselves. The dashboard's script size budget has under 0.4 KB of headroom, and the customizer would need about 1 KB more in the boot path. Saved-bar reps keep their bar and their round button, unchanged. Adding the tab to the picker needs budget the conductor has to raise once; until then this is the honest limit.
 - **No role gating.** The plan said viewers would not get it. The round button never had any role gating (only the "do not record" and settings controls use it), so the tab follows the button: everyone with the nav gets it, and the recorder itself refuses where it cannot record.
 
+## Follow-up: Call Center compact view and sort orders (Jo 2026-11-20)
+
+Jo asked for sorting rules and options in the Call Center, not only filters, and a layout that takes less space. Measured first at 393 px with 14 seeded calls: the first call started **1,197 px** down the page (an explainer, the One at a time button, a status card, a settings card, search, ten category pills wrapping onto four rows, then four rows of filter chips) and each call card was **400 to 450 px** tall (eight stacked buttons), so 14 calls made a 7,075 px page. Sorting was only Newest or Oldest, and it was switched off on Needs attention.
+
+Shipped dark behind the feature flag `callCenterCompact` (per account in `feature_flags/{uid}`; the layout with the flag off is unchanged and still has its own tests):
+
+- **Header:** one row (title, an info button for the explainer, One at a time); the status and settings cards fold into one "Status and settings" row (it shows a warning mark when the pipeline check failed).
+- **Tabs:** Needs attention, All, Needs a next step, Old promises, and a More button that lists the rest (Customers, Insurance, Contacts, Unknown, Texts, Labeled, Thursday-handled, Block list).
+- **One Sort / Filter row** that opens a bottom sheet. The Filter sheet holds the existing When, direction and status chips and saved views. The Sort sheet has nine orders for calls (Newest, Oldest, Urgent first, Open promises first, Unhandled first, Longest waiting, Longest call, Name A to Z, Most calls from one number) and eight for the Needs attention list of people (Smart, Newest, Oldest, Urgent first, Promises first, Longest waiting, Most calls, Name A to Z). **Smart** (the default on Needs attention) puts urgent people first, then the promise due soonest, then the longest waiting, and says why on each row ("Promise due Nov 24", "Waiting 3 days"). All keeps Newest as its default. The choices are saved in their own record (`nbd_cc_sort2`); the saved filter record is untouched.
+- **Collapsed call rows:** name, time and length, chips, a two-line summary, then Call, Text, Handled and More. More opens the same full card as before, with Show less. A person with several open calls is one row ("2 open").
+
+Measured live at 393 px with the flag on: first call at **512 px** (was 1,197), rows **150 to 198 px** (were 400 to 450), the 14-call list **3,502 px** (was 7,075), no sideways scroll, every control at least 44 px, no page errors. Rows are about 180 px, not the 90 to 110 px first estimated; going lower means dropping the always-visible button row, which is a decision, not a tweak.
+
+Found by eye, not by the measurements: the page header is forced into a column on phones with 100%-wide buttons (`dashboard-app.css`), and the toolbar ran past the right edge because the page clips overflow, so a sideways-scroll check reads zero. Both are fixed in the compact view's CSS.
+
+Not in this change: swipe-right to mark Handled (gestures against the horizontally scrolling tab row need their own care), and a day of texts keeps its own full card. Not checked on a real iPhone. Pinned by `tests/call-center-sorts-2026-11-20.test.js` (the orders, exact) and `tests/call-center-compact-2026-11-20.test.js` (the real view, flag on and off); four older Call Center pins were updated on purpose (script version numbers, the "one storage key" count now two, a stub list).
+
 ## What would move the needle
 
 Fix 1 and 6 first: they touch every layout at once. Then the Island and Field specifics (2, 4), then the chrome trim (3, 5). Layout-specific polish beyond that has little payoff while seven layouts share one set of views.

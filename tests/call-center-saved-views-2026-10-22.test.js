@@ -124,7 +124,8 @@ const H = 3600e3, D = 86400e3;
     ok('the click handler routes data-cc="view" to applyViewNow', /a === 'view'\) applyViewNow\(b\.getAttribute\('data-arg'\)\)/.test(view));
     ok('views are plain buttons (no inline handlers or styles - CSP)', !/cc-views[^>]*(onclick|style=)/.test(view));
     ok('the view definitions live in the pure module, not the screen', /const VIEWS = \[/.test(logic) && !/Missed today/.test(view));
-    ok('no second storage key was added for views', (logic.match(/setItem\(/g) || []).length === 1 && !/localStorage\.setItem/.test(view));
+    // 2026-11-20: the compact view's sort choice is its own record (nbd_cc_sort2), so the pure module writes TWO keys in all: the filters and the sort. Views still add none.
+    ok('no second storage key was added for views (two records in all: the filters, and the compact view sort)', (logic.match(/setItem\(/g) || []).length === 2 && /SORT_KEY = 'nbd_cc_sort2'/.test(logic) && !/localStorage\.setItem/.test(view));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
