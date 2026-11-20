@@ -153,6 +153,8 @@ function stubs(pdfBase64) {
       ok('Void button is visible', !hidden);
 
       await page.click('#suVoid');
+      // The guard is an in-tab dialog now (nbd-dialog.js), not a native confirm.
+      await page.click('#nbd-dialog-confirm', { timeout: 8000 });
       await page.waitForFunction(
         '(globalThis.__calls || []).some(c => c.name === "voidEsignEnvelope")', null, { timeout: 8000 });
       const call = await page.evaluate(() => globalThis.__calls.find((c) => c.name === 'voidEsignEnvelope'));

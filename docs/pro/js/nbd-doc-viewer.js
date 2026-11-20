@@ -371,7 +371,7 @@
     if (!currentContext || typeof currentContext.onSendForSignature !== 'function') return;
     if (window.NBDFlags && window.NBDFlags.enabled('docSignPanelV1')) return openSignPanel();
     const def = currentContext.signerEmailDefault || '';
-    const email = (window.prompt('Email the signing link to which address?', def) || '').trim();
+    const email = ((await window.nbdPrompt('Email the signing link to which address?', def)) || '').trim();
     if (!email) return;
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
       if (window.showToast) window.showToast("That doesn't look like a valid email.", 'error');

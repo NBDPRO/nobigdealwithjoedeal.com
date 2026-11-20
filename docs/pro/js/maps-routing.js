@@ -1470,11 +1470,11 @@ function openLineTypePicker(lineId, latlng) {
 }
 
 // ── LINE LENGTH EDITING ──────────────────────
-function editLineLength(lineId) {
+async function editLineLength(lineId) {
   if(drawOn) return;
   const l = drawnLines.find(x => x.id === lineId);
   if(!l) return;
-  const val = prompt(`Edit ${l.name} length (current: ${l.dist.toFixed(1)} ft):`, l.dist.toFixed(1));
+  const val = await window.nbdPrompt(`Edit ${l.name} length (current: ${l.dist.toFixed(1)} ft):`, l.dist.toFixed(1));
   if(!val || isNaN(parseFloat(val))) return;
   const newDist = parseFloat(val);
   if(newDist <= 0) return;
@@ -4226,10 +4226,10 @@ function switchStructure(id) {
   showToast(`Drawing on: ${s.name}`, 'info');
 }
 
-function renameStructure(id) {
+async function renameStructure(id) {
   const s = structures.find(x => x.id === id);
   if(!s) return;
-  const name = prompt('Rename structure:', s.name);
+  const name = await window.nbdPrompt('Rename structure:', s.name);
   if(name && name.trim()) {
     s.name = name.trim().slice(0, 60);
     renderStructureList(); renderFacetList(); recalc(); autoSaveDrawing();

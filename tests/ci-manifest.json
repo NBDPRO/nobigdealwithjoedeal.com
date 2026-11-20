@@ -419,6 +419,7 @@
     "client-dead-calls-2026-10-03.test.js",
     "st-f14-f31-2026-11-08.test.js",
     "pwa-confirm-guard.test.js",
+    "nbd-dialog-2026-11-19.test.js",
     "pwa-manifest.test.js",
     "route-truth.test.js",
     "scheduling-logic.test.js",
