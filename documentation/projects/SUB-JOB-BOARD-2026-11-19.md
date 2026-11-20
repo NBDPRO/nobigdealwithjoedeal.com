@@ -38,6 +38,21 @@ Estimator and scheduler (not built yet):
 - **Not built:** the factor percents (steep pitch, extra layers / stories, cut-up roof, access). Their storage is still open: `catalogCosts` has a fixed list of maps (`BOOK_MAPS`) that the cost-basis registry and ops scripts also enumerate, so a new map needs those readers checked first. Until then the estimator applies no factors, which is the honest default (no percent means no factor).
 - **Next, 2c:** show the estimate on a job, and the "N lines have no hours yet" prompt.
 
+## Step 2c decision and plan (Joe, 2026-11-19)
+
+**Finding that changed the plan.** The roof estimates Joe writes (the per-square builder and the wizard) store NO labor lines: they price per SQ and keep measurements (`sq`, `pl` pitch, `stories`, `tearOffLayers`, `cutUpRoof`, `accessLevel`) plus `workKind` (`repair` / `replacement` / none) and `mode`. Only the older line-item engine (`resolveEstimate`) and job templates carry `laborId` + `quantity` per line. So the line-summing estimator in [labor-hours-logic.js](../../docs/pro/js/labor-hours-logic.js) (2a) has nothing to sum for a normal roof estimate.
+
+**Decision: BOTH, in this order.**
+
+1. **One book time per job type first**, the way a mechanic's book works: hours per SQ for a replacement, hours per job for a repair, hours per unit for a template (per LF for gutters), entered by Joe. The same factors apply (pitch, layers, stories, cut-up, access). Quantity comes from the estimate (`sq` for per-SQ jobs). "Learn from my finished jobs" can propose crew-DAYS per SQ from Joe's own scheduled and finished dates (real hours are not recorded anywhere), one approval at a time.
+2. **Recipes later** for jobs Joe wants itemized: a job type maps to a list of the 66 labor actions with quantity formulas from the measurements, and the 2b hours-per-action editor feeds it. The line-summing estimator (2a) is the engine for that.
+
+**Open details for the next session (state the choice and ask only if Joe could object):**
+
+- **Storage.** Lowest-risk is reserved-prefix keys inside the existing `laborOps` map (for example `BOOK:replacement`), because a new top-level map must be added to `BOOK_MAPS` in catalog-costs.js and to the cost-basis registry and the ops scripts that enumerate maps (`functions/cost-basis-registry.js`, `scripts/import-cost-rotation.js`). Check that nothing iterates `laborOps` expecting only real labor ids before relying on it (the registry and importer validate IMPORTED rows, not live ones). The factor percents have the same question and the same likely answer.
+- **Where it shows.** On the Sub job board rows and the job card: "about N man-hours, about D crew-days", with "no book time for this job type yet" when the book has none. Never on an estimate, the portal, a customer document or a sub's job sheet.
+- **Order of dependencies.** #3225 (recordLaborOp merge) before 2b #3226 before any 2c work that writes the book.
+
 ## Gotchas found on the way
 
 - The dashboard shipped-bytes ceiling (`dashboard-boot-budget-2026-10-03`) counts only scripts a page tag or bundle names. A file fetched by `ScriptLoader.load` from another file's code is not counted, which is why the board adds no shipped bytes. #3218 raised the ceiling twice (2613 to 2619 KB) with Joe's OK in chat.
