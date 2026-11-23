@@ -284,6 +284,15 @@ async function runTool(name, args, key) {
       if (gate.error) return L.toolErr(gate.error);
       item = { kind: 'draft_email', leadId: lead.id, title: d.subject, text: d.body, reason: d.reason, from: d.from, fromAddress: d.fromAddress, dueDate: null };
     }
+    // A review ask is marked, so the owner's send stamps the lead asked (audit 2026-11-22).
+    if (args.purpose != null && args.purpose !== 'review_ask') return L.toolErr('purpose must be "review_ask" or left out');
+    if (args.purpose === 'review_ask' || L.isReviewAskDraft(item)) {
+      item.purpose = 'review_ask';
+      // One ask per customer: never a second one, whoever drafts it.
+      if (L.sprintAsked(lead)) return L.toolErr('This customer was already asked for a review. Do not draft another ask.');
+      const waiting = await db().collection('agent_inbox').where('companyId', '==', company).where('leadId', '==', lead.id).limit(L.MAX_LIST).get();
+      if (waiting.docs.some((d) => L.reviewDraftWaiting(d.data()))) return L.toolErr('A review ask for this customer is already in the Agent inbox. Do not draft another.');
+    }
     return fileItem(key, today, item, 'Draft is in the Agent inbox. Nothing was sent — only the owner can send it.');
   }
 
@@ -354,7 +363,7 @@ async function runTool(name, args, key) {
       review_url: reviewUrl || null,
       ask: reviewUrl ? L.reviewSprintAsk(reviewUrl, co) : null,
       note: (reviewUrl ? '' : 'No Google review link is set (Settings → Google review link): add one before drafting. ')
-        + 'Draft at most ONE ask per customer: draft_email for channel "email"; draft_text ONLY for "text_consented"; "in_person" gets no message (Joe shows the Job done QR). Put {first} = first_name. Same words for everyone: no rating, no "if you were happy", nothing offered. Nothing is sent until the owner sends it.',
+        + 'Draft at most ONE ask per customer: draft_email for channel "email"; draft_text ONLY for "text_consented"; "in_person" gets no message (Joe shows the Job done QR). Put {first} = first_name and purpose "review_ask". Same words for everyone: no rating, no "if you were happy", nothing offered. Nothing is sent until the owner sends it.',
     }));
   }
 
@@ -843,11 +852,27 @@ async function draftAction(request) {
     const chk = await textCheck(c, lead);
     if (!chk.ok) throw new HttpsError(chk.code === 'unverified' ? 'unavailable' : 'failed-precondition', chk.reason);
   }
-  // Claim the item first, so a double tap logs once.
+  // A review ask (the bot's marker, or a Google review link in what is sent)
+  // stamps the lead asked in the same transaction, the fields every other
+  // "already asked?" check reads (review-ask-auto.js, post_job, the nudge).
+  const reviewAsk = L.isReviewAskDraft(it) || L.isReviewAskDraft({ kind: it.kind, title: subject, text: body });
+  const leadRef = db().doc('leads/' + String(lead.id).replace(/[^A-Za-z0-9_-]/g, ''));
+  // Claim the item first, so a double tap logs once. A review ask re-reads the
+  // lead inside the transaction (every read before any write): gone → the
+  // same not-found draftLead gives; asked since the draft was filed → refused,
+  // so the customer is never asked twice and the first ask's time and source
+  // are kept.
   const claimed = await db().runTransaction(async (tx) => {
     const s = await tx.get(ref);
+    const ls = reviewAsk ? await tx.get(leadRef) : null;
     if (!s.exists || (s.data() || {}).status !== 'pending') return false;
+    if (reviewAsk) {
+      const cur = ls.exists ? (ls.data() || {}) : null;
+      if (!cur || cur.deleted === true) throw new HttpsError('not-found', 'That customer is no longer on your board.');
+      if (L.sprintAsked(cur)) throw new HttpsError('failed-precondition', 'This customer was already asked for a review. Not sent.');
+    }
     tx.update(ref, { status: 'sent_by_owner', decidedAt: FieldValue.serverTimestamp(), decidedBy: c.uid, text: body, title: isText ? '' : subject });
+    if (reviewAsk) tx.update(leadRef, { reviewRequested: true, reviewRequestedAt: FieldValue.serverTimestamp(), reviewRequestSource: isText ? 'agent-draft-text' : 'agent-draft-email' });
     return true;
   });
   if (!claimed) return { ok: true, already: true };
