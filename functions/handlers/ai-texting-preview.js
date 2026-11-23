@@ -18,6 +18,7 @@ const { CORS_ORIGINS } = require('./_shared');
 const { secretValue } = require('../integrations/_shared'); // the secret registry, not handlers/_shared
 const { buildPersonaPrompt } = require('./ai-persona');
 const { callClaudeForDraft, ANTHROPIC_API_KEY } = require('./ai-texting');
+const { fence } = require('../ai-fence');
 
 const SAMPLE_DEFAULT = 'Hey, saw your truck in the neighborhood. How much would a new roof run me?';
 
@@ -26,15 +27,13 @@ const SAMPLE_DEFAULT = 'Hey, saw your truck in the neighborhood. How much would 
 function buildSampleContext(sampleMessage) {
   return [
     '═══ WHO THIS IS ═══',
-    'Name: Sample Homeowner',
-    'Address: 123 Maple St',
-    'Relationship: Active lead — stage new',
+    fence('lead_record', ['Name: Sample Homeowner', 'Address: 123 Maple St', 'Relationship: Active lead — stage new'].join('\n')),
     '',
     '═══ RECENT TEXT THREAD ═══',
     '(no prior text history — this is the first inbound SMS from this lead)',
     '',
     '═══ THE NEW INBOUND MESSAGE TO REPLY TO ═══',
-    sampleMessage,
+    fence('inbound_message', sampleMessage),
   ].join('\n');
 }
 

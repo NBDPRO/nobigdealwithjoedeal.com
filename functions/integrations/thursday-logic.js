@@ -25,6 +25,7 @@
 const crypto = require('crypto');
 const { phoneDigits10 } = require('../phone-utils');
 const TCT = require('../task-call-text');
+const { FENCE_CLAUSE, fence } = require('../ai-fence');
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -70,7 +71,7 @@ const SILENT_WORD_THRESHOLD = 4;
 // (the first real call, 2026-09-24, was Jo — it would have become "Caller
 // 7382"). The list is CONFIG, not a constant in this public repo:
 // thursday_config.ownerNumbers plus the owner phone in
-// messaging_controls/internal (thursday.js loadConfig adds both).
+// messaging_controls/internal for NBD only (ownerNumbersFor; thursday.js loadConfig).
 const OWNER_NUMBERS_DEFAULT = [];
 
 // ── Small utils ─────────────────────────────────────────────────────────────
@@ -288,7 +289,7 @@ const EXTRACTION_SCHEMA = {
     heard_about_us: { type: 'string', description: 'How they found NBD in their words ("Google", "neighbor Jim", "Thumbtack", "yard sign"); "".' },
     language: { type: 'string', description: 'Language the caller spoke, e.g. "en", "es", "pl".' },
     existing_job_reference: { type: 'string', description: 'If they reference an existing job/estimate/claim with NBD, what they said; "".' },
-    confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+    confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'How sure you are of caller_type. Use "high" only when the transcript leaves no doubt.' },
   },
 };
 
@@ -308,14 +309,17 @@ const EXTRACTION_SYSTEM = [
   '- spam: sales pitches, robocalls, SEO/marketing/lead-gen vendors, scams.',
   '- test: Joe or someone clearly testing the phone line.',
   '- silent: nobody speaks, only noise, or the caller hangs up before saying anything meaningful.',
+  '',
+  FENCE_CLAUSE,
 ].join('\n');
 
 function buildExtractionRequest(call) {
   const lines = [];
   lines.push('Call from: ' + (call.from || 'unknown'));
   if (call.startedAt) lines.push('Started: ' + call.startedAt);
-  if (call.summary) lines.push('Bland summary: ' + call.summary);
-  lines.push('', 'Transcript:', call.transcript || '(empty)');
+  // Bland's summary is written from the caller's words: fenced like the transcript.
+  if (call.summary) lines.push('Bland summary:', fence('bland_summary', call.summary));
+  lines.push('', 'Transcript:', fence('transcript', call.transcript || '(empty)'));
   return {
     model: EXTRACTION_MODEL,
     max_tokens: 8000,
@@ -452,6 +456,17 @@ function silentExtraction(call) {
   const words = call ? transcriptWordCount(call) : 0;
   const waited = !!call && (Number(call.durationSec) || 0) >= SILENT_WAITED_SECONDS;
   return Object.assign(sanitizeExtraction({ caller_type: 'silent', confidence: 'high', issue: '' }), { spoke: words > 0 || waited });
+}
+
+// The company's own phones, tenant-scoped: thursday_config/{companyId}.ownerNumbers,
+// plus the messaging_controls/internal owner phone ONLY for NBD (that doc is
+// NBD's own, not a tenant's). Another tenant lists its phones in its config.
+function ownerNumbersFor(companyId, config, messagingOwnerPhone) {
+  const c = config || {};
+  return [].concat(
+    OWNER_NUMBERS_DEFAULT,
+    String(companyId || '') === NBD_OWNER_UID && messagingOwnerPhone ? [String(messagingOwnerPhone)] : [],
+    Array.isArray(c.ownerNumbers) ? c.ownerNumbers.map(String) : []);
 }
 
 // Facts the model cannot know, applied after sanitizeExtraction():
@@ -697,14 +712,28 @@ function decideRoute(extraction, match) {
   if (type === 'silent' && ex.spoke) {
     return Object.assign(base, { action: 'inbox', label: 'Hung up — call back?' });
   }
+  // The model's "test" is honoured only for a call from the company's own
+  // numbers (applyCallOverrides sets owner_call from ownerNumbersFor). From anyone else a caller could talk the model into it
+  // ("this is just a test") and vanish: review it instead (audit 2026-11-22).
+  // Spam is dropped only when the model is sure AND the caller is no CRM
+  // customer; anything less (or no confidence at all) is a person's call.
+  const loud = { notifyPush: true, notifyEmail: true, notifySms: true };
+  const doubt = type === 'test' && !ex.owner_call ? 'Says it was a test — check'
+    : type === 'spam' && (ex.confidence !== 'high' || m.confidence !== 'none') ? 'Spam? — check' : '';
+  if (doubt) {
+    // A strongly matched number is a known customer's: on their timeline,
+    // with the normal alerts. Otherwise the inbox, and a push if it is urgent.
+    if (m.confidence === 'strong') {
+      return Object.assign(base, loud, { action: 'attach', leadId: m.lead.leadId, createTask: true, label: doubt });
+    }
+    return Object.assign(base, { action: 'inbox', notifyPush: urgent, label: doubt });
+  }
   if (LOG_ONLY_TYPES.indexOf(type) !== -1) {
-    return Object.assign(base, { label: type === 'spam' ? 'Spam' : type === 'test' ? (ex.owner_call ? 'Test call (your phone)' : 'Test call') : 'Silent / hang-up' });
+    return Object.assign(base, { label: type === 'spam' ? 'Spam' : type === 'test' ? 'Test call (your phone)' : 'Silent / hang-up' });
   }
   if (type === 'job_seeker') {
     return Object.assign(base, { action: 'inbox', notifyEmail: true, label: 'Job seeker' });
   }
-
-  const loud = { notifyPush: true, notifyEmail: true, notifySms: true };
 
   if (type === 'adjuster' || type === 'supplier_sub') {
     const label = type === 'adjuster' ? 'Adjuster' : 'Supplier / sub';
@@ -1064,7 +1093,7 @@ module.exports = {
   verifyBlandSignature, bearerMatches,
   normalizeCall, buildPendingCallDoc, isThursdayCall, isEffectivelySilent, transcriptWordCount,
   buildExtractionRequest, extractionHeaders, parseExtractionResponse, ExtractionError,
-  sanitizeExtraction, silentExtraction, applyCallOverrides, OWNER_NUMBERS_DEFAULT, mapHeardAboutToSource,
+  sanitizeExtraction, silentExtraction, applyCallOverrides, ownerNumbersFor, OWNER_NUMBERS_DEFAULT, mapHeardAboutToSource,
   isProxyLead, parseStreet, splitCallerName, matchLeads, displayName,
   decideRoute, buildLeadDoc, buildTask, buildActivity, callNotes, leadNotesPointer,
   buildSmsText, buildPush, buildEmail, fmtDuration,

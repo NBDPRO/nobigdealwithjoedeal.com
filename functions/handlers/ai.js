@@ -62,6 +62,7 @@ const {
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 const { recordAiSpend, rowFromAnthropic } = require('../ai-spend');
+const { FENCE_CLAUSE, fence } = require('../ai-fence');
 
 /**
  * The upstream /v1/messages body for an allowlisted model (2026-10-04).
@@ -434,12 +435,15 @@ exports.publicVisualizerAI = onRequest(
       const anthropicBody = {
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 800,
-        system: VISUALIZER_SYSTEM_PROMPT,
+        // The selections and notes come from a public web form: fenced as data.
+        // The carve-out keeps the clause's "never invent numbers" off the
+        // model's own photo read and the machine-parsed CANVAS hex line.
+        system: VISUALIZER_SYSTEM_PROMPT + '\n\n' + FENCE_CLAUSE + ' That rule is about the fenced selections and notes: your read of the photo and the CANVAS: hex values are still yours to write.',
         messages: [{
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: safeMediaType, data: imageBase64 } },
-            { type: 'text', text: `Selections: ${safeSelections}.${safeNotes ? ' Notes: ' + safeNotes : ''}` },
+            { type: 'text', text: 'Selections:\n' + fence('selections', safeSelections) + (safeNotes ? '\nNotes:\n' + fence('homeowner_notes', safeNotes) : '') },
           ],
         }],
       };

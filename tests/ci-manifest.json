@@ -615,6 +615,7 @@
     "call-center-raw-phone-names-2026-11-18.test.js",
     "estimates-render-guard-2026-11-07.test.js",
     "call-center-notes-2026-10-01.test.js",
+    "ai-fence-2026-11-22.test.js",
     "call-center-provider-outage-2026-10-13.test.js",
     "team-pipeline-states-2026-11-06.test.js",
     "ds-coach-disclaimer-2026-11-14.test.js",

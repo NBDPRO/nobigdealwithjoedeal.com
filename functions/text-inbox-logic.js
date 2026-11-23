@@ -34,6 +34,7 @@
 
 const crypto = require('crypto');
 const { phoneDigits10 } = require('./phone-utils');
+const { FENCE_CLAUSE, fence } = require('./ai-fence');
 
 function unescapeXml(s) {
   return String(s == null ? '' : s)
@@ -318,6 +319,7 @@ const TEXT_NOTES_SYSTEM = [
   'Rules: only promises actually made in these texts, at most 6. Resolve relative dates against the dates shown.',
   'Texts about family, friends or anything not business are "personal": summary "Personal texts." and promises [].',
   'Never invent prices, names or dates that were not written.',
+  FENCE_CLAUSE,
 ].join('\n');
 
 function buildTextNotesPrompt({ day, leadName }) {
@@ -327,11 +329,11 @@ function buildTextNotesPrompt({ day, leadName }) {
   });
   return [
     'Date (Eastern): ' + day.ymd,
-    'Other person (from Jo\'s phone contacts): ' + (day.contactName || 'not a saved contact'),
-    leadName ? 'CRM customer this number belongs to: ' + leadName : 'Not matched to a CRM customer.',
+    'Other person (from Jo\'s phone contacts): ' + (day.contactName ? fence('contact_name', day.contactName) : 'not a saved contact'),
+    leadName ? 'CRM customer this number belongs to: ' + fence('lead_name', leadName) : 'Not matched to a CRM customer.',
     '',
     'Texts:',
-    lines.join('\n').slice(0, 30000),
+    fence('texts', lines.join('\n').slice(0, 30000)),
   ].join('\n');
 }
 

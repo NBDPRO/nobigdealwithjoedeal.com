@@ -96,7 +96,8 @@ async function loadConfig(companyId) {
       emailTo: Array.isArray(c.emailTo) && c.emailTo.length ? c.emailTo.map(String) : DEFAULT_CONFIG.emailTo,
       pushEnabled: c.pushEnabled !== false,
       pushUid: String(c.pushUid || companyId),
-      ownerNumbers: [].concat(DEFAULT_CONFIG.ownerNumbers, owner.phone ? [owner.phone] : [], Array.isArray(c.ownerNumbers) ? c.ownerNumbers.map(String) : []),
+      // Tenant-scoped: the messaging_controls owner phone counts for NBD only.
+      ownerNumbers: T.ownerNumbersFor(companyId, c, owner.phone),
     };
   } catch (e) {
     logger.warn('thursday: config read failed, using defaults', { err: e && e.message });
