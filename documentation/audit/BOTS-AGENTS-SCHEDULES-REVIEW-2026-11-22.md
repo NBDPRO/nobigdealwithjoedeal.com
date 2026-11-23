@@ -265,6 +265,7 @@ Refuted: "the Monday checks overlap and run in the wrong order".
   - Deliberate choices go in an accepted list that no scheduled task can write.
   - It also found a hole left by step 1: task write rules covered the folders that hold the task scripts. The narrowed rules are on Joe's list.
   - The settings changes themselves are Joe's, listed in the private note.
+- **Step 7 is done (read-only).** Production is still 0.6.2 with the banned claim phrase. Staging 0.7.0 has the fix and was never promoted. Neither version declares the `from` Reference Variable, so greet-by-name still can't work. Details are in [THURSDAY-BLAND §14](../architecture/THURSDAY-BLAND-2026-09-26.md). Joe's step: add `from` on staging, test, promote.
 
 | # | Step | Area | Effort | Joe's call |
 |---|---|---|---|---|
