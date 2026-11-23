@@ -499,7 +499,7 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-20  1197/75/1359 -> 1199/75/1361: recordings Bin PR 1 adds recordings-bin-logic and recordings-bin-server (node). MEASURED via --check.
 //   2026-11-19  1199/75/1361 -> 1200/75/1362: book time per job type adds job-hours-2026-11-20 (node). MEASURED via --check.
 //   2026-11-20  1200/75/1362 -> 1202/75/1364: call center compact view adds two node suites. MEASURED via --check.
-const FLOORS = { node: 1203, smoke: 75, disk: 1365 };
+const FLOORS = { node: 1204, smoke: 75, disk: 1366 };
 //   2026-11-20  1202/75/1364 -> 1203/75/1365: bottom-edge queue adds bottom-edge-queue-2026-11-19 (node). MEASURED via --check.
 
 // ── Argument parsing ───────────────────────────────────────────────

@@ -289,6 +289,10 @@ Object.assign(exports, leadAlertFns);
 // Every 10 min: a new NBD lead that no channel confirmed reaching Joe is
 // re-sent by email + push (2026-10-07). LEAD_ALERT_WATCHDOG_DISABLED=true → dry run.
 exports.leadAlertWatchdog = require('./lead-alert-watchdog').leadAlertWatchdog;
+// Every 30 min: judge each cron on its own heartbeat ledger doc (a shared
+// Healthchecks check hides a dead member) and tell Joe, daytime only except
+// call/text ingest (2026-11-22). CRON_DEADMAN_DISABLED=true → dry run.
+exports.cronDeadman = require('./cron-deadman').cronDeadman;
 // /estimate saves at step 1 and later UPDATES that lead (2026-11-14): tell Joe
 // when it is finished, and re-apply the CRM-card patch if the inline one failed.
 const estimateFunnelTriggers = require('./estimate-funnel-triggers');
