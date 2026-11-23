@@ -258,6 +258,13 @@ Refuted: "the Monday checks overlap and run in the wrong order".
   - 19 new tests, each break-tested.
   - Root cause of 11-22: media's CRM calls had no timeout on a day the CRM returned 504s. This is likely rather than proven.
   - A synchronous stall (such as a OneDrive online-only file) still relies on the 30-minute task kill.
+- **Step 3: Claude's half is done; Joe's half is open.**
+  - The Monday tech check now runs a read-only settings check in local ops tooling, as raw-file section A7. It flags any local agent setting that lets an agent act without asking: auto-approve modes, pre-approved account or send actions, destructive or wildcard shell rules, deploy and payment CLIs, browser-driving tools, a missing guard hook.
+  - The check went through a two-lens review, and its 25 findings were fixed.
+  - It is tested both ways: risky settings are flagged, safe ones pass, and tokens are redacted.
+  - Deliberate choices go in an accepted list that no scheduled task can write.
+  - It also found a hole left by step 1: task write rules covered the folders that hold the task scripts. The narrowed rules are on Joe's list.
+  - The settings changes themselves are Joe's, listed in the private note.
 
 | # | Step | Area | Effort | Joe's call |
 |---|---|---|---|---|
