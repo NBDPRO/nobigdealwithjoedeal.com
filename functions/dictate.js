@@ -50,6 +50,9 @@ const {
   groqExtensionForMime,
   normalizeGroqTranscription,
 } = require('./integrations/transcription-logic');
+// summarize / extract-tasks may hear a customer in the room or on speaker:
+// their transcript is fenced as data (clean mode echoes the text back, so no tags there).
+const { FENCE_CLAUSE, fence } = require('./ai-fence');
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 
 const CORS_ORIGINS = [
@@ -99,7 +102,8 @@ Rules:
 - If a field has no values, return an empty array (not null).
 - Keep the rep's voice in actionItems — do NOT paraphrase, do NOT add suggestions the rep didn't make.
 - If multiple homeowners or addresses are mentioned, list each separately.
-- Output ONLY the JSON. No markdown, no preamble, no trailing text.`;
+- Output ONLY the JSON. No markdown, no preamble, no trailing text.
+` + FENCE_CLAUSE;
 
 // ─── Extract-tasks prompt ──────────────────────────────────────
 const EXTRACT_TASKS_PROMPT = `You are an assistant helping a roofing/insurance restoration sales rep
@@ -117,7 +121,8 @@ Rules:
 - Use the CURRENT user's local date as today when resolving relative phrases like "tomorrow" / "next week".
 - If no due date is implied, use null.
 - Maximum 8 tasks per transcript — pick the most important ones.
-- Output ONLY the JSON.`;
+- Output ONLY the JSON.
+` + FENCE_CLAUSE;
 
 // ─── Transcription helpers ─────────────────────────────────────
 // Groq Whisper-large-v3-turbo — free tier, same key as Voice Intel.
@@ -336,7 +341,7 @@ exports.dictate = onCall(
       const todayHint = todayLocal ? `\n\nToday is ${todayLocal} (rep's local date).` : '';
       const { text, usage } = await callClaudeForDictate({
         system: SUMMARIZE_PROMPT + todayHint,
-        userText: transcript,
+        userText: fence('transcript', transcript),
         maxTokens: 1200,
         apiKey: anthKey,
       });
@@ -381,7 +386,7 @@ exports.dictate = onCall(
       const todayHint = todayLocal ? `\n\nToday is ${todayLocal} (rep's local date).` : '';
       const { text, usage } = await callClaudeForDictate({
         system: EXTRACT_TASKS_PROMPT + todayHint,
-        userText: transcript,
+        userText: fence('transcript', transcript),
         maxTokens: 800,
         apiKey: anthKey,
       });

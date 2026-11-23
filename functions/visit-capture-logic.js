@@ -22,6 +22,7 @@
 
 const L = require('./call-center-logic');
 const PR = require('./promise-logic');
+const { FENCE_CLAUSE, fence } = require('./ai-fence');
 
 // ── limits ──────────────────────────────────────────────────────────────
 const MAX_DURATION_SEC = 60 * 60 + 120;   // the client caps at 60:00; two minutes of slack
@@ -414,6 +415,7 @@ const VISIT_NOTES_SYSTEM = [
   'Rules: only things actually said, at most 6 promises. Resolve relative dates ("Thursday", "next week") against the visit date given. ',
   'A recording about family, friends or anything not business is "personal": then summary is "Personal." and the lists are empty.',
   'Never invent prices, measurements, names or dates that were not said. Scope facts are what people SAID, not measured.',
+  FENCE_CLAUSE,
 ].join('\n');
 
 function buildVisitNotesPrompt({ capture, transcript, leadName, nowMs }) {
@@ -424,10 +426,10 @@ function buildVisitNotesPrompt({ capture, transcript, leadName, nowMs }) {
   return [
     'Visit date (Eastern): ' + when + (wd ? ' (' + wd + ', ' + day + ')' : ' (' + day + ')'),
     'Length: ' + Math.round((Number(c.durationSec) || 0) / 60) + ' minutes',
-    leadName ? 'CRM customer chosen for this visit: ' + leadName : 'Not attached to a customer yet.',
+    leadName ? 'CRM customer chosen for this visit: ' + fence('lead_name', leadName) : 'Not attached to a customer yet.',
     '',
     'Transcript:',
-    str(transcript).slice(0, NOTES_MAX_TRANSCRIPT_CHARS),
+    fence('transcript', str(transcript).slice(0, NOTES_MAX_TRANSCRIPT_CHARS)),
   ].join('\n');
 }
 

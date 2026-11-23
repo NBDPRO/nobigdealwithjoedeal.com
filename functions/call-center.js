@@ -505,7 +505,9 @@ exports.callCenterIngest = onSchedule(
 //   leads/{id}/tasks/cube-{id}      ONE follow-up task, only when Jo promised
 //                                   something or a follow-up date came out
 // A call the model calls "personal" keeps no transcript, files nothing, and
-// its CRM audio copy is deleted (the original stays in Jo's Drive).
+// its CRM audio copy is deleted (the original stays in Jo's Drive) — unless
+// the call is on a lead: then the audio is kept and the call waits as
+// personal (personalSuggested) for a person's "It wasn't personal".
 //
 // Gate: CALL_CENTER_TRANSCRIBE_ENABLED=true runs the backlog (newest first,
 // 12 a run, ≤ 7.5 h audio a day). With the gate OFF, only the ids on
@@ -956,7 +958,9 @@ async function runTranscribe({ db, bucket, live, nowMs, only, feed }) {
         const ls = await db.doc('leads/' + call.leadId).get();
         if (ls.exists) { leadDoc = ls.data(); leadName = ((leadDoc.firstName || '') + ' ' + (leadDoc.lastName || '')).trim(); }
       }
-      const notes = L.sanitizeNotes(await d.notes({ system: L.notesSystemFor(fd.tenant), prompt: L.buildNotesPrompt({ call, transcript: t.text, leadName, tenant: fd.tenant }), feature: 'call-center-notes' }));
+      // A call on an existing lead never gets the model's "personal" verdict
+      // applied (that deletes its CRM audio): it is held for review instead.
+      const notes = L.sanitizeNotes(await d.notes({ system: L.notesSystemFor(fd.tenant), prompt: L.buildNotesPrompt({ call, transcript: t.text, leadName, tenant: fd.tenant }), feature: 'call-center-notes' }), { matched: !!leadDoc && leadDoc.deleted !== true && call.notPersonal !== true });
       // Jo said "it wasn't personal" (callCenterAction notpersonal): the
       // model's personal verdict is overridden; the call is filed as business.
       if (call.notPersonal === true && notes.callType === 'personal') notes.callType = 'other';
@@ -977,7 +981,14 @@ async function runTranscribe({ db, bucket, live, nowMs, only, feed }) {
         transcriptSaved: false,
         transcribeError: null,
         transcribeLease: null,
-      }, personal ? { segIndex: null } : segPatch(t, stored)), { merge: true });
+      }, notes.personalSuggested ? { personalSuggested: true } : {}, personal ? { segIndex: null } : segPatch(t, stored)), { merge: true });
+      if (personal && notes.personalSuggested) {
+        // On a lead (audit 2026-11-22): the verdict is only a suggestion. The
+        // call waits as personal with its CRM audio kept (Play, "It wasn't
+        // personal"); nothing is filed on the customer until a person says so.
+        out.personal++;
+        continue;
+      }
       if (personal) {
         // Jo, 2026-10-01: a personal call keeps no CRM copy of its audio
         // either. The original recording stays in Jo's own Drive, so a

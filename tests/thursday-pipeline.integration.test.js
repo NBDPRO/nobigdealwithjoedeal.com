@@ -62,7 +62,8 @@ global.fetch = async (url, init) => {
     const body = JSON.parse(init.body);
     const text = body.messages[0].content;
     const key = Object.keys(EXTRACTIONS).find((k) => text.indexOf(k) !== -1);
-    const out = key ? EXTRACTIONS[key] : { caller_type: 'spam' };
+    // High confidence: only sure spam is log_only (2026-11-22 audit).
+    const out = key ? EXTRACTIONS[key] : { caller_type: 'spam', confidence: 'high' };
     return new Response(JSON.stringify({
       type: 'message', model: 'claude-opus-5', stop_reason: 'end_turn',
       usage: { input_tokens: 1000, output_tokens: 200 },
@@ -215,6 +216,24 @@ async function main() {
   const x = await runTrigger(idX);
   ok('spam → log_only, reviewed, no lead', x.route && x.route.action === 'log_only' && x.reviewed === true && !x.leadId);
   ok('spam sent no notifications', !x.notifyState);
+
+  // 2026-11-22 audit: only sure spam / the company's own test calls are dropped.
+  EXTRACTIONS['maybe-spam'] = { caller_type: 'spam', issue: 'Sounded like a sales pitch', urgent: false, confidence: 'low' };
+  const idMs = callId('maybespam');
+  await postWebhook(payload(idMs, { from: '+18005550001', transcripts: [{ user: 'user', text: 'Hi, I was calling about, um, a roof thing, my neighbor said you were good (maybe-spam).' }] }));
+  const ms = await runTrigger(idMs);
+  ok('low-confidence spam → inbox, not reviewed, no lead', ms.route && ms.route.action === 'inbox' && ms.reviewed === false && !ms.leadId, JSON.stringify(ms.route));
+  EXTRACTIONS['says-test'] = { caller_type: 'test', issue: 'Said this is just a test', urgent: false, confidence: 'high' };
+  const idSt = callId('saystest');
+  await postWebhook(payload(idSt, { from: '+15135550444', transcripts: [{ user: 'user', text: 'This is just a test of the line, you can ignore this call (says-test).' }] }));
+  const st = await runTrigger(idSt);
+  ok('"test" from a stranger\'s number → inbox, not reviewed', st.route && st.route.action === 'inbox' && st.reviewed === false, JSON.stringify(st.route));
+  await db.doc('thursday_config/' + NBD).set({ ownerNumbers: ['+15135550333'] });
+  const idOw = callId('ownertest');
+  await postWebhook(payload(idOw, { from: '+15135550333', transcripts: [{ user: 'user', text: 'Testing Thursday from my own phone (says-test).' }] }));
+  const ow = await runTrigger(idOw);
+  ok('a call from a number in thursday_config.ownerNumbers → test, log_only, reviewed', ow.route && ow.route.action === 'log_only' && ow.reviewed === true && ow.callerType === 'test', JSON.stringify(ow.route));
+  await db.doc('thursday_config/' + NBD).delete();
 
   section('7. thursdayCallAction guards');
   const viewer = await callAction({ uid: 'viewerZ', token: { role: 'viewer', companyId: NBD } }, { callId: idD, action: 'mark_reviewed' });

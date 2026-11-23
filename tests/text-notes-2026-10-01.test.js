@@ -42,7 +42,7 @@ ok('messages in time order, lead + name carried', d1.messages.map((m) => m.id).j
 const d1b = T.groupTextDays(rows.concat([txt('a3', '5135550100', 3, 'inbound', 'Great thanks')]), { nowMs: NOW })[0];
 ok('a new text that day changes the signature', d1b.id === d1.id && d1b.sig !== d1.sig);
 const prompt = T.buildTextNotesPrompt({ day: d1, leadName: 'Pat Example' });
-ok('prompt labels Jo vs Them, carries the CRM name', /\] Them: Can you come Thursday\?/.test(prompt) && /\] Jo: Yes, I will be there/.test(prompt) && /CRM customer this number belongs to: Pat Example/.test(prompt));
+ok('prompt labels Jo vs Them, carries the CRM name', /\] Them: Can you come Thursday\?/.test(prompt) && /\] Jo: Yes, I will be there/.test(prompt) && /CRM customer this number belongs to: <untrusted_lead_name>\nPat Example\n<\/untrusted_lead_name>/.test(prompt)); // fenced 2026-11-22
 
 console.log('\n2. runTextNotes');
 function fakeDb(seed) {
