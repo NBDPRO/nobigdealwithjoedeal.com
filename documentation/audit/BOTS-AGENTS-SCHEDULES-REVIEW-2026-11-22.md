@@ -246,6 +246,19 @@ Refuted: "the Monday checks overlap and run in the wrong order".
 
 ## 5. Roadmap (quick wins first)
 
+**Progress (updated 2026-11-22, evening):**
+- **Step 1 is done.** Each task now uses one fixed helper for its lock, state and clock (`ot.js`), and two fixed scripts for the Monday check. Allow rules are scoped to those. Scheduled tasks don't all start in the same folder: the Thumbtack watcher starts in the repo clone, so its rules go in that clone's local (gitignored) settings too. A Monday-check Run now finished with no prompt. The first unattended office sweep and Thumbtack runs are still to be confirmed.
+- **Step 2 is done** (local `nbd-agents` commit `2b543cf`; that repo is local and its contents stay out of this public one).
+  - The brief now runs before watch and media, and sentinel still runs last.
+  - Every agent has a deadline, and the whole run has a 28-minute budget.
+  - CRM and model calls time out.
+  - The brief uses `allSettled`: a missed read shows as "unavailable" and the brief is marked degraded instead of being lost.
+  - Media has a `lead_detail` breaker.
+  - The six Windows triggers stored with a fixed `-05:00` offset now use local time (morning back to 6:30).
+  - 19 new tests, each break-tested.
+  - Root cause of 11-22: media's CRM calls had no timeout on a day the CRM returned 504s. This is likely rather than proven.
+  - A synchronous stall (such as a OneDrive online-only file) still relies on the 30-minute task kill.
+
 | # | Step | Area | Effort | Joe's call |
 |---|---|---|---|---|
 | 1 | **Fix the unattended permission stall.** Scoped `.claude/settings.json` allowlist in `nbd-ops/office-team` (and the other task folders); lock, state and logs via Read/Write; a "started" first line; one attended Run now per task | Desktop / office | S | Approve the allowlist |
