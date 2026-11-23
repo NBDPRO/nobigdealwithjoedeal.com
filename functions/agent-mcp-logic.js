@@ -138,6 +138,7 @@ const TOOLS = {
       lead_id: { type: 'string' },
       body: { type: 'string', maxLength: SMS_MAX },
       reason: { type: 'string', maxLength: REASON_MAX, description: 'Why this customer, why now (shown to the owner, not the customer)' },
+      purpose: { type: 'string', enum: ['review_ask'], description: 'Set "review_ask" when this asks for a Google review, so the customer is marked asked once the owner sends it' },
     }, required: ['lead_id', 'body', 'reason'], additionalProperties: false },
   },
   draft_email: {
@@ -148,6 +149,7 @@ const TOOLS = {
       body: { type: 'string', maxLength: MAX_TEXT },
       reason: { type: 'string', maxLength: REASON_MAX, description: 'Why this customer, why now (shown to the owner, not the customer)' },
       from: { type: 'string', enum: ['jd', 'info'] },
+      purpose: { type: 'string', enum: ['review_ask'], description: 'Set "review_ask" when this asks for a Google review, so the customer is marked asked once the owner sends it' },
     }, required: ['lead_id', 'subject', 'body', 'reason', 'from'], additionalProperties: false },
   },
   file_social_draft: {
@@ -811,8 +813,8 @@ function stormNearCustomers(events, leads, nowMs, args) {
 //     A job finished (installCompletedAt / completedAt) before 2026: left out.
 //   - a lead tagged pre-NBD / other company ("pre-nbd", "before nbd",
 //     "other company", "prior company") is left out.
-//   - a review-ask draft already in the Agent inbox (pending or sent) for the
-//     lead: left out, so a second run never drafts twice.
+//   - a review-ask draft already in the Agent inbox (pending, sent, approved
+//     or sent_by_owner) for the lead: left out, so a second run never drafts twice.
 // Paid in full = paid-in-full.js (a won stage at or after Final Payment and no
 // invoice owing), for the lead or any of its jobs.
 const SPRINT_FROM_MS = Date.parse('2026-01-01T05:00:00Z');   // 2026-01-01 00:00 America/New_York
@@ -826,8 +828,25 @@ function sprintAsked(rec) {
 function reviewDraftWaiting(item) {
   const it = item || {};
   if (it.kind !== 'draft_email' && it.kind !== 'draft_text') return false;
+  // sent_by_owner: the owner sent it from the Agent inbox (agent-mcp.js draftAction).
+  // That is final, so it counts only for a real ask (marker or Google link),
+  // never a sent follow-up that merely says "review".
+  if (it.status === 'sent_by_owner') return isReviewAskDraft(it);
   if (!(it.status === 'pending' || it.status === 'sent' || it.status === 'approved')) return false;
+  if (isReviewAskDraft(it)) return true;
   return /\breview\b/i.test(String(it.title || '') + ' ' + String(it.text || '') + ' ' + String(it.reason || ''));
+}
+// Is this customer draft a Google review ask? (audit 2026-11-22: an owner-sent
+// ask stamps the lead reviewRequested.) The bot's own purpose: 'review_ask'
+// marker, or a Google review link in the subject / body. Never the bare word
+// "review" ("I reviewed your estimate" is not an ask), so a follow-up never
+// marks a customer asked by mistake.
+const GOOGLE_REVIEW_LINK = /\bg\.page\/r\/[A-Za-z0-9_-]+\/review\b|\bsearch\.google\.com\/local\/writereview\b/i;
+function isReviewAskDraft(item) {
+  const it = item || {};
+  if (it.kind !== 'draft_email' && it.kind !== 'draft_text') return false;
+  if (it.purpose === 'review_ask') return true;
+  return GOOGLE_REVIEW_LINK.test(String(it.title || '') + ' ' + String(it.text || ''));
 }
 /**
  * leads, invoices (the company's), jobsByLead ({ leadId: [job] } or null),
@@ -1580,7 +1599,7 @@ module.exports = {
   PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews, personalMoney,
   teamActivity, annotationsFor, WRITES,
   TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, leadSources, expenseSignedCents, jobProfit, marginReview, stormNearCustomers, haversineMi, roleOf,
-  reviewSprint, reviewSprintAsk, reviewDraftWaiting, SPRINT_FROM_MS,
+  reviewSprint, reviewSprintAsk, reviewDraftWaiting, isReviewAskDraft, sprintAsked, SPRINT_FROM_MS,
   PHOTO_MATCH, photoTimeMs, validatePhotoMatch, photoVisits, matchPhotoLocation, townOf, shortName,
   botFor, CUSTOM_TOOLS, ROUTE_TO, MAX_CUSTOM_BOTS, customBotKey, customBotIdFromKey, normalizeBotInput, customBotView,
   SMS_MAX, STOP_LINE, EMAIL_FROM, SOCIAL_BRANDS, DRAFT_TOOLS, DRAFT_KINDS, companyNames, hasStopLine, editedTextProblem, buildTextDraft, buildStormCheckIn, textGate, buildEmailDraft, emailGate, buildSocialDraft,
