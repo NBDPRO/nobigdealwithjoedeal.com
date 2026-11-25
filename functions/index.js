@@ -1001,6 +1001,11 @@ exports.subPaperworkWatch = require('./sub-paperwork-watch').subPaperworkWatch;
 // Monday 07:30 ET: one Agent-inbox report to the owner (collected last week, estimates awaiting signature,
 // calls to return, jobs this week). Never a customer or rep. DRY-RUN unless OWNER_WEEKLY_DIGEST_ENABLED=true.
 exports.ownerWeeklyDigest = require('./owner-weekly-digest').ownerWeeklyDigest;
+// 08:00 / 12:00 / 17:00 ET (2026-11-25, roadmap step 17B): the CRM lanes the office sweep and the local radar ran
+// (first-contact reminders, quiet proposals, overdue follow-ups, 30-day / one-year check-in drafts) filed through
+// crmMcp's runTool as Marcus / Tucker with dedupe keys, for companies with agent_settings.officePlanner === true.
+// Nothing is sent. A no-op unless OFFICE_PLANNER_ENABLED=true.
+exports.officePlanner = require('./office-planner').officePlanner;
 // Every 30 min (NBD OS P2 Team, 2026-11-09): leaderboard/{uid} rows per active member, today's and this week's
 // counted doors / appointments / estimates sent / deals in the company time zone. DRY-RUN unless LEADERBOARD_AGGREGATE_ENABLED=true.
 exports.leaderboardAggregate = require('./leaderboard-aggregate').leaderboardAggregate;

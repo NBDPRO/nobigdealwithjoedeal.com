@@ -193,6 +193,8 @@ async function runTool(name, args, key) {
   // Optional dedupe_key on every filing tool (roadmap step 6), checked before any read.
   const dk = L.FILING_TOOLS.indexOf(name) !== -1 ? L.dedupeKeyOf(args) : { key: null };
   if (dk.error) return L.toolErr(dk.error);
+  // The office planner (office-planner.js) passes the leads it already read for this run; a bot's key never carries them.
+  const leadsOf = () => (Array.isArray(key.leads) ? Promise.resolve(key.leads) : companyLeads(company));
   if (name === 'crm_summary') {
     const [leads, jobsByLead] = await Promise.all([companyLeads(company), companyJobsByLead(company)]);
     return L.toolText(Object.assign(L.summary(leads, today, jobsByLead), { today, timezone: tz }));
@@ -261,7 +263,7 @@ async function runTool(name, args, key) {
 
   if (name === 'file_note' || name === 'file_reminder' || name === 'file_report') {
     let exists = false;
-    if (name !== 'file_report') exists = !!L.activeLeads(await companyLeads(company)).find((l) => l.id === String(args.lead_id || ''));
+    if (name !== 'file_report') exists = !!L.activeLeads(await leadsOf()).find((l) => l.id === String(args.lead_id || ''));
     const v = L.validateFiling(name, args, exists);
     if (v.error) return L.toolErr(v.error);
     const wording = L.claimWordingProblem(v.item.text) || L.claimWordingProblem(v.item.title);
@@ -273,7 +275,7 @@ async function runTool(name, args, key) {
   // Do-Not-Text and unsubscribe lists and is NEVER put in the answer or the
   // inbox item — the owner's Agent inbox reads it from the lead at send time.
   if (name === 'draft_text' || name === 'draft_email') {
-    const lead = L.activeLeads(await companyLeads(company)).find((l) => l.id === String(args.lead_id || ''));
+    const lead = L.activeLeads(await leadsOf()).find((l) => l.id === String(args.lead_id || ''));
     if (!lead) return L.toolErr('unknown lead_id — use list_leads or overdue_followups first');
     let item;
     if (name === 'draft_text') {
@@ -523,7 +525,8 @@ async function fileItem(key, day, item, note, dedupeKey) {
 // nothing, uses none of the daily cap and rings no bell.
 async function fileItemOnce(key, day, item, note, dedupeKey) {
   const company = key.companyId;
-  const keyRef = db().collection('agent_keys').doc(key.id);
+  // A server key (office-planner.js) has no agent_keys doc: it counts on its own capDoc.
+  const keyRef = key.capDoc ? db().doc(key.capDoc) : db().collection('agent_keys').doc(key.id);
   const lockRef = db().doc('agent_inbox_keys/' + L.dedupeLockId(company, dedupeKey));
   const itemRef = db().collection('agent_inbox').doc();
   const bot = key.bot;
@@ -542,7 +545,8 @@ async function fileItemOnce(key, day, item, note, dedupeKey) {
     }
     const n = Number(((k.data() || {}).filedByDay || {})[day]) || 0;
     if (n >= FILINGS_PER_DAY) return { capped: true };
-    tx.update(keyRef, { ['filedByDay.' + day]: n + 1 });
+    if (key.capDoc) tx.set(keyRef, { filedByDay: { [day]: n + 1 } }, { merge: true });
+    else tx.update(keyRef, { ['filedByDay.' + day]: n + 1 });
     tx.set(itemRef, Object.assign({
       companyId: company, bot: bot.name, botId: key.botId, status: 'pending', verified: false, createdAt: FieldValue.serverTimestamp(), keyId: key.id.slice(0, 12), keyPlatform: L.keyPlatform(key),
     }, item, { dedupeKey }));
@@ -1186,6 +1190,6 @@ exports.deleteAgentBot = onCall(CALL_OPTS, ghostGuarded(deleteBot));
 exports.saveAgentSettings = onCall(CALL_OPTS, ghostGuarded(saveSettings));
 
 exports._internal = {
-  handleRpc, runTool, sha256, contextFor, authenticate, handleHttp, bellNotice,
+  handleRpc, runTool, sha256, contextFor, authenticate, handleHttp, bellNotice, companyLeads, companyDocs, companyDealRooms, auditRow,
   createKey, listKeys, revokeKey, saveBot, deleteBot, saveSettings, callerOf, NBD_OWNER_UID, draftAction, draftCheck, fileItem, stormDrafts,
 };

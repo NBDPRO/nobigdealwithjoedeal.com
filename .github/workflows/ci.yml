@@ -535,6 +535,12 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project demo-nbd-quinn-gate 'node ./quinn-gate.integration.test.js'
+      # The office planner (2026-11-25, roadmap step 17B): the real run through crmMcp's filing path:
+      # each lane files once, the second run dedupes, drafts land unchecked, opted-out companies untouched.
+      - name: Run office-planner tests under firestore emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project demo-nbd-office-planner 'node ./office-planner.integration.test.js'
 
   syntax-check:
     name: Node syntax check

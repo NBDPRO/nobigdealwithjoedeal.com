@@ -639,6 +639,7 @@
     "quinn-gate-2026-11-25.test.js",
     "agent-door-hardening-2026-11-25.test.js",
     "thursday-kill-switch-2026-11-25.test.js",
+    "office-planner-2026-11-25.test.js",
     "price-change-devices-2026-11.test.js",
     "agent-personal-keys-2026-10-02.test.js",
     "call-watch-2026-10-02.test.js",
@@ -1784,7 +1785,8 @@
     "thursday-pipeline.integration.test.js": "test:thursday",
     "thursday-label-playbooks.integration.test.js": "test:thursdaypb",
     "agent-inbox-dedupe.integration.test.js": "test:inboxdedupe",
-    "quinn-gate.integration.test.js": "test:quinngate"
+    "quinn-gate.integration.test.js": "test:quinngate",
+    "office-planner.integration.test.js": "test:officeplanner"
   },
   "wired-individually": [
     "communication-log-contract.test.js",
