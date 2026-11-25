@@ -25,7 +25,7 @@ app's resume behaviour can only be confirmed on a real iPhone.
 | Gap | Cause | Fix |
 |---|---|---|
 | Features missing on the iPhone for a whole session | `docs/pro/js/feature-flags.js` gave up waiting for sign-in after 10 s and never retried a failed read; 47 files read these flags | waits up to 2 min, retries a failed read, re-reads on foreground (10-min TTL kept) |
-| Installed app runs an old build for days | the page only reloaded when `sw.js` bytes changed (rare) | `docs/pro/js/safe-reload.js` compares `window.__NBD_RELEASE` with live `/version.json` on foreground and safe-reloads once per live build |
+| Installed app runs an old build for days | the page only reloaded when `sw.js` bytes changed (rare) | `docs/pro/js/safe-reload.js` compares `window.__NBD_RELEASE` with live `/version.json` on foreground and, once per live build, shows the "New version ready" bar; the reload happens on a tap or the next time the app is left while idle (not on resume itself: an upload or an estimate held in memory is invisible to the busy check) |
 | Status bar differs | `theme-color="var(--bg)"` is invalid; Android used the manifest's orange | literal `#0A0C0F` on dashboard and customer pages |
 | Text body dropped on some iPhones | 13 `sms:` builders used a bare `?body=`; two %-encoded the number | `?&body=` (the shape `phone-share.js` already used) and plain digits; stored missed-call drafts are upgraded where shown or opened (call center, bell, home strip, push click). The server still writes `?body=` so the call-feed golden fixture stays byte-identical |
 | D2D voice memo unplayable on iPhone | blob always labelled `audio/webm`; iPhone records mp4 | uses the recorder's type and a matching file extension |
