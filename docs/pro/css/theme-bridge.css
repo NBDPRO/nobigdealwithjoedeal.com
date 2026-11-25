@@ -167,7 +167,7 @@ body.theme-frosted {
 #d2dMap { width:100%; height:55vh; height:55dvh; min-height:300px; position:relative; z-index:1; }
 .d2d-modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.6); -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px); z-index:9999; display:flex; align-items:flex-end; justify-content:center; opacity:0; transition:opacity .2s ease; pointer-events:none; }
 .d2d-modal-overlay.open { opacity:1; pointer-events:auto; }
-.d2d-modal { background:var(--s); border-radius:20px 20px 0 0; width:100%; max-width:520px; max-height:88vh; overflow-y:auto; padding:20px; transform:translateY(100%); transition:transform .25s cubic-bezier(.32,.72,0,1); }
+.d2d-modal { background:var(--s); border-radius:20px 20px 0 0; width:100%; max-width:520px; max-height:88vh; max-height:min(88vh, calc(100dvh - env(safe-area-inset-top, 0px) - 12px)); overflow-y:auto; padding:20px; transform:translateY(100%); transition:transform .25s cubic-bezier(.32,.72,0,1); }
 .d2d-modal-overlay.open .d2d-modal { transform:translateY(0); }
 .d2d-modal-hdr { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:14px; }
 .d2d-modal-title { font-size:17px; font-weight:800; color:var(--t); font-family:'Barlow Condensed',sans-serif; letter-spacing:.02em; }
@@ -284,7 +284,7 @@ body.theme-frosted {
 /* ── D2D Tablet (≤768px) ────────────────────────── */
 @media(max-width:768px) {
   #d2dMap { height:38vh; height:38dvh; min-height:200px; }
-  .d2d-modal { border-radius:16px 16px 0 0; padding:16px; max-height:92vh; }
+  .d2d-modal { border-radius:16px 16px 0 0; padding:16px; max-height:92vh; max-height:min(92vh, calc(100dvh - env(safe-area-inset-top, 0px) - 12px)); }
   .d2d-dispo-grid { grid-template-columns:repeat(3, 1fr); gap:6px; }
   .d2d-dispo-btn { padding:12px 6px; min-height:44px; }
   .d2d-dispo-icon { font-size:18px; }
@@ -326,7 +326,7 @@ body.theme-frosted {
 /* ── D2D Mobile (≤480px) ────────────────────────── */
 @media(max-width:480px) {
   #d2dMap { height:32vh; height:32dvh; min-height:180px; }
-  .d2d-modal { max-width:100%; max-height:95vh; border-radius:14px 14px 0 0; padding:14px; padding-bottom:env(safe-area-inset-bottom, 14px); }
+  .d2d-modal { max-width:100%; max-height:95vh; max-height:min(95vh, calc(100dvh - env(safe-area-inset-top, 0px) - 12px)); border-radius:14px 14px 0 0; padding:14px; padding-bottom:env(safe-area-inset-bottom, 14px); }
   .d2d-dispo-grid { grid-template-columns:repeat(2, 1fr); gap:8px; }
   .d2d-dispo-btn { padding:14px 8px; min-height:52px; }
   .d2d-dispo-icon { font-size:22px; }
@@ -438,7 +438,7 @@ body.theme-frosted {
    the footer stays above the iPhone keyboard. ID-scoped: beats the
    breakpoint .d2d-modal / .d2d-modal-body max-heights above. */
 #d2d-quick-knock-overlay { top:var(--qk-top, 0px); bottom:auto; height:var(--qk-h, 100%); }
-#d2d-quick-knock-overlay .d2d-qk-sheet { display:flex; flex-direction:column; overflow:hidden; padding-bottom:0; max-height:min(95vh, calc(var(--qk-h, 100vh) - 8px)); }
+#d2d-quick-knock-overlay .d2d-qk-sheet { display:flex; flex-direction:column; overflow:hidden; padding-bottom:0; max-height:min(95vh, calc(var(--qk-h, 100vh) - 8px)); max-height:min(95vh, calc(var(--qk-h, 100vh) - 8px), calc(100dvh - env(safe-area-inset-top, 0px) - 12px)); }
 #d2d-quick-knock-overlay .d2d-qk-sheet > .d2d-modal-hdr { flex:none; }
 #d2d-quick-knock-overlay .d2d-qk-sheet > .d2d-modal-body { flex:1 1 auto; min-height:0; max-height:none; overflow-y:auto; padding-bottom:14px; }
 .d2d-qk-footer { flex:none; padding:10px 0 calc(10px + env(safe-area-inset-bottom, 0px)); border-top:1px solid var(--br); background:var(--s); }

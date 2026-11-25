@@ -103,6 +103,16 @@
   input[type="search"],
   input[type="url"],
   input[type="password"],
+  /* 2026-11-25 parity: inputs with no type, date/time pickers, and the bulk
+     bar's selects (13px !important in dashboard-app.css, beaten here by the
+     extra element in the selector) still zoomed an iPhone on focus. */
+  input:not([type]),
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="week"],
+  html #bulkActionBar select,
   textarea,
   select {
     font-size: 16px !important;

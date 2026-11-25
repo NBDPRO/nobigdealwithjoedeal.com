@@ -213,6 +213,6 @@ html[data-layout="crew"] .cw-orders small { display: block; color: var(--m); fon
 @media (max-width: 768px) {
   html[data-layout="crew"] .cw-grid { --cw-lane: 100px; min-width: 640px; }
   html[data-layout="crew"] .cw-title { order: 5; flex-basis: 100%; }
-  html[data-layout="crew"] .cw-drawer { top: auto; width: 100%; max-height: 88vh; border-left: 0; border-top: 1px solid var(--rule); border-radius: 18px 18px 0 0; box-shadow: 0 -12px 30px rgba(0, 0, 0, .3); }
+  html[data-layout="crew"] .cw-drawer { top: auto; width: 100%; max-height: 88vh; max-height:min(88vh, calc(100dvh - env(safe-area-inset-top, 0px) - 12px)); border-left: 0; border-top: 1px solid var(--rule); border-radius: 18px 18px 0 0; box-shadow: 0 -12px 30px rgba(0, 0, 0, .3); }
   html[data-layout="crew"] .cw-wrap { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 }
