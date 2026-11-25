@@ -172,7 +172,7 @@
     // then the view. Nothing is sent without the rep tapping Send.
     winback: [
       'js/winback-logic.js?v=2',
-      'css/winback-view.css?v=1',
+      'css/winback-view.css?v=2',
       'js/winback.js?v=2'
     ],
     // Roof Care Plan members view (#/careplan, 2026-10-05). Its stylesheet
@@ -522,7 +522,7 @@
     callcenter: [
       'js/call-center-filters-logic.js?v=5',
       'js/call-center-loop-logic.js?v=1',
-      'js/call-center-view.js?v=33'
+      'js/call-center-view.js?v=34'
     ],
     // Tenant-ready settings (2026-10-05, #2152 boot budget): the Business
     // Rules editor (Settings → Estimates) and the logo upload / company export
@@ -560,7 +560,7 @@
     // menu, and the owner's Canvassers panel (Settings → Team). Kicked by
     // dashboard-bootstrap.module.js once the claims are known (no boot <script> tag).
     canvasser: [
-      'css/canvasser.css?v=1',
+      'css/canvasser.css?v=2',
       'js/canvasser-logic.js?v=2',
       'js/canvasser-ui.js?v=1'
     ],
