@@ -523,6 +523,12 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project demo-nbd-thursday-pb 'node ./thursday-label-playbooks.integration.test.js'
+      # Agent inbox dedupe_key (2026-11-22, roadmap step 6): the real crmMcp handler
+      # end to end, incl. two same-key filings at once -> one item.
+      - name: Run Agent-inbox dedupe tests under firestore emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project demo-nbd-inbox-dedupe 'node ./agent-inbox-dedupe.integration.test.js'
 
   syntax-check:
     name: Node syntax check
