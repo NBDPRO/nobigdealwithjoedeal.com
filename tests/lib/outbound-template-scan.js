@@ -88,6 +88,7 @@ const INTERNAL_SENDERS = Object.freeze([
   'functions/morning-brief.js', 'functions/review-request-nudge.js', 'functions/storm-poller.js',
   'functions/weekly-digest.js',
   'functions/storm-watch.js', 'functions/verify-functions.js',   // internal: Jo's storm / new-lead alert (the customer texts in these files are covered by the SMS rules)
+  'functions/owner-notify.js',   // internal (2026-11-25, step 13): system alerts to the owner's own phone; never a customer
 ]);
 
 function walk(dir, out) {

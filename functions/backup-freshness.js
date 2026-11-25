@@ -71,6 +71,8 @@ exports.backupFreshnessCron = onSchedule(
     timeoutSeconds: 120,
     memory: '256MiB',
     retry: false,
+    // owner-notify.js may text the owner (roadmap step 13).
+    secrets: require('./owner-notify').SMS_SECRETS,
   },
   async () => {
     const nowMs = Date.now();
@@ -123,6 +125,18 @@ exports.backupFreshnessCron = onSchedule(
       severity: verdict.severity,
       reason: verdict.reason,
     });
+
+    // Bell + push + one capped text (owner-notify.js, roadmap step 13): this
+    // email rides the same email queue the health digest may be reporting as
+    // broken. Never stops the email below.
+    try {
+      await require('./owner-notify').notifyOwner(getFirestore(), {
+        title: 'Firestore backup has NOT run', body: verdict.reason, severity: 'alert',
+        key: 'backup-freshness', type: 'backup_watch', clickUrl: '/pro/dashboard.html', idPrefix: 'backup-freshness-',
+      });
+    } catch (e) {
+      logger.warn('backup_freshness.owner_notify_failed', { error: e && e.message });
+    }
 
     const subject = 'NBD Pro — Firestore backup has NOT run';
     const lines = [
