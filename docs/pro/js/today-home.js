@@ -836,7 +836,7 @@
   // blocking script with no byte headroom: dashboard-boot-budget). This
   // deferred file always runs before the Call Center / customer page load it.
   if (w.ScriptLoader && w.ScriptLoader.bundles && !w.ScriptLoader.bundles.promise) {
-    w.ScriptLoader.bundles.promise = ['css/promise.css?v=1', 'js/promise-logic.js?v=2', 'js/promise-ui.js?v=4'];
+    w.ScriptLoader.bundles.promise = ['css/promise.css?v=2', 'js/promise-logic.js?v=2', 'js/promise-ui.js?v=4'];
   }
   var promiseLoad = null;
   function ensurePromise() {

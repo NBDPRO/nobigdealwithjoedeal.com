@@ -9,7 +9,7 @@ html.os-locked .os-pocket-wrap { display: none; }
 .os-pocket-scrim { position: absolute; inset: 0; background: color-mix(in srgb, var(--bg) 45%, transparent); }
 .os-pocket {
   position: relative; display: flex; flex-direction: column; gap: var(--ui-space-2, 8px);
-  width: min(560px, calc(100vw - 2 * var(--ui-space-4, 16px))); max-height: calc(100vh - 2 * var(--ui-space-4, 16px)); overflow-y: auto;
+  width: min(560px, calc(100vw - 2 * var(--ui-space-4, 16px))); max-height: calc(100vh - 2 * var(--ui-space-4, 16px)); max-height: min(calc(100vh - 2 * var(--ui-space-4, 16px)), calc(100dvh - 2 * env(safe-area-inset-top, 0px) - 16px)); overflow-y: auto;
   margin-top: var(--ui-space-3, 12px); padding: var(--ui-space-3, 12px) var(--ui-space-4, 16px) var(--ui-space-4, 16px);
   color: var(--t); background: var(--s); border: 1px solid var(--ui-line-divider, var(--br)); border-top: 3px solid var(--orange);
   border-radius: var(--ui-radius-lg, 12px); box-shadow: var(--ui-elev-3, var(--ui-elev-2, var(--ui-elev-1)));

@@ -2323,7 +2323,8 @@ window.shareEstimateViewLink = async function(estId) {
   // Try the modern Web Share API first (mobile, opens native share
   // sheet straight to SMS/Messenger/email). Fall back to clipboard
   // copy for desktop. Final fallback: prompt() for legacy browsers.
-  if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
+  // iPadOS reports itself as a Mac: a Mac with touch points is an iPad (2026-11-25).
+  if (navigator.share && (/Mobi|Android/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1))) {
     try {
       await navigator.share({
         title: 'Your estimate from ' + ((window._brand && window._brand().displayName) || 'No Big Deal'),

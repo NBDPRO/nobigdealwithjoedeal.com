@@ -580,6 +580,13 @@
     document.addEventListener('touchmove',  onTouchMove,  { passive: true });
     document.addEventListener('touchend',   onTouchEnd,   { passive: true });
     document.addEventListener('touchcancel', onTouchEnd,  { passive: true });
+    // Touch screens also get hold-then-drag between columns (2026-11-25):
+    // its own lazy file, fetched only where a finger can use it.
+    try {
+      if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches && window.ScriptLoader && typeof window.ScriptLoader.load === 'function') {
+        window.ScriptLoader.load('js/kanban-touch-drag.js?v=1');
+      }
+    } catch (e) { /* no touch drag: the card menu and the list view still move cards */ }
   }
 
   // Reusable picker — opens a single floating menu (no parent) at an
@@ -612,6 +619,8 @@
       openPicker(buildTypeSubmenuItems(lead), anchor, 'Change classification');
     },
     close: closeMenu,
+    // kanban-touch-drag.js drops a lifted card when the hold became this menu.
+    isOpen: () => !!menuEl,
   };
 
   if (document.readyState === 'loading') {
