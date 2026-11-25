@@ -634,7 +634,7 @@
   // ── P3: the privacy lock (os/privacy.js, the lazy `osprivacy` bundle): hot corner, Ctrl+Alt+L, double tap.
   // Loaded only when wanted: at mount while one of its opt-ins is on (this device's keys), on the
   // first Ctrl+Alt+L, or from the Control Center's "Privacy lock" tile.
-  var PRIVACY_SRC = ['css/os/privacy.css?v=1', 'js/os/privacy.js?v=1'];
+  var PRIVACY_SRC = ['css/os/privacy.css?v=2', 'js/os/privacy.js?v=1'];
   var PRIVACY_KEYS = ['nbd_os_lock_corner_v1', 'nbd_os_lock_dtap_v1'];
   function privacyLoad() {
     var st = S;
@@ -684,7 +684,7 @@
   // Alt+` (os-wm-logic pocketKey: never inside a field), the Control Center tile, Spotlight and
   // the phone's Pocket icon. js/os/pocket.js is the runtime bundle `ospocket`, loaded on the
   // first toggle, never at mount. It changes nothing here: no window, desk or save.
-  var POCKET_BUNDLE = 'ospocket', POCKET_FILES = ['css/os/pocket.css?v=1', 'js/os/pocket-logic.js?v=1', 'js/os/pocket.js?v=1'];
+  var POCKET_BUNDLE = 'ospocket', POCKET_FILES = ['css/os/pocket.css?v=2', 'js/os/pocket-logic.js?v=1', 'js/os/pocket.js?v=1'];
   function pocket(trigger) {
     if (!S) return;
     var back = trigger || doc.activeElement;   // read before the bundle loads: focus goes back here on close

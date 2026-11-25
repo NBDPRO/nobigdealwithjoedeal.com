@@ -439,7 +439,7 @@ function wiring() {
   const js = read(FILE), css = read(CSSF), os = read('docs/pro/js/layouts/os.js');
   const dash = read('docs/pro/dashboard.html');
   ok('no <script> tag for it in dashboard.html (lazy only)', !/os\/privacy\.js/.test(dash) && !/os\/privacy\.css/.test(dash));
-  ok('layouts/os.js registers the osprivacy bundle (css + js)', /SL\.bundles\.osprivacy\s*=\s*PRIVACY_SRC/.test(os) && /'css\/os\/privacy\.css\?v=1', 'js\/os\/privacy\.js\?v=1'/.test(os));
+  ok('layouts/os.js registers the osprivacy bundle (css + js)', /SL\.bundles\.osprivacy\s*=\s*PRIVACY_SRC/.test(os) && /'css\/os\/privacy\.css\?v=2', 'js\/os\/privacy\.js\?v=1'/.test(os));
   ok('layout-system.js is untouched: not in needs.script', !/privacy/.test(read('docs/pro/js/layout-system.js')));
   const code = strip(js);
   ok('no style attributes or style injection', !/style=|\.style\.|cssText/.test(code));

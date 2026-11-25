@@ -373,12 +373,12 @@ function boot(opts) {
     const cust = read('docs/pro/customer.html');
     ok('dashboard + customer pages load the new launcher (v>=5) and coordinator (v>=3)',
       [html, cust].every((p) => /visit-recorder-launcher\.js\?v=([5-9]|\d\d+)"/.test(p) && /fab-stack-coordinator\.js\?v=([3-9]|\d\d+)"/.test(p)));
-    ok('the stylesheet is re-versioned in both places (v=6)', (L.match(/visit-recorder\.css\?v=6/g) || []).length === 2);
+    ok('the stylesheet is re-versioned in both places (v=7)', (L.match(/visit-recorder\.css\?v=7/g) || []).length === 2);
     const M = read('docs/pro/js/visit-recorder-menu.js');
     ok('menu: no innerHTML and no inline styles (strict CSP)', !/\.(innerHTML|outerHTML)\s*=|insertAdjacentHTML|\.style\.|setAttribute\(\s*['"]style/.test(M.replace(/\/\*[\s\S]*?\*\//g, '')));
     ok('menu: Record and Recent ride the launcher\'s own delegates (one path for every entry point)',
       /setAttribute\('data-nbd-record-visit', ''\)/.test(M) && /setAttribute\('data-source', 'fab'\)/.test(M) && /setAttribute\('data-nbd-recent-visits', ''\)/.test(M));
-    ok('demo: every phone screen gets the strip\'s room too, not only Home', /html\.nbd-demo\.nbd-vr-bar-on \.view-scroll \{ padding-bottom: calc\(80px \+ 74px \+ 50px/.test(read('docs/pro/css/demo-mode.css')) && /demo-mode\.css\?v=8'/.test(read('docs/pro/js/demo-mode.js')));
+    ok('demo: every phone screen gets the strip\'s room too, not only Home', /html\.nbd-demo\.nbd-vr-bar-on \.view-scroll \{ padding-bottom: calc\(80px \+ 74px \+ 50px/.test(read('docs/pro/css/demo-mode.css')) && /demo-mode\.css\?v=9'/.test(read('docs/pro/js/demo-mode.js')));
     ok('demo strip lifts above the button on every screen (not only Home)', /html\.nbd-demo\.nbd-vr-bar-on \.nbd-demo-strip \{ bottom: calc\(138px/.test(read('docs/pro/css/demo-mode.css')));
   }
 
