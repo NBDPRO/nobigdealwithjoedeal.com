@@ -61,6 +61,13 @@ Pinned by `tests/iphone-parity-2026-11-25.test.js` (fails on the pre-fix code).
 - `-webkit-user-select` is missing on long-press targets (older iOS selects text);
   `-webkit-text-size-adjust` only applies at 768px and narrower (landscape).
 - Kanban drag is HTML5 drag-and-drop only (`crm-pipeline.js`); on touch, moves go
-  through the long-press menu or the list view on both phones.
+  through the long-press menu or the list view on both phones. **Fixed in a
+  follow-up (same day, Joe's pick):** `kanban-touch-drag.js`. On any touch screen
+  showing the Board, hold a card ~0.3 s to lift it, drag it to another column
+  and let go (the same `moveCard(…, { isDrag: true })` a desktop drop uses).
+  Let go without moving and the 0.5 s card menu opens as before. The board
+  auto-scrolls at the edges. A touched card is non-draggable for that touch, so
+  both phones get the same gesture. Checked with real TouchEvents on WebKit and
+  Chromium.
 - iPad reports itself as a Mac, so the `/Mobi|Android/` share gate in
   `customer-bootstrap.module.js` skips the share sheet there.
