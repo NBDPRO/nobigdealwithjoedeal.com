@@ -221,6 +221,7 @@ function load(db, storage, extraStubs) {
     './deposit-plan-view': require(path.join(FN, 'deposit-plan-view.js')),
     './cancel-window': require(path.join(FN, 'cancel-window.js')),
     './cancel-notice-pdf': require(path.join(FN, 'cancel-notice-pdf.js')),
+    './send-window': require('./lib/send-window-open'), // the customer window is tested in send-window-2026-11-22
     './integrations/heartbeat': { onSchedule: (o, h) => { const f = async () => h(); f.__options = o; return f; } },
   };
   Object.assign(stubs, extraStubs || {});

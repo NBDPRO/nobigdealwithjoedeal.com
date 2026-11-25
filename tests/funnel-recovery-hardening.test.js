@@ -204,6 +204,7 @@ let currentLimiter = makeRateLimiterStub();
 
 const stubs = {
   './messaging-controls': require('./lib/messaging-controls-stub'),
+  './send-window': require('./lib/send-window-open'), // the customer window is tested in send-window-2026-11-22
   'firebase-admin/firestore': {
     Timestamp: { fromDate: (d) => fakeTs(d.getTime()) },
     FieldValue: { serverTimestamp: () => ({ __serverTimestamp: true, ms: Date.now() }) },

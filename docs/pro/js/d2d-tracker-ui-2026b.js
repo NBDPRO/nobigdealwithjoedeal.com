@@ -76,7 +76,9 @@
       state.voiceChunks = [];
       state.voiceRecorder.ondataavailable = (e) => { if (e.data.size > 0) state.voiceChunks.push(e.data); };
       state.voiceRecorder.onstop = () => {
-        state.voiceBlob = new Blob(state.voiceChunks, { type: 'audio/webm' });
+        // The recorder's own type: an iPhone records audio/mp4, Chrome webm
+        // (2026-11-25: this was always labelled webm, so iPhone memos could not play).
+        state.voiceBlob = new Blob(state.voiceChunks, { type: state.voiceRecorder.mimeType || (state.voiceChunks[0] && state.voiceChunks[0].type) || 'audio/webm' });
         stream.getTracks().forEach(t => t.stop());
         const btn = document.getElementById('d2d-voice-btn');
         if (btn) {

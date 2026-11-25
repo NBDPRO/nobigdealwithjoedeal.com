@@ -125,7 +125,7 @@ function fakeDb(seed) {
   vm.runInContext(read('docs/pro/firebase-messaging-sw.js'), sandbox);
   const href = missed.replyDraft.smsHref;
   const p1 = sandbox.resolveNotificationAction('text', { smsUrl: href, clickUrl: '/pro/dashboard.html?call=cube_1#/calls' });
-  ok('worker: Text back → kind text with the sms: link', p1.kind === 'text' && p1.sms === href, JSON.stringify(p1));
+  ok('worker: Text back → kind text with the sms: link (as ?&body=, which iPhones read, 2026-11-25)', p1.kind === 'text' && p1.sms === href.replace('?body=', '?&body='), JSON.stringify(p1));
   const p2 = sandbox.resolveNotificationAction('text', { smsUrl: 'javascript:alert(1)' });
   ok('worker: an unsafe smsUrl falls back to opening the CRM', p2.kind === 'navigate');
   ok('worker list for missedCall = Text back, Open', JSON.stringify(sandbox.getNotificationActions('missedCall')) === JSON.stringify([{ action: 'text', title: 'Text back' }, { action: 'view', title: 'Open' }]));
@@ -134,7 +134,7 @@ function fakeDb(seed) {
   let waited = null;
   listeners.notificationclick({ action: 'text', notification: { close() {}, data: { smsUrl: href, clickUrl: '/pro/dashboard.html#/calls' } }, waitUntil: (p) => { waited = p; } });
   await waited;
-  ok('worker click opens the sms: link itself', opened[0] === href, JSON.stringify(opened));
+  ok('worker click opens the sms: link itself', opened[0] === href.replace('?body=', '?&body='), JSON.stringify(opened));
   ok('worker: a missedCall push keeps its own Call Center card URL', sandbox.getClickUrl({ type: 'missedCall', clickUrl: '/pro/dashboard.html?call=cube_1#/calls' }) === '/pro/dashboard.html?call=cube_1#/calls'
     && sandbox.getClickUrl({ type: 'missedCall', clickUrl: 'https://evil.example/' }) === '/pro/dashboard.html#/calls');
 
@@ -142,7 +142,7 @@ function fakeDb(seed) {
   const bell = read('docs/pro/js/notif-bell.js');
   ok('bell keeps a safe smsHref from the doc and renders a Text back link', /smsHref:\s+SMS_HREF_RE\.test/.test(bell) && /notif-textback" href="\$\{escapeHtml\(n\.smsHref\)\}"/.test(bell));
   const ccv = read('docs/pro/js/call-center-view.js');
-  ok('Call Center card leads with Text back on an open missed call', /c\.replyDraft && SMS_HREF_RE\.test/.test(ccv) && /cc-textback" href="' \+ esc\(c\.replyDraft\.smsHref\)/.test(ccv) && /var actions = textBack \+ reachButtons/.test(ccv));
+  ok('Call Center card leads with Text back on an open missed call', /c\.replyDraft && SMS_HREF_RE\.test/.test(ccv) && /cc-textback" href="' \+ esc\(iosSafeSms\(c\.replyDraft\.smsHref\)\)/.test(ccv) && /var actions = textBack \+ reachButtons/.test(ccv));
   ok('no inline handler in the new markup', !/notif-textback[^>]*\son[a-z]+=/.test(bell) && !/cc-textback[^>]*\son[a-z]+=/.test(ccv));
   // "At least" the version this feature shipped with: an exact pin broke on every later bump of these files.
   const bustAtLeast = (src, re, min) => { const m = re.exec(src); return !!m && Number(m[1]) >= min; };

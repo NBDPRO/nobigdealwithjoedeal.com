@@ -6781,7 +6781,7 @@
   }
   function _smsHref(phone, body) {
     const digits = String(phone || '').replace(/[^\d+]/g, '');
-    return digits.replace(/\D/g, '').length >= 7 ? 'sms:' + digits + '?body=' + encodeURIComponent(body) : '';
+    return digits.replace(/\D/g, '').length >= 7 ? 'sms:' + digits + '?&body=' + encodeURIComponent(body) : '';
   }
   function _mailHref(email, body) {
     if (!email || email.indexOf('@') === -1) return '';

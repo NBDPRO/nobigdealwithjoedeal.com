@@ -138,7 +138,7 @@
     agent_inbox: '🤖', call_watch: '📞',
   };
   function serverIcon(type) { return SERVER_NOTIF_ICONS[type] || '🔔'; }
-  const SMS_HREF_RE = /^sms:\+1[0-9]{10}\?body=[A-Za-z0-9%._~!*'()-]{1,600}$/;
+  const SMS_HREF_RE = /^sms:\+1[0-9]{10}\?&?body=[A-Za-z0-9%._~!*'()-]{1,600}$/;
   function serverSeverity(n) {
     const p = String(n && n.priority || '').toLowerCase();
     if (p === 'high') return 'high';
@@ -169,7 +169,8 @@
       ts:         ts,
       // Speed-to-lead (2026-10-15): a missed call's one-tap reply, typed and
       // ready (functions/missed-call-reply-logic.js). Our own sms: shape only.
-      smsHref:    SMS_HREF_RE.test(String(n.smsHref || '')) ? String(n.smsHref) : '',
+      // Drafts stored before 2026-11-25 say ?body=, which some iPhones drop.
+      smsHref:    SMS_HREF_RE.test(String(n.smsHref || '')) ? String(n.smsHref).replace('?body=', '?&body=') : '',
       // The bot team's filings open the Agent inbox (agent-inbox.js).
       // The every-2-hours call check opens the Call Center (call-watch.js).
       href:       n.type === 'agent_inbox' ? '/pro/dashboard.html?agentInbox=1'

@@ -1213,7 +1213,7 @@
       _changed();
       return false;
     }
-    const href = 'sms:' + encodeURIComponent(rec.to) + '?body=' + encodeURIComponent(rec.body || '');
+    const href = 'sms:' + String(rec.to).replace(/[^\d+]/g, '') + '?&body=' + encodeURIComponent(rec.body || '');
     try {
       const a = document.createElement('a');
       a.href = href;

@@ -28,6 +28,14 @@
  * 'auto-email' (or 'auto-text'), and Joe gets the bell + timeline row
  * "Review ask emailed automatically" instead of "send a review request?".
  * A failed send is not retried (the job then goes back to the rep nudge).
+ *
+ * Customer send window (send-window.js, 2026-11-22): a job whose customer is
+ * outside 8:00-20:00 their time (the lead's location, else deps.companyProfile's
+ * zone, else Eastern) is skipped BEFORE either claim (reason
+ * 'outside_send_window'), so its one ask is still owed on a later run. Always
+ * checked; deps.sendWindow only replaces the check (tests). The text also
+ * carries the customer, deps.companyProfile and the run's nowMs to
+ * guardTwilio, so its own window check gives the same answer after the claim.
  */
 
 const { onSchedule } = require('./integrations/heartbeat');
@@ -42,6 +50,7 @@ const { resendRejected, resendErrorMessage } = require('./resend-guard');
 const OptOut = require('./sms-optout');
 const TextingGate = require('./sms-texting-gate');
 const ConsentDeclined = require('./sms-consent-declined');
+const SendWindow = require('./send-window');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const TWILIO_ACCOUNT_SID = defineSecret('TWILIO_ACCOUNT_SID');
@@ -118,6 +127,9 @@ async function askOne(db, entry, uid, deps) {
     // (MessagingControls.MAX_AUTOMATION_AGE_DAYS), however wide the window in
     // review-ask-auto-logic.js is, so switching this on cannot ask the backlog.
     if (d.maxAgeDays != null && !MessagingControls.withinAutomationAge(entry.receivedMs, nowMs, d.maxAgeDays)) return { sent: false, reason: 'too_old' };
+    // Outside the customer's send window: nothing claimed, retried next run.
+    const win = typeof d.sendWindow === 'function' ? d.sendWindow(entry, nowMs) : SendWindow.check(nowMs, entry, d.companyProfile || null);
+    if (!win.ok) return { sent: false, reason: 'outside_send_window' };
     const reviewUrl = RA.reviewUrlFor(entry, d.repUrl);
     const pe = RA.planEmail(args);
     if (pe.send) {
@@ -206,7 +218,8 @@ async function askOne(db, entry, uid, deps) {
       if (!(await MessagingControls.claimSendOnce(db, pt.to, 'review_ask_text', entry.jobId || entry.id))) {
         return { sent: false, reason: 'duplicate' };
       }
-      await d.sendText({ to: pt.to, body: RA.textBody(entry, reviewUrl) });
+      // The pre-claim window answer's own inputs, so guardTwilio agrees with it.
+      await d.sendText({ to: pt.to, body: RA.textBody(entry, reviewUrl), recipient: entry, companyProfile: d.companyProfile || null, nowMs });
     } catch (e) {
       log.warn('review_auto_text_failed', { leadId: entry.id, err: e && e.message });
       await settle(db, entry.id, entry.jobId, 'text', 'failed', { atMs: nowMs, error: String((e && e.message) || e).slice(0, 200) });
@@ -238,11 +251,11 @@ async function runForUser(db, uid, deps) {
   return { asked, results };
 }
 
-async function sendTextTwilio({ to, body }) {
+async function sendTextTwilio({ to, body, recipient, companyProfile, nowMs }) {
   const { secretValue: sv } = require('./integrations/_shared');
   const sid = sv(TWILIO_ACCOUNT_SID), tok = sv(TWILIO_AUTH_TOKEN), from = sv(TWILIO_PHONE_NUMBER);
   if (!sid || !tok || !from) throw new Error('twilio-not-configured');
-  return MessagingControls.guardTwilio(getFirestore(), require('twilio')(sid, tok)).messages.create({ to, from, body });
+  return MessagingControls.guardTwilio(getFirestore(), require('twilio')(sid, tok)).messages.create({ to, from, body }, { recipient, companyProfile, nowMs });
 }
 
 exports.reviewAskAutoSweep = onSchedule(
@@ -267,6 +280,8 @@ exports.reviewAskAutoSweep = onSchedule(
       REVIEW_ASK_AUTO_EMAIL_ENABLED: emailOn ? 'true' : 'false',
       REVIEW_ASK_AUTO_TEXT_ENABLED: textOn ? 'true' : 'false',
     });
+    // NBD's customers only, so NBD's company zone is the fallback for a lead with no location.
+    const nbdProfile = await SendWindow.readCompanyZone(db, RA.NBD_OWNER_UID);
     const runCap = Math.min(emailOn ? autoEmail.maxPerRun : Infinity, textOn ? autoText.maxPerRun : Infinity);
     const { Resend } = require('resend');
     const resend = emailOn && process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -284,7 +299,7 @@ exports.reviewAskAutoSweep = onSchedule(
         if ((u.data() || {}).e2eTestAccount) continue;
         if (asked >= runCap) break;
         try {
-          const out = await runForUser(db, u.id, { env: runEnv, resend, sendText: textOn ? sendTextTwilio : null, logger: fnLogger, maxAsks: runCap - asked, maxAgeDays: MessagingControls.MAX_AUTOMATION_AGE_DAYS });
+          const out = await runForUser(db, u.id, { env: runEnv, resend, sendText: textOn ? sendTextTwilio : null, companyProfile: nbdProfile, logger: fnLogger, maxAsks: runCap - asked, maxAgeDays: MessagingControls.MAX_AUTOMATION_AGE_DAYS });
           asked += out.asked;
           for (const r of out.results) counts[r.reason] = (counts[r.reason] || 0) + 1;
         } catch (e) {

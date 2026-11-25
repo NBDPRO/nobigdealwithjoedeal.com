@@ -660,7 +660,9 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
         // mode 'platform' like every other refusal: nothing was opened.
         return { success: false, mode: 'platform', error: (chk && chk.code) || 'unverified', message: msg };
       }
-      const link = 'sms:' + encodeURIComponent(to) + '?body=' + encodeURIComponent(body || '');
+      // 2026-11-25: plain digits (an encoded + read as %2B on some phones) and
+      // `?&body=`, the shape iOS and Android both read (phone-share.js).
+      const link = 'sms:' + String(to).replace(/[^\d+]/g, '') + '?&body=' + encodeURIComponent(body || '');
       _openHandoff(link);
       return { success: true, mode: 'sms' };
     },

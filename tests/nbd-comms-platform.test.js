@@ -255,7 +255,7 @@ const tick = () => new Promise((r) => setImmediate(r));
     ok('502 provider_error (Twilio failed after the opt-out check) still hands off to sms:',
       h.result.success === true && h.result.mode === 'sms' && h.smsLinks.length === 1);
     ok('the handoff link targets the recipient with the body filled in',
-      /^sms:[^?]*859[^?]*\?body=Hi%20Sam$/.test(h.smsLinks[0] || ''));
+      /^sms:[^?]*859[^?]*\?&body=Hi%20Sam$/.test(h.smsLinks[0] || ''));
   }
   {
     const h = await sms(jsonRes(429, { error: 'Daily SMS limit exceeded' }));

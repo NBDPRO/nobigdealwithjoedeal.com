@@ -210,6 +210,7 @@ function mkRes() {
       };
       stubs = {
         './messaging-controls': require('./lib/messaging-controls-stub'),
+        './send-window': require('./lib/send-window-open'), // the customer window is tested in send-window-2026-11-22
         'firebase-admin/firestore': { getFirestore: () => ({ collection: coll, doc: ref }), FieldValue, Timestamp: { fromMillis: (ms) => ({ toMillis: () => ms }) } },
         'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => 'k-' + n }) },
         'firebase-functions/v2': { logger: noopLogger },

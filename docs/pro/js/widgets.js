@@ -1548,7 +1548,7 @@ const _wActions = {
   quickDraw:      () => { if (typeof _wQuickDraw === 'function') _wQuickDraw(); },
   askJoe:         () => { if (typeof _wAskJoe === 'function') _wAskJoe(); },
   copyToClipboard: (url) => { if (url) { navigator.clipboard.writeText(url); if (typeof showToast === 'function') showToast('Copied!','ok'); } },
-  smsBookLink:    (url) => { if (url) window.open('sms:?body=' + encodeURIComponent('Book here: ' + url)); },
+  smsBookLink:    (url) => { if (url) window.open('sms:?&body=' + encodeURIComponent('Book here: ' + url)); },
   openDailyTracker: () => window.open('/pro/daily-success/', '_self'),
   removeWidget:   (id) => window.NBDWidgets.removeWidget(id),
   closePicker:    () => window.NBDWidgets.closePicker(),

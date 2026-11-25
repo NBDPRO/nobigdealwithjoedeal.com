@@ -437,7 +437,7 @@ window._sharePortalLink = async function (leadId) {
         `Hi${first ? ' ' + first : ''}, here\'s your project page: ` + url +
         ` — you can see your estimate, sign the contract, or book an inspection time.`
       );
-      window.open('sms:' + cleanPhone + '?body=' + body, '_self');
+      window.open('sms:' + cleanPhone + '?&body=' + body, '_self');
       usedChannel = 'sms';
     } else {
       // No phone — surface the URL so the rep can paste manually.

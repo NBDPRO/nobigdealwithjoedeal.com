@@ -48,6 +48,8 @@ const OptOut = require('./sms-optout');
 const { SEND_WINDOW } = require('./sms-outbox-guard');
 // Texting hours in the homeowner's local time (state / ZIP), 2026-10-05.
 const SendWindow = require('./sms-send-window');
+// The stricter customer send window for automations (8:00-20:00 recipient time, 2026-11-22).
+const CustomerWindow = require('./send-window');
 
 /** One storm text per subscriber per this many hours — across BOTH crons.
  *  Covers NWS re-issuing an updated warning under a new alert id, and a
@@ -223,7 +225,8 @@ async function claimStormText(db, args) {
  * args: { db, subscriberRef, phone, claimRef?, claimData?, source, eventKey,
  *         companyId (whose Do Not Text list applies — REQUIRED; without it
  *         the opt-out lookup rejects and nothing is sent),
- *         send: async () => twilioResult, logger, nowMs?, serverTimestamp?,
+ *         send: async ({ nowMs, companyProfile }) => twilioResult (pass both
+ *         on to guardTwilio's ctx), logger, nowMs?, serverTimestamp?,
  *         optOutTimeoutMs? }
  * Resolves { status } — 'sent' | 'quiet_hours' | 'opted_out' | 'optout_unverified' |
  * 'inactive' | 'no_consent' | 'cooldown' | 'already_claimed' | 'claim_failed' |
@@ -236,10 +239,17 @@ async function sendGuardedStormText(args) {
   const subId = subscriberRef && subscriberRef.id;
 
   // 0) TCPA quiet hours in the recipient's local time — their tz if the doc
-  // has one, else their state / ZIP (sms-send-window.js). Skipped, not
-  // queued; nothing is claimed, so the person is not put into cooldown.
+  // has one, else their state / ZIP (sms-send-window.js) — AND the customer
+  // send window for automations (send-window.js, 8:00-20:00; guardTwilio
+  // enforces it too, but only this pre-claim check keeps the subscriber out
+  // of cooldown). Skipped, not queued; nothing is claimed.
   const where = Object.assign({}, args.recipient || {}, args.tz ? { tz: args.tz } : {});
-  if (!SendWindow.withinRecipientWindow(args.nowMs != null ? args.nowMs : Date.now(), where)) {
+  // send() is then handed this same instant and company zone ({ nowMs,
+  // companyProfile }, for guardTwilio's ctx), so the central window check
+  // cannot refuse a text whose claim is already spent.
+  const at = args.nowMs != null ? args.nowMs : Date.now();
+  const companyProfile = await CustomerWindow.profileFor(db, where, args.companyId);
+  if (!SendWindow.withinRecipientWindow(at, where) || !CustomerWindow.check(at, where, companyProfile).ok) {
     return { status: 'quiet_hours' };
   }
 
@@ -275,7 +285,7 @@ async function sendGuardedStormText(args) {
   // 3) Send.
   let result;
   try {
-    result = await args.send();
+    result = await args.send({ nowMs: at, companyProfile });
   } catch (e) {
     log.warn('storm_sms_send_failed', { source, sub: subId, err: e && e.message, code: e && e.code });
     // The claim stays: a failure AFTER the claim is never retried (a Twilio
