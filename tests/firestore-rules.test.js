@@ -3235,6 +3235,14 @@ async function run() {
   await x45('the owner cannot create a bot from the client', 'deny', setDoc(doc(own45, 'agent_bots/b46'), { companyId: 'co-45', name: 'x', tools: [], active: true }));
   await x45('a company_admin cannot flip the switch from the client', 'deny', setDoc(doc(cadm45, 'agent_settings/co-45'), { enabled: false }));
   await x45('another company cannot read the settings', 'deny', getDoc(doc(other45, 'agent_settings/co-45')));
+  // Filing dedupe locks (2026-11-22, agent-mcp.js fileItemOnce): server only.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'agent_inbox_keys/dk_45'), { companyId: 'co-45', itemId: 'a1' });
+  });
+  await x45('the owner cannot read a dedupe lock', 'deny', getDoc(doc(own45, 'agent_inbox_keys/dk_45')));
+  await x45('another company cannot read a dedupe lock', 'deny', getDoc(doc(other45, 'agent_inbox_keys/dk_45')));
+  await x45('the owner cannot plant or move a dedupe lock', 'deny', setDoc(doc(own45, 'agent_inbox_keys/dk_46'), { companyId: 'co-45', itemId: 'a4' }));
+  await x45('a company_admin cannot clear a dedupe lock', 'deny', deleteDoc(doc(cadm45, 'agent_inbox_keys/dk_45')));
   console.log('  45: ' + s45Pass + ' agent-inbox checks passed, ' + s45Fail.length + ' failed');
   if (s45Fail.length) {
     throw new Error('45 agent_inbox: ' + s45Fail.length + ' check(s) went the wrong way:\n    ' + s45Fail.join('\n    '));

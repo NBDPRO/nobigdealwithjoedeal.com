@@ -3322,6 +3322,8 @@ service cloud.firestore {
     // decided item stays decided.
     // Bot keys (hashed) and the bot audit trail — server only (agent-mcp.js).
     match /agent_keys/{keyId}   { allow read, write: if false; }
+    // Filing dedupe locks (agent-mcp.js fileItemOnce, 2026-11-22) — server only.
+    match /agent_inbox_keys/{lockId} { allow read, write: if false; }
     // Social Studio media index (key → social-media/ Storage path of a
     // re-encoded copy). Server only: functions/social-studio.js.
     match /social_media/{key}   { allow read, write: if false; }

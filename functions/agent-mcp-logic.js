@@ -202,6 +202,54 @@ const TOOLS = {
   },
 };
 
+// ── Dedupe key (roadmap step 6, 2026-11-22; Joe: "server owns, bots read") ──
+// Every tool that creates an agent_inbox item takes an optional dedupe_key.
+// While the company's item with that key is still pending (the owner has not
+// decided it), the same key files nothing new and answers with that item_id
+// and deduped: true (agent-mcp.js fileItem, one transaction on the lock doc
+// agent_inbox_keys/{dedupeLockId}). Decided (approved / dismissed /
+// sent_by_owner) frees the key for a new item. Keys are per company.
+const FILING_TOOLS = ['file_note', 'file_reminder', 'file_report', 'draft_text', 'draft_email', 'file_social_draft'];
+const DEDUPE_KEY_MAX = 120;
+const DEDUPE_KEY_RE = /^[A-Za-z0-9:_.|-]{1,120}$/;
+FILING_TOOLS.forEach((n) => {
+  TOOLS[n].description += ' dedupe_key (optional): one waiting item per topic — while an item with this key is still waiting for the owner, nothing new is filed and its item_id comes back with deduped: true. Shapes: "radar:followup:<leadId>", "radar:quiet:<estimateId>", "storm:<YYYY-MM-DD>:<zone>", "lead:first:<leadId>".';
+  TOOLS[n].inputSchema.properties.dedupe_key = { type: 'string', minLength: 1, maxLength: DEDUPE_KEY_MAX, pattern: '^[A-Za-z0-9:_.|-]{1,120}$',
+    description: 'Optional. Letters, digits and : _ . | - only, up to ' + DEDUPE_KEY_MAX + ' characters.' };
+});
+/** args → { key: null } (none given; null counts as none), { key } or { error }. */
+function dedupeKeyOf(args) {
+  const a = args || {};
+  if (a.dedupe_key === undefined || a.dedupe_key === null) return { key: null };
+  if (typeof a.dedupe_key !== 'string' || !DEDUPE_KEY_RE.test(a.dedupe_key)) {
+    return { error: 'dedupe_key must be 1-' + DEDUPE_KEY_MAX + ' characters of letters, digits and : _ . | - (e.g. "radar:followup:<leadId>")' };
+  }
+  return { key: a.dedupe_key };
+}
+/** The lock doc id for one company's key: the company is hashed in with the key
+ * (length-prefixed, so no two (company, key) pairs share an input). */
+function dedupeLockId(companyId, key) {
+  const co = String(companyId || '');
+  return 'dk_' + _crypto.createHash('sha256').update(co.length + ':' + co + '|' + String(key)).digest('hex');
+}
+/** Is this inbox item the company's still-undecided item for this key? */
+function dedupeOpen(item, companyId, key) {
+  return !!item && item.companyId === companyId && item.dedupeKey === key && item.status === 'pending';
+}
+/** The step inside fileItemOnce's transaction. prevId = the lock's itemId ('' if
+ * no lock), prev = that item's data (null if it is gone). → { file: true } (file
+ * a new item and repoint the lock), { dupId, kind } (the same topic is still
+ * waiting) or { error } (the key is held by a waiting item of another kind or
+ * lead: refused, so a filing is never silently dropped onto an unrelated item). */
+function dedupeDecision(prevId, prev, companyId, key, item) {
+  if (!prevId || !dedupeOpen(prev, companyId, key)) return { file: true };
+  const it = item || {};
+  if (prev.kind !== it.kind || String(prev.leadId || '') !== String(it.leadId || '')) {
+    return { error: 'dedupe_key "' + key + '" is already used by a waiting ' + String(prev.kind || 'item') + (prev.leadId ? ' for another lead' : '') + '. Use a key that names this kind and lead.' };
+  }
+  return { dupId: prevId, kind: prev.kind };
+}
+
 const READ = ['crm_summary', 'schedule', 'overdue_followups', 'list_leads', 'lead_detail'];
 const FILE = ['file_note', 'file_reminder', 'file_report'];
 
@@ -1598,6 +1646,7 @@ module.exports = {
   estimatesStatus, closesThisWeek, estimateTotal, paymentsOf, collectedRevenue,
   PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews, personalMoney,
   teamActivity, annotationsFor, WRITES,
+  FILING_TOOLS, DEDUPE_KEY_MAX, dedupeKeyOf, dedupeLockId, dedupeOpen, dedupeDecision,
   TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, leadSources, expenseSignedCents, jobProfit, marginReview, stormNearCustomers, haversineMi, roleOf,
   reviewSprint, reviewSprintAsk, reviewDraftWaiting, isReviewAskDraft, sprintAsked, SPRINT_FROM_MS,
   PHOTO_MATCH, photoTimeMs, validatePhotoMatch, photoVisits, matchPhotoLocation, townOf, shortName,
