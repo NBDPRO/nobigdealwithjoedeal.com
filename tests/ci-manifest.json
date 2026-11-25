@@ -1199,6 +1199,7 @@
     "safe-reload-on-deploy-2026-11-14.test.js",
     "iphone-parity-2026-11-25.test.js",
     "ios-user-select-2026-11-25.test.js",
+    "kanban-touch-drag-2026-11-25.test.js",
     "voice-note-kept-on-failure-2026-11-14.test.js",
     "photo-queue-unblock-2026-11-14.test.js",
     "field-shot-held-until-photos-load-2026-11-14.test.js",
