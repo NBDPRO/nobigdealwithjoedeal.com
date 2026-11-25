@@ -44,11 +44,13 @@ const { defineSecret: _defineSecret } = require('firebase-functions/params');
 const TWILIO_ACCOUNT_SID = _defineSecret('TWILIO_ACCOUNT_SID');
 const TWILIO_AUTH_TOKEN = _defineSecret('TWILIO_AUTH_TOKEN');
 const TWILIO_PHONE_NUMBER = _defineSecret('TWILIO_PHONE_NUMBER');
-async function sendAutoText({ to, body }) {
+// recipient / companyProfile / nowMs: the missed-call plan's own window answer,
+// handed to guardTwilio so the central check agrees with it (send-window.js).
+async function sendAutoText({ to, body, recipient, companyProfile, nowMs }) {
   const { secretValue: sv } = require('./integrations/_shared');
   const sid = sv(TWILIO_ACCOUNT_SID), tok = sv(TWILIO_AUTH_TOKEN), from = sv(TWILIO_PHONE_NUMBER);
   if (!sid || !tok || !from) throw new Error('twilio-not-configured');
-  return MessagingControls.guardTwilio(getFirestore(), require('twilio')(sid, tok)).messages.create({ to, from, body });
+  return MessagingControls.guardTwilio(getFirestore(), require('twilio')(sid, tok)).messages.create({ to, from, body }, { recipient, companyProfile, nowMs });
 }
 const CONFIG = 'integrations/callCenter';
 const COLLECTION = 'phone_calls';

@@ -48,8 +48,8 @@ async function runStormConfirmations(deps) {
   const auto = await MC.automationStatus(db, 'stormConfirmText', 'sms', envOn);
   if (!auto.enabled) return { skipped: auto.reason };
   const sec = (n) => secretValue(SECRETS.find((x) => x.name === n));
-  const send = d.send || ((to, body) => MC.guardTwilio(db, require('twilio')(sec('TWILIO_ACCOUNT_SID'), sec('TWILIO_AUTH_TOKEN')))
-    .messages.create({ to, from: sec('TWILIO_PHONE_NUMBER'), body }));
+  const send = d.send || ((to, body, ctx) => MC.guardTwilio(db, require('twilio')(sec('TWILIO_ACCOUNT_SID'), sec('TWILIO_AUTH_TOKEN')))
+    .messages.create({ to, from: sec('TWILIO_PHONE_NUMBER'), body }, ctx));
   return SC.sendPendingConfirmations({
     db, send, logger, maxPerRun: auto.maxPerRun, companyId: NBD_OWNER_UID,
     serverTimestamp: () => FieldValue.serverTimestamp(),

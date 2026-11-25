@@ -43,6 +43,7 @@ const { httpRateLimit, enforceRateLimit } = require('./integrations/upstash-rate
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
 const Suppression = require('./email-suppression');
 const MessagingControls = require('./messaging-controls');
+const SendWindow = require('./send-window');
 const AR = require('./alert-recipients');
 // A visitor typed the address into a public form, so anyone can name anyone:
 // one destination is mailed at most this many recovery emails a day, across
@@ -296,10 +297,17 @@ exports.saveFunnelProgress = onRequest(
 //
 // GATED by FUNNEL_RECOVERY_ENABLED env var. When disabled, runs
 // in DRY-RUN mode — logs eligible records but does not send.
+//
+// Customer send window (send-window.js, 2026-11-22): a record is only sent
+// 8:00-20:00 in the visitor's time (the address they typed, else NBD's
+// company zone, else Eastern). Outside it the record is left untouched
+// (status still null / 'failed'), so a later hourly run inside the window
+// sends it; the 30-day recovery window is far wider than one night.
 
 exports.runAbandonRecovery = onSchedule(
   {
     schedule: 'every 60 minutes',
+    timeZone: 'America/New_York',
     secrets: [RESEND_API_KEY, EMAIL_FROM],
     maxInstances: 1,
     timeoutSeconds: 300,
@@ -314,7 +322,7 @@ exports.runAbandonRecovery = onSchedule(
     // Canary (redirect-to-owner test mode) runs as the dry run: no claim, no
     // send, so the record is still owed its email once the canary is off (2026-11-14).
     const enabled = auto.enabled && !auto.canary;
-    const now = Date.now();
+    const now = SendWindow.nowMs();
     const cutoffOld = new Date(now - ABANDON_WINDOW_MS);
     const cutoffTooOld = new Date(now - RECOVERY_MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
 
@@ -368,7 +376,10 @@ exports.runAbandonRecovery = onSchedule(
     let skipped = 0;
     let failed = 0;
     let blockedNoAddress = 0; // CAN-SPAM: no postal address configured (2026-10-03)
+    let deferred = 0; // outside the visitor's send window: untouched, sent by a later run
     let resend = null;
+    // The funnel is NBD's own site: NBD's company zone is the fallback.
+    const nbdProfile = await SendWindow.readCompanyZone(db, NBD_OWNER_UID);
     let fromAddress = 'Joe Deal <jd@nobigdealwithjoedeal.com>';
     if (enabled) {
       const apiKey = process.env.RESEND_API_KEY;
@@ -401,6 +412,9 @@ exports.runAbandonRecovery = onSchedule(
       if (!isValidEmail(data.email)) { skipped++; continue; }
 
       const firstName = sanitizeString(data.firstName, 80);
+
+      // Outside the send window: no claim, no stamp, no suppression read.
+      if (!SendWindow.check(now, { address: data.address }, nbdProfile).ok) { deferred++; continue; }
 
       if (!enabled) {
         logger.info('funnel_recovery_dry_run', {
@@ -559,6 +573,7 @@ exports.runAbandonRecovery = onSchedule(
       skipped,
       failed,
       blockedNoAddress,
+      deferred,
     });
   }
 );

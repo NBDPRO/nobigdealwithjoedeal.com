@@ -276,6 +276,15 @@ Refuted: "the Monday checks overlap and run in the wrong order".
 - **Step 9a is done.** #3236 merged: server AI prompts fence customer and caller text as data; Thursday honours `test` only from owner numbers and drops spam only at high confidence with no lead match; a matched call's audio is never auto-deleted as "personal". The bot-server half (9b) follows in the bot-server chain.
 - **Step 11 is in its own PR:** a per-job heartbeat ledger plus `cronDeadman`, with daytime alerts.
 - **Step 14 is done, with one part deferred.** Nine finished or retired desktop tasks were archived (scrubbed) and deleted. No job qualified for a cloud routine yet: they write the local vault or need the PC. That moves with step 17.
+- **Step 16 is built (2026-11-25, branch `claude/send-window-2026-11-22`).** Joe's rule: one customer send window, 8:00-20:00 in the recipient's time.
+  - `functions/send-window.js` holds the window. The zone comes from the lead's tz, ZIP, state or address (reusing `sms-send-window.js`), then the company's timezone, then America/New_York. A state with two zones must be inside the window in both. `messaging_controls` held no quiet hours, so there is no tenant override yet.
+  - `guardTwilio` refuses an automated text outside the window even when the caller passes no recipient. Only an explicit `exempt:internal` / `exempt:transactional` / `exempt:manual` marker skips it. The callers' TCPA 8am-9pm checks are unchanged.
+  - Lead follow-up, funnel recovery, e-sign reminders (now hourly), review asks, storm texts, storm confirm and the missed-call auto-text check the window before their one-time claim. A deferred item stays owed and goes on the next run inside the window. Storm and missed-call texts were already skipped, not queued, in quiet hours, and that is unchanged.
+  - `functions/cron-manifest.js` has one entry per `onSchedule` export, and `tests/cron-manifest-2026-11-22.test.js` fails on drift.
+  - Each text path hands `guardTwilio` the same instant and company zone its pre-claim check used, so the central check cannot refuse a text whose claim is spent. A deferred e-sign reminder moves `remindNextAt` to the window's opening.
+  - The manifest is tied to the code: `usesSendWindow: true` must reach `send-window.js` in the require graph, and a `none` cron that reaches Resend or Twilio needs a `why`.
+  - Handoff: `heartbeat-plan.js` (another open PR) still files `esignReminderSweep` under the daily check. It should move to an hourly slug.
+  - Open: the portal key-moment emails (`portal-moments.js`, still dark) fire on a trigger with no retry, so they are not windowed. Review asks run once a day at 10:00 ET, so a customer on Pacific time or further west would never be asked (10:00 ET is 7:00 PT).
 
 | # | Step | Area | Effort | Joe's call |
 |---|---|---|---|---|

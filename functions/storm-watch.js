@@ -291,11 +291,12 @@ async function runStormWatch() {
         tz: a.tz,
         recipient: { zip: a.zip },
         serverTimestamp: () => FieldValue.serverTimestamp(),
-        send: () => client.messages.create({
+        // w = the guard's own window answer ({ nowMs, companyProfile }) for guardTwilio.
+        send: (w) => client.messages.create({
           to: a.to,
           from: TWILIO_PHONE_NUMBER.value(),
           body: `No Big Deal Home Solutions Storm Alert: ${eventLabel(a.event)} reported near ${a.event.city || 'your area'}. If your roof took it, Joe documents damage free before you call insurance: nobigdealwithjoedeal.com/storm-check or call/text (859) 420-7382. Reply STOP to opt out.`,
-        }),
+        }, Object.assign({ recipient: { zip: a.zip, tz: a.tz } }, w)),
       });
       if (result.status === 'sent') texted++;
       else skipped[result.status] = (skipped[result.status] || 0) + 1;
