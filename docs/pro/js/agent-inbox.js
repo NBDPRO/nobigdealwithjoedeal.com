@@ -59,6 +59,8 @@
   const KINDS = { note: '📝 Note', reminder: '⏰ Reminder', report: '📄 Report', draft_text: '💬 Text draft', draft_email: '✉️ Email draft', social_draft: '📣 Social draft' };
   const DRAFTS = ['draft_text', 'draft_email', 'social_draft'];
   const isDraft = (it) => !!it && DRAFTS.indexOf(it.kind) !== -1;
+  const Q0 = 'Not checked by Quinn';
+  const askYes = (m) => (window.nbdConfirm || ((x) => Promise.resolve(window.confirm(x))))(m);
   let _items = [];
   // The last load failed (offline / denied). paint() then says so instead of
   // "All clear" (CRM audit 2026-11-06, VW-F157).
@@ -151,10 +153,10 @@
     return res && res.data;
   }
   async function checkDrafts(items) {
-    const ids = items.filter((i) => i.kind === 'draft_text' || i.kind === 'draft_email').map((i) => i.id);
+    const ids = items.filter(isDraft).map((i) => i.id);
     if (!ids.length) return {};
     try { return ((await callable('agentDraftAction', { action: 'check', ids })) || {}).results || {}; } catch (e) {
-      const out = {}; ids.forEach((id) => { out[id] = { ok: false, reason: 'Could not check the Do-Not-Text / unsubscribe lists — try again.' }; }); return out;
+      const out = {}; ids.forEach((id) => { out[id] = { ok: false, reason: 'Could not check the Do-Not-Text / unsubscribe lists — try again.', quinn: Q0 }; }); return out;
     }
   }
 
@@ -166,7 +168,7 @@
       '<span class="ai-cust">' + esc(it.leadId ? name : (it.title || '')) + '</span></div>' +
       '<div class="ai-meta">drafted by ' + esc(it.bot || 'Agent') + (it.kind === 'draft_text' ? ' · ' + (it.consentOnFile ? '<span class="ai-ok">texting consent on file</span>' : '<span class="ai-unv">no written texting consent on file — a one-to-one text from your phone</span>') : '') + '</div>' +
       (it.reason ? '<div class="ai-qnote">Why: ' + esc(it.reason) + '</div>' : '') +
-      (it.quinnNote ? '<div class="ai-qnote">' + esc((it.verified ? 'Quinn: ' : '⚠ Quinn: ') + it.quinnNote) + '</div>' : '');
+      (c.quinn ? '<div class="ai-flag">⚠ ' + esc(c.quinn) + '</div>' : it.quinnNote ? '<div class="ai-qnote">' + esc((it.verified ? 'Quinn: ' : '⚠ Quinn: ') + it.quinnNote) + '</div>' : '');
     const toss = '<button type="button" class="ai-btn" data-ai-act="dismiss" data-ai-id="' + id + '">Toss</button>';
     const blocked = c.ok ? '' : '<div class="ai-flag ai-draft-block">' + esc(c.reason || 'Checking the Do-Not-Text / unsubscribe lists…') + '</div>';
     if (it.kind === 'draft_text') {
@@ -194,16 +196,25 @@
       '<div class="ai-actions">' + toss + '<button type="button" class="ai-btn is-primary" data-ai-act="social" data-ai-id="' + id + '">Send to Social Studio</button></div></div>';
   }
 
+  // Quinn gate (roadmap step 8): a draft Quinn has not passed (the server's
+  // check says why) asks once more before it goes, and the send says so.
+  // No answer from the check yet (or it failed) counts as not checked.
+  const qWhy = (id) => { const c = _checks[id]; return c && 'quinn' in c ? c.quinn : Q0; };
+  const qOk = async (id) => {
+    const c = _checks[id] = _checks[id] || {};
+    if (!qWhy(id) || c.qy) return true;
+    return (c.qy = await askYes(qWhy(id) + '. Send?'));
+  };
   // The owner tapped send (text) or "Mark sent" (email): the server marks it
   // and writes the Communication Log row + a note. The Messages / Mail app
   // already has the message — nothing is sent from here.
   async function markSent(id) {
     const it = _items.find((x) => x.id === id);
-    if (!it) return false;
+    if (!it || !(await qOk(id))) return false;
     const ta = document.getElementById('aiText-' + id);
     const sj = document.getElementById('aiSubj-' + id);
     try {
-      await callable('agentDraftAction', { action: 'sent', id, body: ta ? ta.value : it.text, subject: sj ? sj.value : it.title });
+      await callable('agentDraftAction', { action: 'sent', id, body: ta ? ta.value : it.text, subject: sj ? sj.value : it.title, confirmUnverified: !!qWhy(id) });
       _items = _items.filter((x) => x.id !== id);
       if (it.kind === 'draft_text') {
         _sentPhone = [Object.assign({}, it, { text: ta ? ta.value : it.text, status: 'sent_by_owner' })].concat(_sentPhone.filter((x) => x.id !== id));
@@ -214,6 +225,8 @@
       // Refused (the edited text failed a check, or the customer can't be
       // texted right now): nothing is opened, nothing is logged.
       const why = (e && e.message) || 'error';
+      // Quinn's verdict changed since the inbox opened: the next tap asks.
+      if (/Quinn/.test(why)) _checks[id] = Object.assign({}, _checks[id], { quinn: why.split(' — ')[0], qy: 0 });
       if (window.showToast) window.showToast('Not sent: ' + why, 'error');
       const row = document.getElementById('aiItem-' + id);
       if (row) {
@@ -227,7 +240,7 @@
   async function toSocial(id) {
     const it = _items.find((x) => x.id === id);
     const key = companyKey();
-    if (!it || !key || _busy) return false;
+    if (!it || !key || _busy || !(await qOk(id))) return false;
     _busy = true;
     try {
       const uid = window._user && window._user.uid;
@@ -304,8 +317,7 @@
   async function repliedStop(id, btn) {
     const it = _sentPhone.find((x) => x.id === id);
     if (!it) return;
-    const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
-    if (!(await ask('Record that ' + leadName(it.leadId) + ' replied STOP? Nobody at your company will be able to text this number again (they can text START to resume).'))) return;
+    if (!(await askYes('Record that ' + leadName(it.leadId) + ' replied STOP? Nobody at your company will be able to text this number again (they can text START to resume).'))) return;
     if (btn) btn.disabled = true;
     try {
       await callable('phoneTextAction', { action: 'stop', leadId: it.leadId });
@@ -396,7 +408,7 @@
     try { _sentPhone = await loadSentPhone(); } catch (e) { _sentPhone = []; console.warn('[agent-inbox] sent list failed:', (e && (e.code || e.message)) || e); }
     _checks = {};
     paint();
-    if (_items.some((i) => i.kind === 'draft_text' || i.kind === 'draft_email')) { _checks = await checkDrafts(_items); paint(); }
+    if (_items.some(isDraft)) { _checks = await checkDrafts(_items); paint(); }
   }
   function close(keepFocus) {
     const o = document.getElementById('aiOverlay'); if (o) o.remove();
@@ -508,7 +520,11 @@
       } else delete t.dataset.aiSending;
       return;
     }
-    if (act === 'mail') return;
+    // Open in Mail is the email's real send: the Quinn confirm comes first.
+    if (act === 'mail') {
+      if (qWhy(id) && !(_checks[id] || {}).qy) { ev.preventDefault(); const h = t.getAttribute('href'); if (await qOk(id)) window.location.assign(h); }
+      return;
+    }
     if (act === 'replied-stop') return repliedStop(id, t);
     if (act === 'copy') {
       const sj = document.getElementById('aiSubj-' + id), ta = document.getElementById('aiText-' + id);

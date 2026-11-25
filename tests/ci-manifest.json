@@ -636,6 +636,7 @@
     "agent-mcp-2026-10-02.test.js",
     "agent-mcp-more-tools-2026-10-02.test.js",
     "agent-inbox-dedupe-2026-11-22.test.js",
+    "quinn-gate-2026-11-25.test.js",
     "price-change-devices-2026-11.test.js",
     "agent-personal-keys-2026-10-02.test.js",
     "call-watch-2026-10-02.test.js",
@@ -1780,7 +1781,8 @@
     "rate-limit.test.js": "test:ratelimit",
     "thursday-pipeline.integration.test.js": "test:thursday",
     "thursday-label-playbooks.integration.test.js": "test:thursdaypb",
-    "agent-inbox-dedupe.integration.test.js": "test:inboxdedupe"
+    "agent-inbox-dedupe.integration.test.js": "test:inboxdedupe",
+    "quinn-gate.integration.test.js": "test:quinngate"
   },
   "wired-individually": [
     "communication-log-contract.test.js",
