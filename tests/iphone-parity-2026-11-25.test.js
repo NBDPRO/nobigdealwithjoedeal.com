@@ -150,7 +150,8 @@ async function deploySuite() {
     const clock = makeClock();
     const document = makeDocEvents();
     document.querySelectorAll = () => [];
-    document.body = { appendChild() {} };
+    let bars = 0;
+    document.body = { appendChild() { bars++; } };
     document.documentElement = document.body;
     document.createElement = () => ({ style: {}, setAttribute() {}, appendChild() {}, addEventListener() {} });
     let reloads = 0, fetches = 0, swUpdates = 0;
@@ -174,7 +175,7 @@ async function deploySuite() {
       Set, Object, Promise, String, Number, console,
     });
     vm.runInContext(SRC, ctx);
-    return { clock, document, store, reloads: () => reloads, fetches: () => fetches, swUpdates: () => swUpdates };
+    return { clock, document, store, bars: () => bars, reloads: () => reloads, fetches: () => fetches, swUpdates: () => swUpdates };
   }
   const A = 'aaaaaaaa' + '0'.repeat(32), B = 'bbbbbbbb' + '0'.repeat(32);
   const resume = async (b) => { b.document.visibilityState = 'visible'; b.document.fire('visibilitychange'); await b.clock.advance(50); await b.clock.advance(50); };
@@ -182,8 +183,11 @@ async function deploySuite() {
   {
     const b = boot({ release: 'web@2026-11-25-aaaaaaaa', live: B });
     await resume(b);
-    ok('foreground with a newer live build reloads an idle page', b.reloads() === 1, 'reloads=' + b.reloads() + ' fetches=' + b.fetches());
+    ok('foreground with a newer live build does NOT reload under the rep (in-memory work is invisible to the guard)', b.reloads() === 0, 'reloads=' + b.reloads() + ' fetches=' + b.fetches());
+    ok('…it offers the reload (the "new version" bar is up)', b.bars() === 1);
     ok('…and asks the service worker to update too', b.swUpdates() >= 1);
+    b.document.visibilityState = 'hidden'; b.document.fire('visibilitychange'); await b.clock.advance(50);
+    ok('leaving the app while idle reloads onto the new build', b.reloads() === 1, 'reloads=' + b.reloads());
   }
   {
     const b = boot({ release: 'web@2026-11-25-aaaaaaaa', live: A });

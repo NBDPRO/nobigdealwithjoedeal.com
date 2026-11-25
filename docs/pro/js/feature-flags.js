@@ -24,7 +24,7 @@
   if (window.NBDFlags && window.NBDFlags.__sentinel === 'nbd-flags-v1') return;
 
   const state = { loaded: false, flags: {}, loadedAt: 0 };
-  let retries = 0;
+  let retries = 0, retryTimer = 0; // one pending retry at a time
   const TTL_MS = 10 * 60 * 1000;
 
   function snapshotReady() {
@@ -55,7 +55,7 @@
       // Only an unreadable _default lands here (a denied per-uid doc is
       // fine, see allSettled above). 2026-11-25: one flaky read used to
       // leave every flag off until the app was relaunched; try again soon.
-      if (!state.loaded && retries++ < 5 && typeof setTimeout === 'function') setTimeout(load, 15000);
+      if (!state.loaded && !retryTimer && retries++ < 5 && typeof setTimeout === 'function') retryTimer = setTimeout(() => { retryTimer = 0; load(); }, 15000);
     }
     return state.flags;
   }

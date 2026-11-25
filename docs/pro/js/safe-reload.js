@@ -234,7 +234,13 @@
           if (sessionStorage.getItem(SEEN_KEY) === live) return;
           sessionStorage.setItem(SEEN_KEY, live);
         } catch (_) { /* no storage: reload anyway; the next resume is 5 min away */ }
-        request('new-build:' + live);
+        // Not request(): the rep has only just come back, and an upload or
+        // a half-built estimate held in memory is not a modal or a text
+        // field, so request() could not see it. Offer the reload instead;
+        // it happens on a tap, or the next time the app is left while idle.
+        if (pending || reloaded) return;
+        pending = 'new-build:' + live;
+        showBar();
       })
       .catch(function () { /* offline: try on the next resume */ });
   }
