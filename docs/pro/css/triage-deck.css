@@ -16,7 +16,7 @@ html.deck-locked, html.deck-locked body { overflow: hidden; }
 .deck-stage { flex: 1; min-height: 0; display: flex; align-items: stretch; position: relative; overflow: hidden; }
 .deck-card { position: relative; flex: 1; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding: 18px; border-radius: 16px;
   background: var(--s, #111418); border: 1px solid var(--br, #2a2f35); box-shadow: 0 8px 28px rgba(0, 0, 0, .25);
-  touch-action: pan-y; user-select: none; transition: transform .18s ease, opacity .18s ease; }
+  touch-action: pan-y; -webkit-user-select: none; user-select: none; transition: transform .18s ease, opacity .18s ease; }
 .deck-card.deck-out-right { transform: translateX(120%) rotate(8deg); opacity: 0; }
 .deck-card.deck-out-left { transform: translateX(-120%) rotate(-8deg); opacity: 0; }
 .deck-hint { position: absolute; top: 14px; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 800; text-transform: uppercase;

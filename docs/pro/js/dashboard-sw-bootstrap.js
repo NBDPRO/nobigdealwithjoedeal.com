@@ -18,6 +18,18 @@
     (document.head || document.documentElement).appendChild(s);
   } catch (e) { console.warn('[sw] could not load safe-reload.js:', e && e.message); }
 })();
+// iPhone / iPad: an empty date field shows a "mm/dd/yyyy" hint and a calendar
+// icon, as on Android (ios-date-hint.js). Injected like safe-reload.js, iOS only.
+(function loadIosDateHint() {
+  try {
+    var n = navigator, ua = n.userAgent || '';
+    if (!(/iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && n.maxTouchPoints > 1)) || window.NBDDateHint) return;
+    var s = document.createElement('script');
+    s.src = '/pro/js/ios-date-hint.js?v=1';
+    s.async = true;
+    (document.head || document.documentElement).appendChild(s);
+  } catch (e) { /* no hint: the date fields still work */ }
+})();
 let nbdDiag; // module-local (globals Tranche 1 — was window.*)
 // A new version used to reload unconditionally, wiping a half-typed lead or
 // cutting a voice note on a phone (wave-1 field finding #3, 2026-11-14).

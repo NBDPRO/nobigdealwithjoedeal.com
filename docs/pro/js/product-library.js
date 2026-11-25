@@ -642,7 +642,7 @@
       const chevron = isCollapsed ? '▸' : '▾';
       productsHtml += `
         <div class="plx-mb28">
-          <div data-pl-action="toggleCategory" data-pl-id="${escapeHtml(catId)}" style="display:flex;align-items:center;gap:8px;margin-bottom:${isCollapsed ? '0' : '12'}px;cursor:pointer;user-select:none;padding:8px 12px;background:var(--s);border-radius:8px;border:1px solid var(--br);transition:all .15s;">
+          <div data-pl-action="toggleCategory" data-pl-id="${escapeHtml(catId)}" style="display:flex;align-items:center;gap:8px;margin-bottom:${isCollapsed ? '0' : '12'}px;cursor:pointer;-webkit-user-select:none;user-select:none;padding:8px 12px;background:var(--s);border-radius:8px;border:1px solid var(--br);transition:all .15s;">
             <span class="plx-caret">${chevron}</span>
             <span class="plx-fs20">${catIcon(catId)}</span>
             <h3 style="margin:0;font-size:16px;font-weight:700;color:color-mix(in srgb, ${catColor(catId)} 50%, var(--t, #e8eaf0));flex:1;">${escapeHtml(catLabel(catId))}</h3>

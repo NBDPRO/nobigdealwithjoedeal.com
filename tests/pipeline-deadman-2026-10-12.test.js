@@ -68,8 +68,10 @@ const et = (hhmm) => Date.parse('2026-10-02T' + hhmm + ':00-04:00');
   ok('6+ hours later: told again', r.told.includes('callwatch_not_running') && sent.length === 2, JSON.stringify(r));
   sent = []; db = fakeDb(base());
   r = await D.run({ db, nowMs: Date.parse('2026-10-03T03:00:00-04:00'), live: true, env: Object.assign({}, env, { CALL_WATCH_ENABLED: 'false' }), notify });
-  ok('overnight: ingest silent is reported but no 3 a.m. push', r.problems.length === 1 && r.problems[0] === 'ingest_not_running' || r.problems.includes('ingest_not_running'));
-  ok('...nothing sent overnight', sent.length === 0);
+  ok('overnight: ingest silent is reported', r.problems.length === 1 && r.problems[0] === 'ingest_not_running' || r.problems.includes('ingest_not_running'));
+  // Roadmap step 13 (2026-11-25): a stopped call / text job is told at ANY hour
+  // (the step 11 rule; owner-notify.js owns quiet hours), so 03:00 now pushes.
+  ok('...and told at 3 a.m. (a dead call pipeline is any-hour)', sent.length === 1 && r.told.includes('ingest_not_running'), JSON.stringify(r));
   db = fakeDb(base()); sent = [];
   r = await D.run({ db, nowMs: et('10:40'), live: false, env, notify });
   ok('dry run: computes, tells nothing, writes nothing', r.problems.length === 1 && sent.length === 0 && !db.docs['integrations/pipelineHealth']);
