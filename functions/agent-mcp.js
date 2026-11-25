@@ -492,7 +492,12 @@ async function fileItemOnce(key, day, item, note, dedupeKey) {
   const lockRef = db().doc('agent_inbox_keys/' + L.dedupeLockId(company, dedupeKey));
   const itemRef = db().collection('agent_inbox').doc();
   const bot = key.bot;
-  const out = await db().runTransaction(async (tx) => {
+  // Two same-key filings at the same moment contend on the lock doc. Firestore retries
+  // ABORTED itself, but a contended transaction can also come back as "Transaction is
+  // invalid or closed" (seen under the emulator in CI, 2026-11-25), which would fail the
+  // bot's call. Retry those a few times; the loser then reads the winner's lock and dedupes.
+  const contended = (e) => e && (e.code === 10 || e.code === 'aborted' || /Transaction is invalid or closed|contention/i.test(String(e.message || '')));
+  const once = () => db().runTransaction(async (tx) => {
     const [k, lock] = await Promise.all([tx.get(keyRef), tx.get(lockRef)]);
     const prevId = lock.exists ? String((lock.data() || {}).itemId || '').replace(/[^A-Za-z0-9_-]/g, '') : '';
     if (prevId) {
@@ -509,6 +514,13 @@ async function fileItemOnce(key, day, item, note, dedupeKey) {
     tx.set(lockRef, { companyId: company, itemId: itemRef.id, updatedAt: FieldValue.serverTimestamp() });
     return { created: true };
   });
+  let out;
+  for (let attempt = 1; ; attempt++) {
+    try { out = await once(); break; } catch (e) {
+      if (attempt >= 4 || !contended(e)) throw e;
+      await new Promise((r) => setTimeout(r, 50 * attempt + Math.floor(Math.random() * 50)));
+    }
+  }
   if (out.capped) return L.toolErr('Daily filing limit reached (' + FILINGS_PER_DAY + '). File the rest tomorrow.');
   if (out.error) return L.toolErr(out.error);
   if (out.dupId) {

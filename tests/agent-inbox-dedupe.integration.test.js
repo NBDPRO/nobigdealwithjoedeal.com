@@ -66,13 +66,15 @@ const L = require(path.join(ROOT, 'functions', 'agent-mcp-logic.js'));
   const rB = body(await call(cosB, 'file_report', Object.assign({ dedupe_key: 'storm:2026-11-22:z1' }, rep)));
   ok('another company with the same key gets its own item', rB.filed === true && !rB.deduped && rB.item_id !== b3.item_id && (await byKey(B, 'storm:2026-11-22:z1')).length === 1);
 
-  const race = await Promise.all([
-    call(cosA, 'file_report', Object.assign({ dedupe_key: 'radar:quiet:estR' }, rep)),
-    call(cosA, 'file_report', Object.assign({ dedupe_key: 'radar:quiet:estR' }, rep)),
-  ]);
-  const rb = race.map(body);
-  ok('two calls at the same moment -> one item', (await byKey(A, 'radar:quiet:estR')).length === 1, JSON.stringify(rb));
-  ok('one filed, the other deduped to the same id', rb.filter((x) => x.filed === true).length === 1 && rb.filter((x) => x.deduped === true).length === 1 && rb[0].item_id === rb[1].item_id);
+  // Four at once (2026-11-25: two at once once failed in CI with "Transaction is invalid or
+  // closed" instead of deduping; fileItemOnce now retries a contended transaction).
+  for (let round = 1; round <= 3; round++) {
+    const k = 'radar:quiet:estR' + round;
+    const race = await Promise.all([1, 2, 3, 4].map(() => call(cosA, 'file_report', Object.assign({ dedupe_key: k }, rep))));
+    const rb = race.map(body);
+    ok('round ' + round + ': four calls at the same moment -> one item, no errors', (await byKey(A, k)).length === 1 && race.every((r) => !r.isError), JSON.stringify(race.map((r) => r.isError ? r.content[0].text : 'ok')));
+    ok('round ' + round + ': one filed, the rest deduped to the same id', rb.filter((x) => x.filed === true).length === 1 && rb.filter((x) => x.deduped === true).length === 3 && rb.every((x) => x.item_id === rb[0].item_id));
+  }
 
   const bad = await call(cosA, 'file_report', Object.assign({ dedupe_key: 'storm 2026/11/22' }, rep));
   ok('an invalid key is refused with an error and files nothing', bad.isError === true && /dedupe_key/.test(bad.content[0].text));
