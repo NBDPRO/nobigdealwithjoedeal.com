@@ -5,7 +5,7 @@
 .cl-overlay{position:fixed;inset:0;z-index:var(--z-overlay, 10000);display:flex;align-items:flex-end;justify-content:center;}
 .cl-back{position:absolute;inset:0;background:rgba(0,0,0,.7);}
 .cl-sheet{
-  position:relative;width:100%;max-width:520px;max-height:88vh;overflow:auto;
+  position:relative;width:100%;max-width:520px;max-height:88vh; max-height: min(88vh, calc(100dvh - 2 * env(safe-area-inset-top, 0px) - 16px));overflow:auto;
   padding:var(--ui-space-5) var(--ui-space-5) calc(var(--ui-space-5) + env(safe-area-inset-bottom, 0px));
   background:var(--s);color:var(--t);
   border:1px solid var(--br);

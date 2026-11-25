@@ -129,7 +129,7 @@ a { color: var(--orange); }
   display: flex; align-items: flex-end; justify-content: center;
 }
 .ss-sheet-card {
-  width: 100%; max-width: 640px; max-height: 92vh; overflow-y: auto;
+  width: 100%; max-width: 640px; max-height: 92vh; max-height: min(92vh, calc(100dvh - 2 * env(safe-area-inset-top, 0px) - 16px)); overflow-y: auto;
   background: var(--s); border-radius: 16px 16px 0 0; padding: 16px;
   padding-bottom: max(16px, env(safe-area-inset-bottom));
   border: 1px solid var(--br);
