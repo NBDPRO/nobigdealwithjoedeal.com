@@ -2879,6 +2879,9 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 .mfield input,.mfield select,.mfield textarea{width:100%;background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:9px 11px;font-family:'Barlow',sans-serif;font-size:13px;color:var(--t);outline:none;}
 .mfield input:focus,.mfield select:focus,.mfield textarea:focus{border-color:var(--orange);}
 .mfield select option{background:var(--s2);}
+/* 2026-11-25 (iPhone parity): Safari draws a native select (light grey, faint text) over the
+   dark background above; Chrome honours it. One look everywhere: no native skin, our own arrow. */
+.mfield select:not([multiple]){-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%239AA3B2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:12px 8px;padding-right:34px;}
 .mfield textarea{resize:vertical;min-height:65px;}
 .mrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 /* display:grid beats the UA [hidden] rule — the retired AOB row
@@ -4855,6 +4858,7 @@ body {
   #leadModal .modal { max-width:100%!important; width:100%!important; margin:0!important; border-radius:16px 16px 0 0!important; position:fixed!important; bottom:0!important; left:0!important; right:0!important; max-height:92vh!important; max-height:min(92vh, calc(100dvh - env(safe-area-inset-top, 0px) - 12px))!important; padding-bottom:calc(28px + env(safe-area-inset-bottom, 0px))!important; }
   #leadModal.modal-bg.open { align-items:flex-end!important; }
   .mfield input, .mfield select, .mfield textarea { font-size:16px!important; padding:12px 14px!important; min-height:48px!important; }
+  .mfield select:not([multiple]) { padding-right:34px!important; } /* room for the drawn arrow */
   .mfield label { font-size:11px!important; margin-bottom:6px!important; }
   /* Two columns WITH a gutter (2026-09-25 phone audit). This used to read
      `flex-direction:column; gap:0` — meant to stack the pairs, but .mrow is
