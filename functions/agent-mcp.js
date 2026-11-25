@@ -186,6 +186,9 @@ async function runTool(name, args, key) {
   const company = key.companyId;
   const tz = key.tz;
   const today = L.dayInZone(Date.now(), tz);
+  // Optional dedupe_key on every filing tool (roadmap step 6), checked before any read.
+  const dk = L.FILING_TOOLS.indexOf(name) !== -1 ? L.dedupeKeyOf(args) : { key: null };
+  if (dk.error) return L.toolErr(dk.error);
   if (name === 'crm_summary') {
     const [leads, jobsByLead] = await Promise.all([companyLeads(company), companyJobsByLead(company)]);
     return L.toolText(Object.assign(L.summary(leads, today, jobsByLead), { today, timezone: tz }));
@@ -252,7 +255,7 @@ async function runTool(name, args, key) {
     if (v.error) return L.toolErr(v.error);
     const wording = L.claimWordingProblem(v.item.text) || L.claimWordingProblem(v.item.title);
     if (wording) return L.toolErr(wording);
-    return fileItem(key, today, v.item, 'In your Agent inbox for the owner to review. Nothing was sent to anyone.');
+    return fileItem(key, today, v.item, 'In your Agent inbox for the owner to review. Nothing was sent to anyone.', dk.key);
   }
 
   // Drafts (2026-10-06). The phone / email is read here to check the
@@ -293,7 +296,7 @@ async function runTool(name, args, key) {
       const waiting = await db().collection('agent_inbox').where('companyId', '==', company).where('leadId', '==', lead.id).limit(L.MAX_LIST).get();
       if (waiting.docs.some((d) => L.reviewDraftWaiting(d.data()))) return L.toolErr('A review ask for this customer is already in the Agent inbox. Do not draft another.');
     }
-    return fileItem(key, today, item, 'Draft is in the Agent inbox. Nothing was sent — only the owner can send it.');
+    return fileItem(key, today, item, 'Draft is in the Agent inbox. Nothing was sent — only the owner can send it.', dk.key);
   }
 
   if (name === 'file_social_draft') {
@@ -302,7 +305,7 @@ async function runTool(name, args, key) {
     const wording = L.claimWordingProblem(d.item.text);
     if (wording) return L.toolErr(wording);
     return fileItem(key, today, d.item, 'Social draft is in the Agent inbox for the owner to send to Social Studio. Nothing was posted.'
-      + (d.needsMedia ? ' This platform needs a photo or video before it can be approved.' : ''));
+      + (d.needsMedia ? ' This platform needs a photo or video before it can be approved.' : ''), dk.key);
   }
 
   if (name === 'estimates_status') {
@@ -456,7 +459,8 @@ async function runTool(name, args, key) {
 }
 
 // One Agent inbox item: the per-key daily filing cap, the item, the bell.
-async function fileItem(key, day, item, note) {
+async function fileItem(key, day, item, note, dedupeKey) {
+  if (dedupeKey) return fileItemOnce(key, day, item, note, dedupeKey);
   const company = key.companyId;
   const keyRef = db().collection('agent_keys').doc(key.id);
   const counted = await db().runTransaction(async (tx) => {
@@ -473,6 +477,62 @@ async function fileItem(key, day, item, note) {
   }, item));
   await bellNotice(company, key.routeUid, key.botId, bot.name, day).catch((e) => logger.warn('[crmMcp] bell notice failed', { msg: e.message }));
   return L.toolText({ filed: true, item_id: ref.id, kind: item.kind, note });
+}
+
+// fileItem with a dedupe_key (roadmap step 6). One transaction reads the
+// company's lock doc for the key (agent_inbox_keys/{dedupeLockId}, server-only)
+// and the item it names; if that item is still pending it answers with it.
+// Otherwise the cap is counted, the item created and the lock pointed at it —
+// all in the same transaction, so two calls with one key at the same moment
+// serialize on the lock doc and only one creates. A deduped call files
+// nothing, uses none of the daily cap and rings no bell.
+async function fileItemOnce(key, day, item, note, dedupeKey) {
+  const company = key.companyId;
+  const keyRef = db().collection('agent_keys').doc(key.id);
+  const lockRef = db().doc('agent_inbox_keys/' + L.dedupeLockId(company, dedupeKey));
+  const itemRef = db().collection('agent_inbox').doc();
+  const bot = key.bot;
+  // Two same-key filings at the same moment contend on the lock doc. Firestore retries
+  // ABORTED itself, but a contended transaction can also come back as "Transaction is
+  // invalid or closed" (seen under the emulator in CI, 2026-11-25), which would fail the
+  // bot's call. Retry those a few times; the loser then reads the winner's lock and dedupes.
+  const contended = (e) => e && (e.code === 10 || e.code === 'aborted' || /Transaction is invalid or closed|contention/i.test(String(e.message || '')));
+  const once = () => db().runTransaction(async (tx) => {
+    const [k, lock] = await Promise.all([tx.get(keyRef), tx.get(lockRef)]);
+    const prevId = lock.exists ? String((lock.data() || {}).itemId || '').replace(/[^A-Za-z0-9_-]/g, '') : '';
+    if (prevId) {
+      const prev = await tx.get(db().doc('agent_inbox/' + prevId));
+      const d = L.dedupeDecision(prevId, prev.exists ? prev.data() : null, company, dedupeKey, item);
+      if (!d.file) return d;
+    }
+    const n = Number(((k.data() || {}).filedByDay || {})[day]) || 0;
+    if (n >= FILINGS_PER_DAY) return { capped: true };
+    tx.update(keyRef, { ['filedByDay.' + day]: n + 1 });
+    tx.set(itemRef, Object.assign({
+      companyId: company, bot: bot.name, botId: key.botId, status: 'pending', verified: false, createdAt: FieldValue.serverTimestamp(), keyId: key.id.slice(0, 12),
+    }, item, { dedupeKey }));
+    tx.set(lockRef, { companyId: company, itemId: itemRef.id, updatedAt: FieldValue.serverTimestamp() });
+    return { created: true };
+  });
+  let out;
+  for (let attempt = 1; ; attempt++) {
+    try { out = await once(); break; } catch (e) {
+      if (attempt >= 4 || !contended(e)) throw e;
+      await new Promise((r) => setTimeout(r, 50 * attempt + Math.floor(Math.random() * 50)));
+    }
+  }
+  if (out.capped) return L.toolErr('Daily filing limit reached (' + FILINGS_PER_DAY + '). File the rest tomorrow.');
+  if (out.error) return L.toolErr(out.error);
+  if (out.dupId) {
+    logger.info('[crmMcp] filing deduped', { companyId: company, botId: key.botId, itemId: out.dupId });
+    const res = L.toolText({ filed: false, deduped: true, item_id: out.dupId, kind: out.kind || item.kind,
+      note: 'Already waiting in the Agent inbox under this dedupe_key, so nothing new was filed.' });
+    // Read by handleRpc's audit row only; not enumerable, so never sent to the bot.
+    Object.defineProperty(res, 'deduped', { value: true, enumerable: false });
+    return res;
+  }
+  await bellNotice(company, key.routeUid, key.botId, bot.name, day).catch((e) => logger.warn('[crmMcp] bell notice failed', { msg: e.message }));
+  return L.toolText({ filed: true, item_id: itemRef.id, kind: item.kind, note });
 }
 
 // One bell notification per bot per day, counting what it filed — to the
@@ -509,7 +569,7 @@ async function handleRpc(msg, keyIn) {
       let out;
       try { out = await runTool(name, p.arguments || {}, key); }
       catch (e) { logger.error('[crmMcp] tool failed', { name, msg: e.message }); out = L.toolErr('The CRM could not answer right now.'); }
-      db().collection('agent_audit').add({ keyId: key.id.slice(0, 12), botId: key.botId, companyId: key.companyId, tool: name, ok: !out.isError, at: FieldValue.serverTimestamp() }).catch(() => {});
+      db().collection('agent_audit').add(Object.assign({ keyId: key.id.slice(0, 12), botId: key.botId, companyId: key.companyId, tool: name, ok: !out.isError, at: FieldValue.serverTimestamp() }, out.deduped ? { deduped: true } : {})).catch(() => {});
       return L.rpcResult(msg.id, out);
     }
     default:
