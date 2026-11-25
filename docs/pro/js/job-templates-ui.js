@@ -3022,8 +3022,8 @@
         catch (e) {
           // iPhone Safari refuses the sheet once the link mint + save outlived
           // the tap (2026-11-25 parity); one more tap gives it a fresh gesture.
-          if (e && e.name === 'NotAllowedError' && typeof window.nbdConfirm === 'function'
-            && await window.nbdConfirm('Your estimate link is ready. Share it now?')) {
+          var ask = window.nbdConfirm || function (m) { return Promise.resolve(window.confirm(m)); };
+          if (e && e.name === 'NotAllowedError' && await ask('Your estimate link is ready. Share it now?')) {
             try { await navigator.share({ title: 'Your estimate', text: 'Here’s your estimate:', url: url }); shared = true; }
             catch (e2) { /* cancelled: fall through to copy */ }
           }

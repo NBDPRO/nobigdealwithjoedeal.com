@@ -36,6 +36,7 @@ function ok(name, cond, extra) {
 }
 const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+const K = require('./lib/src-kit');
 
 // ── fake clock ──────────────────────────────────────────────────────────
 function makeClock() {
@@ -218,8 +219,9 @@ async function deploySuite() {
 function staticSuite() {
   console.log('\nSTATIC PINS');
   for (const page of ['docs/pro/dashboard.html', 'docs/pro/customer.html']) {
-    const m = /<meta name="theme-color" content="([^"]*)"/.exec(read(page));
-    ok(page + ': theme-color is a literal colour', !!m && /^#[0-9a-fA-F]{6}$/.test(m[1]), m && m[1]);
+    const meta = K.parseTags(K.read(page)).$('meta[name="theme-color"]');
+    const color = meta ? String(meta.attrs.content) : '';
+    ok(page + ': theme-color is a literal colour', /^#[0-9a-fA-F]{6}$/.test(color), color);
   }
 
   const JS = path.join(ROOT, 'docs/pro/js');
@@ -246,13 +248,14 @@ function staticSuite() {
   ok('no sms: link %-encodes the number', encodedNum.length === 0, encodedNum.join(', '));
   ok('control: the working shape exists (phone-share.js)', /\?&body=/.test(read('docs/pro/js/phone-share.js')));
 
-  const d2d = read('docs/pro/js/d2d-tracker-ui-2026b.js');
-  ok('D2D voice memo blob takes the recorder\'s real type', !/new Blob\(state\.voiceChunks, \{ type: 'audio\/webm' \}\)/.test(d2d) && /voiceRecorder\.mimeType/.test(d2d));
+  ok('D2D voice memo blob takes the recorder\'s real type', /new Blob\(state\.voiceChunks, \{ type: state\.voiceRecorder\.mimeType/.test(read('docs/pro/js/d2d-tracker-ui-2026b.js')));
 
-  const polish = read('docs/pro/css/mobile-polish.css');
-  ok('16px rule covers inputs with no type', /input:not\(\[type\]\)/.test(polish));
-  ok('16px rule covers date/time inputs', /input\[type="date"\]/.test(polish) && /input\[type="time"\]/.test(polish));
-  ok('16px rule covers the bulk-action selects', /#bulkActionBar select/.test(polish));
+  const rules = K.cssRules(K.read('docs/pro/css/mobile-polish.css'));
+  const px16 = (sel) => { const d = K.cssRule(rules, sel, { media: '(pointer: coarse)' }); return !!d && /^16px\s*!important$/.test(String(d['font-size'])); };
+  ok('16px rule covers inputs with no type', px16('input:not([type])'));
+  ok('16px rule covers date/time inputs', ['date', 'time', 'datetime-local', 'month'].every((t) => px16('input[type="' + t + '"]')));
+  ok('16px rule covers the bulk-action selects and button-styled selects', px16('html #bulkActionBar select') && px16('select.btn'));
+  ok('control: an unlisted selector is not reported as covered', !px16('input[type="checkbox"]'));
 }
 
 (async () => {

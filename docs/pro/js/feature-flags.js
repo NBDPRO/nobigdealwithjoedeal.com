@@ -55,7 +55,7 @@
       // Only an unreadable _default lands here (a denied per-uid doc is
       // fine, see allSettled above). 2026-11-25: one flaky read used to
       // leave every flag off until the app was relaunched; try again soon.
-      if (!state.loaded && retries++ < 5) setTimeout(load, 15000);
+      if (!state.loaded && retries++ < 5 && typeof setTimeout === 'function') setTimeout(load, 15000);
     }
     return state.flags;
   }

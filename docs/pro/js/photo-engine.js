@@ -1251,14 +1251,11 @@
       fallback.onchange = (e) => _saveFallbackFiles(Array.from(e.target.files || []), leadId);
       // A picker opened from code needs a recent tap, and on an iPhone the
       // camera request above has usually used it up, so click() did nothing
-      // there (2026-11-25 parity). Ask first: that tap opens the picker.
-      if (typeof window.nbdConfirm === 'function') {
-        window.nbdConfirm('The live camera is not available. Take or choose a photo instead?')
-          .then((ok) => { if (ok) fallback.click(); });
-      } else {
-        fallback.click();
-        showToast('Camera unavailable — using file picker', 'warning');
-      }
+      // there (2026-11-25 parity). In the installed app (where nbdConfirm
+      // exists) ask first: that tap opens the picker. Elsewhere, as before.
+      if (window.nbdConfirm) { window.nbdConfirm('The live camera is not available. Take or choose a photo instead?').then((ok) => { if (ok) fallback.click(); }); return; }
+      fallback.click();
+      showToast('Camera unavailable — using file picker', 'warning');
       return;
     }
 
