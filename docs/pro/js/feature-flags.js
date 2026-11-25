@@ -24,6 +24,7 @@
   if (window.NBDFlags && window.NBDFlags.__sentinel === 'nbd-flags-v1') return;
 
   const state = { loaded: false, flags: {}, loadedAt: 0 };
+  let retries = 0;
   const TTL_MS = 10 * 60 * 1000;
 
   function snapshotReady() {
@@ -51,9 +52,10 @@
       // Surfaces drawn before the flags arrived (the Expenses buttons) redraw on this.
       try { window.dispatchEvent(new CustomEvent('nbd:flags-loaded')); } catch (e) { /* no DOM events: nothing to redraw */ }
     } catch (e) {
-      // Swallow — rules may deny the per-uid doc for a user who
-      // hasn't had any overrides written. That's fine; the default
-      // doc alone is enough.
+      // Only an unreadable _default lands here (a denied per-uid doc is
+      // fine, see allSettled above). 2026-11-25: one flaky read used to
+      // leave every flag off until the app was relaunched; try again soon.
+      if (!state.loaded && retries++ < 5) setTimeout(load, 15000);
     }
     return state.flags;
   }
@@ -63,13 +65,23 @@
   function gate(name, cb)    { if (enabled(name) && typeof cb === 'function') cb(); }
 
   // Eager load on auth ready so subsequent UI decisions don't need
-  // to await.
+  // to await. 2026-11-25 (iPhone parity): this gave up after 10 s, and an
+  // iPhone cold start on weak signal often signs in later than that, so the
+  // whole session ran with every flag off. Wait up to 2 minutes instead.
   let tries = 0;
   const poll = setInterval(() => {
     tries++;
     if (window._user && snapshotReady()) { clearInterval(poll); load(); }
-    else if (tries > 40) clearInterval(poll);
+    else if (tries > 480) clearInterval(poll);
   }, 250);
+  // A home-screen app resumes for days without reloading: read the flags
+  // again when it comes back to the foreground (load() keeps its 10-minute
+  // TTL, so a quick app switch costs nothing).
+  try {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') { retries = 0; load(); }
+    });
+  } catch (e) { /* no document: nothing to resume */ }
 
   window.NBDFlags = {
     __sentinel: 'nbd-flags-v1',
