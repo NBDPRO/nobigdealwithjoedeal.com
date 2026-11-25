@@ -39,6 +39,10 @@ const PRICES = {
   'claude-sonnet-5-5': { input: 2, output: 10 },
   'claude-opus-5': { input: 5, output: 25 },
   'claude-opus-5-5': { input: 4, output: 20 },
+  // 2026-11-25 (roadmap step 15): the ids functions/ai-models.js can name.
+  // Haiku 5.5 is $0.10 / $0.50 for prompts up to 100K tokens (every NBD route).
+  'claude-haiku-5-5': { input: 0.1, output: 0.5 },
+  'claude-fable-5-2': { input: 8, output: 40 },
 };
 // Groq Whisper, USD per audio hour (whisper-large-v3-turbo list price).
 const AUDIO_PRICES_PER_HOUR = {

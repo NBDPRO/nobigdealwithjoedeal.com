@@ -88,6 +88,7 @@ const INTERNAL_SENDERS = Object.freeze([
   'functions/morning-brief.js', 'functions/review-request-nudge.js', 'functions/storm-poller.js',
   'functions/weekly-digest.js',
   'functions/storm-watch.js', 'functions/verify-functions.js',   // internal: Jo's storm / new-lead alert (the customer texts in these files are covered by the SMS rules)
+  'functions/ai-client.js',   // not a send: the Anthropic SDK model call (client.messages.create), 2026-11-25
 ]);
 
 function walk(dir, out) {
