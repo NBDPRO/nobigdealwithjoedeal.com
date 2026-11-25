@@ -107,6 +107,7 @@ const ENTRIES = Object.freeze({
   reelCleanup: none(['flag:global.reelStudioDisabled'], 'deletes old reels; reaches call-center.js only through voice-intelligence.js / visit-capture.js'),
   healthDigestCron: none(['env:HEALTH_DIGEST_ENABLED']),
   monthlyOverheadAlertCron: none(['env:MONTHLY_OVERHEAD_ALERT_DISABLED']),
+  mailFeed: none(['env:MAIL_FEED_ENABLED']), // reads mail (IMAP read-only, Gmail GET), sends nothing
 });
 
 const REQUIRE_RE = /require\(\s*['"]([^'"]+)['"]\s*\)/g;
