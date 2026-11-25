@@ -1025,7 +1025,7 @@ const shareCalViaSMS = function() {
   const url = document.getElementById('calBookingUrl')?.value || '';
   if (!url) { showToast('Set up your booking link first', 'error'); return; }
   const msg = encodeURIComponent('Schedule your free roof inspection here: ' + url);
-  window.open('sms:?body=' + msg);
+  window.open('sms:?&body=' + msg);
 }
 
 // Sign-off resolves per tenant. This was hardcoded '- No Big Deal Exteriors',

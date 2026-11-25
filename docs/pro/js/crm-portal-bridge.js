@@ -1097,7 +1097,7 @@ window.sendBookingSMS = async function(leadId, phone, firstName) {
   const signOff = _b.smsSignOff || ((!_b.legalName || _b.legalName === 'No Big Deal Home Solutions') ? 'Joe from No Big Deal Roofing' : _b.legalName);
   const body = encodeURIComponent(`Hey${firstName ? ' ' + firstName : ''}, this is ${signOff}! I'd love to set up a free roof inspection at your convenience. Pick a time that works for you here: ${bookingUrl}`);
   if (!(await _okToTextFromPhone(leadId, phone))) return;
-  window.open(`sms:${cleanPhone}?body=${body}`, '_self');
+  window.open(`sms:${cleanPhone}?&body=${body}`, '_self');
 };
 
 // ── Follow-Up SMS Reminder ─────────────────────
@@ -1125,7 +1125,7 @@ window.sendFollowUpSMS = async function(leadId) {
     `Hi${firstName ? ' ' + firstName : ''}${intro}. Just following up on your project — wanted to check in and see if you have any questions.${bookingLine}`
   );
   if (!(await _okToTextFromPhone(leadId, lead.phone))) return;
-  window.open(`sms:${cleanPhone}?body=${body}`, '_self');
+  window.open(`sms:${cleanPhone}?&body=${body}`, '_self');
 };
 
 

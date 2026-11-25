@@ -404,7 +404,9 @@
 
   // Call / Text straight from a card (2026-10-03): the call's number, else
   // the customer's. Plain tel: / sms: links — no handler needed.
-  var SMS_HREF_RE = /^sms:\+1[0-9]{10}\?body=[A-Za-z0-9%._~!*'()-]{1,600}$/;
+  var SMS_HREF_RE = /^sms:\+1[0-9]{10}\?&?body=[A-Za-z0-9%._~!*'()-]{1,600}$/;
+  // Drafts stored before 2026-11-25 say ?body=, which some iPhones drop.
+  function iosSafeSms(h) { return String(h).replace('?body=', '?&body='); }
   function telOf(c, lead) {
     var d = String((c && c.phoneDigits) || '').replace(/\D/g, '').slice(-10);
     if (d.length !== 10 && lead) d = String(lead.phone || lead.altPhone || '').replace(/\D/g, '').slice(-10);
@@ -527,7 +529,7 @@
     // Speed-to-lead (2026-10-15): a missed call that is still open leads with
     // the reply already typed (functions/missed-call-reply-logic.js).
     var textBack = (!c.handledAtMs && c.replyDraft && SMS_HREF_RE.test(String(c.replyDraft.smsHref || '')))
-      ? '<a class="btn btn-ghost pc-play cc-reach cc-textback" href="' + esc(c.replyDraft.smsHref) + '" data-cc-reach="textback">💬 Text back</a>' : '';
+      ? '<a class="btn btn-ghost pc-play cc-reach cc-textback" href="' + esc(iosSafeSms(c.replyDraft.smsHref)) + '" data-cc-reach="textback">💬 Text back</a>' : '';
     var actions = textBack + reachButtons(c, lead);
     if (c.storagePath) actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="play" data-id="' + esc(c.id) + '">▶ Play</button>';
     if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(c.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';

@@ -3931,6 +3931,14 @@ function initVoiceControl() {
   };
 
   voiceRecognition.onerror = (e) => {
+    // A refusal (the iPhone home-screen app often says service-not-allowed)
+    // will not clear on a restart: switch off instead of looping onend ->
+    // start() -> the same error toast forever (2026-11-25 parity).
+    if(voiceActive && /^(not-allowed|service-not-allowed|audio-capture|language-not-supported)$/.test(e.error)) {
+      toggleVoiceControl();
+      showToast('Voice control is not available here. Use the buttons, or dictate with the keyboard mic.', 'error');
+      return;
+    }
     if(e.error !== 'no-speech') showToast('Voice error: ' + e.error, 'error');
   };
 

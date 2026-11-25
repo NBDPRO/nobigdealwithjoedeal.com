@@ -52,7 +52,8 @@
     return (String(l.firstName || '') + ' ' + String(l.lastName || '')).trim() || String(l.name || '').trim();
   }
   function isMissed(c) { return !!c && c.channel !== 'text' && c.status === 'short' && c.direction === 'inbound'; }
-  function safeSmsHref(h) { return typeof h === 'string' && SMS_RE.test(h) ? h : ''; }
+  // Drafts stored before 2026-11-25 say ?body=, which some iPhones drop.
+  function safeSmsHref(h) { return typeof h === 'string' && SMS_RE.test(h) ? h.replace('?body=', '?&body=') : ''; }
   function stageOf(l) { return String((l && (l._stageKey || l.stage)) || '').toLowerCase(); }
 
   // ── pure ─────────────────────────────────────────────────────────────
@@ -134,7 +135,7 @@
       '<span class="hs-aside">first to call back wins the job</span></div><ul class="hs-list">' + rows.map(function (r) {
         var what = r.kind === 'missed' ? 'Missed call' : 'New lead' + (r.source ? ' from ' + r.source.replace(/_/g, ' ') : '');
         var tel = r.phone ? 'tel:+1' + r.phone : '';
-        var sms = r.smsHref || (r.phone ? 'sms:+1' + r.phone : '');
+        var sms = (r.smsHref && String(r.smsHref).replace('?body=', '?&body=')) || (r.phone ? 'sms:+1' + r.phone : '');
         return '<li class="hs-row"><div class="hs-main"><span class="hs-name">' + esc(r.name) + '</span><span class="hs-sub">' + esc(what + ' · ' + ago(r.atMs)) + '</span></div>' +
           '<div class="hs-acts">' +
           (tel ? '<a class="hs-btn hs-btn-primary" href="' + esc(tel) + '">Call</a>' : '<button type="button" class="hs-btn" disabled>No number</button>') +

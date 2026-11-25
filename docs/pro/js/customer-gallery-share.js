@@ -355,9 +355,10 @@ window.quickSmsPortalLink = async function () {
 
     // Build the sms: URL. Per spec the body parameter goes after
     // the phone, separated by ?body= on iOS and &body= on Android.
-    // The platforms tolerate both reasonably; ?body= is the safer
-    // default. encodeURIComponent handles spaces + special chars.
-    const smsUrl = `sms:${phone}?body=${encodeURIComponent(body)}`;
+    // `?&body=` is the one shape both read (2026-11-25: some iOS versions
+    // drop a bare ?body=, see phone-share.js). encodeURIComponent handles
+    // spaces + special chars.
+    const smsUrl = `sms:${phone}?&body=${encodeURIComponent(body)}`;
 
     // Hand off to the OS. On desktop browsers without an SMS
     // handler this no-ops or prompts the user — the toast

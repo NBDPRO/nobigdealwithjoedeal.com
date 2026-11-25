@@ -89,8 +89,8 @@ function fakeDb(seed) {
   const missed = CCL.buildCallDoc({ ownerUid: 'O', file, parsed: parsed('inbound'), match: { leadId: 'L1' }, bucket: 'customer', storedPath: 'p', nowMs: NOW, durationSec: 4 });
   ok('missed inbound call → status short + replyDraft', missed.status === 'short' && !!missed.replyDraft, JSON.stringify(missed.replyDraft));
   ok('draft is manual, body = the reply, created now', missed.replyDraft.kind === 'manual' && missed.replyDraft.body === R.REPLY_BODY && missed.replyDraft.createdAtMs === NOW);
-  ok('draft link is sms:+1<number>?body=<the reply>', missed.replyDraft.smsHref === 'sms:+15135550100?body=' + encodeURIComponent(R.REPLY_BODY), missed.replyDraft.smsHref);
-  ok('the link decodes back to the exact reply', decodeURIComponent(missed.replyDraft.smsHref.split('?body=')[1]) === R.REPLY_BODY);
+  ok('draft link is sms:+1<number>?&body=<the reply> (iPhone-safe shape, 2026-11-25)', missed.replyDraft.smsHref === 'sms:+15135550100?&body=' + encodeURIComponent(R.REPLY_BODY), missed.replyDraft.smsHref);
+  ok('the link decodes back to the exact reply', decodeURIComponent(missed.replyDraft.smsHref.split('?&body=')[1]) === R.REPLY_BODY);
   ok('the link passes the shared safe-href check', R.isSafeSmsHref(missed.replyDraft.smsHref) && R.draftHref(missed) === missed.replyDraft.smsHref);
   const out = CCL.buildCallDoc({ ownerUid: 'O', file, parsed: parsed('outbound'), match: null, bucket: 'unknown', storedPath: 'p', nowMs: NOW, durationSec: 4 });
   const talked = CCL.buildCallDoc({ ownerUid: 'O', file, parsed: parsed('inbound'), match: null, bucket: 'unknown', storedPath: 'p', nowMs: NOW, durationSec: 300 });
@@ -142,7 +142,7 @@ function fakeDb(seed) {
   const bell = read('docs/pro/js/notif-bell.js');
   ok('bell keeps a safe smsHref from the doc and renders a Text back link', /smsHref:\s+SMS_HREF_RE\.test/.test(bell) && /notif-textback" href="\$\{escapeHtml\(n\.smsHref\)\}"/.test(bell));
   const ccv = read('docs/pro/js/call-center-view.js');
-  ok('Call Center card leads with Text back on an open missed call', /c\.replyDraft && SMS_HREF_RE\.test/.test(ccv) && /cc-textback" href="' \+ esc\(c\.replyDraft\.smsHref\)/.test(ccv) && /var actions = textBack \+ reachButtons/.test(ccv));
+  ok('Call Center card leads with Text back on an open missed call', /c\.replyDraft && SMS_HREF_RE\.test/.test(ccv) && /cc-textback" href="' \+ esc\(iosSafeSms\(c\.replyDraft\.smsHref\)\)/.test(ccv) && /var actions = textBack \+ reachButtons/.test(ccv));
   ok('no inline handler in the new markup', !/notif-textback[^>]*\son[a-z]+=/.test(bell) && !/cc-textback[^>]*\son[a-z]+=/.test(ccv));
   // "At least" the version this feature shipped with: an exact pin broke on every later bump of these files.
   const bustAtLeast = (src, re, min) => { const m = re.exec(src); return !!m && Number(m[1]) >= min; };

@@ -4979,7 +4979,9 @@
       // default-deny at storage.rules:155. Keep the `d2d/` prefix for
       // lineage and so onAudioUploaded can tell D2D memos apart from
       // Voice Intelligence recordings.
-      const storageRef = ref(window._storage, `audio/${window._user.uid}/d2d/${knockId}_${Date.now()}.webm`);
+      // The file name follows the recorded type (an iPhone memo is mp4).
+      const ext = /mp4|m4a|aac/.test(blob.type || '') ? 'm4a' : /ogg/.test(blob.type || '') ? 'ogg' : 'webm';
+      const storageRef = ref(window._storage, `audio/${window._user.uid}/d2d/${knockId}_${Date.now()}.${ext}`);
       // Same iOS bfcache timeout treatment as photo uploads — voice
       // memos are typically larger so allow a longer ceiling (30s).
       await _withTimeout(window.uploadBytes(storageRef, blob), 30000, 'uploadBytes(voice)');
@@ -5056,7 +5058,7 @@
     } else {
       // Fallback: sms: link
       const cleanPhone = phone.replace(/[^0-9+]/g, '');
-      window.open(`sms:${cleanPhone}?body=${encodeURIComponent(body)}`, '_blank');
+      window.open(`sms:${cleanPhone}?&body=${encodeURIComponent(body)}`, '_blank');
       window.showToast?.('Opening SMS...', 'info');
     }
   }

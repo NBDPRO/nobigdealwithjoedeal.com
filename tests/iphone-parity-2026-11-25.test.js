@@ -236,7 +236,9 @@ function staticSuite() {
     const rel = path.relative(ROOT, f).replace(/\\/g, '/');
     // A built sms link whose body follows a bare "?body=" (not "?&body=").
     s.split('\n').forEach((line, i) => {
-      if (/sms:/.test(line) && /[?]body=/.test(line) && !/^\s*(\/\/|\*)/.test(line)) bare.push(rel + ':' + (i + 1));
+      // Comments, and the validators that accept an old stored draft, are not links.
+      if (/^\s*(\/\/|\/?\*)/.test(line) || /_RE\s*=/.test(line) || /replace\('\?body='/.test(line)) return;
+      if (/sms:/.test(line) && /[?]body=/.test(line)) bare.push(rel + ':' + (i + 1));
       if (/'sms:'\s*\+\s*encodeURIComponent\(/.test(line)) encodedNum.push(rel + ':' + (i + 1));
     });
   }
