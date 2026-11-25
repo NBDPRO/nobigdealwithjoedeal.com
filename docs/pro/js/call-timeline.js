@@ -143,5 +143,5 @@
   const api = { fromActivity, activityQuery, activityDocs, VIEWER_SOURCES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDCallTimeline = api;
-  if (root) root.nbdVisitBrief = (v, u) => root.ScriptLoader.load('js/call-brief-ui.js?v=6').then(() => root.NBDCallBrief.openVisit({ visitId: v, visitUid: u })).catch(() => root.showToast && root.showToast('Could not open the call brief. Try again in a moment.', 'error'));
+  if (root) root.nbdVisitBrief = (v, u) => root.ScriptLoader.load('js/call-brief-ui.js?v=5').then(() => root.NBDCallBrief.openVisit({ visitId: v, visitUid: u })).catch(() => root.showToast && root.showToast('Could not open the call brief. Try again in a moment.', 'error'));
 })(typeof window !== 'undefined' ? window : null);

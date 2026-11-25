@@ -144,7 +144,7 @@
       'js/price-logic.js?v=9',
       'js/price-ledger.js?v=9',
       // Receipt import search / filter + type-ahead job picker (2026-10-19): inert until the receiptSorterQueue flag is on.
-      'css/receipt-review.css?v=4', 'js/receipt-filter-logic.js?v=1', 'js/receipt-review-ui.js?v=1',
+      'css/receipt-review.css?v=2', 'js/receipt-filter-logic.js?v=1', 'js/receipt-review-ui.js?v=1',
       // Receipt sorter queue (2026-10-18): inert until the receiptSorterQueue flag is on.
       'css/receipt-sorter.css?v=1', 'js/receipt-sorter-logic.js?v=1', 'js/receipt-sorter.js?v=1',
       // Receipt inbox (2026-11-04): inert until the receiptInbox flag is on. Loads after the sorter (it ranks jobs with it).
@@ -328,7 +328,7 @@
       'js/estimate-finalization.js?v=12',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=50',
+      'js/estimate-v2-ui.js?v=48',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=6',
@@ -346,7 +346,7 @@
       'js/job-templates-data.js?v=7',
       'js/job-templates.js?v=11',
       'js/entity-resolver.js?v=2',
-      'js/job-templates-ui.js?v=19',
+      'js/job-templates-ui.js?v=17',
       // Upgrades & Add-ons (2026-09-25): the retail upgrade library, then the
       // pure pricing core that reads it, then Settings → Upgrade prices,
       // which needs both. The Estimates settings tab loads this bundle
@@ -372,7 +372,7 @@
     // load-then-run stubs in dashboard-actions.js, so a click before the bundle
     // loads still works.
     photos: [
-      'js/photo-engine.js?v=15',
+      'js/photo-engine.js?v=13',
       // photo-queue-store.js + photo-queue-recovery.js were static-tagged
       // only on dashboard.html until 2026-09-14 — customer.html's own
       // uploadSinglePhoto never enqueued a photo into the durable IndexedDB
@@ -402,8 +402,8 @@
       'js/lead-events.js?v=1',
       // Door-list CSV import (2026-10-16), read by the Routes tab and the shim.
       'js/d2d-door-import.js?v=1',
-      'js/d2d-tracker-core-2026b.js?v=21',
-      'js/d2d-tracker-ui-2026b.js?v=15',
+      'js/d2d-tracker-core-2026b.js?v=19',
+      'js/d2d-tracker-ui-2026b.js?v=13',
       'js/d2d-tracker-2026b.js?v=6'
     ],
     // PDF export libs (PR 2b2). Consumers: the doc-viewer's "Download PDF"
@@ -503,7 +503,7 @@
     drawtool: [
       'css/maps-routing-view.css?v=2',
       'js/draw-geom.js?v=2',
-      'js/maps-routing.js?v=13',
+      'js/maps-routing.js?v=11',
       'css/draw-reticle.css?v=1',
       'js/draw-reticle.js?v=1',
       // Instant Roofer cross-check card + the V3 wizard's "Draw it" hand-off
@@ -522,7 +522,7 @@
     callcenter: [
       'js/call-center-filters-logic.js?v=5',
       'js/call-center-loop-logic.js?v=1',
-      'js/call-center-view.js?v=35'
+      'js/call-center-view.js?v=33'
     ],
     // Tenant-ready settings (2026-10-05, #2152 boot budget): the Business
     // Rules editor (Settings → Estimates) and the logo upload / company export
@@ -618,7 +618,7 @@
     ],
     homestrips: [
       'css/home-strips.css?v=1',
-      'js/home-strips.js?v=4'
+      'js/home-strips.js?v=2'
     ],
     // Storm strip (2026-10-16): Home (Classic, Bento, Island) and Field, only
     // when a warning or hail touches the territory or a customer. Kicked by

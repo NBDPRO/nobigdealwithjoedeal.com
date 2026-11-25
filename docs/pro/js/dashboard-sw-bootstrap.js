@@ -12,7 +12,7 @@
   try {
     if (window.NBDSafeReload || document.querySelector('script[data-nbd-safe-reload]')) return;
     var s = document.createElement('script');
-    s.src = '/pro/js/safe-reload.js?v=5';
+    s.src = '/pro/js/safe-reload.js?v=3';
     s.async = true;
     s.setAttribute('data-nbd-safe-reload', '1');
     (document.head || document.documentElement).appendChild(s);
