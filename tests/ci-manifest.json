@@ -1031,6 +1031,7 @@
     "map-views-hydration.test.js",
     "lead-trades-unknown.test.js",
     "edit-lead-stage-write-2026-09-28.test.js",
+    "mail-feed-2026-11-25.test.js",
     "filed-dates-keep-2026-11-08.test.js",
     "edit-lead-keeps-stored-fields-2026-11-06.test.js",
     "optimistic-edit-keeps-owner-2026-11-08.test.js",
