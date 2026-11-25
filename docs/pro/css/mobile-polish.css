@@ -113,6 +113,7 @@
   input[type="month"],
   input[type="week"],
   html #bulkActionBar select,
+  select.btn, /* .btn-ghost sets .82rem !important (the My Skin pickers) */
   textarea,
   select {
     font-size: 16px !important;
