@@ -27,6 +27,7 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { defineSecret } = require('firebase-functions/params');
 const W = require('./call-watch-logic');
 const CL = require('./contact-labels');
+const TP = require('./thursday-projection-logic');
 // The task channel (2026-10-13, audit F1): dated promises / ripe Waiting items
 // that live only as lead tasks. Reads in promise-channel.js, rules in -logic.
 const PC = require('./promise-channel');
@@ -128,7 +129,9 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts, email }) {
   // thursday = rows already inside the 14-day window (W.readThursday; null
   // startedAt rows fall back to createdAt here).
   const thu = thursday.filter((t) => (W.toMs(t.startedAt) || W.toMs(t.createdAt)) >= since14);
-  const callRows = rows(calls), textRows = rows(texts);
+  // A Thursday call's phone_calls projection (source 'thursday', roadmap step
+  // 17C) is judged through thursday_calls (thu) here, never twice.
+  const callRows = rows(calls).filter((c) => !TP.isProjection(c)), textRows = rows(texts);
   const labels = await loadLabels(db);
 
   // A follow-up task ticked before onCallTaskWrite existed (or a missed

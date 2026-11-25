@@ -82,6 +82,11 @@
   }
   function claims() { return window._userClaims || {}; }
   function isViewer() { return claims().role === 'viewer'; }
+  // A Thursday call's phone_calls copy (source 'thursday', roadmap step 17C):
+  // filed, confirmed and reprocessed from the Thursday inbox on Home, so its
+  // card offers only what callCenterAction takes for it (Handled, labels, tasks).
+  function isThu(c) { return !!c && c.source === 'thursday'; }
+  var THU_NOTE = '<div class="pc-meta cc-thu-note">Thursday took this call. File it, confirm the customer or add a promise from the Thursday inbox on Home.</div>';
   // Call to Close P0 (2026-11-09): 'draft' | 'confirm' | '' for "Draft from
   // this call" (functions/call-brief-logic.js canActOnCall + humanFiledProblem; the server re-checks).
   function briefGate(c) {
@@ -187,7 +192,7 @@
   // The one-tap row on a card: "Looks like X — why. [File on X]", or for a
   // tagged contact on no lead, "Not in CRM yet — [＋ Make lead]".
   function fileRow(c, ids) {
-    if (!c || isViewer() || c.leadId || c.channel === 'text') return '';
+    if (!c || isViewer() || c.leadId || c.channel === 'text' || isThu(c)) return '';
     var t = fileTarget(c);
     var idsAttr = ids && ids.length > 1 ? ' data-ids="' + esc(ids.join(',')) + '"' : '';
     var rem = ids && ids.length > 1 ? '' : reminderText(c);
@@ -322,8 +327,8 @@
     var days = Number(r.days) || 0;
     var acts = '';
     if (briefGate(c) === 'draft') acts += '<button type="button" class="btn btn-ghost pc-play" data-cc="brief" data-id="' + esc(c.id) + '">📝 Brief</button>';
-    acts += '<button type="button" class="btn btn-ghost pc-play" data-cc="promise" data-id="' + esc(c.id) + '">📌 Follow-up</button>' +
-      '<button type="button" class="btn btn-ghost pc-play" data-cc="rescuedismiss" data-id="' + esc(c.id) + '"' + (state.busy[c.id] ? ' disabled' : '') + '>Dismiss</button>' +
+    if (!isThu(c)) acts += '<button type="button" class="btn btn-ghost pc-play" data-cc="promise" data-id="' + esc(c.id) + '">📌 Follow-up</button>';
+    acts += '<button type="button" class="btn btn-ghost pc-play" data-cc="rescuedismiss" data-id="' + esc(c.id) + '"' + (state.busy[c.id] ? ' disabled' : '') + '>Dismiss</button>' +
       '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(c.leadId) + '">Open ' + esc(who) + '</a>';
     return '<div class="panel pc-card cc-card cc-rescue" data-call-id="' + esc(c.id) + '">' +
       '<div class="pc-head"><div class="pc-who">' + esc(who) + '</div><div class="pc-meta">' + esc(when) + '</div></div>' +
@@ -498,7 +503,7 @@
     }
     var m = mergeIdx()[c.id];
     var o = m ? byId(m.other) : null;
-    if (!o || !canActOn(o)) return '';
+    if (!o || !canActOn(o) || isThu(c) || isThu(o)) return '';
     var note = m.first ? 'The line may have dropped: the same number called again at ' + clock(o.startedAtMs) + ', ' + gapText(m.gapMs) + ' after this call ended.'
       : 'This may be a redial of the ' + clock(o.startedAtMs) + ' call from the same number, ' + gapText(m.gapMs) + ' after it ended.';
     return '<div class="cc-suggest cc-merge" data-cc-merge="' + esc(c.id) + '"><span>Looks like one call. Merge?</span><span class="cc-suggest-note">' + esc(note) +
@@ -533,8 +538,11 @@
     var actions = textBack + reachButtons(c, lead);
     if (c.storagePath) actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="play" data-id="' + esc(c.id) + '">▶ Play</button>';
     if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(c.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';
+    var thu = isThu(c);
     if (!isViewer()) {
       actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="' + (c.handledAtMs ? 'unhandled' : 'handled') + '" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>' + labelBtn(c);
+      if (thu) { if (c.leadId && briefGate(c) === 'draft') actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="brief" data-id="' + esc(c.id) + '">📝 Draft from this call</button>'; }
+      else {
       // Promise capture (2026-10-12): what did you promise? A dated task, never forgotten.
       if (!c.handledAtMs && c.status !== 'personal') actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="promise" data-id="' + esc(c.id) + '">📌 Promise</button>';
       var bg = c.leadId ? briefGate(c) : '';
@@ -550,6 +558,7 @@
         actions += (leadForNumber(c.phoneDigits) || taggedNotInCrm(c) ? '' : '<button type="button" class="btn btn-ghost pc-play" data-cc="newlead" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>+ New lead</button>') +
           '<button type="button" class="btn btn-ghost pc-play" data-cc="attachopen" data-id="' + esc(c.id) + '">Attach to customer…</button>';
       }
+      }
     }
     return '<div class="panel pc-card cc-card' + (c.handledAtMs ? ' is-handled' : '') + '" data-call-id="' + esc(c.id) + '">' +
       '<div class="pc-head"><div class="pc-who">' + esc(who) + (c.contactName && c.phoneDigits ? ' <span class="pc-meta">' + esc(fmtPhone(c.phoneDigits)) + '</span>' : '') + '</div>' +
@@ -557,7 +566,7 @@
       '<div class="pc-chips">' + chips + '</div>' +
       (c.summary ? '<div class="pc-summary">' + esc(c.summary) + '</div>' : '') + promises +
       (c.followUpDate ? '<div class="pc-meta pc-follow">Follow up ' + esc(c.followUpDate) + '</div>' : '') +
-      (status ? '<div class="pc-meta">' + esc(status) + '</div>' : '') +
+      (status ? '<div class="pc-meta">' + esc(status) + '</div>' : '') + (thu && !isViewer() ? THU_NOTE : '') +
       fileRow(c) + suggestRow(c) + mergeRow(c) +
       '<div class="pc-actions">' + actions + '</div>' +
       '<div class="cc-attach" data-cc-attach="' + esc(c.id) + '" hidden></div>' +
@@ -598,12 +607,13 @@
     var actions = reachButtons(latest, lead);
     // Filing goes through a CALL (texts are matched by the text ingest; the
     // server re-files the number's texts with it).
-    var anchor = g.calls.filter(function (c) { return c.channel !== 'text'; })[0] || null;
+    var anchor = g.calls.filter(function (c) { return c.channel !== 'text' && !isThu(c); })[0] || null;
+    var promiseIds = g.calls.filter(function (c) { return !isThu(c); }).map(function (c) { return c.id; });
     var withTarget = g.calls.filter(function (c) { return fileTarget(c); })[0] || anchor;
     if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(latest.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';
     if (!isViewer()) {
       actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="handledgroup" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(latest.id) + '"' + (busy ? ' disabled' : '') + '>✓ Handled (all ' + g.calls.length + ')</button>' +
-        '<button type="button" class="btn btn-ghost pc-play" data-cc="promise" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(latest.id) + '">📌 Promise</button>' + labelBtn(latest);
+        (promiseIds.length ? '<button type="button" class="btn btn-ghost pc-play" data-cc="promise" data-ids="' + esc(promiseIds.join(',')) + '" data-id="' + esc(promiseIds[0]) + '">📌 Promise</button>' : '') + labelBtn(latest);
       if (!latest.leadId && anchor) {
         actions += (leadForNumber(anchor.phoneDigits) || taggedNotInCrm(anchor) ? '' : '<button type="button" class="btn btn-ghost pc-play" data-cc="newlead" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(anchor.id) + '"' + (busy ? ' disabled' : '') + '>+ New lead</button>') +
           '<button type="button" class="btn btn-ghost pc-play" data-cc="attachopen" data-id="' + esc(anchor.id) + '">Attach to customer…</button>';
@@ -1800,6 +1810,9 @@
     _needsAttention: needsAttention,
     _focusTarget: focusTarget,
     _telOf: telOf,
+    _renderCall: renderCall,
+    _renderGroup: renderGroup,
+    _rescueRow: rescueRow,
     focusCall: focusCall,
     setFilter: function (f) { state.filter = f; state.focusId = null; render(); },
     _flt: function () { return flt; },

@@ -489,9 +489,12 @@ async function processCall(ref, data) {
   let call = Object.assign({}, data.call || {});
   const key = blandKey();
   const update = {};
+  // Call retention (roadmap step 17C) removed the recording or the text: Bland
+  // still has both, so never copy them back (call-retention-logic thursdayKeep).
+  const keep = require('../call-retention-logic').thursdayKeep(data);
 
   // 1. Hydrate — the webhook may arrive before Bland finishes the transcript.
-  if (key && (!call.transcript || !call.recordingUrl || !call.summary)) {
+  if (keep.hydrate && key && (!call.transcript || !call.recordingUrl || !call.summary)) {
     try {
       const fresh = T.normalizeCall(await fetchBlandCall(call.callId, key));
       for (const k of Object.keys(fresh)) {
@@ -506,7 +509,7 @@ async function processCall(ref, data) {
   }
 
   // 2. Recording → Storage.
-  if (!data.recordingPath && key) {
+  if (keep.saveRecording && !data.recordingPath && key) {
     try {
       const rec = await saveRecording(call, key, ownerUid);
       update.recordingPath = rec.path;
@@ -595,6 +598,14 @@ exports.thursdayCallProcess = onDocumentWritten(
   async (event) => {
     const after = event.data && event.data.after;
     if (!after || !after.exists) return;
+    // One call record (roadmap step 17C): a finished call is projected into
+    // phone_calls/thursday_<id> so Call Brief, the sweep and the Calls screen
+    // see it (functions/thursday-projection.js). Never blocks processing.
+    try {
+      await require('../thursday-projection').projectThursdayCall({ db: db(), docId: after.id || (event.params && event.params.docId), data: after.data() || {}, log: logger });
+    } catch (e) {
+      logger.warn('thursday: phone_calls projection failed', { doc: after.id, err: e && e.message });
+    }
     const status = (after.data() || {}).status;
     if (status !== 'pending' && status !== 'reprocess') return;
     const ref = after.ref;
@@ -790,6 +801,11 @@ exports.thursdayCallAction = onCall(
       return { ok: true };
     }
     if (action === 'reprocess') {
+      // Past call retention's 24 months the transcript is gone: nothing to
+      // re-read, and a reprocess would fetch it back from Bland.
+      if (!require('../call-retention-logic').thursdayKeep(data).reprocess) {
+        throw new HttpsError('failed-precondition', 'This call is past the retention limit; its transcript was removed.');
+      }
       // A live run is refused; a STALE claim (killed by the trigger's
       // timeout — the doc would otherwise sit in 'processing' forever) is
       // re-queued. Same staleness rule as claim().

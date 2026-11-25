@@ -102,7 +102,8 @@ async function switchedOff(withAi) {
 async function loadGated(db, auth, data) {
   if (!auth || !auth.uid) throw new HttpsError('unauthenticated', 'Sign in first.');
   const callId = String((data && data.callId) || '');
-  if (!/^cube_[A-Za-z0-9_-]{5,120}$/.test(callId)) throw new HttpsError('invalid-argument', 'Bad call id.');
+  // cube_… = a Cube ACR call; thursday_… = a Thursday call's projection (roadmap step 17C).
+  if (!/^(?:cube_[A-Za-z0-9_-]{5,120}|thursday_[A-Za-z0-9_-]{6,128})$/.test(callId)) throw new HttpsError('invalid-argument', 'Bad call id.');
   const snap = await db.collection(CALLS).doc(callId).get();
   if (!snap.exists) throw new HttpsError('not-found', 'Call not found.');
   const call = Object.assign({}, snap.data(), { id: callId });
@@ -217,7 +218,8 @@ function tenantOf(profile) {
 async function briefInput(db, g) {
   const own = { transcript: String(g.call.transcript || ''), segIndex: g.call.segIndex || null, mergedFrom: null };
   const sid = g.call.mergedFrom;
-  if (!sid || !MG.isCallId(sid)) return own;
+  // A Thursday link (roadmap step 17C) pairs a cube_ call with a thursday_ projection.
+  if (!sid || !(MG.isCallId(sid) || require('./thursday-projection-logic').isProjectionId(sid))) return own;
   const ss = await db.collection(CALLS).doc(String(sid)).get().catch(() => null);
   const sec = ss && ss.exists ? Object.assign({}, ss.data(), { id: String(sid) }) : null;
   if (!sec || !MG.mergedTogether(g.call, sec)) return own;

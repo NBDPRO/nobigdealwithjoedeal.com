@@ -88,7 +88,7 @@ const ENTRIES = Object.freeze({
   reviewRequestNudge: none(['env:REVIEW_NUDGE_ENABLED'], "to the rep's verified Auth email"),
   morningBrief: none(['env:MORNING_BRIEF_ENABLED', 'env:MORNING_BRIEF_ABSORB_ENABLED', 'env:MORNING_BRIEF_DELTA_ENABLED'], "to the user's own email (plus DIGEST_EMAILS when absorbed)"),
   promiseCleanup: none(['env:PROMISE_CLEANUP_ENABLED'], CALL_CENTER_WHY),
-  callRetention: none(['env:CALL_RETENTION_ENABLED']),
+  callRetention: none(['env:CALL_RETENTION_ENABLED', 'env:CALL_RETENTION_THURSDAY_ENABLED']),
   awayModeTick: none(['env:AWAY_MODE_ENABLED']),
   callCenterTranscribe: none(['env:CALL_CENTER_TRANSCRIBE_ENABLED'], CALL_CENTER_WHY),
   callCenterSweep: none(['env:CALL_CENTER_SWEEP_ENABLED'], CALL_CENTER_WHY + " (the \"you said you'd\" email)"),

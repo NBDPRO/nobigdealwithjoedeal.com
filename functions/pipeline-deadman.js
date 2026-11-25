@@ -161,8 +161,10 @@ async function run(deps) {
   let newestCallMs;
   try {
     const owner = (deps.env || process.env).NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
-    const q = await db.collection('phone_calls').where('userId', '==', owner).orderBy('startedAtMs', 'desc').limit(1).get();
-    newestCallMs = q.docs.length ? (W.toMs((q.docs[0].data() || {}).startedAtMs) || 0) : 0;
+    // The newest Cube ACR recording: a Thursday call's phone_calls projection
+    // (roadmap step 17C) is not a recording and must not mask a dead ingest.
+    const q = await db.collection('phone_calls').where('userId', '==', owner).orderBy('startedAtMs', 'desc').limit(25).get();
+    newestCallMs = require('./thursday-projection-logic').newestCubeStartMs(q.docs.map((d) => d.data() || {}));
   } catch (_) { newestCallMs = undefined; }
   const problems = deadManProblems({ watch, cc, now: nowMs, gates, newestCallMs, cronDeadman });
   // The daily self-test (pipeline-canary.js): opt-in via deps.canary, once per
