@@ -403,7 +403,24 @@ walk them through the claim**." That is the phrase the site gate now bans
      promotes whatever is on staging).
   3. To roll back: `--rollback=0.6.2 --yes`.
 
-## 6. Coordination notes
+## 14. What's live, checked 2026-11-22 (read-only, roadmap step 7)
+
+The check used only GET requests to the Bland v2 agent and version endpoints: no publish, no promote, no call. The key came from Secret Manager via `scripts/_bland.js` and was never printed.
+
+| | Production | Staging |
+|---|---|---|
+| Version | **0.6.2** (published 2026-09-28 18:15Z) | **0.7.0** (published 2026-10-02 03:50Z) |
+| Old claim phrase ("walk them through the claim") | **present** | absent |
+| New line ("The claim stays theirs …") | absent | present |
+| Initialization step | on, saved snippet | on, saved snippet |
+| Reference Variables on the snippet | **none** | **none** |
+| Tools on the agent node | 3 | 3 |
+| Caller memory | off | off |
+
+- **The non-compliant claim wording is still live.** 0.7.0 was never promoted, so every caller who asks about insurance hears the phrase the site gate bans. To fix it, Jo runs §13's "To go live" steps: test staging, then `--promote --yes`.
+- **Greet-by-name is still broken in both versions.** Neither declares the `from` Reference Variable, so the lookup snippet never gets a number (root cause in §12). The fix is §12's builder step. Do it on staging *before* promoting, so a single promote ships both changes, then make one test call.
+- Nothing else differs that this check looked at: tools, initialization and memory match.
+
 
 > **Update 2026-09-30: all three items below are resolved on main.** Checked against the code, not the notes:
 > - the viewer verdicts are in `tests/viewer-callables.test.js` (`thursdayCallAction: 'already'`, `getThursdayRecording: 'read'`, the webhook and caller lookup `'public'`);

@@ -265,6 +265,17 @@ Refuted: "the Monday checks overlap and run in the wrong order".
   - Deliberate choices go in an accepted list that no scheduled task can write.
   - It also found a hole left by step 1: task write rules covered the folders that hold the task scripts. The narrowed rules are on Joe's list.
   - The settings changes themselves are Joe's, listed in the private note.
+- **Step 7 is done (read-only).** Production is still 0.6.2 with the banned claim phrase. Staging 0.7.0 has the fix and was never promoted. Neither version declares the `from` Reference Variable, so greet-by-name still can't work. Details are in [THURSDAY-BLAND §14](../architecture/THURSDAY-BLAND-2026-09-26.md). Joe's step: add `from` on staging, test, promote.
+- **Step 4 is done (2026-11-25, local ops tooling, Joe chose opt-out).**
+  - The merge autopilot arms every ready PR except those labelled `hold` (or the PR steward's `train:hold` / `train:blocked`). A held PR that's already armed or queued is disarmed and dequeued.
+  - The stale October HOLD/WAKE_ON lists are gone.
+  - It works only in its own detached `nbd-wt-mq-<pr>` worktrees, never in a session's, and it never force-pushes. A rejected push parks the PR.
+  - Self-tests pass, with 33 deliberate breaks caught. The `hold` label was created on the repo.
+- **Step 5 is done.** #3235 merged: a customer is asked for a review once. On the local office-prompt side, Tucker no longer drafts review asks, and Frank's daily balance step is retired for a weekly summary.
+- **Step 6, local half, is done.** The local storm agent no longer files (the server stormWatch plus storm-deploy own storms). The office sweep no longer files storms or quiet proposals, and Tucker drafts only for radar-flagged leads. The server `dedupe_key` is in its own PR.
+- **Step 9a is done.** #3236 merged: server AI prompts fence customer and caller text as data; Thursday honours `test` only from owner numbers and drops spam only at high confidence with no lead match; a matched call's audio is never auto-deleted as "personal". The bot-server half (9b) follows in the bot-server chain.
+- **Step 11 is in its own PR:** a per-job heartbeat ledger plus `cronDeadman`, with daytime alerts.
+- **Step 14 is done, with one part deferred.** Nine finished or retired desktop tasks were archived (scrubbed) and deleted. No job qualified for a cloud routine yet: they write the local vault or need the PC. That moves with step 17.
 
 | # | Step | Area | Effort | Joe's call |
 |---|---|---|---|---|
