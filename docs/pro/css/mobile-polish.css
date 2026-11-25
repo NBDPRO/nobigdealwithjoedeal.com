@@ -120,6 +120,27 @@
   }
 }
 
+/* ─── 5b. Long-press on touch (2026-11-25, iPhone parity) ─────
+   A kanban card's 500 ms long-press opens the card menu
+   (kanban-context-menu.js); on an iPhone the same press also
+   selected the card's text and raised the Copy / Look Up callout.
+   Older iOS reads only the -webkit- forms. Text fields stay
+   selectable even inside a no-select container (older WebKit
+   could refuse typing there). */
+@media (pointer: coarse) {
+  .k-card {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
 /* ─── 6. Bottom safe-area padding for body ────────────────────
    When standalone PWA mode runs, the bottom edge of the page
    can sit under the iOS home indicator. The FAB stack already

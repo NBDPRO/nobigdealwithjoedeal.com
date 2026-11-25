@@ -52,8 +52,12 @@ Pinned by `tests/iphone-parity-2026-11-25.test.js` (fails on the pre-fix code).
   claim-core-view, contact-labels, promise, production, product-library,
   social-studio, visit-recorder, winback-view, sort-customers, theme-bridge
   :65/:137) and the `calc(100vh - Npx)` OS dialogs can still reach under the
-  status bar in the installed iPhone app. Worth doing once Joe's screenshots
-  show which ones he uses.
+  status bar in the installed iPhone app. **Fixed in the follow-up PR (same
+  day):** each keeps its height but is capped at the screen minus twice the top
+  safe area (a centred box starts at (H - h) / 2); the win-back bottom sheet at
+  the screen minus one inset; the how-to modal's `#id` rule too, since it
+  outranks `.nhm-inner`; and the customer page's Edit Customer modal. Pinned in
+  `tests/iphone-parity-2026-11-25.test.js`; checked on WebKit and Chromium.
 - `-webkit-user-select` is missing on long-press targets (older iOS selects text);
   `-webkit-text-size-adjust` only applies at 768px and narrower (landscape).
 - Kanban drag is HTML5 drag-and-drop only (`crm-pipeline.js`); on touch, moves go

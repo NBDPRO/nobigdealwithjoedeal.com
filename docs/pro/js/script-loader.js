@@ -172,7 +172,7 @@
     // then the view. Nothing is sent without the rep tapping Send.
     winback: [
       'js/winback-logic.js?v=2',
-      'css/winback-view.css?v=1',
+      'css/winback-view.css?v=2',
       'js/winback.js?v=2'
     ],
     // Roof Care Plan members view (#/careplan, 2026-10-05). Its stylesheet
@@ -224,7 +224,7 @@
       'js/document-generator.js?v=44',
       'js/document-generator-templates.js?v=33',
       'js/document-generator-library.js?v=20', // 2026-10-04 template library; needs -templates' _tpl
-      'js/doc-preflight.js?v=28',
+      'js/doc-preflight.js?v=29',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
@@ -291,7 +291,7 @@
       'js/product-data.js?v=6',
       'js/roofivent-catalog.js?v=2',
       'js/catalog-costs.js?v=5',
-      'js/product-library.js?v=24',
+      'js/product-library.js?v=25',
       // Price book viewer (2026-10-02): the Product Library's "Price book"
       // button. Same file the expenses bundle loads for the HD import.
       'css/price-book.css?v=1',
@@ -328,7 +328,7 @@
       'js/estimate-finalization.js?v=12',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=48',
+      'js/estimate-v2-ui.js?v=49',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=6',
@@ -346,7 +346,7 @@
       'js/job-templates-data.js?v=7',
       'js/job-templates.js?v=11',
       'js/entity-resolver.js?v=2',
-      'js/job-templates-ui.js?v=17',
+      'js/job-templates-ui.js?v=18',
       // Upgrades & Add-ons (2026-09-25): the retail upgrade library, then the
       // pure pricing core that reads it, then Settings → Upgrade prices,
       // which needs both. The Estimates settings tab loads this bundle
@@ -501,7 +501,7 @@
     // rep turns that on. Stylesheet first, so the bar is styled the moment
     // the JS builds it. This file's own ?v re-bumped 9 -> 10.
     drawtool: [
-      'css/maps-routing-view.css?v=2',
+      'css/maps-routing-view.css?v=3',
       'js/draw-geom.js?v=2',
       'js/maps-routing.js?v=11',
       'css/draw-reticle.css?v=1',
@@ -522,7 +522,7 @@
     callcenter: [
       'js/call-center-filters-logic.js?v=5',
       'js/call-center-loop-logic.js?v=1',
-      'js/call-center-view.js?v=33'
+      'js/call-center-view.js?v=34'
     ],
     // Tenant-ready settings (2026-10-05, #2152 boot budget): the Business
     // Rules editor (Settings → Estimates) and the logo upload / company export
@@ -560,7 +560,7 @@
     // menu, and the owner's Canvassers panel (Settings → Team). Kicked by
     // dashboard-bootstrap.module.js once the claims are known (no boot <script> tag).
     canvasser: [
-      'css/canvasser.css?v=1',
+      'css/canvasser.css?v=2',
       'js/canvasser-logic.js?v=2',
       'js/canvasser-ui.js?v=1'
     ],

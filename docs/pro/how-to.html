@@ -110,7 +110,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 /* Collapsible Deep Dive / Tasks */
 details{background:var(--s1);border:1px solid var(--bdr2);border-radius:var(--rl);margin-bottom:10px;overflow:hidden;transition:border-color .15s}
 details[open]{border-color:var(--or-glow)}
-summary{padding:14px 18px;cursor:pointer;font-weight:600;font-size:14px;color:var(--tx);list-style:none;display:flex;align-items:center;gap:10px;user-select:none}
+summary{padding:14px 18px;cursor:pointer;font-weight:600;font-size:14px;color:var(--tx);list-style:none;display:flex;align-items:center;gap:10px;-webkit-user-select:none;user-select:none}
 summary::-webkit-details-marker{display:none}
 summary::before{content:'▸';color:var(--or);font-size:11px;transition:transform .2s}
 details[open] summary::before{transform:rotate(90deg)}
