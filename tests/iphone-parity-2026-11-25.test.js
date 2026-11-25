@@ -260,6 +260,27 @@ function staticSuite() {
   ok('16px rule covers date/time inputs', ['date', 'time', 'datetime-local', 'month'].every((t) => px16('input[type="' + t + '"]')));
   ok('16px rule covers the bulk-action selects and button-styled selects', px16('html #bulkActionBar select') && px16('select.btn'));
   ok('control: an unlisted selector is not reported as covered', !px16('input[type="checkbox"]'));
+
+  // Centred dialogs (follow-up, 2026-11-25): a box centred in the screen starts
+  // at (H - h) / 2, so in the installed iPhone app (which draws under the status
+  // bar) it clears the Dynamic Island only when h <= H - 2 x the top inset.
+  const DIALOGS = [
+    ['canvasser', '.cv-card'], ['claim-core-view', '.ccx-maxw560px-wd100-max86vh.ccx-maxw560px-wd100-max86vh.ccx-maxw560px-wd100-max86vh'],
+    ['contact-labels', '.cl-sheet'], ['promise', '.pr-sheet'], ['production', '.pr-sheet-card'], ['product-library', '.plx-modal'],
+    ['social-studio', '.ss-sheet-card'], ['visit-recorder', '.nbd-vr-sheet'], ['sort-customers', '.sc-modal'],
+    ['theme-bridge', '#nbd-picker-inner'], ['theme-bridge', '.nhm-inner'], ['theme-bridge', '#nbd-howto-modal>div'],
+    ['call-brief', '.cb-sheet'], ['demo-mode', '.nbd-sp'], ['os/pocket', '.os-pocket'], ['os/system', '.os-sheet'],
+    ['os/acts', '.os-acts'], ['os/home', '.os-hw-add'], ['os/peek', '.os-pk'], ['os/privacy', '.os-pv'], ['os/shutdown', '.os-sd'],
+  ];
+  const uncapped = DIALOGS.filter(([f, sel]) => {
+    const d = K.cssRule(K.cssRules(K.read('docs/pro/css/' + f + '.css')), sel);
+    return !d || !/calc\(100dvh - 2 \* env\(safe-area-inset-top, 0px\) - 16px\)/.test(String(d['max-height']));
+  }).map(([f, sel]) => f + ' ' + sel);
+  ok('every centred dialog is capped at the screen minus twice the top safe area', uncapped.length === 0, uncapped.join(', '));
+  const sheet = K.cssRule(K.cssRules(K.read('docs/pro/css/winback-view.css')), '.wbx-bgs-ct-bd1pxsolid.wbx-bgs-ct-bd1pxsolid.wbx-bgs-ct-bd1pxsolid');
+  ok('the win-back bottom sheet is capped at the screen minus the top safe area', !!sheet && /calc\(100dvh - env\(safe-area-inset-top, 0px\) - 12px\)/.test(String(sheet['max-height'])));
+  const cm = K.parseTags(K.read('docs/pro/customer.html')).byId('editCustomerModal');
+  ok('customer page Edit Customer modal is capped too', /max-height:min\(85vh, calc\(100dvh - 2 \* env\(safe-area-inset-top, 0px\) - 16px\)\)/.test(String((cm && cm.html) || '')));
 }
 
 (async () => {
