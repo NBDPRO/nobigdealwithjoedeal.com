@@ -10,6 +10,12 @@
  * than painting colours inline, so a skin owns the active look as well.
  */
 
+/* iOS enlarges text when a phone turns sideways unless told not to. The
+   dashboard and customer page said so only inside their phone-width media
+   queries (768px / 640px), and a large iPhone in landscape is wider than
+   that (2026-11-25, iPhone parity). Both pages load this file: every width. */
+html { -webkit-text-size-adjust: 100%; }
+
 /* Shape role tokens, as fallbacks only. dashboard-app.css owns them (and
    Settings > Appearance > Shape overrides them there); :where() has zero
    specificity, so these apply only on a page that doesn't load it, such as
