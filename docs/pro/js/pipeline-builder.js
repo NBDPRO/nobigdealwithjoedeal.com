@@ -564,7 +564,7 @@
     s.id = 'pb-style';
     s.textContent = '.pb-mini{background:var(--s2);border:1px solid var(--br);color:var(--m);border-radius:5px;width:22px;height:20px;font-size:9px;line-height:1;cursor:pointer;padding:0;}'
       + '.pb-mini:disabled{opacity:.35;cursor:default;}.pb-mini.pb-danger{color:var(--red,#e05252);border-color:var(--red,#e05252);height:26px;width:26px;font-size:11px;}'
-      + '.pb-grip{cursor:grab;color:var(--m);font-size:14px;line-height:1;padding:0 2px;user-select:none;touch-action:none;}'
+      + '.pb-grip{cursor:grab;color:var(--m);font-size:14px;line-height:1;padding:0 2px;-webkit-user-select:none;user-select:none;touch-action:none;}'
       + '.pb-grip:active{cursor:grabbing;}'
       + '.pb-stage-row{border-radius:6px;transition:background .08s;}'
       + '.pb-stage-row.pb-dragover{background:color-mix(in srgb, var(--orange) 14%, transparent);box-shadow:inset 0 2px 0 var(--orange);}'
