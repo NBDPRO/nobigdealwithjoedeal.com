@@ -17,12 +17,14 @@
  * jobs already write (integrations/callWatch.lastCheckAtMs,
  * integrations/callCenter.lastRunAtMs / lastTranscribeAtMs) and decides, with
  * pure rules, whether the 2-hourly check or the copy/transcribe jobs stopped.
- * A standing problem is told at most every 6 h (bell + push, 08–20 ET only),
+ * A standing problem is told at most every 6 h (bell + push, 08–20 ET; a
+ * stopped call / text job at any hour, roadmap step 13),
  * recorded on integrations/pipelineHealth, and returned so the caller can
  * throw — the heartbeat then pings /fail and Healthchecks.io emails Jo over a
  * path that does not depend on our push or Firestore at all.
  *
- * Reads and one bell/push to Jo only. Never texts or emails anyone.
+ * Reads and one bell/push to Jo only, plus owner-notify.js's one capped text
+ * ('critical' when a call / text job stopped). Never a customer.
  */
 const W = require('./call-watch-logic');
 
@@ -43,12 +45,13 @@ const SILENT_RECORDINGS_MS = 36 * HOUR;
  * cronDeadman (cron-deadman.js, 2026-11-22) runs every 30 min and stamps
  * system/heartbeats.checkedAtMs each run. Two missed runs plus slack = it
  * stopped. Raised at ANY hour: it is the only watcher of text ingest and the
- * any-hour call/text exception (Joe, 2026-11-22) depends on it. The push still
- * follows inWatchHours like every problem here; at night the watchdog's
- * /fail (Healthchecks email) is the signal.
+ * any-hour call/text exception (Joe, 2026-11-22) depends on it. It is in
+ * DEAD_PIPELINE, so it is told at night too (with the watchdog's /fail).
  */
 const CRON_DEADMAN_STALE_MS = 75 * MIN;
 const ET = 'America/New_York';
+/** A stopped call / text job (or its watcher) is a dead pipeline: 'critical' to owner-notify. */
+const DEAD_PIPELINE = new Set(['callwatch_not_running', 'ingest_not_running', 'transcribe_not_running', 'cron_deadman_not_running']);
 
 function etHm(ms) {
   const s = new Date(ms).toLocaleString('en-US', { timeZone: ET, hour: 'numeric', minute: 'numeric', hour12: false });
@@ -135,7 +138,7 @@ const gatesFromEnv = (env) => ({
 });
 
 /**
- * One check. deps: { db, nowMs, live, env, notify(title, body) → Promise }.
+ * One check. deps: { db, nowMs, live, env, notify(title, body, { severity, key }) → Promise }.
  * Returns { problems: [keys], told: [keys], state }. Never throws on a read
  * failure of its own bookkeeping: a failed read is itself reported as a
  * problem (a watcher that cannot read must not look healthy).
@@ -181,10 +184,18 @@ async function run(deps) {
   const out = { state: problems.length ? 'problem' : 'ok', problems: problems.map((p) => p.key), told: [] };
   if (!live) return Object.assign(out, { state: out.state + '_dry_run' });
 
-  if (tell.length && W.inWatchHours(nowMs) && typeof deps.notify === 'function') {
+  // 08-20 ET: every problem. Outside it, only a dead call / text pipeline
+  // (step 11: told at any hour, 'critical'); the rest wait for the day and
+  // stay un-told, so they go out at 08:00.
+  const sayNow = W.inWatchHours(nowMs) ? tell : tell.filter((p) => DEAD_PIPELINE.has(p.key));
+  if (sayNow.length && typeof deps.notify === 'function') {
     try {
-      await deps.notify('⚠ Call alerts may be down', tell.map((p) => p.text).join('\n').slice(0, 900));
-      out.told = tell.map((p) => p.key);
+      const keys = sayNow.map((p) => p.key);
+      await deps.notify('⚠ Call alerts may be down', sayNow.map((p) => p.text).join('\n').slice(0, 900), {
+        severity: keys.some((k) => DEAD_PIPELINE.has(k)) ? 'critical' : 'alert',
+        key: 'pipeline-deadman:' + keys.slice().sort().join(','),
+      });
+      out.told = keys;
     } catch (_) { /* the heartbeat /fail below is the other path */ }
   }
   const problemsToldAt = {};
