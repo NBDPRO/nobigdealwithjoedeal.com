@@ -487,7 +487,7 @@ header {
   font-family:'Barlow Condensed',sans-serif; letter-spacing:.06em;
   background:var(--s2); border:1px solid var(--br);
   border-radius:20px; cursor:pointer; color:var(--m);
-  transition:background var(--t-mid),border-color var(--t-mid),color var(--t-mid); user-select:none;
+  transition:background var(--t-mid),border-color var(--t-mid),color var(--t-mid); -webkit-user-select:none;user-select:none;
 }
 .tl-pill:hover { border-color:var(--orange); color:var(--t); }
 .tl-pill.active { background:var(--orange); border-color:var(--orange); color:var(--accent-fg,#fff); }
@@ -518,7 +518,7 @@ header {
 .photo-item img {
   width:100%; height:100%; object-fit:cover;
   pointer-events:none; /* let drag events bubble to the parent tile */
-  -webkit-user-drag:none; user-select:none;
+  -webkit-user-drag:none; -webkit-user-select:none;user-select:none;
 }
 
 /* Reorder mode — drag handle visible, click-to-edit suppressed */

@@ -1189,7 +1189,7 @@
   .crm-list-table{ width:100%; border-collapse:collapse; font-size:12px; }
   .crm-list-table th{
     position:sticky; top:0; z-index:5;
-    text-align:left; padding:8px 10px; cursor:pointer; user-select:none;
+    text-align:left; padding:8px 10px; cursor:pointer; -webkit-user-select:none; user-select:none;
     background:var(--s2); color:var(--m); font-size:11px;
     text-transform:uppercase; letter-spacing:.04em;
     border-bottom:1px solid var(--br); white-space:nowrap;
@@ -1548,7 +1548,7 @@
 .prosp-check {
   display:inline-flex; align-items:center; gap:6px; padding:7px 12px;
   background:var(--s2); border:1px solid var(--br); border-radius:6px;
-  font-size:12px; color:var(--m); cursor:pointer; user-select:none;
+  font-size:12px; color:var(--m); cursor:pointer; -webkit-user-select:none; user-select:none;
 }
 .prosp-check input { accent-color:var(--orange); margin:0; }
 .prosp-check:has(input:checked) { color:var(--t); border-color:var(--orange); background:color-mix(in srgb, var(--orange) 12%, var(--s2)); }
@@ -1712,7 +1712,7 @@
   padding:0; overflow:hidden;
 }
 .prosp-analytics > summary {
-  padding:12px 14px; cursor:pointer; user-select:none;
+  padding:12px 14px; cursor:pointer; -webkit-user-select:none; user-select:none;
   font-size:13px; font-weight:700; color:var(--t);
   display:flex; align-items:center; flex-wrap:wrap;
   list-style:none;

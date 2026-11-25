@@ -401,7 +401,7 @@
 .ui-empty-action { margin-top: var(--ui-space-3); }
 
 /* ── Loading: skeleton blocks (shimmer only when motion is allowed) ── */
-.ui-skel { display: block; border-radius: var(--ui-radius-sm); background: color-mix(in srgb, var(--t) 7%, transparent); color: transparent; user-select: none; }
+.ui-skel { display: block; border-radius: var(--ui-radius-sm); background: color-mix(in srgb, var(--t) 7%, transparent); color: transparent; -webkit-user-select: none; user-select: none; }
 .ui-skel-line { height: 12px; margin: var(--ui-space-2) 0; }
 .ui-skel-line.is-short { width: 40%; }
 .ui-skel-line.is-mid { width: 65%; }

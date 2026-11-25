@@ -44,7 +44,7 @@
   font-size: 11px; font-weight: 800; color: #1e40af;
   overflow: visible;
   cursor: move;
-  user-select: none;
+  -webkit-user-select: none; user-select: none;
 }
 .su-field.is-auto { border-style: dashed; border-color: #7c3aed; background: rgba(124, 58, 237, .10); color: #5b21b6; }
 .su-field.is-optional { border-width: 1px; opacity: .82; }
