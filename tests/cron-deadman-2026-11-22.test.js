@@ -590,11 +590,11 @@ function ingestDb(docs, opts) {
     require.cache[pfPath] = { id: pfPath, filename: pfPath, loaded: true, exports: pf };
     const orig = pf.sendCustomNotification;
     pf.sendCustomNotification = async () => ({ sent: 0 });
-    let r1; try { r1 = await ON.notifyOwner(db, 't', 'b'); } catch (e) { r1 = e; }
+    let r1; try { r1 = await ON.notifyOwner(db, { title: 't', body: 'b' }); } catch (e) { r1 = e; }
     pf.sendCustomNotification = async () => { throw new Error('fcm down'); };
-    let r2; try { r2 = await ON.notifyOwner(db, 't', 'b'); } catch (e) { r2 = e; }
+    let r2; try { r2 = await ON.notifyOwner(db, { title: 't', body: 'b' }); } catch (e) { r2 = e; }
     pf.sendCustomNotification = async () => ({ sent: 1 });
-    let r3; try { r3 = await ON.notifyOwner(db, 't', 'b'); } catch (e) { r3 = e; }
+    let r3; try { r3 = await ON.notifyOwner(db, { title: 't', body: 'b' }); } catch (e) { r3 = e; }
     pf.sendCustomNotification = orig;
     ok('notifyOwner reports pushed:false when no device got it / the push threw, pushed:true when it did', r1 && r1.pushed === false && r2 && r2.pushed === false && r3 && r3.pushed === true, JSON.stringify([r1, r2 && r2.message, r3]));
     const dbx = fakeDb({}); dbx.docs['system/heartbeats'] = { startedAtMs: et('2026-11-01', '00:00') };
