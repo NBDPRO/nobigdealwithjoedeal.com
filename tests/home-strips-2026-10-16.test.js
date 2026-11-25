@@ -58,7 +58,7 @@ console.log('\nA. Call back now: the last 30 minutes only');
 
 console.log('\nB. the buttons');
 {
-  ok('the missed-call reply draft is used only when it is our own safe sms: shape', H.safeSmsHref(DRAFT) === DRAFT && H.safeSmsHref('sms:+18595550111?body=<script>') === '' && H.safeSmsHref('javascript:alert(1)') === '' && H.safeSmsHref('https://x.test') === '');
+  ok('the missed-call reply draft is used only when it is our own safe sms: shape', H.safeSmsHref(DRAFT) === DRAFT.replace('?body=', '?&body=') && H.safeSmsHref('sms:+18595550111?body=<script>') === '' && H.safeSmsHref('javascript:alert(1)') === '' && H.safeSmsHref('https://x.test') === '');
   // render the strip in a sandbox
   const win = { addEventListener() {}, setInterval() {}, document: null };
   const doc = { querySelectorAll: () => [], addEventListener() {}, body: {} };
@@ -72,7 +72,7 @@ console.log('\nB. the buttons');
     { key: 'call:c', kind: 'missed', name: 'Unknown caller', phone: '', leadId: '', atMs: Date.now() - MIN, smsHref: '' },
   ]);
   ok('Call is a tel: link', /<a class="hs-btn hs-btn-primary" href="tel:\+18595550111">Call<\/a>/.test(h));
-  ok('Text back carries the drafted reply and is held by checkText (data-ps-check + the lead)', /href="sms:\+18595550111\?body=Hi%2C[^"]*" data-ps-check="1" data-ps-lead="L1">Text back \(draft\)</.test(h), h);
+  ok('Text back carries the drafted reply and is held by checkText (data-ps-check + the lead)', /href="sms:\+18595550111\?&amp;body=Hi%2C[^"]*" data-ps-check="1" data-ps-lead="L1">Text back \(draft\)</.test(h), h);
   ok('a new lead gets a plain checked Text', /href="sms:\+15135550122" data-ps-check="1" data-ps-lead="N1">Text</.test(h));
   ok('every sms: link on the strip is checked', (h.match(/href="sms:/g) || []).length === (h.match(/data-ps-check="1"/g) || []).length);
   ok('no number: a disabled button, no dead link', /<button type="button" class="hs-btn" disabled>No number<\/button>/.test(h));

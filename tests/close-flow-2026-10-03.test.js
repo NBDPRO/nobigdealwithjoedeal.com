@@ -283,7 +283,7 @@ async function asyncTests() {
     // No share API: Messages with the phone on file.
     const M = loadV2({});
     const r2 = await M.T.sendToHomeowner();
-    ok('no navigator.share → sms: with the customer phone + link', r2 === 'sms' && /^sms:\(?5135550101\?body=/.test(M.loc.href.replace(/[()\s-]/g, '')) && /tok123/.test(decodeURIComponent(M.loc.href)), M.loc.href);
+    ok('no navigator.share → sms: with the customer phone + link', r2 === 'sms' && /^sms:\(?5135550101\?&body=/.test(M.loc.href.replace(/[()\s-]/g, '')) && /tok123/.test(decodeURIComponent(M.loc.href)), M.loc.href);
     ok('…stamped sent via sms', M.calls.some((c) => c[0] === 'marked' && c[1] === 'sms'));
     ok('…after the server "ok to text?" for THIS lead and phone (R6-3-2)',
       M.calls.some((c) => c[0] === 'checkText' && c[1].leadId === 'L1' && /5135550101/.test(String(c[1].phone).replace(/\D/g, ''))),

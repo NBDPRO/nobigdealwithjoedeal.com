@@ -28,7 +28,7 @@
 
 /* ── Required lost-reason sheet ── */
 .nb-sheet-bg { position: fixed; inset: 0; z-index: 9998; background: rgba(0, 0, 0, .7); display: flex; align-items: flex-end; justify-content: center; }
-.nb-sheet { background: var(--s, #1a1d23); color: var(--t, #e8eaf0); border: 1px solid var(--br, #2a2d35); border-radius: 16px 16px 0 0; width: 100%; max-width: 520px; max-height: 92vh; overflow-y: auto; box-sizing: border-box; padding: 18px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
+.nb-sheet { background: var(--s, #1a1d23); color: var(--t, #e8eaf0); border: 1px solid var(--br, #2a2d35); border-radius: 16px 16px 0 0; width: 100%; max-width: 520px; max-height: 92vh; max-height:min(92vh, calc(100dvh - env(safe-area-inset-top, 0px) - 12px)); overflow-y: auto; box-sizing: border-box; padding: 18px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
 @media (min-width: 700px) {
   .nb-sheet-bg { align-items: center; }
   .nb-sheet { border-radius: 14px; }

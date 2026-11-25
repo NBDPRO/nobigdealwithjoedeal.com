@@ -54,12 +54,12 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NBD Pro">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="var(--bg)">
+<meta name="theme-color" content="#0A0C0F">
 <link rel="manifest" href="/pro/manifest.json">
 <!-- W151: mobile polish sweep — touch-target floors, customer
      page stacking, sticky jump nav, hover-on-touch suppression,
      iOS zoom-on-focus prevention, standalone safe-area padding. -->
-<link rel="stylesheet" href="/pro/css/mobile-polish.css?v=5">
+<link rel="stylesheet" href="/pro/css/mobile-polish.css?v=6">
 <link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
@@ -78,7 +78,7 @@
 <link rel="modulepreload" href="js/crm-stages.js">
 <link rel="modulepreload" href="js/estimate-lead-sync.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
-<link rel="preload" href="js/crm-portal-bridge.js?v=11" as="script">
+<link rel="preload" href="js/crm-portal-bridge.js?v=12" as="script">
 <link rel="preload" href="js/crm.js?v=38" as="script">
 <link rel="preload" href="js/maps.js?v=12" as="script">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -143,7 +143,7 @@
      the first tap/key, a non-Home goTo(), a ?query link, or idle after load. -->
 <script defer src="js/late-css.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=268"></script>
+<script src="js/script-loader.js?v=269"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -167,7 +167,7 @@
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
-<link rel="stylesheet" href="css/dashboard-app.css?v=30">
+<link rel="stylesheet" href="css/dashboard-app.css?v=31">
 <link rel="stylesheet" href="css/ui-primitives.css?v=16">
 <link rel="stylesheet" href="css/care-plan.css?v=1">
 <link rel="stylesheet" media="print" data-late-css href="css/invoice-pipeline.css?v=8">
@@ -205,7 +205,7 @@
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
 <link rel="stylesheet" href="css/kanban-force.css?v=8" id="kanban-force-css-link">
 <!-- v5→DS theme bridge — extracted to css/theme-bridge.css (Rock 4 Phase 2d). -->
-<link rel="stylesheet" href="css/theme-bridge.css?v=7" id="nbd-theme-bridge-link">
+<link rel="stylesheet" href="css/theme-bridge.css?v=8" id="nbd-theme-bridge-link">
 <!-- Surface styles for Shape & Depth (Clay, Liquid Glass, Skeuo, Spatial). -->
 <link rel="stylesheet" href="css/shape-styles.css?v=1">
 
@@ -247,7 +247,7 @@
 <link rel="stylesheet" media="print" data-late-css href="css/materials-list.css?v=1">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
 <!-- Knowing your numbers (2026-10-04): Sunday review, lost-reason sheet, Reports panels, lead-source table. -->
-<link rel="stylesheet" href="css/numbers.css?v=3">
+<link rel="stylesheet" href="css/numbers.css?v=4">
 <link rel="stylesheet" href="css/offline-sync.css?v=1">
 <!-- Mobile job-detail Voice Intel tab (mirrors customer.html's #voiceIntelRoot). -->
 <link rel="stylesheet" media="print" data-late-css href="css/voice-intelligence.css?v=4">
@@ -6399,7 +6399,7 @@
 <script defer src="js/dashboard-state.js?v=13"></script>
 <!-- uid → teammate display name for the leaderboards (window.NBDTeamNames). -->
 <script defer src="js/team-names.js?v=2"></script>
-<script defer src="js/dashboard-api.js?v=10"></script>
+<script defer src="js/dashboard-api.js?v=11"></script>
 <!-- Durable offline photo queue. Loaded EAGERLY and ahead of the lazy
      `photos` bundle on purpose: photo-engine.js only arrives when the rep
      opens a photos view, but a photo queued before a bfcache reload has to
@@ -6433,8 +6433,8 @@
 <script type="module" src="js/voice-intel-dashboard-bridge.module.js?v=1"></script>
 <script defer src="js/estimate-preview.js?v=3"></script>
 <script defer src="js/dashboard-widgets.js?v=13"></script>
-<script defer src="js/dashboard-ui.js?v=14"></script>
-<script defer src="js/dashboard-actions.js?v=22"></script>
+<script defer src="js/dashboard-ui.js?v=15"></script>
+<script defer src="js/dashboard-actions.js?v=23"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
 
 <!-- DOC VIEWER MODAL -->
@@ -6539,6 +6539,22 @@
     <span class="m-create-row-text">
       <span class="m-create-row-lbl">Voice Note</span>
       <span class="m-create-row-hint">Talk it out — save to Talk Tank or a lead</span>
+    </span>
+  </button>
+  <!-- 2026-11-25 iPhone parity: the Android home-screen shortcuts "Record a
+       visit" and "New estimate" (manifest.json) have no iPhone equivalent. -->
+  <button class="m-create-row" data-action="call" data-fn="_mCreate" data-arg="visit">
+    <span class="m-create-row-ico"><svg class="nbd-icon" aria-hidden="true"><use href="#nbd-icon-home"/></svg></span>
+    <span class="m-create-row-text">
+      <span class="m-create-row-lbl">Record a Visit</span>
+      <span class="m-create-row-hint">Record the conversation at the door or table</span>
+    </span>
+  </button>
+  <button class="m-create-row" data-action="call" data-fn="_mCreate" data-arg="estimate">
+    <span class="m-create-row-ico"><svg class="nbd-icon" aria-hidden="true"><use href="#nbd-icon-doc"/></svg></span>
+    <span class="m-create-row-text">
+      <span class="m-create-row-lbl">New Estimate</span>
+      <span class="m-create-row-hint">Open the estimate builder</span>
     </span>
   </button>
   <button class="m-create-cancel" data-action="closeModal" data-target="mobileCreatePopover">Cancel</button>
@@ -7394,7 +7410,7 @@
      No-ops until window.__NBD_VAPID_KEY is set (dashboard-fcm-config.js). -->
 <script defer src="js/push-registration.js?v=9"></script>
 <script defer src="js/push-actions.js?v=3"></script>
-<script defer src="js/crm-portal-bridge.js?v=11"></script>
+<script defer src="js/crm-portal-bridge.js?v=12"></script>
 <script defer src="js/triage-deck.js?v=2"></script>
 <script defer src="js/followup-deck.js?v=2"></script>
 <!-- "Sort my customers" (js/sort-customers.js) is a ScriptLoader bundle since 2026-11-08: crm-pipeline.js loads it
@@ -7404,7 +7420,7 @@
 <script defer src="js/tasks.js?v=13"></script>
 <script defer src="js/storm-time.js?v=1"></script>
 <script defer src="js/dol-fill.js?v=3"></script>
-<script defer src="js/notif-bell.js?v=9"></script>
+<script defer src="js/notif-bell.js?v=10"></script>
 <script defer src="js/agent-inbox.js?v=10"></script>
 <!-- Messaging Control Center nav reveal (2026-10-19): flag messagingControlCenter, owner/admin only. -->
 <script defer src="js/messaging-nav.js?v=1"></script>
@@ -7442,7 +7458,7 @@
      Pipeline is entered or a card / chip menu is first opened, so this tag has
      always run first. Keep this one eager: the deploy joins eager tags, so a
      bundle entry for it would run it twice. -->
-<script defer src="js/portal-link-helpers.js?v=3"></script>
+<script defer src="js/portal-link-helpers.js?v=4"></script>
 <script defer src="js/customer-engagement-score.js?v=3"></script>
 <script defer src="js/engagement-cohort-widget.js?v=2"></script>
 <script defer src="js/templates-library.js?v=4"></script>
@@ -7476,7 +7492,7 @@
 <!-- Keyboard contract for the self-built dialogs (Escape, focus in / back, Tab trap): window.nbdOverlay.
      Called by widgets.js, maps.js, whats-new.js and the lazy d2d / hd-import / yard-signs / decision-engine bundles. -->
 <script defer src="js/overlay-a11y.js?v=1"></script>
-<script defer src="js/widgets.js?v=21"></script>
+<script defer src="js/widgets.js?v=22"></script>
 <script defer src="js/today-home.js?v=25"></script>
 <!-- Sheets above the iPhone keyboard (2026-10-08). -->
 <script defer src="js/keyboard-viewport.js?v=1"></script>
@@ -7487,8 +7503,8 @@
 <script defer src="js/ui.js?v=12"></script>
 <script defer src="js/demo.js?v=5"></script>
 <script defer src="js/icons.js?v=4"></script>
-<script defer src="js/nbd-comms.js?v=6"></script>
-<script defer src="js/sms-outbox.js?v=1"></script>
+<script defer src="js/nbd-comms.js?v=7"></script>
+<script defer src="js/sms-outbox.js?v=2"></script>
 <script defer src="js/stage-checklist.js?v=2"></script>
 <script defer src="js/paperwork-write.js?v=1"></script>
 <script defer src="js/warranty-claim.js?v=3"></script>
@@ -7501,7 +7517,7 @@
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
 <script defer src="js/photo-ai.js?v=4"></script>
-<script defer src="js/invoice-pipeline.js?v=44"></script>
+<script defer src="js/invoice-pipeline.js?v=45"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js
@@ -7635,7 +7651,7 @@
      boot only for a first-run rep or how-to's Restart Tour, else by Settings → Help → Start Tour. -->
 <!-- (theme-overlays/sounds/achievements/gx ride the lazy `theme` bundle — see
      the note at the theme-engine slot above.) -->
-<script src="js/dashboard-sw-bootstrap.js?v=3"></script>
+<script src="js/dashboard-sw-bootstrap.js?v=4"></script>
 <script defer src="js/mobile-nav-customizer.js?v=7"></script>
 <script defer src="js/connection-status-btn.js?v=5"></script>
 <!-- admin-manager must load eagerly — it gates the #nav-admin visibility
@@ -7695,7 +7711,7 @@
      shipped tools so they don't sit invisible behind hotkeys. -->
 <script defer src="js/whats-new.js?v=3"></script>
 <!-- Feature flags (F9) — window.NBDFlags for kill switches + gradual rollout -->
-<script defer src="js/feature-flags.js?v=2"></script>
+<script defer src="js/feature-flags.js?v=3"></script>
 <!-- Stage B slice 1: flag-gated shadow server aggregates (no UI reads) -->
 <script defer src="js/server-aggregates.js?v=3"></script>
 <!-- Help-icon helper: window.HelpIcon.attach(el, anchor) drops a "?"

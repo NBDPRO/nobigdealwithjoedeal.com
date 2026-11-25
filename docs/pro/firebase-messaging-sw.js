@@ -116,9 +116,10 @@ function resolveNotificationAction(action, data) {
     }
     case 'text': {
       // Only our own sms: shape (functions/missed-call-reply-logic.js
-      // isSafeSmsHref); anything else opens the CRM instead.
+      // isSafeSmsHref); anything else opens the CRM instead. A ?body= link
+      // (written before 2026-11-25) opens as ?&body=, which iPhones also read.
       const sms = String(d.smsUrl || '');
-      return /^sms:\+1[0-9]{10}\?body=[A-Za-z0-9%._~!*'()-]{1,600}$/.test(sms) ? { kind: 'text', sms, url } : { kind: 'navigate', url };
+      return /^sms:\+1[0-9]{10}\?&?body=[A-Za-z0-9%._~!*'()-]{1,600}$/.test(sms) ? { kind: 'text', sms: sms.replace('?body=', '?&body='), url } : { kind: 'navigate', url };
     }
     case 'snooze':
       return { kind: 'snooze', leadId: String(d.leadId || ''), url };

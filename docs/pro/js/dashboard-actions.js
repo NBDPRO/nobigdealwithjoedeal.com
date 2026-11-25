@@ -2633,6 +2633,14 @@ function _mCreate(kind) {
         showToast('Voice notes are still loading — try again in a moment.', 'info');
       }
       break;
+    // The Android app's home-screen shortcuts (manifest.json) have no iPhone
+    // equivalent, so the two that start work live here too (2026-11-25 parity).
+    case 'visit':
+      if (window.NBDVisitRecorderLauncher) window.NBDVisitRecorderLauncher.begin({ source: 'create' });
+      break;
+    case 'estimate':
+      if (typeof goTo === 'function') goTo('est');
+      break;
   }
 }
 

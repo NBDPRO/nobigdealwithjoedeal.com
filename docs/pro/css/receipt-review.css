@@ -91,6 +91,6 @@
   .rv-pickbtn { max-width: none; }
   .rv-tools .rv-btn { flex: 1 1 calc(50% - 8px); }
   .rv-tools .rv-btn-main { flex-basis: 100%; }
-  .rv-pop { left: 0; right: 0; top: auto; bottom: 0; transform: none; width: 100%; max-height: 88vh; border-radius: 18px 18px 0 0; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+  .rv-pop { left: 0; right: 0; top: auto; bottom: 0; transform: none; width: 100%; max-height: 88vh; max-height:min(88vh, calc(100dvh - env(safe-area-inset-top, 0px) - 12px)); border-radius: 18px 18px 0 0; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
   .rv-import { width: 100%; }
 }

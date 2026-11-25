@@ -137,7 +137,7 @@ Module._load = function (request) {
     const leftovers = (outsideHelpers.match(/No Big Deal <span>|\(859\) 420-7382 · nobigdeal|No Big Deal Home Solutions — nobigdeal/g) || []);
     ok('no hard-coded NBD header/footer left in the documents', leftovers.length === 0, leftovers);
     ok('the Scope terms name NBD only on NBD', /All work performed\$\{_t\.isNbd \? ' by No Big Deal Home Solutions' : \(_t\.name \? ' by ' \+ _t\.name : ''\)\} includes/.test(code));
-    ok('maps-routing.js cache-bust bumped in ScriptLoader', /'js\/maps-routing\.js\?v=10'/.test(read('docs/pro/js/script-loader.js')));
+    ok('maps-routing.js cache-bust bumped in ScriptLoader', /'js\/maps-routing\.js\?v=11'/.test(read('docs/pro/js/script-loader.js')));
   }
 
   // ══════════════════════════════════════════════════════════════════

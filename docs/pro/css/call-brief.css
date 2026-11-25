@@ -76,7 +76,7 @@
 .cb-from-call { margin-top: 8px; padding: 8px 12px; border-radius: var(--ui-radius-sm, 6px); font-size: 13px; line-height: 1.45;
   background: color-mix(in srgb, var(--orange, #BD5728) 8%, transparent); border: 1px dashed color-mix(in srgb, var(--orange, #BD5728) 45%, transparent); }
 @media (max-width: 600px) {
-  .cb-sheet { width: 100vw; max-width: 100vw; max-height: 92vh; margin: auto 0 0; border-radius: var(--ui-radius-lg, 12px) var(--ui-radius-lg, 12px) 0 0; border-bottom: 0; }
+  .cb-sheet { width: 100vw; max-width: 100vw; max-height: 92vh; max-height:min(92vh, calc(100dvh - env(safe-area-inset-top, 0px) - 12px)); margin: auto 0 0; border-radius: var(--ui-radius-lg, 12px) var(--ui-radius-lg, 12px) 0 0; border-bottom: 0; }
   .cb-grid { grid-template-columns: 1fr; }
   .cb-acts .btn { flex: 1 1 auto; }
 }
