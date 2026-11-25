@@ -80,6 +80,7 @@
     "review-handoff-2026-10-16.test.js",
     "review-sprint-2026-10-16.test.js",
     "d2d-door-import-2026-10-16.test.js",
+    "ios-date-hint-2026-11-25.test.js",
     "canvasser-mode-2026-10-16.test.js",
     "asset-version-consistency-2026-11-14.test.js",
     "missed-call-reply-2026-10-15.test.js",

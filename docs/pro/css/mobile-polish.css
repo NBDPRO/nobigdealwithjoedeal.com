@@ -141,6 +141,29 @@
   }
 }
 
+/* ─── 5c. Empty date fields on iOS (2026-11-25, iPhone parity) ───
+   Android draws an empty date field as "mm/dd/yyyy" + a calendar icon; an
+   iPhone draws a blank box. js/ios-date-hint.js (iOS only) sets html.nbd-ios
+   and keeps .nbd-date-empty true to each field's value; Safari does not draw
+   ::before on a date input, so the hint and icon are background images. */
+html.nbd-ios input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 2.75em;
+  text-align: left;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%239AA3B2' stroke-width='1.6' stroke-linecap='round'%3E%3Crect x='1.5' y='2.5' width='13' height='12' rx='2'/%3E%3Cpath d='M1.5 6.5h13M5 1v3M11 1v3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px 16px;
+  padding-right: 40px !important;
+}
+html.nbd-ios input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+html.nbd-ios input[type="date"].nbd-date-empty {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%239AA3B2' stroke-width='1.6' stroke-linecap='round'%3E%3Crect x='1.5' y='2.5' width='13' height='12' rx='2'/%3E%3Cpath d='M1.5 6.5h13M5 1v3M11 1v3'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='20'%3E%3Ctext x='0' y='15' font-family='-apple-system,BlinkMacSystemFont,system-ui,sans-serif' font-size='16' fill='%238B97AB'%3Emm/dd/yyyy%3C/text%3E%3C/svg%3E");
+  background-position: right 12px center, left 14px center;
+  background-size: 16px 16px, 100px 20px;
+}
+
 /* ─── 6. Bottom safe-area padding for body ────────────────────
    When standalone PWA mode runs, the bottom edge of the page
    can sit under the iOS home indicator. The FAB stack already
