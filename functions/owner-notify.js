@@ -37,7 +37,11 @@
  */
 const { logger } = require('firebase-functions/v2');
 const { FieldValue } = require('firebase-admin/firestore');
-const LA = require('./lead-alert')._internal;
+// lead-alert is loaded lazily (only when an alert actually goes out): loading it at
+// require time pulled every lead trigger into modules that only want notifyOwner.
+let _la = null;
+const LA = () => _la || (_la = require('./lead-alert')._internal);
+const { defineSecret } = require('firebase-functions/params');
 const MessagingControls = require('./messaging-controls');
 const { envCap } = require('./env-number');
 
@@ -50,7 +54,7 @@ const MAX_KEYS = 200;
 const QUEUE_TTL_MS = 24 * 3600000;
 
 /** The Twilio secrets a function that may text the owner must declare. */
-const SMS_SECRETS = (LA.SECRETS || []).filter((s) => /^TWILIO_/.test(String(s && s.name)));
+const SMS_SECRETS = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER'].map((n) => defineSecret(n));
 
 /** Test seams: twilio(sid, token) -> client, logger. */
 const _overrides = {};
@@ -209,14 +213,14 @@ async function notifyOwner(db, msg) {
   const type = m.type || 'call_watch';
   const clickUrl = m.clickUrl || '/pro/dashboard.html#/calls';
   await db.collection('notifications').add({
-    userId: LA.NBD_OWNER_UID, type, title, message: body, priority: 'high', severity,
+    userId: LA().NBD_OWNER_UID, type, title, message: body, priority: 'high', severity,
     clickUrl, read: false, dismissed: false, createdAt: FieldValue.serverTimestamp(),
   });
   // The bell row is written either way; the caller learns whether a device
   // got the push (no token, FCM down) so it can fail its own run.
   let pushed = false;
   try {
-    const r = await require('./push-functions').sendCustomNotification(LA.NBD_OWNER_UID, title, body.slice(0, 180), { type, clickUrl, notificationId: (m.idPrefix || 'pipeline-deadman-') + nowMs });
+    const r = await require('./push-functions').sendCustomNotification(LA().NBD_OWNER_UID, title, body.slice(0, 180), { type, clickUrl, notificationId: (m.idPrefix || 'pipeline-deadman-') + nowMs });
     pushed = !!(r && r.sent > 0);
   } catch (e) {
     log().warn('[ownerNotify] push failed', { err: e && e.message });
