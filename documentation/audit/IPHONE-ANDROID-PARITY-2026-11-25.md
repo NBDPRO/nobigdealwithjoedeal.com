@@ -10,6 +10,14 @@ and emulation is not a real device: safe-area insets (notch, Dynamic Island, hom
 bar), Safari's share-sheet and picker timing, `sms:` handling, and the installed
 app's resume behaviour can only be confirmed on a real iPhone.
 
+**Update, same day:** with Joe's OK, Playwright WebKit (build 2370) was installed in a
+separate browsers folder, and the checks re-ran with the iPhone on WebKit and Android
+on Chromium. Both match: theme-color, the safe-area caps parse, no input under 16px,
+the same Create sheet, and every changed script parses (a broken-script control is
+caught). One open question: this Windows WebKit draws the Add Lead dropdowns as
+light-grey native boxes even though the CSS gives them a dark background, so it needs a
+look on the real iPhone before anything is restyled.
+
 ## Not the cause
 
 - No code serves the two phones different builds. Online navigations bypass the
