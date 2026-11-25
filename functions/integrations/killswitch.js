@@ -46,6 +46,17 @@
  *                              extract(); 2026-11-17). aiDisabled stops it
  *                              too. Calls still land in the Thursday inbox
  *                              as a failed extraction with Bland's summary.
+ *   thursdayDisabled: true   → Thursday is off: the webhook stores each call as
+ *                              'held' and nothing runs on it (2026-11-25;
+ *                              thursday_config enabled:false does the same for
+ *                              one company). Read via getFlags().
+ *   agentMcpDisabled: true   → every bot tool call through crmMcp is refused
+ *                              (agent-mcp.js, its own ~30 s cache, 2026-11-25);
+ *                              agent_settings/{companyId} paused / pausedPlatforms /
+ *                              pausedBots pause one company, platform or bot.
+ *                              Older keys read platform 'unknown' and keys minted
+ *                              from the Bots & API screen 'other' (self-declared,
+ *                              unverified): an emergency stop is paused or pausedBots.
  *
  * To pull the switch in an emergency (see SPEND_KILLSWITCH.md runbook):
  *   firebase firestore:... or in console: set feature_flags/global.aiDisabled = true
