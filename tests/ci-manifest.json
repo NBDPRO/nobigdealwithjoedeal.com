@@ -416,6 +416,7 @@
     "followup-notif-flood-2026-10-03.test.js",
     "integrity-3-guards-2026-11-06.test.js",
     "orphan-sweep-parser.test.js",
+    "ios-text-size-adjust-2026-11-25.test.js",
     "ourwork-deeplink-contract.test.js",
     "ourwork-detail-pages.test.js",
     "ourwork-retired-slugs.test.js",
