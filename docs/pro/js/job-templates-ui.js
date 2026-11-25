@@ -3017,7 +3017,8 @@
       } catch (e) { toast('Could not share the estimate — try again', 'error'); return; }
 
       var shared = false;
-      if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent || '')) {
+      // iPadOS reports itself as a Mac: a Mac with touch points is an iPad (2026-11-25).
+      if (navigator.share && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent || '') || (/Macintosh/.test(navigator.userAgent || '') && navigator.maxTouchPoints > 1))) {
         try { await navigator.share({ title: 'Your estimate', text: 'Here’s your estimate:', url: url }); shared = true; }
         catch (e) {
           // iPhone Safari refuses the sheet once the link mint + save outlived
