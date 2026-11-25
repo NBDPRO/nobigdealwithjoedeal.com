@@ -272,11 +272,11 @@ exports.analyzeRoofPhoto = onRequest(
 
     // Free accounts get no AI (Joe, 2026-11-14; AI audit F3): a confirmed
     // email and a paid plan on the company, NBD exempt. Before any counter,
-    // so a refusal spends nothing.
-    const ent = await require('../ai-gate').aiEntitlement(getFirestore(), decoded, decoded.uid);
+    // so a refusal spends nothing. The one AI gate, so the daily spend
+    // breaker applies too (2026-11-25).
+    const ent = await require('../ai-gate').aiGate(getFirestore(), { auth: { uid: decoded.uid, token: decoded }, feature: 'roof-photo' });
     if (!ent.ok) {
-      const { MESSAGES } = require('../ai-gate');
-      res.status(ent.reason === 'plan_check_failed' ? 503 : 403).json({ error: MESSAGES[ent.reason] || MESSAGES.plan });
+      res.status(ent.status).json({ error: ent.message });
       return;
     }
 
@@ -392,7 +392,7 @@ exports.analyzeRoofPhoto = onRequest(
         return;
       }
 
-      await recordAiSpend(rowFromAnthropic('roof-photo', anthropicBody.model, aiData), { log: logger });
+      await recordAiSpend(rowFromAnthropic('roof-photo', anthropicBody.model, aiData), { log: logger, companyId: ent.companyId });
       const text = Array.isArray(aiData.content)
         ? aiData.content.map(c => (c && c.type === 'text' ? c.text : '')).join('').trim()
         : '';

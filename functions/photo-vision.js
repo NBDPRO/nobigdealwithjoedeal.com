@@ -372,7 +372,7 @@ async function classifyPhoto(args) {
     }
     // AI spend counters (#2148) — both doors (callable + trigger) pass here.
     // Never throws; a failed counter write never fails the classification.
-    await require('./ai-spend').recordAiSpend(require('./ai-spend').rowFromAnthropic('photo-vision', MODEL, data), { db, log: logger });
+    await require('./ai-spend').recordAiSpend(require('./ai-spend').rowFromAnthropic('photo-vision', MODEL, data), { db, log: logger, companyId: billingKey || uid });
 
     // ── Parse + sanitize ──
     const textBlock = data.content && Array.isArray(data.content)
@@ -518,7 +518,8 @@ async function handlePhotoCreated(photoId, photo, deps) {
   const db = deps.db || getFirestore();
   // Free accounts get no AI (Joe, 2026-11-14; AI audit F4): the photo
   // owner's entitlement, from their Auth record (a trigger has no token).
-  const entitled = deps.entitled || ((d, u) => require('./ai-gate').aiEntitlementForUid(d, u));
+  // The one AI gate (2026-11-25): the same entitlement plus the spend breaker.
+  const entitled = deps.entitled || ((d, u) => require('./ai-gate').aiGate(d, { forUid: u, feature: 'photo-vision' }));
   const ent = await entitled(db, photo.userId);
   if (!ent || !ent.ok) return { skipped: true, reason: 'not-entitled', why: ent && ent.reason };
   return classifyPhoto({

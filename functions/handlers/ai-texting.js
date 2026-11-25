@@ -110,7 +110,7 @@ Return ONLY the SMS text — no preamble, no commentary, no "Here's a draft:". J
 // ─── Anthropic call ────────────────────────────────────────────
 // Every draft prompt (locked, persona, and the live preview) ends with the
 // standard data clause: the lead context is fenced (buildLeadContext).
-async function callClaudeForDraft({ system, userText, maxTokens, apiKey }) {
+async function callClaudeForDraft({ system, userText, maxTokens, apiKey, companyId }) {
   system = String(system || '') + '\n\n' + FENCE_CLAUSE;
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -132,7 +132,7 @@ async function callClaudeForDraft({ system, userText, maxTokens, apiKey }) {
     throw new Error('AI draft generation failed');
   }
   const data = await res.json();
-  await require('../ai-spend').recordAiSpend(require('../ai-spend').rowFromAnthropic('ai-texting', 'claude-haiku-4-5-20251001', data), { log: logger });
+  await require('../ai-spend').recordAiSpend(require('../ai-spend').rowFromAnthropic('ai-texting', 'claude-haiku-4-5-20251001', data), { log: logger, companyId });
   const text = (data?.content?.[0]?.text || '').trim();
   return { text, usage: data?.usage || null };
 }
@@ -398,7 +398,8 @@ async function generateAIDraft({ db, leadId, lead, incomingBody, incomingNoteId,
   // portal tokens for its own leads and get unlimited drafts on NBD's key.
   // Checked here, like the kill switch, so all three callers are covered.
   // Fails closed: no draft (the inbound message itself is unaffected).
-  const ent = await require('../ai-gate').aiEntitlementForUid(db, lead.userId);
+  // The one AI gate (2026-11-25), so the daily spend breaker applies too.
+  const ent = await require('../ai-gate').aiGate(db, { forUid: lead.userId, feature: 'ai-texting' });
   if (!ent.ok) {
     logger.info('[ai-texting] draft skipped — lead owner not entitled to AI', { leadId, triggerType, reason: ent.reason });
     return null;
@@ -435,6 +436,7 @@ async function generateAIDraft({ db, leadId, lead, incomingBody, incomingNoteId,
     userText: contextBlock,
     maxTokens: 280, // SMS = 1-3 sentences; 280 tokens ≈ 200 words ≈ 1300 chars
     apiKey,
+    companyId: ent.companyId,
   });
   const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('claude_timeout')), 10_000));
 

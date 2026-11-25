@@ -261,6 +261,11 @@ async function extract(call) {
   // the failed-extraction path, so the call still reaches Jo with Bland's summary.
   const flags = await require('./killswitch').getFlags();
   if (flags.aiDisabled === true || flags.thursdayExtractDisabled === true) throw new T.ExtractionError('ai-disabled');
+  // The one AI gate (functions/ai-gate.js aiGate, 2026-11-25): the line
+  // owner's plan and the daily spend breaker. A refusal takes the same
+  // failed-extraction path, so the call still reaches Jo.
+  const gate = await require('../ai-gate').aiGate(db(), { companyId: T.NBD_OWNER_UID, feature: 'thursday' });
+  if (!gate.ok) throw new T.ExtractionError('ai-gate-' + gate.reason);
   const key = secretValue(ANTHROPIC_API_KEY);
   if (!key) throw new T.ExtractionError('anthropic-not-configured');
   let r;
@@ -279,7 +284,7 @@ async function extract(call) {
     throw new T.ExtractionError('api-' + r.status, String((json && json.error && json.error.message) || '').slice(0, 300));
   }
   // AI spend in one place — counted even when the parse below fails.
-  await require('../ai-spend').recordAiSpend(require('../ai-spend').rowFromAnthropic('thursday', T.EXTRACTION_MODEL, json), { log: logger });
+  await require('../ai-spend').recordAiSpend(require('../ai-spend').rowFromAnthropic('thursday', T.EXTRACTION_MODEL, json), { log: logger, companyId: T.NBD_OWNER_UID });
   const p = T.parseExtractionResponse(json);
   return {
     extraction: T.sanitizeExtraction(p.parsed),

@@ -82,7 +82,7 @@ exports.transcribeVoiceMemo = onCall(
     // Free accounts get no AI (Joe, 2026-11-14; AI audit F9): transcription
     // is the fallback path of nbd-whisper's dictation, so it carries the same
     // gate as dictate. Before the rate limit, so a refusal spends nothing.
-    await require('../ai-gate').assertAiEntitled(require('firebase-admin/firestore').getFirestore(), request.auth);
+    const gate = await require('../ai-gate').assertAiEntitled(require('firebase-admin/firestore').getFirestore(), request.auth, { feature: 'voice-memo' });
 
     // D1-style per-uid cap. Voice memos are human-paced; 20/hour
     // is fine for the most diligent rep and kills a loop cheaply.
@@ -145,6 +145,7 @@ exports.transcribeVoiceMemo = onCall(
         // The callable has a 60s ceiling and nothing runs after Groq but
         // one Firestore write; leave headroom for the lead read above.
         timeoutMs: 45_000,
+        companyId: gate && gate.companyId,
       });
     } catch (e) {
       // Provider detail goes to the log, never to the client.

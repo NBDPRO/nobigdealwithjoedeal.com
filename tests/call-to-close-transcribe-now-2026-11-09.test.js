@@ -408,6 +408,21 @@ async function tap(db, auth, data, nowMs) {
     await tap(db6, AUTH.owner);
     const r6 = await tap(db6, AUTH.owner);
     ok('…so taps in an outage stop at the daily cap', r6.e && r6.e.code === 'resource-exhausted' && tCalls === 1, { e: r6.e && r6.e.code, tCalls });
+
+    // The AI gate refusing INSIDE the pass (the cap crossed between the two
+    // gate reads, or the tenant's plan read failing there) says what it is,
+    // not the generic failure, and gives the tap back.
+    stubDeps();
+    const realRun = CC.runTranscribe;
+    CC.runTranscribe = async () => ({ state: 'gated', reason: 'platform_cap' });
+    try {
+      const db7 = makeDb(seed());
+      const r7 = await tap(db7, AUTH.owner);
+      const q7 = db7.store.get('call_transcribe_quota/2026-11-09__u__' + OWNER);
+      ok('a pass the AI gate refused → "AI paused until tomorrow (daily limit).", not "did not work"',
+        r7.r && r7.r.state === 'gated' && r7.r.message === 'AI paused until tomorrow (daily limit).', r7.r || (r7.e && r7.e.message));
+      ok('…and the tap is given back', !q7 || q7.n === 0, q7);
+    } finally { CC.runTranscribe = realRun; }
   }
 
   console.log('\n9. Wiring');

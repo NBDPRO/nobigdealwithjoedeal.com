@@ -531,12 +531,12 @@ function deps() {
   if (_deps) return _deps;
   const { transcribeGroqBuffer } = require('./integrations/voice-intelligence');
   return {
-    transcribe: async (buffer, ext) => {
+    transcribe: async (buffer, ext, companyId) => {
       // Groq refuses .amr/.3gp/.aac (Cube ACR): re-encoded to FLAC first.
       const p = await require('./call-audio-transcode').prepareForGroq(buffer, ext);
       // confidence: Whisper's per-segment avg_logprob, kept as the call's
       // segIndex (Call to Close P1: unsure quotes in the brief).
-      return transcribeGroqBuffer({ buffer: p.buffer, mimeType: p.mimeType, filename: p.filename, timeoutMs: 300_000, feature: 'call-center-transcribe', confidence: true });
+      return transcribeGroqBuffer({ buffer: p.buffer, mimeType: p.mimeType, filename: p.filename, timeoutMs: 300_000, feature: 'call-center-transcribe', confidence: true, companyId });
     },
     notes: claudeNotes,
     // callWatch's push sender (Jo's own devices; never a customer).
@@ -545,7 +545,7 @@ function deps() {
 }
 
 // Shared with text-inbox.js (textInboxNotes binds its own ANTHROPIC_API_KEY).
-async function claudeNotes({ system, prompt, feature, maxTokens }) {
+async function claudeNotes({ system, prompt, feature, maxTokens, companyId }) {
   const key = secretValue(ANTHROPIC_API_KEY);
   if (!key) throw new Error('anthropic-not-configured');
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -561,7 +561,7 @@ async function claudeNotes({ system, prompt, feature, maxTokens }) {
     throw err;
   }
   // AI spend in one place (functions/ai-spend.js) — one counter row per call.
-  await require('./ai-spend').recordAiSpend(require('./ai-spend').rowFromAnthropic(feature || 'call-center-notes', NOTES_MODEL, data), { log: logger });
+  await require('./ai-spend').recordAiSpend(require('./ai-spend').rowFromAnthropic(feature || 'call-center-notes', NOTES_MODEL, data), { log: logger, companyId });
   const text = ((data && data.content) || []).map((c) => (c && c.type === 'text' ? c.text : '')).join('').trim();
   const m = /\{[\s\S]*\}/.exec(text);
   if (!m) throw new Error('notes: no JSON');
@@ -744,7 +744,7 @@ async function reextractFacts({ db, d, rows, cfg, today, nowMs, getLeads, feed }
     }
     out.aiCalls++;
     try {
-      const facts = L.sanitizeCallerFacts(await d.notes({ system: L.factsSystemFor((feed || NBD_FEED).tenant), prompt: L.buildFactsPrompt({ transcript: c.transcript }), feature: 'call-center-facts' }));
+      const facts = L.sanitizeCallerFacts(await d.notes({ system: L.factsSystemFor((feed || NBD_FEED).tenant), prompt: L.buildFactsPrompt({ transcript: c.transcript }), feature: 'call-center-facts', companyId: (feed || NBD_FEED).companyId }));
       Object.assign(c, { callerFacts: facts, factsV: L.FACTS_VERSION });
       const sp = suggestionPatch(c, await getLeads(), nowMs);
       await ref.set(Object.assign({ callerFacts: facts, factsV: L.FACTS_VERSION, factsAtMs: nowMs }, sp), { merge: true });
@@ -892,6 +892,20 @@ async function runTranscribe({ db, bucket, live, nowMs, only, feed }) {
   }
   const allowIds = only ? [] : (Array.isArray(cfg.transcribeOnly) ? cfg.transcribeOnly : []);
   if (!live && !allowIds.length) return { state: 'off' };
+  // The one AI gate (functions/ai-gate.js aiGate, 2026-11-25): this feed's
+  // tenant plan (fails closed) and the daily spend breaker, before any spend.
+  const gate = await require('./ai-gate').aiGate(db, { companyId: fd.companyId, feature: 'call-center' });
+  if (!gate.ok) {
+    const gated = { state: 'gated', reason: gate.reason };
+    // The scheduled pass still writes its run record, so pipeline-deadman /
+    // pipeline-health see a pass that ran and was paused by the AI gate, not
+    // a stalled job. A Transcribe-now run (`only`) never writes it.
+    if (!only) {
+      try { await ref.set({ lastTranscribeAtMs: nowMs, lastTranscribe: gated }, { merge: true }); }
+      catch (e) { logger.warn('call_center_gated_record_failed', { err: e && e.message }); }
+    }
+    return gated;
+  }
 
   const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
   const usedSec = (gcfg.audioSecDay === today && Number(gcfg.audioSecUsed)) || 0;
@@ -952,7 +966,7 @@ async function runTranscribe({ db, bucket, live, nowMs, only, feed }) {
       } else {
         let buf;
         try { buf = await readStoredAudio(bucket, call.storagePath); } catch (se) { if (se && typeof se === 'object') se.notProvider = true; throw se; }
-        t = await d.transcribe(buf, String(call.storagePath).split('.').pop());
+        t = await d.transcribe(buf, String(call.storagePath).split('.').pop(), fd.companyId);
         out.audioSec += Number(t.durationSec) || L.estimateAudioSec(call.sizeBytes);
       }
 
@@ -964,7 +978,7 @@ async function runTranscribe({ db, bucket, live, nowMs, only, feed }) {
       }
       // A call on an existing lead never gets the model's "personal" verdict
       // applied (that deletes its CRM audio): it is held for review instead.
-      const notes = L.sanitizeNotes(await d.notes({ system: L.notesSystemFor(fd.tenant), prompt: L.buildNotesPrompt({ call, transcript: t.text, leadName, tenant: fd.tenant }), feature: 'call-center-notes' }), { matched: !!leadDoc && leadDoc.deleted !== true && call.notPersonal !== true });
+      const notes = L.sanitizeNotes(await d.notes({ system: L.notesSystemFor(fd.tenant), prompt: L.buildNotesPrompt({ call, transcript: t.text, leadName, tenant: fd.tenant }), feature: 'call-center-notes', companyId: fd.companyId }), { matched: !!leadDoc && leadDoc.deleted !== true && call.notPersonal !== true });
       // Jo said "it wasn't personal" (callCenterAction notpersonal): the
       // model's personal verdict is overridden; the call is filed as business.
       if (call.notPersonal === true && notes.callType === 'personal') notes.callType = 'other';
