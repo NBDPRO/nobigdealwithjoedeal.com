@@ -6541,6 +6541,22 @@
       <span class="m-create-row-hint">Talk it out — save to Talk Tank or a lead</span>
     </span>
   </button>
+  <!-- 2026-11-25 iPhone parity: the Android home-screen shortcuts "Record a
+       visit" and "New estimate" (manifest.json) have no iPhone equivalent. -->
+  <button class="m-create-row" data-action="call" data-fn="_mCreate" data-arg="visit">
+    <span class="m-create-row-ico"><svg class="nbd-icon" aria-hidden="true"><use href="#nbd-icon-home"/></svg></span>
+    <span class="m-create-row-text">
+      <span class="m-create-row-lbl">Record a Visit</span>
+      <span class="m-create-row-hint">Record the conversation at the door or table</span>
+    </span>
+  </button>
+  <button class="m-create-row" data-action="call" data-fn="_mCreate" data-arg="estimate">
+    <span class="m-create-row-ico"><svg class="nbd-icon" aria-hidden="true"><use href="#nbd-icon-doc"/></svg></span>
+    <span class="m-create-row-text">
+      <span class="m-create-row-lbl">New Estimate</span>
+      <span class="m-create-row-hint">Open the estimate builder</span>
+    </span>
+  </button>
   <button class="m-create-cancel" data-action="closeModal" data-target="mobileCreatePopover">Cancel</button>
 </div>
 <!-- Hidden file input used by the Photo create row to invoke the

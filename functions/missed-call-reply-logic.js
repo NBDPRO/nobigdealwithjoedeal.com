@@ -56,17 +56,16 @@ const digits10 = (v) => {
   return '';
 };
 
-/** sms:+1XXXXXXXXXX?&body=… ('' when the number is not a 10-digit US number).
- *  `?&body=` (2026-11-25): some iOS versions drop a bare ?body=. */
+/** sms:+1XXXXXXXXXX?body=… ('' when the number is not a 10-digit US number). */
 function smsHref(phone, body) {
   const d = digits10(phone);
   if (!d) return '';
-  return 'sms:+1' + d + '?&body=' + encodeURIComponent(String(body == null ? REPLY_BODY : body));
+  return 'sms:+1' + d + '?body=' + encodeURIComponent(String(body == null ? REPLY_BODY : body));
 }
 
 // What a page may put in an href: our own shape only, nothing else
 // (encodeURIComponent never emits a quote, angle bracket or space).
-const SMS_HREF_RE = /^sms:\+1[0-9]{10}\?&?body=[A-Za-z0-9%._~!*'()-]{1,600}$/;
+const SMS_HREF_RE = /^sms:\+1[0-9]{10}\?body=[A-Za-z0-9%._~!*'()-]{1,600}$/;
 const isSafeSmsHref = (h) => typeof h === 'string' && SMS_HREF_RE.test(h);
 
 /** The reply draft for a call doc, or null when it is not a missed call with a number. */

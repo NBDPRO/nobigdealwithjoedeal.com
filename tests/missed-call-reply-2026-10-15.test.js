@@ -89,8 +89,8 @@ function fakeDb(seed) {
   const missed = CCL.buildCallDoc({ ownerUid: 'O', file, parsed: parsed('inbound'), match: { leadId: 'L1' }, bucket: 'customer', storedPath: 'p', nowMs: NOW, durationSec: 4 });
   ok('missed inbound call → status short + replyDraft', missed.status === 'short' && !!missed.replyDraft, JSON.stringify(missed.replyDraft));
   ok('draft is manual, body = the reply, created now', missed.replyDraft.kind === 'manual' && missed.replyDraft.body === R.REPLY_BODY && missed.replyDraft.createdAtMs === NOW);
-  ok('draft link is sms:+1<number>?&body=<the reply> (iPhone-safe shape, 2026-11-25)', missed.replyDraft.smsHref === 'sms:+15135550100?&body=' + encodeURIComponent(R.REPLY_BODY), missed.replyDraft.smsHref);
-  ok('the link decodes back to the exact reply', decodeURIComponent(missed.replyDraft.smsHref.split('?&body=')[1]) === R.REPLY_BODY);
+  ok('draft link is sms:+1<number>?body=<the reply>', missed.replyDraft.smsHref === 'sms:+15135550100?body=' + encodeURIComponent(R.REPLY_BODY), missed.replyDraft.smsHref);
+  ok('the link decodes back to the exact reply', decodeURIComponent(missed.replyDraft.smsHref.split('?body=')[1]) === R.REPLY_BODY);
   ok('the link passes the shared safe-href check', R.isSafeSmsHref(missed.replyDraft.smsHref) && R.draftHref(missed) === missed.replyDraft.smsHref);
   const out = CCL.buildCallDoc({ ownerUid: 'O', file, parsed: parsed('outbound'), match: null, bucket: 'unknown', storedPath: 'p', nowMs: NOW, durationSec: 4 });
   const talked = CCL.buildCallDoc({ ownerUid: 'O', file, parsed: parsed('inbound'), match: null, bucket: 'unknown', storedPath: 'p', nowMs: NOW, durationSec: 300 });
@@ -125,7 +125,7 @@ function fakeDb(seed) {
   vm.runInContext(read('docs/pro/firebase-messaging-sw.js'), sandbox);
   const href = missed.replyDraft.smsHref;
   const p1 = sandbox.resolveNotificationAction('text', { smsUrl: href, clickUrl: '/pro/dashboard.html?call=cube_1#/calls' });
-  ok('worker: Text back → kind text with the sms: link', p1.kind === 'text' && p1.sms === href, JSON.stringify(p1));
+  ok('worker: Text back → kind text with the sms: link (as ?&body=, which iPhones read, 2026-11-25)', p1.kind === 'text' && p1.sms === href.replace('?body=', '?&body='), JSON.stringify(p1));
   const p2 = sandbox.resolveNotificationAction('text', { smsUrl: 'javascript:alert(1)' });
   ok('worker: an unsafe smsUrl falls back to opening the CRM', p2.kind === 'navigate');
   ok('worker list for missedCall = Text back, Open', JSON.stringify(sandbox.getNotificationActions('missedCall')) === JSON.stringify([{ action: 'text', title: 'Text back' }, { action: 'view', title: 'Open' }]));
@@ -134,7 +134,7 @@ function fakeDb(seed) {
   let waited = null;
   listeners.notificationclick({ action: 'text', notification: { close() {}, data: { smsUrl: href, clickUrl: '/pro/dashboard.html#/calls' } }, waitUntil: (p) => { waited = p; } });
   await waited;
-  ok('worker click opens the sms: link itself', opened[0] === href, JSON.stringify(opened));
+  ok('worker click opens the sms: link itself', opened[0] === href.replace('?body=', '?&body='), JSON.stringify(opened));
   ok('worker: a missedCall push keeps its own Call Center card URL', sandbox.getClickUrl({ type: 'missedCall', clickUrl: '/pro/dashboard.html?call=cube_1#/calls' }) === '/pro/dashboard.html?call=cube_1#/calls'
     && sandbox.getClickUrl({ type: 'missedCall', clickUrl: 'https://evil.example/' }) === '/pro/dashboard.html#/calls');
 
