@@ -39,6 +39,15 @@ const REPEAT_MS = 6 * HOUR;
  * no new recording row in this long is a canary, not a quiet week.
  */
 const SILENT_RECORDINGS_MS = 36 * HOUR;
+/**
+ * cronDeadman (cron-deadman.js, 2026-11-22) runs every 30 min and stamps
+ * system/heartbeats.checkedAtMs each run. Two missed runs plus slack = it
+ * stopped. Raised at ANY hour: it is the only watcher of text ingest and the
+ * any-hour call/text exception (Joe, 2026-11-22) depends on it. The push still
+ * follows inWatchHours like every problem here; at night the watchdog's
+ * /fail (Healthchecks email) is the signal.
+ */
+const CRON_DEADMAN_STALE_MS = 75 * MIN;
 const ET = 'America/New_York';
 
 function etHm(ms) {
@@ -68,7 +77,7 @@ function expectedWatchSlotMs(now, graceMs) {
  * null), gates = { watch, ingest, transcribe } — which jobs are switched on in
  * this deployment. Returns [{ key, text, repeatMs }].
  */
-function deadManProblems({ watch, cc, now, gates, newestCallMs }) {
+function deadManProblems({ watch, cc, now, gates, newestCallMs, cronDeadman }) {
   const g = gates || {};
   const out = [];
   if (g.watch) {
@@ -108,6 +117,14 @@ function deadManProblems({ watch, cc, now, gates, newestCallMs }) {
   if (po && po.kind && po.needsAction) {
     out.push({ key: 'ai_provider_outage', quiet: true, repeatMs: 24 * HOUR, text: 'AI call notes are paused: ' + String(po.reason || 'provider problem') + '.' });
   }
+  // The watcher of every other cron (cron-deadman.js). No doc yet = not
+  // deployed yet: say nothing. Any hour (see CRON_DEADMAN_STALE_MS).
+  if (cronDeadman) {
+    const last = W.toMs(cronDeadman.checkedAtMs);
+    if (!last || now - last > CRON_DEADMAN_STALE_MS) {
+      out.push({ key: 'cron_deadman_not_running', repeatMs: REPEAT_MS, text: 'The scheduled-job watcher has not run since ' + (last ? etClock(last) + ' ET' : 'ever') + ' (runs every 30 min). A stopped job will not be reported until it does.' });
+    }
+  }
   return out;
 }
 
@@ -126,16 +143,18 @@ const gatesFromEnv = (env) => ({
 async function run(deps) {
   const { db, nowMs, live } = deps;
   const gates = gatesFromEnv(deps.env || process.env);
-  let watch = null, cc = null, health = {};
+  let watch = null, cc = null, health = {}, cronDeadman = null;
   try {
-    const [a, b, c] = await Promise.all([
+    const [a, b, c, d] = await Promise.all([
       db.doc('integrations/callWatch').get(),
       db.doc('integrations/callCenter').get(),
       db.doc('integrations/pipelineHealth').get(),
+      db.doc('system/heartbeats').get(),
     ]);
     watch = a.exists ? a.data() : null;
     cc = b.exists ? b.data() : null;
     health = c.exists ? (c.data() || {}) : {};
+    cronDeadman = d.exists ? (d.data() || {}) : null;
   } catch (e) {
     return { state: 'read_failed', error: String(e && e.message || e).slice(0, 200), problems: ['deadman_read_failed'], told: [] };
   }
@@ -145,7 +164,7 @@ async function run(deps) {
     const q = await db.collection('phone_calls').where('userId', '==', owner).orderBy('startedAtMs', 'desc').limit(1).get();
     newestCallMs = q.docs.length ? (W.toMs((q.docs[0].data() || {}).startedAtMs) || 0) : 0;
   } catch (_) { newestCallMs = undefined; }
-  const problems = deadManProblems({ watch, cc, now: nowMs, gates, newestCallMs });
+  const problems = deadManProblems({ watch, cc, now: nowMs, gates, newestCallMs, cronDeadman });
   // The daily self-test (pipeline-canary.js): opt-in via deps.canary, once per
   // ET day after 03:00, live runs only. Its verdict rides on integrations/pipelineHealth.
   let canary = health.canary || null;
@@ -181,4 +200,4 @@ async function run(deps) {
   return out;
 }
 
-module.exports = { run, deadManProblems, expectedWatchSlotMs, gatesFromEnv, WATCH_GRACE_MS, JOB_STALE_MS, REPEAT_MS, SILENT_RECORDINGS_MS };
+module.exports = { run, deadManProblems, expectedWatchSlotMs, gatesFromEnv, etHm, etClock, WATCH_GRACE_MS, JOB_STALE_MS, REPEAT_MS, SILENT_RECORDINGS_MS, CRON_DEADMAN_STALE_MS };

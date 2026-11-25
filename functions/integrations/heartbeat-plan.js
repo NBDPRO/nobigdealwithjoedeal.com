@@ -76,6 +76,7 @@ const PLAN = {
   callCenterTranscribe:      { slug: 'calls-texts-ingest' },
   textInboxIngest:           { slug: 'calls-texts-ingest' },
   leadAlertWatchdog:         { slug: 'calls-texts-ingest' }, // 2026-10-07: every 10 min; a /fail = a lead reached nobody even on the re-send
+  cronDeadman:               { slug: 'calls-texts-ingest' }, // 2026-11-22: every 30 min, per-job ledger watcher; a /fail = it alerted Joe; pipeline-deadman watches it
 
   runAbandonRecovery:        { slug: 'hourly-crons' },
   textInboxNotes:            { slug: 'hourly-crons' },

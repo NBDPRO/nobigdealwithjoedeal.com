@@ -71,6 +71,7 @@
   "createTeamInvite": "./handlers/invites",
   "createTeamMember": "./handlers/admin",
   "crmMcp": "./agent-mcp",
+  "cronDeadman": "./cron-deadman",
   "cspReport": "./handlers/monitoring",
   "dailyFirestoreBackup": "./firestore-backup",
   "dailyLeadDigest": "./lead-digest",

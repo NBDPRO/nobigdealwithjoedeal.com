@@ -82,6 +82,8 @@ const ROWS = {
     meaning: 'The 15-minute tick that actually tells your backup person while you are away. Off = dry run, nobody is notified.' },
   LEAD_ALERT_WATCHDOG_DISABLED: { group: 'Alerts & away', doc: ENV_DOC,
     meaning: 'Re-sends the new-lead alert (email + push) every 10 minutes when nobody has opened it. PAUSED = no re-sends.' },
+  CRON_DEADMAN_DISABLED: { group: 'Alerts & away', doc: 'documentation/runbooks/HEALTHCHECKS-SETUP.md',
+    meaning: 'Every 30 minutes, checks each scheduled job on its own run record and tells you (bell + push) when one stopped or keeps failing: daytime only, except a dead call or text pipeline. PAUSED = dry run, nothing is sent.' },
   HEALTH_DIGEST_ENABLED: { group: 'Alerts & away', doc: 'documentation/runbooks/SPEND_KILLSWITCH.md',
     meaning: 'The daily ops health email to jd@. Off = the cron skips itself.' },
   MORNING_BRIEF_ENABLED: { group: 'Alerts & away', doc: ENV_DOC,

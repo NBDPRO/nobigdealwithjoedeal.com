@@ -92,8 +92,8 @@ for (const f of FLAGS) {
 // 42 (2026-10-16): + REVIEW_ASK_EMAIL_PHOTO_ENABLED (a non-gate 'enabled' flag inside the review ask).
 // 43 (2026-10-18): + COMPANY_DOC_EXPIRY_ENABLED (a gate: the own-document expiry watch, dark).
 // 44 (2026-10-18): + MORNING_BRIEF_DELTA_ENABLED (a gate: the brief's delta mode, dark).
-ok('registry pins 56 flags (2026-11-09: +CALL_RETENTION_ENABLED, +CALL_CENTER_MULTI_TENANT_ENABLED (a non-gate enabled flag, Call to Close P2 tenant feed), +LEADERBOARD_AGGREGATE_ENABLED; 2026-11-04: +PORTAL_MOMENT_EMAILS_ENABLED, +RECEIPT_INBOX_ENABLED, +SECURE_DOC_LINK_ENABLED, +DOC_LINK_FOLLOWUP_ENABLED; 2026-10-22: +OWNER_WEEKLY_DIGEST_ENABLED; 2026-10-20: +HEALTH_SHORTCUT_DISABLED; 2026-10-19: +2 storm gates, +1 SUB_PAPERWORK_WATCH_ENABLED; update deliberately: 40 gates + CARE_PLAN_MODE + TURNSTILE_REQUIRED + 3 off-switches + the QA test-mode flag + the review photo)',
-  FLAGS.length === 56,String(FLAGS.length));
+ok('registry pins 57 flags (2026-11-22: +CRON_DEADMAN_DISABLED; 2026-11-09: +CALL_RETENTION_ENABLED, +CALL_CENTER_MULTI_TENANT_ENABLED (a non-gate enabled flag, Call to Close P2 tenant feed), +LEADERBOARD_AGGREGATE_ENABLED; 2026-11-04: +PORTAL_MOMENT_EMAILS_ENABLED, +RECEIPT_INBOX_ENABLED, +SECURE_DOC_LINK_ENABLED, +DOC_LINK_FOLLOWUP_ENABLED; 2026-10-22: +OWNER_WEEKLY_DIGEST_ENABLED; 2026-10-20: +HEALTH_SHORTCUT_DISABLED; 2026-10-19: +2 storm gates, +1 SUB_PAPERWORK_WATCH_ENABLED; update deliberately: 40 gates + CARE_PLAN_MODE + TURNSTILE_REQUIRED + 3 off-switches + the QA test-mode flag + the review photo)',
+  FLAGS.length === 57,String(FLAGS.length));
 
 // ── Firestore feature flags (2026-11-04, Thumbtack Opportunities): a separate list, FLAGS above is unchanged ──
 console.log('\nFIRESTORE_FLAGS — dark feature_flags names registered with an explicit default');

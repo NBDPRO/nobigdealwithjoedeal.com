@@ -23,7 +23,7 @@
  */
 'use strict';
 
-const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler
+const { onSchedule, softFail } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler; softFail = a caught main failure still fails the run
 const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const MessagingControls = require('./messaging-controls');
@@ -476,9 +476,13 @@ exports.callCenterIngest = onSchedule(
     try {
       const r = await runIngest({ db, bucket: getStorage().bucket(), live, nowMs: Date.now() });
       logger.info('[callCenterIngest]', r);
+      // Live, a missing or doubled "Cube ACR" folder returns normally but copies nothing.
+      if (live && (r.state === 'not_shared' || r.state === 'ambiguous_folder')) softFail(new Error('callCenterIngest: ' + r.state));
     } catch (e) {
       // 403/404 before the folder is shared is the expected idle state.
       logger.warn('[callCenterIngest] failed', { err: e && e.message, code: e && (e.code || (e.response && e.response.status)) });
+      // ...but only while the gate is off: live, a 403 means the pipeline is dead.
+      softFail(e, { expected: live ? [] : [403, 404] });
     }
     // Call to Close P2: other tenants, after NBD's own pass (dark unless
     // CALL_CENTER_MULTI_TENANT_ENABLED === 'true' AND a config is enabled).
@@ -1138,6 +1142,7 @@ exports.callCenterTranscribe = onSchedule(
       logger.info('[callCenterTranscribe]', r);
     } catch (e) {
       logger.warn('[callCenterTranscribe] failed', { err: e && e.message });
+      softFail(e);
     }
     // Call to Close P2: other tenants, after NBD's own pass, inside the same
     // day audio allowance (dark unless the env gate AND a config say so).
@@ -1291,6 +1296,7 @@ exports.callCenterSweep = onSchedule(
       logger.info('[callCenterSweep]', r);
     } catch (e) {
       logger.warn('[callCenterSweep] failed', { err: e && e.message });
+      softFail(e);
     }
   }
 );

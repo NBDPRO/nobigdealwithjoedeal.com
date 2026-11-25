@@ -24,7 +24,7 @@
  */
 'use strict';
 
-const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler
+const { onSchedule, softFail } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler; softFail = a caught main failure still fails the run
 const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
 const T = require('./text-inbox-logic');
@@ -99,7 +99,7 @@ async function runTextIngest({ db, live, nowMs }) {
   const files = await listAll("'" + folderId + "' in parents and trashed = false", 'id, name, size, modifiedTime');
   const newest = T.pickNewestBackup(files);
   if (!newest) { await ref.set({ folderId, lastRunAtMs: nowMs, lastRun: { live, state: 'no_backup' } }, { merge: true }); return { state: 'no_backup' }; }
-  if (live && cfg.lastFileId === newest.id && cfg.lastFileModified === newest.modifiedTime) return { state: 'unchanged' };
+  if (live && cfg.lastFileId === newest.id && cfg.lastFileModified === newest.modifiedTime) return { state: 'unchanged', newestModifiedMs: Date.parse(newest.modifiedTime) || null };
   if (Number(newest.size) > MAX_BYTES) return { state: 'too_large' };
 
   const since = T.sinceFor(cfg.cursorMs || null, nowMs);
@@ -136,15 +136,37 @@ async function runTextIngest({ db, live, nowMs }) {
   return Object.assign({ state: live ? 'ingested' : 'dry_run' }, counts);
 }
 
+/**
+ * A pass that RETURNED normally but means the live pipeline is dead (2026-11-22
+ * review): no folder, two folders, no backup file, a file over the cap, or the
+ * same backup for 48 h (the phone backs up hourly: the app stopped). Dry run:
+ * these are the idle states. Returns a reason, or null.
+ */
+const STALE_BACKUP_MS = 48 * 3600000;
+function ingestProblem(r, live, nowMs) {
+  if (!live || !r) return null;
+  if (['not_shared', 'ambiguous_folder', 'no_backup', 'too_large'].includes(r.state)) return 'text ingest: ' + r.state;
+  if (r.state === 'unchanged' && r.newestModifiedMs && nowMs - r.newestModifiedMs > STALE_BACKUP_MS) {
+    return 'text ingest: the newest phone backup is ' + Math.round((nowMs - r.newestModifiedMs) / 3600000) + ' h old';
+  }
+  return null;
+}
+
 exports.textInboxIngest = onSchedule(
   { schedule: 'every 30 minutes', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '1GiB', maxInstances: 1 },
   async () => {
+    const live = enabled();
     try {
-      const r = await runTextIngest({ db: getFirestore(), live: enabled(), nowMs: Date.now() });
+      const nowMs = Date.now();
+      const r = await runTextIngest({ db: getFirestore(), live, nowMs });
       logger.info('[textInboxIngest]', r);
+      const why = ingestProblem(r, live, nowMs);
+      if (why) softFail(new Error(why));
     } catch (e) {
       // 403/404 before the folder is shared is the expected idle state.
       logger.warn('[textInboxIngest] failed', { err: e && e.message, code: e && (e.code || (e.response && e.response.status)) });
+      // ...but only while the gate is off: live, a 403 means the pipeline is dead.
+      softFail(e, { expected: live ? [] : [403, 404] });
     }
   }
 );
@@ -287,4 +309,4 @@ exports.textInboxNotes = onSchedule(
   }
 );
 
-exports._test = { runTextIngest, runTextNotes, setNotes(fn) { _notesFn = fn; }, setClient(c) { _testClient = c; }, OWNER, COLLECTION, CONFIG, DAYS };
+exports._test = { runTextIngest, ingestProblem, runTextNotes, setNotes(fn) { _notesFn = fn; }, setClient(c) { _testClient = c; }, OWNER, COLLECTION, CONFIG, DAYS };
