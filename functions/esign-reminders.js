@@ -22,6 +22,13 @@
  * locally and FAILED_PRECONDITION in production).
  *
  * Gate: ESIGN_REMINDERS_DISABLED=true turns the sweep off (cron-gates.js).
+ *
+ * Customer send window (send-window.js, 2026-11-22): a reminder is an
+ * automated customer email, so it goes only 8:00-20:00 in the signer's time
+ * (the lead's address, else the company zone, else Eastern). Outside it no
+ * reminder slot is used: remindNextAt moves to the window's opening, so the
+ * envelope leaves the 200-row due page until then and a later run sends it. The sweep runs hourly so a signer in any zone reaches their
+ * window the same day (it used to run once at 10:00 ET, which is 7am Pacific).
  */
 'use strict';
 
@@ -30,6 +37,7 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const ESL = require('./esign-logic');
 const IO = require('./esign-io');
+const SendWindow = require('./send-window');
 
 const OPEN = ['sent', 'viewed'];
 
@@ -47,9 +55,29 @@ async function liveTokenFor(db, envelopeId, signerId, now) {
   return found;
 }
 
+/** The signer's location (the envelope's lead) and the company zone, read once per run.
+ *  The company is the envelope's companyId, else its ownerUid (a solo owner's
+ *  envelope carries companyId null), else the lead's. */
+function windowReader(db) {
+  const cache = new Map();
+  const once = (p) => {
+    if (!cache.has(p)) cache.set(p, (async () => { const s = await db.doc(p).get(); return s && s.exists ? (s.data() || {}) : null; })().catch(() => null));
+    return cache.get(p);
+  };
+  return async (env) => {
+    const lead = env.leadId ? await once('leads/' + env.leadId) : null;
+    const companyId = env.companyId || env.ownerUid || (lead && (lead.companyId || lead.userId));
+    const key = 'zone/' + companyId;
+    if (companyId && !cache.has(key)) cache.set(key, SendWindow.readCompanyZone(db, companyId));
+    const profile = companyId ? await cache.get(key) : null;
+    return { lead: lead || {}, profile };
+  };
+}
+
 /** The sweep itself, exported for tests (esign-reminders is not Object.assign'd into index). */
 async function runSweep(db, now) {
-  const out = { expired: 0, reminded: 0, cleared: 0 };
+  const out = { expired: 0, reminded: 0, cleared: 0, deferred: 0 };
+  const whereIs = windowReader(db);
 
   const exp = await db.collection('esign_envelopes').where('linkExpiresAt', '<=', now).limit(200).get();
   for (const d of exp.docs) {
@@ -91,6 +119,14 @@ async function runSweep(db, now) {
       out.cleared++;
       continue;
     }
+    // Outside the signer's send window: no slot used; due again when it opens.
+    const at = await whereIs(env);
+    const win = SendWindow.check(now, at.lead, at.profile);
+    if (!win.ok) {
+      await d.ref.set({ remindNextAt: win.nextOpenMs != null ? win.nextOpenMs : now + 3_600_000 }, { merge: true }).catch(() => {});
+      out.deferred++;
+      continue;
+    }
     const mail = await IO.emailLink(env, signer, IO.SIGN_URL_BASE + token, { reminder: true });
     // A reminder that did not actually go out (paused, bad address, provider error) must NOT use up a
     // reminder slot: keep the count, try again tomorrow, and give up after a few misses.
@@ -126,8 +162,8 @@ async function runSweep(db, now) {
 
 exports.esignReminderSweep = onSchedule(
   {
-    // 10:00 ET — a civil hour to land in a homeowner's inbox.
-    schedule: '0 10 * * *',
+    // Hourly; the customer send window (8:00-20:00 in the signer's time) picks the hour.
+    schedule: '0 * * * *',
     timeZone: 'America/New_York',
     maxInstances: 1,
     timeoutSeconds: 300,

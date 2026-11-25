@@ -120,7 +120,8 @@ function fakeResend() {
   const sent = [];
   return { sent, emails: { send: async (m) => { sent.push(m); return { data: { id: 're_' + sent.length }, error: null }; } } };
 }
-const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowMs: NOW }, o || {});
+// sendWindow: the customer send window held open (NOW is the real clock); tests/send-window-2026-11-22.test.js covers it.
+const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowMs: NOW, sendWindow: () => ({ ok: true }) }, o || {});
 
 (async () => {
   // ═══ A ═══
@@ -347,6 +348,7 @@ const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowM
     const dbOk = makeDb(seed);
     const ro = await AUTO.runForUser(dbOk, NBD, deps({ env: TXT, sendText, nowMs: noon }));
     ok('all clear → ONE text, marked reviewRequested source auto-text', texts.length === 1 && texts[0].to === '+18595550142' && dbOk.store.get('leads/T1').reviewRequestSource === 'auto-text', JSON.stringify(ro.results));
+    ok('the text hands guardTwilio the run\'s nowMs and company zone (one window answer, send-window.js)', texts[0] && texts[0].nowMs === noon && 'companyProfile' in texts[0] && texts[0].recipient && texts[0].recipient.id === 'T1', JSON.stringify(texts[0] && Object.keys(texts[0])));
     await AUTO.runForUser(dbOk, NBD, deps({ env: TXT, sendText, nowMs: noon + DAY }));
     ok('never a second text for the job', texts.length === 1);
     const env = read('functions/.env.nobigdeal-pro');

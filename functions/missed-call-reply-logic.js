@@ -32,6 +32,8 @@
 
 const C = require('./tcpa-consent');
 const SendWindow = require('./sms-send-window');
+// The stricter customer send window for automations (8:00-20:00 recipient time, 2026-11-22).
+const CustomerWindow = require('./send-window');
 
 // Kept GSM-7 (no em dash, no curly quotes) so each body is ONE segment.
 // tests/missed-call-reply-2026-10-15.test.js pins both under 160 characters.
@@ -97,7 +99,7 @@ function webFormConsent(lead) {
  * reason ∈ flag_disabled | not_missed | stale | no_number | no_lead | deleted |
  *          number_mismatch | no_consent | do_not_contact | quiet_hours
  */
-function planAutoText({ env, call, lead, nowMs }) {
+function planAutoText({ env, call, lead, nowMs, companyProfile }) {
   const e = env || {};
   if (e[FLAG] !== 'true') return { send: false, reason: 'flag_disabled' };
   if (!isMissedCall(call)) return { send: false, reason: 'not_missed' };
@@ -117,7 +119,9 @@ function planAutoText({ env, call, lead, nowMs }) {
   if (flagOn(lead.doNotContact) || flagOn(lead.dnc) || flagOn(lead.doNotText) || flagOn(lead.smsOptOut)) {
     return { send: false, reason: 'do_not_contact' };
   }
-  if (!SendWindow.withinRecipientWindow(t, lead)) return { send: false, reason: 'quiet_hours' };
+  // companyProfile: the company zone for a lead with no location (the same one
+  // guardTwilio is handed, so both checks give one answer).
+  if (!SendWindow.withinRecipientWindow(t, lead) || !CustomerWindow.check(t, lead, companyProfile || null).ok) return { send: false, reason: 'quiet_hours' };
   return { send: true, to: '+1' + d, body: AUTO_BODY };
 }
 

@@ -31,6 +31,7 @@ const OptOut = require('./sms-optout');
 const TextingGate = require('./sms-texting-gate');
 const ConsentDeclined = require('./sms-consent-declined');
 const MessagingControls = require('./messaging-controls');
+const SendWindow = require('./send-window');
 
 const CLAIMS = 'missed_call_autotext';
 
@@ -49,10 +50,14 @@ async function maybeAutoTextMissedCall(args) {
 
     const ls = await db.doc('leads/' + call.leadId).get();
     const lead = ls.exists ? (ls.data() || {}) : null;
-    const plan = R.planAutoText({ env, call, lead, nowMs });
+    const tenantKey = String(a.tenantKey || (lead && TextingGate.tenantKeyOfRecord(lead)) || TextingGate.NBD_OWNER_UID);
+    // The company zone for a lead with no location (send-window.js; read only
+    // then). The plan and guardTwilio get this same answer and the same nowMs,
+    // so the central check can never refuse a text whose claims are spent.
+    const companyProfile = lead ? await SendWindow.profileFor(db, lead, tenantKey) : null;
+    const plan = R.planAutoText({ env, call, lead, nowMs, companyProfile });
     if (!plan.send) return done(plan.reason);
 
-    const tenantKey = String(a.tenantKey || TextingGate.tenantKeyOfRecord(lead) || TextingGate.NBD_OWNER_UID);
     const opt = await OptOut.isOptedOut(db, plan.to, { companyId: tenantKey, timeoutMs: OptOut.READ_TIMEOUT_MS });
     if (opt.optedOut) return done('opted_out');
     const cd = await ConsentDeclined.decide(db, {
@@ -82,7 +87,7 @@ async function maybeAutoTextMissedCall(args) {
     if (!(await MessagingControls.claimSendOnce(db, plan.to, 'missed_call_autotext', call.id || ('lead:' + call.leadId)))) return done('duplicate');
     let sid = null;
     try {
-      const msg = await a.send({ to: plan.to, body: plan.body });
+      const msg = await a.send({ to: plan.to, body: plan.body, recipient: lead, companyProfile, nowMs });
       sid = (msg && msg.sid) || null;
     } catch (e) {
       log.warn('missed_call_autotext_send_failed', { callId: call.id, err: e && e.message });

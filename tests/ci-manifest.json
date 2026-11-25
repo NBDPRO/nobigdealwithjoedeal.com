@@ -1216,7 +1216,9 @@
     "sign-price-snapshot-2026-11-14.test.js",
     "sweep-lows-server-2026-11-17.test.js",
     "atproto-did-2026-11-16.test.js",
-    "call-center-reupload-dedupe-2026-11-18.test.js"
+    "call-center-reupload-dedupe-2026-11-18.test.js",
+    "send-window-2026-11-22.test.js",
+    "cron-manifest-2026-11-22.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

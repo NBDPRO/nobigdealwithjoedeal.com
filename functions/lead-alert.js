@@ -576,7 +576,8 @@ async function alertJoe(collection, d, leadId, opts = {}) {
   }
   if (toSms && !opts.skipSms && !capped && !smsHeld) try {
     const rawClient = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
-    const client = target.isNbd ? rawClient : MessagingControls.guardTwilio(getFirestore(), rawClient);
+    // A tenant owner's own new-lead alert: exempt from the customer send window.
+    const client = target.isNbd ? rawClient : MessagingControls.guardTwilio(getFirestore(), rawClient, { sendWindow: 'exempt:internal' });
     const msg = await client.messages.create({
       to: toSms,
       from: TWILIO_PHONE_NUMBER.value(),
@@ -725,7 +726,9 @@ async function ackHomeownerSms(collection, d, leadId, target) {
     return;
   }
   try {
-    const client = MessagingControls.guardTwilio(getFirestore(), _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value()));
+    // The instant ack of the homeowner's own request (seconds after they asked;
+    // it keeps its own 8am-9pm check above): exempt from the automations' window.
+    const client = MessagingControls.guardTwilio(getFirestore(), _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value()), { sendWindow: 'exempt:transactional' });
     const firstName = String(d.firstName || '').trim();
     const msg = await client.messages.create({
       to,

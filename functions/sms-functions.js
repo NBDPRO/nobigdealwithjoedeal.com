@@ -1211,11 +1211,13 @@ async function handleSendSMS(req, res, queuedEndpoint) {
     // construction, a secret read, a bad number) never reached Twilio.
     let twilioAttempted = false;
     try {
-      // Initialize Twilio client (guarded: kill switch + canary at the send)
+      // Initialize Twilio client (guarded: kill switch + canary at the send).
+      // A rep's own text: exempt from the automations' send window; this
+      // handler keeps its own TCPA hours.
       const client = MessagingControls.guardTwilio(db, _twilio()(
         TWILIO_ACCOUNT_SID.value(),
         TWILIO_AUTH_TOKEN.value()
-      ));
+      ), { sendWindow: 'exempt:manual' });
 
       const formattedTo = formatPhoneNumber(to);
       const fromPhone = TWILIO_PHONE_NUMBER.value();
@@ -1562,10 +1564,11 @@ exports.sendD2DSMS = onRequest(
       // outer 500.
       let message;
       try {
+        // A rep's door-knock text: exempt from the automations' send window.
         const client = MessagingControls.guardTwilio(db, _twilio()(
           TWILIO_ACCOUNT_SID.value(),
           TWILIO_AUTH_TOKEN.value()
-        ));
+        ), { sendWindow: 'exempt:manual' });
         message = await client.messages.create({
           body,
           from: TWILIO_PHONE_NUMBER.value(),
@@ -2348,11 +2351,12 @@ async function runCheckStormAlerts(event) {
             tz: sub.tz,
             recipient: { zip: sub.zip, state: sub.state },
             serverTimestamp: () => FieldValue.serverTimestamp(),
-            send: () => client.messages.create({
+            // w = the guard's own window answer ({ nowMs, companyProfile }) for guardTwilio.
+            send: (w) => client.messages.create({
               body: body.substring(0, 1600),
               from: fromPhone,
               to: phone,
-            }),
+            }, Object.assign({ recipient: { zip: sub.zip, state: sub.state, tz: sub.tz } }, w)),
           });
           alreadySent.add(dedupKey);
 
@@ -2644,7 +2648,8 @@ exports.onAiDraftApproved = onDocumentUpdated(
     let client;
     let formattedTo;
     try {
-      client = MessagingControls.guardTwilio(db, _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value()));
+      // The rep approved this reply: exempt from the automations' send window.
+      client = MessagingControls.guardTwilio(db, _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value()), { sendWindow: 'exempt:manual' });
       formattedTo = formatPhoneNumber(to);
     } catch (e) {
       await fail('twilio_error', e && e.message); return; // nothing was requested

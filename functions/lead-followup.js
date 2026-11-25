@@ -17,7 +17,10 @@
  *    the CRM card is missing (bridge failed — don't email on unknown state);
  *  - NBD leads only (same tenant rule as the ack email);
  *  - storm_alert_subscribers excluded — that's a list signup, not an open
- *    request; estimate follow-up event docs excluded via isFollowUpEvent.
+ *    request; estimate follow-up event docs excluded via isFollowUpEvent;
+ *  - the customer send window (send-window.js, 8:00-20:00 in the homeowner's
+ *    time, 2026-11-22): outside it the lead is left UNCLAIMED and the first
+ *    sweep inside it sends (the 20-48h span always holds a daytime sweep).
  *
  * Index note: all Firestore queries here use range-on-createdAt only, or
  * equality-only filters — no composite indexes needed.
@@ -32,6 +35,7 @@ const L = require('./lead-bridge-logic');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
 const Suppression = require('./email-suppression');
 const MessagingControls = require('./messaging-controls');
+const SendWindow = require('./send-window');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
@@ -103,14 +107,20 @@ exports.leadFollowUpSweep = onSchedule(
       logger.info('leadFollowUp: not enabled — skipping', { reason: auto.enabled ? 'canary' : auto.reason });
       return;
     }
-    const now = Date.now();
+    const now = SendWindow.nowMs();
     const oldest = Timestamp.fromMillis(now - WINDOW_OLDEST_H * 3600_000);
     const youngest = Timestamp.fromMillis(now - WINDOW_YOUNGEST_H * 3600_000);
 
     let sent = 0;
     let skipped = 0;
     let blockedNoAddress = 0; // CAN-SPAM: no postal address configured (2026-10-03)
+    let deferred = 0; // outside the homeowner's send window: left unclaimed for a later sweep
     let resend = null;
+    const profiles = new Map(); // companyProfile per tenant (the zone when the lead has no location)
+    const profileOf = (key) => {
+      if (!profiles.has(key)) profiles.set(key, SendWindow.readCompanyZone(db, key));
+      return profiles.get(key);
+    };
 
     sweep:
     for (const collection of SOURCES) {
@@ -160,13 +170,20 @@ exports.leadFollowUpSweep = onSchedule(
         // that just expired) is a human decision; skip and let Jo drive.
         if (card.snoozedUntil || Number(card.snoozeCount) > 0) { skipped++; continue; }
 
+        // The customer send window (2026-11-22): 8:00-20:00 in the homeowner's
+        // time (the CRM card's address first, then the public form's, then the
+        // company zone, then Eastern). Outside it: no claim, no stamp, no read
+        // of the suppression register; a later sweep inside the window sends.
+        const tenantKey = String(card.companyId || d.companyId || NBD_OWNER_UID);
+        const win = SendWindow.check(now, Object.assign({}, d, card), await profileOf(tenantKey));
+        if (!win.ok) { deferred++; continue; }
+
         // Email unsubscribe (CAN-SPAM, 2026-09-22). This follow-up is
         // COMMERCIAL: an address on the lead's tenant's suppression register
         // is skipped (and stamped so it is not re-checked), and every one that
         // goes carries a footer link + one-click List-Unsubscribe headers. A
         // gate error sends nothing; the next sweep retries while the lead is
         // still inside the window.
-        const tenantKey = String(card.companyId || d.companyId || NBD_OWNER_UID);
         let unsub;
         try {
           unsub = await Suppression.gateCommercialEmail(db, {
@@ -259,6 +276,6 @@ exports.leadFollowUpSweep = onSchedule(
         }
       }
     }
-    logger.info('leadFollowUp: sweep done', { sent, skipped, blockedNoAddress });
+    logger.info('leadFollowUp: sweep done', { sent, skipped, blockedNoAddress, deferred });
   }
 );
