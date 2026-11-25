@@ -33,7 +33,74 @@ function ok(label, cond, detail) {
 const MIN = 60000, H = 3600000, DAY = 24 * H;
 // November 2026 is EST (UTC-5).
 const et = (ymd, hhmm) => Date.parse(ymd + 'T' + hhmm + ':00-05:00');
-const codeOnly = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
+
+// Run a real handler with a few of ITS OWN requires swapped (firebase-admin,
+// a lazy require inside the handler): a fresh copy of the module is loaded
+// while the stubs are armed, and the cached copy is put back afterwards.
+const Module = require('module');
+async function withFresh(rel, stubs, fn) {
+  const file = require.resolve(path.join(FN, rel));
+  const saved = require.cache[file];
+  delete require.cache[file];
+  const realLoad = Module._load;
+  Module._load = function (req, parent) {
+    if (parent && parent.filename === file && Object.prototype.hasOwnProperty.call(stubs, req)) return stubs[req];
+    return realLoad.apply(this, arguments);
+  };
+  try { return await fn(require(file)); }
+  finally { Module._load = realLoad; if (saved) require.cache[file] = saved; else delete require.cache[file]; }
+}
+// leadAlertWatchdog's Firestore: lead collections, alert_outbox claims (create / update / where).
+function watchdogDb(seed) {
+  const store = JSON.parse(JSON.stringify(seed || {}), (k, v) => (k === 'createdAt' ? new Date(v) : v));
+  const col = (n) => (store[n] = store[n] || {});
+  const ref = (n, id) => ({
+    id,
+    get: async () => ({ exists: !!col(n)[id], id, data: () => col(n)[id] }),
+    create: async (v) => { if (col(n)[id]) throw Object.assign(new Error('6 ALREADY_EXISTS'), { code: 6 }); col(n)[id] = Object.assign({}, v); },
+    update: async (v) => { if (!col(n)[id]) throw new Error('NOT_FOUND'); Object.assign(col(n)[id], v); },
+    set: async (v) => { col(n)[id] = Object.assign({}, v); },
+  });
+  const query = (n, fs_) => ({
+    where: (f, op, v) => query(n, fs_.concat([[f, op, v]])),
+    get: async () => {
+      const val = (x) => (x instanceof Date ? x.getTime() : x);
+      const docs = Object.keys(col(n)).filter((id) => fs_.every(([f, op, v]) => {
+        const a = val(col(n)[id][f]), b = val(v);
+        return op === '==' ? a === b : op === '>=' ? a != null && a >= b : op === '<=' ? a != null && a <= b : false;
+      })).map((id) => ({ id, ref: ref(n, id), data: () => col(n)[id] }));
+      return { docs, forEach: (f) => docs.forEach(f) };
+    },
+  });
+  return {
+    store,
+    collection: (n) => Object.assign(query(n, []), { doc: (id) => ref(n, id), add: async (v) => { const id = 'a' + Object.keys(col(n)).length; col(n)[id] = v; return { id }; } }),
+    doc: (p) => { const s = String(p).split('/'); return ref(s.slice(0, -1).join('/'), s[s.length - 1]); },
+  };
+}
+const quietV2 ={ logger: { info() {}, warn() {}, error() {}, log() {} } };
+const runEndpoint = (ep) => (typeof ep.run === 'function' ? ep.run : ep)({ scheduleTime: new Date().toISOString() });
+// A scheduled run through the real heartbeat wrapper: what it pinged and recorded.
+async function scheduled(name, ep, pings, rows) {
+  hb._overrides.functionTarget = name;
+  pings.length = 0; rows.length = 0;
+  let threw = null;
+  try { await runEndpoint(ep); } catch (e) { threw = e; }
+  return { threw, ping: pings[pings.length - 1] || '', row: rows[rows.length - 1] || null };
+}
+// Drive stand-in: `answer(q)` returns the files for a list query, or throws.
+const driveClient = (answer) => ({ request: async (o) => ({ data: { files: answer(String((o.params || {}).q || '')) } }) });
+const driveError = (code) => () => { throw Object.assign(new Error('drive ' + code), { code }); };
+// The two ingest jobs' Firestore: the config doc, plus the tenant-feed query.
+function ingestDb(docs, opts) {
+  const o = opts || {};
+  const reads = [];
+  return {
+    reads,
+    doc: (p) => ({ get: async () => ({ exists: p in docs, data: () => docs[p] }), set: async (v) => { docs[p] = Object.assign({}, docs[p], v); } }),
+    collection: (c) => ({ where: () => ({ get: async () => { reads.push(c); if (o.tenantThrows) throw new Error('tenant read failed'); return { docs: [], forEach() {} }; } }) }),
+  };
+}
 
 (async () => {
   // Capture pings and ledger rows; never touch the network or Firestore.
@@ -97,14 +164,78 @@ const codeOnly = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/
       ok(name + ': a failed main pass pings ' + slug + '/fail (was: success)', !threw && pings.length === 1 && pings[0].endsWith('/' + slug + '/fail'), (threw && threw.message) + ' ' + pings.join());
       ok(name + ': ledger ok:false', rows.length === 1 && rows[0].ok === false, JSON.stringify(rows));
     }
-    // callCenterIngest calls getFirestore() before its try, so with no app it
-    // throws outright; pin its call site by source instead.
-    const ccSrc = codeOnly(fs.readFileSync(path.join(FN, 'call-center.js'), 'utf8').replace(/\r\n/g, '\n'));
-    const ingest = ccSrc.slice(ccSrc.indexOf('exports.callCenterIngest'), ccSrc.indexOf('exports.callCenterIngest') + 1500);
-    ok('callCenterIngest: the NBD pass catch calls softFail, 403/404 expected only with the gate off', /\[callCenterIngest\] failed[\s\S]{0,200}softFail\(e, \{ expected: live \? \[\] : \[403, 404\] \}\)/.test(ingest));
-    ok('callCenterIngest: the tenant pass stays best-effort (no softFail)', !/tenants failed[^\n]*\n[^\n]*softFail/.test(ingest));
-    const tiSrc = codeOnly(fs.readFileSync(path.join(FN, 'text-inbox.js'), 'utf8').replace(/\r\n/g, '\n'));
-    ok('textInboxIngest: 403/404 expected only with the gate off', /\[textInboxIngest\] failed[\s\S]{0,200}softFail\(e, \{ expected: live \? \[\] : \[403, 404\] \}\)/.test(tiSrc));
+  }
+
+  console.log('B2. the two ingest handlers, run with a stubbed Drive + Firestore (gate on = live)');
+  {
+    const envKeys = ['CALL_CENTER_INGEST_ENABLED', 'CALL_CENTER_MULTI_TENANT_ENABLED', 'TEXT_INBOX_ENABLED'];
+    const envWas = envKeys.map((k) => process.env[k]);
+    const setLive = (k, on) => { if (on) process.env[k] = 'true'; else delete process.env[k]; };
+    const FA = require(require.resolve('firebase-admin/firestore', { paths: [FN] }));
+
+    // callCenterIngest: getFirestore() runs before its try, so it needs a stand-in app.
+    let ccDb = null;
+    await withFresh('call-center.js', {
+      'firebase-admin/firestore': Object.assign({}, FA, { getFirestore: () => ccDb }),
+      'firebase-admin/storage': { getStorage: () => ({ bucket: () => ({}) }) },
+      'firebase-functions/v2': quietV2,
+    }, async (CCf) => {
+      const run = async (live, answer, docs, opts) => {
+        setLive('CALL_CENTER_INGEST_ENABLED', live);
+        ccDb = ingestDb(docs || {}, opts);
+        CCf._test.setClient(driveClient(answer));
+        return scheduled('callCenterIngest', CCf.callCenterIngest, pings, rows);
+      };
+      let r = await run(true, driveError(403));
+      ok('callCenterIngest live: Drive 403 fails the run (/fail, ledger ok:false)', !r.threw && r.ping.endsWith('/fail') && r.row && r.row.ok === false && /403/.test(r.row.error || ''), r.ping + ' ' + JSON.stringify(r.row));
+      r = await run(false, driveError(403));
+      ok('callCenterIngest dry run: Drive 403 (folder not shared yet) is the idle state (success)', !r.threw && !r.ping.endsWith('/fail') && r.row && r.row.ok === true, r.ping + ' ' + JSON.stringify(r.row));
+      r = await run(false, driveError(404));
+      ok('…404 too', r.row && r.row.ok === true);
+      r = await run(false, driveError(500));
+      ok('callCenterIngest dry run: any other Drive error still fails the run', r.ping.endsWith('/fail') && r.row && r.row.ok === false, JSON.stringify(r.row));
+      r = await run(true, () => []);
+      ok('callCenterIngest live: no "Cube ACR" folder (returns normally) fails the run', r.ping.endsWith('/fail') && r.row && r.row.ok === false && /not_shared/.test(r.row.error || ''), JSON.stringify(r.row));
+      r = await run(true, () => [{ id: 'a' }, { id: 'b' }]);
+      ok('callCenterIngest live: two "Cube ACR" folders fails the run', r.row && r.row.ok === false && /ambiguous_folder/.test(r.row.error || ''), JSON.stringify(r.row));
+      r = await run(false, () => []);
+      ok('callCenterIngest dry run: no folder is idle (success)', r.row && r.row.ok === true, JSON.stringify(r.row));
+      process.env.CALL_CENTER_MULTI_TENANT_ENABLED = 'true';
+      r = await run(true, driveError(500), { 'integrations/callCenter': { paused: true } }, { tenantThrows: true });
+      ok('callCenterIngest: a tenant pass that throws stays best-effort (NBD pass fine → success)', !r.threw && r.row && r.row.ok === true && ccDb.reads.includes('integrations'), JSON.stringify(r.row) + ' reads=' + ccDb.reads.join());
+      delete process.env.CALL_CENTER_MULTI_TENANT_ENABLED;
+    });
+
+    let tiDb = null;
+    await withFresh('text-inbox.js', {
+      'firebase-admin/firestore': Object.assign({}, FA, { getFirestore: () => tiDb }),
+      'firebase-functions/v2': quietV2,
+    }, async (TIf) => {
+      const run = async (live, answer, docs) => {
+        setLive('TEXT_INBOX_ENABLED', live);
+        tiDb = ingestDb(docs || {});
+        TIf._test.setClient(driveClient(answer));
+        return scheduled('textInboxIngest', TIf.textInboxIngest, pings, rows);
+      };
+      let r = await run(true, driveError(403));
+      ok('textInboxIngest live: Drive 403 fails the run', !r.threw && r.ping.endsWith('/fail') && r.row && r.row.ok === false, r.ping + ' ' + JSON.stringify(r.row));
+      r = await run(false, driveError(403));
+      ok('textInboxIngest dry run: Drive 403 is the idle state (success)', r.row && r.row.ok === true && !r.ping.endsWith('/fail'), JSON.stringify(r.row));
+      r = await run(false, driveError(500));
+      ok('textInboxIngest dry run: any other Drive error still fails the run', r.row && r.row.ok === false, JSON.stringify(r.row));
+      const backup = (modifiedTime, size) => (q) => (/^name = /.test(q) ? [{ id: 'F1', name: 'SMSBackupRestore' }] : [{ id: 'b1', name: 'sms-20261120120000.xml', size: String(size || 1000), modifiedTime }]);
+      const mt = new Date(Date.now() - H).toISOString();
+      r = await run(true, backup(mt, 300 * 1024 * 1024));
+      ok('textInboxIngest live: a backup over the size cap (returns too_large) fails the run', r.row && r.row.ok === false && /too_large/.test(r.row.error || ''), JSON.stringify(r.row));
+      r = await run(false, backup(mt, 300 * 1024 * 1024));
+      ok('…dry run: too_large is idle (success)', r.row && r.row.ok === true, JSON.stringify(r.row));
+      const stale = new Date(Date.now() - 3 * DAY).toISOString();
+      r = await run(true, backup(stale), { 'integrations/textInbox': { folderId: 'F1', lastFileId: 'b1', lastFileModified: stale } });
+      ok('textInboxIngest live: the same backup for 3 days (the phone app stopped) fails the run', r.row && r.row.ok === false && /h old/.test(r.row.error || ''), JSON.stringify(r.row));
+      r = await run(true, backup(mt), { 'integrations/textInbox': { folderId: 'F1', lastFileId: 'b1', lastFileModified: mt } });
+      ok('…the same backup 1 h old is fine (success)', r.row && r.row.ok === true, JSON.stringify(r.row));
+    });
+    envKeys.forEach((k, i) => { if (envWas[i] === undefined) delete process.env[k]; else process.env[k] = envWas[i]; });
   }
 
   console.log('C. the ledger: one doc per job, with its own cadence');
@@ -205,10 +336,11 @@ const codeOnly = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/
   // ── The runner, against an in-memory Firestore ──
   function fakeDb(jobs) {
     const docs = {};
+    const added = [];
     return {
-      docs, jobs,
+      docs, jobs, added,
       doc: (p) => ({ get: async () => ({ exists: p in docs, data: () => docs[p] }), set: async (v) => { docs[p] = JSON.parse(JSON.stringify(v)); } }),
-      collection: (c) => ({ get: async () => { if (c !== hb.LEDGER_COLLECTION) throw new Error('wrong collection ' + c); const ds = Object.keys(jobs).map((id) => ({ id, data: () => jobs[id] })); return { docs: ds, forEach: (f) => ds.forEach(f) }; } }),
+      collection: (c) => ({ add: async (v) => { added.push([c, v]); return { id: 'n' + added.length }; }, get: async () => { if (c !== hb.LEDGER_COLLECTION) throw new Error('wrong collection ' + c); const ds = Object.keys(jobs).map((id) => ({ id, data: () => jobs[id] })); return { docs: ds, forEach: (f) => ds.forEach(f) }; } }),
     };
   }
   const expected = ['leadAlertWatchdog', 'callCenterTranscribe', 'callCenterIngest'];
@@ -311,12 +443,13 @@ const codeOnly = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/
 
   console.log('M. registration');
   {
-    const idx = codeOnly(fs.readFileSync(path.join(FN, 'index.js'), 'utf8'));
-    ok('functions/index.js exports cronDeadman', /exports\.cronDeadman\s*=\s*require\('\.\/cron-deadman'\)\.cronDeadman/.test(idx));
+    // functions/index.js exporting it and FUNCTIONS_INDEX.md naming it are
+    // enforced for EVERY export by merge-leftovers-guard-2026-10-05 (function-map
+    // == the loaded index.js exports; every deployed export is in the catalog)
+    // and functions-lazy-load-2026-10-04 (each map entry, by object identity).
     ok('cronDeadman is in the heartbeat plan', !!PLAN.cronDeadman && !!PLAN.cronDeadman.slug);
     const map = JSON.parse(fs.readFileSync(path.join(FN, 'function-map.json'), 'utf8'));
     ok('function-map.json maps cronDeadman', map.cronDeadman === './cron-deadman');
-    ok('FUNCTIONS_INDEX.md lists cronDeadman', /`cronDeadman`/.test(fs.readFileSync(path.join(FN, 'FUNCTIONS_INDEX.md'), 'utf8')));
     const ep = R.cronDeadman.__endpoint;
     ok('every 30 minutes, America/New_York, one instance', ep.scheduleTrigger.schedule === 'every 30 minutes' && ep.scheduleTrigger.timeZone === 'America/New_York' && ep.maxInstances === 1);
   }
@@ -341,13 +474,8 @@ const codeOnly = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/
     pings.length = 0; rows.length = 0;
     await hb.withHeartbeat(null, async () => { const r = { state: 'too_large' }; const why = P(r, true, now); if (why) hb.softFail(new Error(why)); })({});
     ok('a live too_large pass pings /fail and records ok:false', pings.length === 1 && pings[0].endsWith('/fail') && rows[0].ok === false && /too_large/.test(rows[0].error), pings.join() + JSON.stringify(rows));
-    const tiSrc = codeOnly(fs.readFileSync(path.join(FN, 'text-inbox.js'), 'utf8').replace(/\r\n/g, '\n'));
-    const tiH = tiSrc.slice(tiSrc.indexOf('exports.textInboxIngest'), tiSrc.indexOf('exports.textInboxIngest') + 1200);
-    ok('textInboxIngest handler softFails on ingestProblem(r, live, …)', /ingestProblem\(r, live, [^)]*\)[\s\S]{0,80}softFail\(new Error\(/.test(tiH), tiH.slice(0, 400));
-    ok('runTextIngest reports the newest backup time on unchanged', /state: 'unchanged', newestModifiedMs/.test(tiSrc));
-    const ccSrc = codeOnly(fs.readFileSync(path.join(FN, 'call-center.js'), 'utf8').replace(/\r\n/g, '\n'));
-    const ccH = ccSrc.slice(ccSrc.indexOf('exports.callCenterIngest'), ccSrc.indexOf('exports.callCenterIngest') + 1500);
-    ok('callCenterIngest softFails a live not_shared / ambiguous_folder return', /live && \(r\.state === 'not_shared' \|\| r\.state === 'ambiguous_folder'\)\) softFail\(new Error\(/.test(ccH));
+    // The real handlers (too_large, a 3-day-old unchanged backup, a missing or
+    // doubled Cube ACR folder) are run end to end in B2.
   }
 
   console.log('O. many jobs down at once: every job is named in what is sent');
@@ -422,8 +550,34 @@ const codeOnly = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/
     try { await hb.withHeartbeat(null, async () => { hb.mainWorkRan(); throw new Error('pipelineDeadMan: ai_provider_outage'); })({}); } catch (e) { threw = e; }
     ok('the throw still pings /fail (Healthchecks email path unchanged)', threw && pings.length === 1 && pings[0].endsWith('/fail'));
     ok('…but the ledger records ok:true, so cronDeadman sends no second alert', rows.length === 1 && rows[0].ok === true, JSON.stringify(rows));
-    const lw = codeOnly(fs.readFileSync(path.join(FN, 'lead-alert-watchdog.js'), 'utf8').replace(/\r\n/g, '\n'));
-    ok('leadAlertWatchdog marks its main work ran before a pipelineDeadMan throw, only when no lead is unresolved', /if \(!\(r\.unresolved > 0\)\) mainWorkRan\(\);\s*throw new Error\('pipelineDeadMan: '/.test(lw));
+    // The real leadAlertWatchdog handler: pipeline-deadman reports a problem.
+    const FA = require(require.resolve('firebase-admin/firestore', { paths: [FN] }));
+    const LAreal = require(path.join(FN, 'lead-alert.js'))._internal;
+    let wdDb = null, dmProblems = [];
+    let alertJoe = async () => ({ email: 'sent' });
+    await withFresh('lead-alert-watchdog.js', {
+      'firebase-admin/firestore': { getFirestore: () => wdDb, FieldValue: { serverTimestamp: () => '__ts__' } },
+      'firebase-functions/v2': quietV2,
+      './lead-alert': { _internal: Object.assign({}, LAreal, { alertJoe: (...a) => alertJoe(...a) }) },
+      './pipeline-deadman': { run: async () => ({ problems: dmProblems.slice() }) },
+      './pipeline-canary': { run: async () => ({}) },
+    }, async (WDf) => {
+      const wdRun = async (problems, leads, alert) => {
+        dmProblems = problems; alertJoe = alert || (async () => ({ email: 'sent' }));
+        wdDb = watchdogDb(leads);
+        return scheduled('leadAlertWatchdog', WDf.leadAlertWatchdog, pings, rows);
+      };
+      const lead = { contact_leads: { L1: { name: 'Pat Example', phone: '513-555-0101', source: 'home', createdAt: new Date(Date.now() - 30 * MIN) } } };
+      const down = async () => { throw new Error('resend down'); };
+      let r = await wdRun([], {});
+      ok('(control) leadAlertWatchdog, nothing wrong: success, ok:true', !r.threw && r.row && r.row.ok === true && !r.ping.endsWith('/fail'), JSON.stringify(r.row));
+      r = await wdRun(['ai_provider_outage'], {});
+      ok('leadAlertWatchdog, a pipeline report with every lead reached: throws (pings /fail) but the ledger says ok:true', r.threw && /pipelineDeadMan: ai_provider_outage/.test(r.threw.message) && r.ping.endsWith('/fail') && r.row && r.row.ok === true, (r.threw && r.threw.message) + ' ' + JSON.stringify(r.row));
+      r = await wdRun(['ai_provider_outage'], lead, down);
+      ok('…the same report while a lead reached nobody: the ledger says ok:false (cronDeadman alerts)', r.threw && /reached nobody/.test(r.threw.message) && r.row && r.row.ok === false, (r.threw && r.threw.message) + ' ' + JSON.stringify(r.row));
+      r = await wdRun([], lead, down);
+      ok('(control) a lead that reached nobody, no pipeline report: ok:false', r.threw && r.row && r.row.ok === false, JSON.stringify(r.row));
+    });
   }
 
   console.log('T. a push that fails is not a silent success');
@@ -449,8 +603,29 @@ const codeOnly = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/
     Object.assign(dbx.jobs, healthy(et('2026-11-23', '10:30')));
     const rr = await R.run({ db: dbx, nowMs: et('2026-11-23', '10:30'), live: true, expected, send: async () => ({ pushed: false }) });
     ok('cronDeadman: a recovery line whose push failed is reported (the handler throws on pushFailed)', rr.pushFailed === true && rr.downSent === 0, JSON.stringify(rr));
-    const cdSrc = codeOnly(fs.readFileSync(path.join(FN, 'cron-deadman.js'), 'utf8'));
-    ok('…the handler throws on pushFailed', /if \(r\.pushFailed\) throw new Error\(/.test(cdSrc));
+    // The real cronDeadman handler (its own getFirestore, the real notifyOwner
+    // over the push-functions stand-in above). callCenterIngest is critical,
+    // so its alert and recovery go out at any hour the suite runs.
+    const now = Date.now();
+    const handler = async (db, sentCount) => {
+      pf.sendCustomNotification = async () => ({ sent: sentCount });
+      const FA = require(require.resolve('firebase-admin/firestore', { paths: [FN] }));
+      return withFresh('cron-deadman.js', { 'firebase-admin/firestore': Object.assign({}, FA, { getFirestore: () => db }), 'firebase-functions/v2': quietV2 },
+        (CDf) => scheduled('cronDeadman', CDf.cronDeadman, pings, rows));
+    };
+    const outageThenRecovery = async (recoverySent) => {
+      const db = fakeDb({}); db.docs['system/heartbeats'] = { startedAtMs: now - 30 * DAY };
+      db.jobs.callCenterIngest = { schedule: 'every 30 minutes', timeZone: 'America/New_York', ok: false, error: 'Drive 403', lastOkAtMs: now - 3 * H, finishedAtMs: now - MIN };
+      const first = await handler(db, 1);
+      db.jobs.callCenterIngest = { schedule: 'every 30 minutes', timeZone: 'America/New_York', ok: true, lastOkAtMs: now, finishedAtMs: now };
+      return { first, second: await handler(db, recoverySent), notes: db.added.length };
+    };
+    const bad = await outageThenRecovery(0);
+    ok('(the outage run throws on the alert it sent)', bad.first.threw && /cronDeadman: callCenterIngest/.test(bad.first.threw.message), bad.first.threw && bad.first.threw.message);
+    ok('cronDeadman handler: a recovery line whose push reached no device fails the run', bad.second.threw && /push reached no device/.test(bad.second.threw.message) && bad.second.ping.endsWith('/fail') && bad.notes === 2, (bad.second.threw && bad.second.threw.message) + ' notes=' + bad.notes);
+    const good = await outageThenRecovery(1);
+    ok('(control) the same recovery delivered: the run succeeds', !good.second.threw && good.notes === 2, good.second.threw && good.second.threw.message);
+    pf.sendCustomNotification = orig;
   }
 
   console.log('U. alert text never carries an email, phone or token');
