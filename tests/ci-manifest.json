@@ -950,6 +950,7 @@
     "lead-form-phone-contract.test.js",
     "public-form-fixes-2026-10-15.test.js",
     "guides-quick-form-2026-11-25.test.js",
+    "contact-tap-2026-11-26.test.js",
     "lead-submit-failure-signal-2026-11-25.test.js",
     "roof-check-merge-2026-11-25.test.js",
     "pro-claims-honesty-2026-09-13.test.js",
