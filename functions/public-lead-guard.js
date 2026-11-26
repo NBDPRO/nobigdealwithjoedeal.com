@@ -54,6 +54,8 @@ function dedupeDigits(phone) {
 function isAlertEligible(collection, data) {
   const d = data || {};
   if (collection === 'guide_leads') return false;
+  // Homeowner guide copies (2026-11-26): a cold CRM lead, never an alert.
+  if (collection === 'guide_copy_requests') return false;
   if (L.isFollowUpEvent(collection, d)) return false;
   if (collection === 'storm_alert_subscribers') {
     return L.HIGH_INTENT_STORM_CONCERNS.includes(String(d.concern || '').toLowerCase());
