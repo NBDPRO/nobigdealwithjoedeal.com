@@ -225,6 +225,9 @@ async function sentText(db, companyId, nowMs) {
     await H.handleStatus(callback('e'.repeat(32), { AccountSid: 'AC' + 'e'.repeat(32) }), res, hdeps(sub));
     ok('a subaccount send verified with NBD\'s token → 403 (fails closed until its own token exists)', res.statusCode === 403 && sub.writes() === ws);
     res = fakeRes();
+    await H.handleStatus(callback('e'.repeat(32)), res, hdeps(sub));
+    ok('...even signed with NBD\'s token AND NBD\'s AccountSid (NBD\'s keys never vouch for another sender)', res.statusCode === 403 && sub.writes() === ws, res.statusCode);
+    res = fakeRes();
     await H.handleStatus(callback(id), res, hdeps(db));
     ok('a good callback → 200', res.statusCode === 200, JSON.stringify(res.body));
     ok('...clears the heartbeat entry and counts the callback on the send', !((db.store.get('review_ask_heartbeat/' + NBD) || {}).pending || {})[id]
@@ -374,8 +377,8 @@ async function sentText(db, companyId, nowMs) {
     await TENANT.handleManage(req('admin', 'admin-uid', { companyId: NBD, action: 'unpause' }), md);
     ok('a platform admin can clear NBD\'s health pause', db.store.get('review_ask_tenants/' + NBD).paused === false);
     code = '';
-    try { await TENANT.handleManage(req('admin', 'admin-uid', { companyId: NBD, action: 'enable' }), md); } catch (e) { code = e.code; }
-    ok('...but NBD still cannot be enabled on the company email path', code === 'failed-precondition');
+    try { await TENANT.handleManage(req('admin', 'admin-uid', { companyId: NBD, action: 'setRamp', stage: 2 }), md); } catch (e) { code = e.code; }
+    ok('...but no other action on NBD (setRamp refused: NBD is not on the company path)', code === 'failed-precondition' && db.store.get('review_ask_tenants/' + NBD).rampStage === undefined, code);
     code = '';
     const asOwner = { db, FieldValue: FV, nowMs: NOON, requireTeamAdmin: async () => ({ uid: COA, companyId: COA, role: 'owner' }) };
     try {
