@@ -39,8 +39,8 @@ function ok(name, cond, detail) {
 const G = require(F('guide-copy-logic.js'));
 
 console.log('\nSLUGS');
-const scriptSrc = read('scripts/add-guide-email-copy.js');
-const scriptSlugs = (scriptSrc.match(/const SLUGS = \[([\s\S]*?)\];/) || [, ''])[1].match(/'([a-z0-9-]+)'/g).map((s) => s.slice(1, -1));
+const INJ = require(path.join(ROOT, 'scripts', 'add-guide-email-copy.js'));
+const scriptSlugs = INJ.SLUGS;
 const pagesWithPdf = fs.readdirSync(path.join(ROOT, 'docs/guides')).filter((f) => f.endsWith('.html'))
   .filter((f) => /data-pdf-href="\/guides\/pdf\//.test(read('docs/guides/' + f))).map((f) => f.replace(/\.html$/, '')).sort();
 ok('control: six homeowner guides have a PDF slot', pagesWithPdf.length === 6, pagesWithPdf);
@@ -146,22 +146,64 @@ function loadEmail(opts) {
     ok('titles and the postal address are escaped', /Siding &amp; Gutter Buyer's Guide/.test(html) && /&lt;b&gt;x&lt;\/b&gt;/.test(html) && !/<b>x<\/b>/.test(html));
   }
 
-  console.log('\nGATEWAY + GUARD + RULES');
-  const integ = read('functions/handlers/integrations.js');
-  const kindBlock = (integ.match(/guide_copy: \{[\s\S]*?\n  \},/) || [''])[0];
-  ok('kind guide_copy → guide_copy_requests, email/guide/source required, emailConsent boolean',
-    /collection: 'guide_copy_requests'/.test(kindBlock) && /required: \['email', 'guide', 'source'\]/.test(kindBlock) && /boolOptional: \['emailConsent'\]/.test(kindBlock), kindBlock.slice(0, 200));
-  ok('the gateway refuses a bad email and an unknown guide for this kind',
-    /kind === 'guide_copy'\) \{[\s\S]{0,300}isValidEmail\(data\.email\)[\s\S]{0,300}isGuideSlug\(data\.guide\)/.test(integ));
-  ok('consent is stamped server-side with the storm-tips version',
-    /kind === 'guide_copy' && data\.emailConsent === true\) \{[\s\S]{0,120}emailConsentAt = FieldValue\.serverTimestamp\(\)[\s\S]{0,160}STORM_TIPS_CONSENT_VERSION/.test(integ));
+  console.log('\nGATEWAY (the real submitPublicLead, firebase stubbed) + GUARD');
+  {
+    const gwStubs = (added) => ({
+      'firebase-functions/v2/https': { onRequest: (o, h) => ({ __handler: h }), onCall: (o, h) => ({ __handler: h }), HttpsError: Error },
+      'firebase-admin/firestore': {
+        getFirestore: () => ({
+          collection: (name) => ({
+            add: async (row) => { added.push({ name, row }); return { id: 'doc-1' }; },
+            doc: () => ({ get: async () => ({ exists: false }) }),
+          }),
+        }),
+        FieldValue: { serverTimestamp: () => '__server_ts__' },
+      },
+      '../integrations/upstash-ratelimit': { enforceRateLimit: async () => ({}), httpRateLimit: async () => true, clientIp: () => '198.51.100.7', provider: 'stub' },
+      '../integrations/turnstile': { verifyTurnstile: async () => ({ ok: true, configured: false }) },
+    });
+    const GW = F('handlers/integrations.js');
+    async function submit(body) {
+      const added = [];
+      delete require.cache[GW];
+      stubs = gwStubs(added);
+      const res = { code: 200, body: null, status(c) { this.code = c; return this; }, json(b) { this.body = b; return this; }, set() { return this; } };
+      try {
+        const mod = require(GW);
+        await mod.submitPublicLead.__handler({ method: 'POST', headers: {}, body: Object.assign({ kind: 'guide_copy' }, body) }, res);
+      } finally { stubs = null; delete require.cache[GW]; }
+      return { res, added };
+    }
+    const good = await submit({ email: 'home@owner.com', guide: 'roof-financing-explained', source: '/guides/roof-financing-explained', emailConsent: true });
+    const row = (good.added[0] || {}).row || {};
+    ok('a valid request is stored in guide_copy_requests with email, guide and source',
+      good.res.code === 200 && (good.added[0] || {}).name === 'guide_copy_requests' && row.email === 'home@owner.com' && row.guide === 'roof-financing-explained',
+      { code: good.res.code, body: good.res.body, added: good.added.map((a) => a.name) });
+    ok('a ticked box is stamped server-side with the storm-tips wording version',
+      row.emailConsent === true && row.emailConsentAt === '__server_ts__' && row.emailConsentVersion === G.STORM_TIPS_CONSENT_VERSION);
+    const noBox = await submit({ email: 'home@owner.com', guide: 'roof-financing-explained', source: 'x' });
+    ok('an unticked box stores no consent', noBox.added.length === 1 && !('emailConsentAt' in noBox.added[0].row) && noBox.added[0].row.emailConsent !== true);
+    const badEmail = await submit({ email: 'not-an-email', guide: 'roof-financing-explained', source: 'x' });
+    const badGuide = await submit({ email: 'a@b.com', guide: 'nbd-pro-playbook', source: 'x' });
+    const noGuide = await submit({ email: 'a@b.com', source: 'x' });
+    ok('a bad email, an unknown guide and a missing guide are refused (400) and nothing is stored',
+      badEmail.res.code === 400 && (badEmail.res.body || {}).field === 'email' && badGuide.res.code === 400 && noGuide.res.code === 400 &&
+      !badEmail.added.length && !badGuide.added.length && !noGuide.added.length, [badEmail.res.code, badGuide.res.code, noGuide.res.code]);
+    const extra = await submit({ email: 'a@b.com', guide: 'hail-photo-baseline-sheet', source: 'x', leadScore: '99', phone: '5135550142' });
+    ok('fields outside the kind allowlist are dropped', extra.added.length === 1 && !('leadScore' in extra.added[0].row) && !('phone' in extra.added[0].row));
+  }
   const PLG = require(F('public-lead-guard.js'));
   ok('a guide copy is never alert-eligible (spends no alert budget); a contact lead still is',
     PLG.isAlertEligible('guide_copy_requests', { email: 'a@b.com' }) === false && PLG.isAlertEligible('contact_leads', {}) === true);
   const rules = read('firestore.rules');
   ok('rules: clients can never write guide_copy_requests', /match \/guide_copy_requests\/\{reqId\} \{\s*allow create, update, delete: if false;\s*allow read: if isAdmin\(\);/.test(rules));
-  ok('the sender is classified transactional in SEND_PATHS', /'guide-copy-email\.js': 'transactional'/.test(read('functions/email-suppression.js')));
-  ok('exported from index.js', /exports\.guideCopyEmail = require\('\.\/guide-copy-email'\)\.guideCopyEmail/.test(read('functions/index.js')));
+  ok('the sender is classified transactional in SEND_PATHS', require(F('email-suppression.js')).SEND_PATHS['guide-copy-email.js'] === 'transactional');
+  {
+    const fmap = JSON.parse(read('functions/function-map.json'));
+    const names = [];
+    (function walk(v) { if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === 'object') Object.keys(v).forEach((k) => { names.push(k); walk(v[k]); }); else if (typeof v === 'string') names.push(v); })(fmap);
+    ok('both new functions are exported (function-map.json)', names.indexOf('guideCopyEmail') !== -1 && names.indexOf('leadBridgeGuideCopy') !== -1);
+  }
 
   console.log('\nBRIDGE');
   const L = require(F('lead-bridge-logic.js'));
@@ -169,28 +211,55 @@ function loadEmail(opts) {
   ok('cold CRM lead: source "Website — Guide copy", email carried, no phone',
     lead.source === 'Website — Guide copy' && lead.email === 'a@b.com' && lead.phone === '' && lead.publicLeadKind === 'guide_copy');
   ok('the card names the guide and the storm-tips answer', /Storm Claim Guide \(KY & OH\)/.test(lead.notes) && /Storm tips email OK: yes/.test(lead.notes), lead.notes);
-  ok('a leadBridgeGuideCopy trigger exists on the collection', /exports\.leadBridgeGuideCopy = onDocumentCreated\(\{ \.\.\.TRIGGER_OPTS, document: 'guide_copy_requests\/\{leadId\}' \}, onLeadCreated\('guide_copy_requests'\)\)/.test(read('functions/lead-bridge.js')));
 
   console.log('\nPAGES');
-  const consentText = (scriptSrc.match(/const CONSENT_TEXT = '([^']+)'/) || [, ''])[1];
   ok('checkbox wording is the one versioned guide-storm-tips-2026-11-26 (change both together)',
-    G.STORM_TIPS_CONSENT_VERSION === 'guide-storm-tips-2026-11-26' && consentText === 'Also email me storm-season tips from Joe now and then. Unsubscribe any time.');
-  const count = (s, n) => s.split(n).length - 1;
+    G.STORM_TIPS_CONSENT_VERSION === 'guide-storm-tips-2026-11-26' && INJ.CONSENT_TEXT === 'Also email me storm-season tips from Joe now and then. Unsubscribe any time.');
   for (const slug of pagesWithPdf) {
-    const s = read('docs/guides/' + slug + '.html');
-    const box = s.indexOf('data-guide-copy="' + slug + '"');
-    const end = s.indexOf('<!-- GUIDE-BODY:END ' + slug + ' -->');
-    const tag = (s.match(/<section [^>]*data-guide-copy="[^"]*"[^>]*>/) || [''])[0];
-    ok(slug + ': one hidden box after the generated body, consent text, scripts loaded',
-      count(s, 'data-guide-copy=') === 1 && end !== -1 && box > end && / hidden>$/.test(tag) &&
-      s.includes(consentText) && s.includes('/assets/js/public-lead-submit.js') && s.includes('/assets/js/guide-email-copy.js'),
-      { box, end, tag });
+    const page = fs.readFileSync(path.join(ROOT, 'docs/guides', slug + '.html'), 'utf8').replace(/\r\n/g, '\n');
+    const parts = page.split('<!-- GUIDE-BODY:END ' + slug + ' -->\n');
+    const tail = parts[1] || '';
+    const want = '  ' + INJ.block(slug);
+    const scripts = tail.split('<script defer src="').slice(1).map((x) => x.split('"')[0]);
+    ok(slug + ': exactly the injected (hidden) box right after the generated body, with its scripts',
+      parts.length === 2 && tail.slice(0, want.length) === want && page.split('data-guide-copy=').length === 2 &&
+      scripts.indexOf('/assets/js/public-lead-submit.js') !== -1 && scripts.indexOf('/assets/js/guide-email-copy.js?v=1') !== -1,
+      { parts: parts.length, scripts });
   }
-  ok('how-a-roof-works (no PDF) has no box', !read('docs/guides/how-a-roof-works.html').includes('data-guide-copy'));
-  const js = read('docs/assets/js/guide-email-copy.js');
-  ok('client posts kind guide_copy with the page slug as guide and /guides/<slug> as source',
-    /submitPublicLead\('guide_copy'/.test(js) && /guide: slug, source: '\/guides\/' \+ slug/.test(js));
-  ok('client shows success only after res.ok', /if \(!res \|\| !res\.ok\) \{[\s\S]*?return;\s*\}\s*form\.reset\(\);/.test(js));
+  ok('how-a-roof-works (no PDF) has no box', fs.readFileSync(path.join(ROOT, 'docs/guides/how-a-roof-works.html'), 'utf8').split('data-guide-copy').length === 1);
+
+  console.log('\nCLIENT (guide-email-copy.js run in a vm)');
+  {
+    const vm = require('vm');
+    const mkEl = (extra) => Object.assign({ hidden: true, value: '', checked: false, textContent: '', attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, getAttribute(k) { return this.attrs[k]; } }, extra || {});
+    const SRC = fs.readFileSync(path.join(ROOT, 'docs/assets/js/guide-email-copy.js'), 'utf8');
+    const boot = (result) => {
+      const calls = [];
+      const box = mkEl(); box.attrs['data-guide-copy'] = 'home-care-warranty-card';
+      const msg = mkEl(); const btn = mkEl({ textContent: 'Email me the PDF', disabled: false });
+      const email = mkEl(); const consent = mkEl(); const hp = mkEl();
+      let onSubmit = null; let resets = 0;
+      const els = { 'button[type="submit"]': btn, 'input[name="email"]': email, 'input[name="emailConsent"]': consent, 'input[name="nbd_hp"]': hp };
+      const form = { querySelector: (sel) => els[sel] || null, addEventListener: (t, h) => { if (t === 'submit') onSubmit = h; }, reset: () => { resets++; email.value = ''; } };
+      const win = { submitPublicLead: async (kind, fields) => { calls.push({ kind, fields }); return result; }, location: { search: '?utm_source=fb' } };
+      const ctx = { window: win, URLSearchParams, document: { querySelector: (s) => (s === '[data-guide-copy]' ? box : null), getElementById: (id) => ({ guideCopyForm: form, guideCopyMsg: msg }[id] || null) } };
+      vm.runInNewContext(SRC, ctx);
+      return { box, msg, email, consent, calls, submit: async () => { await onSubmit({ preventDefault() {} }); }, resets: () => resets };
+    };
+    const a = boot({ ok: true });
+    ok('the box is revealed when the script runs', a.box.hidden === false);
+    a.email.value = 'nope'; await a.submit();
+    ok('a bad email shows an error and posts nothing', a.calls.length === 0 && a.msg.attrs['data-kind'] === 'err');
+    a.email.value = ' home@owner.com '; a.consent.checked = true; await a.submit();
+    const c = a.calls[0] || { fields: {} };
+    ok('posts kind guide_copy with the page slug, /guides/<slug> as source, the box and UTMs',
+      c.kind === 'guide_copy' && c.fields.email === 'home@owner.com' && c.fields.guide === 'home-care-warranty-card' &&
+      c.fields.source === '/guides/home-care-warranty-card' && c.fields.emailConsent === true && c.fields.utm_source === 'fb', c);
+    ok('success only after ok: form reset and the ok message', a.resets() === 1 && a.msg.attrs['data-kind'] === 'ok');
+    const b = boot({ ok: false });
+    b.email.value = 'home@owner.com'; await b.submit();
+    ok('a failed save is never shown as success (no reset, error message)', b.resets() === 0 && b.msg.attrs['data-kind'] === 'err');
+  }
 
   {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nbd-gcopy-'));

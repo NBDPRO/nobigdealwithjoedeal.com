@@ -57,29 +57,35 @@ function block(slug) {
   ].join('\n');
 }
 
-let changed = 0, skipped = 0, failed = 0;
+module.exports = { SLUGS, CONSENT_TEXT, block };
 
-for (const slug of SLUGS) {
-  const file = path.join(GUIDES_DIR, slug + '.html');
-  const raw = fs.readFileSync(file, 'utf8');
-  const eol = raw.includes('\r\n') ? '\r\n' : '\n';
-  let s = raw.replace(/\r\n/g, '\n');
+function main() {
+  let changed = 0, skipped = 0, failed = 0;
 
-  if (s.includes('data-guide-copy=')) { console.log('  = ' + slug + ' already has the email box'); skipped++; continue; }
-  const endMark = '<!-- GUIDE-BODY:END ' + slug + ' -->\n';
-  const at = s.indexOf(endMark);
-  if (at === -1 || !s.includes('</body>') || !s.includes('data-pdf-href="/guides/pdf/' + slug + '.pdf"')) {
-    console.error('  ✗ ' + slug + ': anchors not found (GUIDE-BODY:END, </body>, its PDF slot)'); failed++; continue;
+  for (const slug of SLUGS) {
+    const file = path.join(GUIDES_DIR, slug + '.html');
+    const raw = fs.readFileSync(file, 'utf8');
+    const eol = raw.includes('\r\n') ? '\r\n' : '\n';
+    let s = raw.replace(/\r\n/g, '\n');
+
+    if (s.includes('data-guide-copy=')) { console.log('  = ' + slug + ' already has the email box'); skipped++; continue; }
+    const endMark = '<!-- GUIDE-BODY:END ' + slug + ' -->\n';
+    const at = s.indexOf(endMark);
+    if (at === -1 || !s.includes('</body>') || !s.includes('data-pdf-href="/guides/pdf/' + slug + '.pdf"')) {
+      console.error('  ✗ ' + slug + ': anchors not found (GUIDE-BODY:END, </body>, its PDF slot)'); failed++; continue;
+    }
+    const insertAt = at + endMark.length;
+    // Keep the indentation the next line already had.
+    s = s.slice(0, insertAt) + '  ' + block(slug) + s.slice(insertAt).replace(/^ {2}/, '');
+    if (!s.includes(SUBMIT_JS)) s = s.replace('</body>', SUBMIT_JS + '\n</body>');
+    s = s.replace('</body>', COPY_JS + '\n</body>');
+    fs.writeFileSync(file, eol === '\r\n' ? s.replace(/\n/g, '\r\n') : s);
+    console.log('  + ' + slug);
+    changed++;
   }
-  const insertAt = at + endMark.length;
-  // Keep the indentation the next line already had.
-  s = s.slice(0, insertAt) + '  ' + block(slug) + s.slice(insertAt).replace(/^ {2}/, '');
-  if (!s.includes(SUBMIT_JS)) s = s.replace('</body>', SUBMIT_JS + '\n</body>');
-  s = s.replace('</body>', COPY_JS + '\n</body>');
-  fs.writeFileSync(file, eol === '\r\n' ? s.replace(/\n/g, '\r\n') : s);
-  console.log('  + ' + slug);
-  changed++;
+
+  console.log('\n' + changed + ' changed, ' + skipped + ' skipped, ' + failed + ' failed');
+  return failed ? 1 : 0;
 }
 
-console.log('\n' + changed + ' changed, ' + skipped + ' skipped, ' + failed + ' failed');
-process.exit(failed ? 1 : 0);
+if (require.main === module) process.exit(main());
