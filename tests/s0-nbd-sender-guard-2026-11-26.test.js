@@ -85,6 +85,27 @@ async function d2d(token, docs, knock) {
       r.res.statusCode + ' ' + JSON.stringify(r.res.body));
   }
 
+  console.log('D. the Texting settings screen tells the truth (manageSmsCompliance)');
+  {
+    async function call(token, data, docs) {
+      const w = W.makeWorld({ docs: docs || {} });
+      const mod = W.load(w, 'sms-dnc.js');
+      try { return { w, out: await mod.manageSmsCompliance.__handler({ auth: { uid: token.uid, token }, data }) }; }
+      catch (e) { return { w, err: e }; }
+    }
+    const adm = Object.assign({ role: 'company_admin' }, CO1_TOKEN);
+    const g = await call(adm, { action: 'getSettings' }, REGISTERED_CO1);
+    ok('a registered other company → needsRegistration (the CRM shows "coming soon", never a live switch)',
+      g.out && g.out.allowed === false && g.out.reason === 'no_own_sender' && g.out.needsRegistration === true, JSON.stringify(g.out || g.err));
+    const s = await call(adm, { action: 'setEnabled', enabled: true }, { 'sms_settings/co-1': { registered: true, enabled: false } });
+    ok('...and it cannot switch texting ON (failed-precondition, enabled stays false)',
+      s.err && s.err.code === 'failed-precondition' && (s.w.store.get('sms_settings/co-1') || {}).enabled === false, JSON.stringify(s.out || (s.err && s.err.code)));
+    const off = await call(adm, { action: 'setEnabled', enabled: false }, REGISTERED_CO1);
+    ok('...switching OFF is always allowed', off.out && off.out.ok === true && (off.w.store.get('sms_settings/co-1') || {}).enabled === false, JSON.stringify(off.out || (off.err && off.err.message)));
+    const n = await call(Object.assign({ role: 'company_admin' }, NBD_TOKEN), { action: 'getSettings' });
+    ok('control: NBD getSettings → allowed, needsRegistration false', n.out && n.out.allowed === true && n.out.needsRegistration === false, JSON.stringify(n.out || n.err));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });
