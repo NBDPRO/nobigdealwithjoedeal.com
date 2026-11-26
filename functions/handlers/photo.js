@@ -436,3 +436,6 @@ exports.analyzeRoofPhoto = onRequest(
     }
   }
 );
+
+// functions/ai-models.js cross-checks its roof-photo row.
+exports._ROOF_ANALYSIS_MODEL = ROOF_ANALYSIS_MODEL;

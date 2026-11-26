@@ -846,4 +846,4 @@ exports.reelCleanup = onSchedule({ schedule: 'every day 04:15', timeZone: 'Ameri
   logger.info('reelCleanup', counts);
 });
 
-exports._test = { reelsBlocked, FFMPEG_MISSING, processReel, ingestUpload, resolveClips, takeRenderSlot, callVision, visionBlocked, reelPostsFor, aiImagePostsFor, cleanup, isHeic, UPLOAD_RE, VISION_SYSTEM };
+exports._test = { reelsBlocked, FFMPEG_MISSING, processReel, ingestUpload, resolveClips, takeRenderSlot, callVision, visionBlocked, reelPostsFor, aiImagePostsFor, cleanup, isHeic, UPLOAD_RE, VISION_SYSTEM, VISION_MODEL };
