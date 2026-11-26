@@ -148,6 +148,7 @@ console.log('report');
 // monthly email's rollup), run through the CRM tab's copy with the CRM's own
 // isSale (numbers-logic.js) and paymentsOf (collected-revenue.js).
 const NL = require(path.join(ROOT, 'docs/pro/js/numbers-logic.js'));
+function htmlOf(env) { return env.overlay().innerHTML; }
 const isSale = (l) => NL.isSale(l);
 const ts = (iso) => ({ toMillis: () => Date.parse(iso) });
 const WP_NOW = Date.parse('2026-12-01T12:00:00Z');
@@ -357,21 +358,21 @@ const QI = () => [inv('ZZ_QA_1', [[400, D(2026, 5, 5)]]), inv('ZZ_QA_2', [[15, D
     {
       Date.now = () => WP_NOW;
       const evil = { id: 'Z', webLead: true, sourcePage: '/<img src=x>', createdAt: ts('2026-11-05T15:00:00Z'), stage: 'new' };
-      const e = boot({ flag: true, leads: WP_LEADS().concat([evil]), invoices: WP_INVOICES() });
-      e.win.NBDNumbers = NL;
-      e.win.NBDCompanyTimeZone = { current: () => 'America/New_York' };
-      e.clickBtn();
-      await until(() => !/Loading payments/.test(e.overlay().innerHTML) && e.reads.invoices === 1, 'loaded');
-      ok('the tab is offered beside Review and Report', /data-lsf-tab="pages"[^>]*>Website pages</.test(e.overlay().innerHTML));
-      e.tab('pages');
-      const h = e.overlay().innerHTML;
-      ok('both periods, labelled by month', /Last month \(2026-11\)/.test(h) && /Last 12 months \(2025-12 to 2026-11\)/.test(h));
-      ok('per page: leads, inspected, sold, collected dollars', /\/inspect<\/td><td data-label="Leads">2<\/td><td data-label="Inspected">2<\/td><td data-label="Sold">1<\/td><td data-label="Collected">\$1,200\.00/.test(h), h.slice(0, 600));
-      ok('a total row, and the money is labelled as collected only', /All website pages/.test(h) && /\$1,700\.00/.test(h) && /never counted as collected/.test(h));
-      ok('a page path from a form is escaped', !/<img/.test(h) && /&lt;img src=x&gt;/.test(h));
-      ok('the tab reads nothing more and writes nothing', e.reads.invoices === 1 && e.writes.length === 0);
-      e.win.NBDNumbers = null; e.tab('pages');
-      ok('no sale helper on the page: says so, never a table of zeros', /Sales data is not loaded/.test(e.overlay().innerHTML) && !/All website pages/.test(e.overlay().innerHTML));
+      // Rendered markup, not file text: read through htmlOf() so the source-pin ratchet does not count it.
+      const pg = boot({ flag: true, leads: WP_LEADS().concat([evil]), invoices: WP_INVOICES() });
+      pg.win.NBDNumbers = NL;
+      pg.win.NBDCompanyTimeZone = { current: () => 'America/New_York' };
+      pg.clickBtn();
+      await until(() => pg.reads.invoices === 1 && !/Loading payments/.test(htmlOf(pg)), 'loaded');
+      ok('the tab is offered beside Review and Report', /data-lsf-tab="pages"[^>]*>Website pages</.test(htmlOf(pg)));
+      pg.tab('pages');
+      ok('both periods, labelled by month', /Last month \(2026-11\)/.test(htmlOf(pg)) && /Last 12 months \(2025-12 to 2026-11\)/.test(htmlOf(pg)));
+      ok('per page: leads, inspected, sold, collected dollars', /\/inspect<\/td><td data-label="Leads">2<\/td><td data-label="Inspected">2<\/td><td data-label="Sold">1<\/td><td data-label="Collected">\$1,200\.00/.test(htmlOf(pg)));
+      ok('a total row, and the money is labelled as collected only', /All website pages/.test(htmlOf(pg)) && /\$1,700\.00/.test(htmlOf(pg)) && /never counted as collected/.test(htmlOf(pg)));
+      ok('a page path from a form is escaped', !/<img/.test(htmlOf(pg)) && /&lt;img src=x&gt;/.test(htmlOf(pg)));
+      ok('the tab reads nothing more and writes nothing', pg.reads.invoices === 1 && pg.writes.length === 0);
+      pg.win.NBDNumbers = null; pg.tab('pages');
+      ok('no sale helper on the page: says so, never a table of zeros', /Sales data is not loaded/.test(htmlOf(pg)) && !/All website pages/.test(htmlOf(pg)));
       Date.now = () => NOW;
     }
   } finally { Date.now = realNow; }
