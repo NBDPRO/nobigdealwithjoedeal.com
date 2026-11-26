@@ -232,9 +232,8 @@ $('stSendBtn').addEventListener('click', async () => {
     req.keys = Array.from(document.querySelectorAll('.st-pick:checked')).map((c) => c.value);
     if (!req.keys.length) { say(msg, 'err', 'Tick at least one person below.'); return; }
   }
-  const sure = typeof window.nbdConfirm === 'function'
-    ? await window.nbdConfirm({ title: 'Send storm tips?', message: 'This emails everyone you picked who can get it today (not more than one every 14 days each).', confirmText: 'Send' })
-    : false;
+  const ask = window.nbdConfirm || ((o) => Promise.resolve(window.confirm(o.message)));
+  const sure = await ask({ title: 'Send storm tips?', message: 'This emails everyone you picked who can get it today (not more than one every 14 days each).', confirmText: 'Send' });
   if (!sure) return;
   const btn = $('stSendBtn');
   btn.disabled = true;
