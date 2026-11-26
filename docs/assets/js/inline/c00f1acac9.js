@@ -8,6 +8,38 @@
 // ──────────────────────────────────────────────────────────────────
 const POSTS = [
   {
+    url: "/blog/roof-leak-after-winter-storm-what-to-do",
+    tag: "Winter",
+    title: "Roof Leaking After a Winter Storm? What to Do Tonight",
+    meta: "By Joe Deal · December 2026 · 4 min read",
+    excerpt: "The first hour after a winter roof leak: catch the water, stay safe, take photos, stay off the roof. And what a same-day emergency tarp is for.",
+    published: "2026-12-22",
+  },
+  {
+    url: "/blog/gutters-after-leaf-season",
+    tag: "Winter",
+    title: "Gutters After Leaf Season: Clean, Check the Downspouts, Then Think About Guards",
+    meta: "By Joe Deal · December 2026 · 5 min read",
+    excerpt: "Full gutters freeze, sag and feed ice dams. What to check before the cold settles in, the downspout part most people miss, and an honest take on gutter guards.",
+    published: "2026-12-15",
+  },
+  {
+    url: "/blog/can-you-replace-a-roof-in-winter",
+    tag: "Winter",
+    title: "Can You Replace a Roof in Winter? Yes, With Care",
+    meta: "By Joe Deal · December 2026 · 4 min read",
+    excerpt: "Yes, on the right days. What cold does to shingles, why the seal strip matters, what changes on a winter install, and when it makes sense to wait for spring.",
+    published: "2026-12-08",
+  },
+  {
+    url: "/blog/ice-dams-why-your-eaves-freeze",
+    tag: "Winter",
+    title: "Ice Dams: Why Your Eaves Freeze and What Actually Stops Them",
+    meta: "By Joe Deal · December 2026 · 5 min read",
+    excerpt: "An ice dam starts in the attic, not on the roof. What causes the ridge of ice at your eaves, what to do when you have one, and what actually stops it.",
+    published: "2026-12-01",
+  },
+  {
     url: "/blog/color-matching-paint-why-it-takes-so-long",
     tag: "Home Tips",
     title: "Why Paint Color Matching Takes So Long (and How to Skip a Trip)",
