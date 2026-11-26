@@ -999,6 +999,7 @@
     "adminai-paid-gate-2026-11-14.test.js",
     "ai-paid-gate-dictate-2026-11-14.test.js",
     "ai-spend-breaker-2026-11-25.test.js",
+    "ai-breaker-relay-2026-11-25.test.js",
     "ai-gate-entry-points-2026-11-25.test.js",
     "ai-client-registry-2026-11-25.test.js",
     "photo-editor-switch-photoid-2026-09-14.test.js",
