@@ -54,7 +54,7 @@ An emergency tarp from us is billed on its own invoice, separate from any repair
 - [ ] Shingle pieces or granules in the yard or at the downspouts
 - [ ] Any new water stains inside, especially on top-floor ceilings and in the attic
 
-Our free [5-Year Storm Report](https://nobigdealwithjoedeal.com/storm-report) shows the hail and wind reports the National Weather Service logged near your address, which helps you pin down the date.
+Our free [Roof Check](https://nobigdealwithjoedeal.com/roof-check) shows the hail and wind reports the National Weather Service logged near your address, which helps you pin down the date.
 
 # How a claim actually works
 

@@ -573,7 +573,7 @@ function fillContact(d) {
     const { document, El, head } = makeDom();
     const ctx = {
       document, console, setTimeout, clearTimeout, Promise, JSON,
-      location: { pathname: o.path || '/storm-check' },
+      location: { pathname: o.path || '/roof-check' },
       fetch: o.fetch || (async () => { throw new Error('offline'); }),
     };
     if ('key' in o) ctx.__NBD_TURNSTILE_SITEKEY = o.key;
@@ -601,7 +601,7 @@ function fillContact(d) {
     const field = new H2.El('input'); field.type = 'tel';
     form.appendChild(field);
     H2.document.fire('focusin', { target: field });
-    const r = await H2.ctx.submitPublicLead('inspect', { name: 'Pat', phone: '5135550100', address: '1 A St', source: '/storm-check' });
+    const r = await H2.ctx.submitPublicLead('inspect', { name: 'Pat', phone: '5135550100', address: '1 A St', source: '/roof-check' });
     const fb = form.querySelector('.nbd-lead-fallback');
     ok('a failed submit still reports ok:false to the page', r.ok === false);
     ok('...and shows "Call or text Joe — (859) 420-7382" under the form', !!fb && /Call or text Joe/.test(fb.textContent) && /\(859\) 420-7382/.test(fb.textContent), fb && fb.textContent);
@@ -640,7 +640,7 @@ function fillContact(d) {
     // tests/homeowner-claims-honesty-2026-10-05.test.js bans it elsewhere.
     const pages = [
       ['docs/estimate.html', 'id="btnSubmit"'],
-      ['docs/storm-check.html', 'id="sc-submit"'],
+      ['docs/roof-check.html', 'id="rc-submit"'],
       ['docs/storm-alerts.html', 'id="alertSignupBtn"'],
       ['docs/inspect.html', 'id="inspectSubmit"'],
       // docs/index.html: #contact is the JS-built quick form since 2026-11-17 (its trust line is covered by the quick-form row below).
