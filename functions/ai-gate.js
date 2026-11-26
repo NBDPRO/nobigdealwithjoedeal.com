@@ -271,8 +271,8 @@ async function spent(db, path, nowMs) {
 const fmtUsd = (micros) => '$' + ((Number(micros) || 0) / 1e6).toFixed(2);
 
 // Platform-operator alert, the same recipient and queue health-digest.js and
-// backup-freshness.js use today. The ONE place the breaker sends from, so
-// roadmap step 13 can reroute it here alone.
+// backup-freshness.js use today. The ONE place the breaker emails from; the
+// owner text goes through notifyOwner via relayBreakerAlerts (cronDeadman).
 const ALERT_RECIPIENT = 'jd@nobigdealwithjoedeal.com';
 async function sendBreakerAlert(db, a) {
   const who = { company: 'company (' + a.companyId + ', plan ' + a.capKey + ')', public: 'public endpoints (visualizer, funnel)' }[a.cap] || 'platform';
@@ -315,7 +315,7 @@ async function alertOnce(db, a, deps) {
   const claim = db.doc('ai_spend_alerts/' + key);
   let claimed = false;
   try {
-    await claim.create({ day: a.day, cap: a.cap, companyId: a.companyId || null, capMicros: a.capMicros, spentMicros: a.spentMicros, atMs: a.nowMs });
+    await claim.create({ day: a.day, cap: a.cap, companyId: a.companyId || null, capKey: a.capKey || null, feature: a.feature || null, capMicros: a.capMicros, spentMicros: a.spentMicros, atMs: a.nowMs });
     claimed = true;
   } catch (e) {
     if (e && (e.code === 6 || /ALREADY_EXISTS|already exists/i.test(String(e.message)))) return; // another instance sent it
@@ -328,6 +328,47 @@ async function alertOnce(db, a, deps) {
     _alerted.delete(key);
     if (claimed) { try { await claim.delete(); } catch (_) { /* a stuck claim: logged above */ } }
   }
+}
+
+/**
+ * The owner text for a tripped breaker (roadmap step 13 follow-up). The AI
+ * entry points that trip the breaker hold no Twilio secrets, so they only
+ * write the claim doc and queue the email above. cronDeadman (every 30 min,
+ * owns the SMS secrets and the daytime / overnight-summary rule) calls this:
+ * each claim of today or yesterday (ET) not yet relayed goes through
+ * notifyOwner once, as an 'alert' (bell + push + one text). A failed notify
+ * leaves the claim unrelayed, so the next run retries. Never throws.
+ * deps: { notify(msg) -> Promise, nowMs, limit? }.
+ * Returns { relayed, failed, error? }.
+ */
+async function relayBreakerAlerts(db, deps) {
+  const out = { relayed: 0, failed: 0 };
+  try {
+    const nowMs = Number(deps && deps.nowMs) || Date.now();
+    const days = [etYmd(nowMs), etYmd(nowMs - 24 * 3600000)];
+    const snaps = await Promise.all(days.map((d) => db.collection('ai_spend_alerts').where('day', '==', d).get()));
+    const docs = [];
+    snaps.forEach((s) => s.forEach((d) => { const v = d.data() || {}; if (v.relayedAtMs == null) docs.push({ ref: d.ref, id: d.id, v }); }));
+    for (const { ref, id, v } of docs.slice(0, (deps && deps.limit) || 10)) {
+      const who = { company: 'one company (' + (v.capKey || 'plan unknown') + ')', public: 'the public website AI' }[v.cap] || 'all AI features';
+      const msg = {
+        title: 'AI spend cap hit: ' + who + ' paused',
+        body: 'The AI spend breaker paused ' + who + ' for ' + v.day + ' (cap ' + fmtUsd(v.capMicros) + ', spent ' + fmtUsd(v.spentMicros) + '). It resets at midnight ET. The email has how to raise it.',
+        severity: 'alert', key: 'ai-spend:' + id, type: 'ai_spend_breaker', clickUrl: '/pro/dashboard.html', idPrefix: 'ai-spend-',
+      };
+      try {
+        await deps.notify(msg);
+        out.relayed++;
+        try { await ref.update({ relayedAtMs: nowMs }); } catch (_) { /* notifyOwner's own key dedupe stops a second text today */ }
+      } catch (e) {
+        out.failed++;
+        try { console.warn('ai_spend_alert_relay_failed', { id, err: e && e.message }); } catch (_) { /* ignore */ }
+      }
+    }
+  } catch (e) {
+    out.error = String(e && e.message || e).slice(0, 200);
+  }
+  return out;
 }
 
 function refusal(reason) {
@@ -412,7 +453,7 @@ async function assertAiEntitled(db, auth, opts) {
 
 module.exports = {
   aiGate, aiEntitlement, aiEntitlementForUid, tenantEntitlement, assertAiEntitled, isPaidSubscription, MESSAGES, PLATFORM_UID,
-  resolveLimits, companyCapMicros, capFromBusiestDay, sendBreakerAlert, refusal,
+  resolveLimits, companyCapMicros, capFromBusiestDay, sendBreakerAlert, relayBreakerAlerts, refusal,
   SPEND_MEASURED, FORMULA_PLATFORM_DAILY_MICROS, ALT_FLOOR_PLATFORM_DAILY_MICROS, SPEND_TTL_MS,
   _resetBreakerCache,
 };

@@ -424,6 +424,11 @@ exports.cronDeadman = onSchedule(
       send: (title, body, meta) => ON.notifyOwner(db, Object.assign({ title, body, type: 'cron_watch', clickUrl: '/pro/dashboard.html', idPrefix: 'cron-deadman-' }, meta)),
     });
     logger.info('[cronDeadman]', r);
+    // A tripped AI spend breaker texts the owner from here: the AI entry points
+    // that trip it hold no Twilio secrets (ai-gate.js relayBreakerAlerts). Runs
+    // before the flush so an overnight trip joins the 07:00 summary. Never throws.
+    const relay = await require('./ai-gate').relayBreakerAlerts(db, { nowMs: Date.now(), notify: (m) => ON.notifyOwner(db, m) });
+    if (relay.relayed || relay.failed || relay.error) logger.info('[cronDeadman] ai spend alerts', relay);
     // Every owner alert queued overnight (owner-notify.js) goes out as ONE
     // text on the first run at or after 07:00 ET. Never fails this run. Not
     // gated on `live`: the queue is owner-notify's (other callers fill it),
