@@ -3,7 +3,7 @@
    foundation tokens only (ui-primitives.css); 44px targets; a bottom sheet on
    phones, a centred panel on desktop. */
 .cb-sheet {
-  box-sizing: border-box; width: min(680px, calc(100vw - 32px)); max-height: calc(100vh - 48px);
+  box-sizing: border-box; width: min(680px, calc(100vw - 32px)); max-height: calc(100vh - 48px); max-height: min(calc(100vh - 48px), calc(100dvh - 2 * env(safe-area-inset-top, 0px) - 16px));
   margin: auto; padding: 0; border: 1px solid var(--br, rgba(255,255,255,.15)); border-radius: var(--ui-radius-lg, 12px);
   background: var(--s, #1a1d23); color: var(--t, #fff); box-shadow: var(--ui-elev-3, 0 24px 60px rgba(0,0,0,.55));
   overflow: hidden; font-family: inherit;

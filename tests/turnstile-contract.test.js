@@ -413,7 +413,11 @@ async function behaviour() {
 {
   const envSrc = read('functions/.env.nobigdeal-pro');
   const live = envSrc.split(/\r?\n/).filter((l) => !/^\s*#/.test(l));
-  ok('prod env file sets TURNSTILE_REQUIRED=true (live line, not a comment)', live.some((l) => /^TURNSTILE_REQUIRED=true\s*$/.test(l)));
+  // 2026-11-25: pinned to FALSE on purpose. The prod secret was only ever the
+  // `__unset__` stub, so `true` 403'd every lead (WEB-LEADS-TURNSTILE-OUTAGE-2026-11-25).
+  // Flip this pin back to true in the same PR that turns enforcement back on,
+  // after a real secret version is live and a real submit returns 200.
+  ok('prod env file sets TURNSTILE_REQUIRED=false (live line, not a comment)', live.some((l) => /^TURNSTILE_REQUIRED=false\s*$/.test(l)));
   ok('no second, conflicting TURNSTILE_REQUIRED line', live.filter((l) => /^TURNSTILE_REQUIRED=/.test(l)).length === 1);
   const callers = [];
   (function walk(dir) {
@@ -455,7 +459,7 @@ async function behaviour() {
       const emu = ftEnv.loadUserEnvs({ projectId: 'nobigdeal-pro', functionsSource: tmp, projectDir: tmp, isEmulator: true });
       const dep = ftEnv.loadUserEnvs({ projectId: 'nobigdeal-pro', functionsSource: tmp, projectDir: tmp, isEmulator: false });
       ok('firebase-tools: emulating nobigdeal-pro -> TURNSTILE_REQUIRED=false (override wins)', emu.TURNSTILE_REQUIRED === 'false', String(emu.TURNSTILE_REQUIRED));
-      ok('firebase-tools: a deploy of nobigdeal-pro -> TURNSTILE_REQUIRED=true (.env.local not read)', dep.TURNSTILE_REQUIRED === 'true', String(dep.TURNSTILE_REQUIRED));
+      ok('firebase-tools: a deploy of nobigdeal-pro -> TURNSTILE_REQUIRED=false (.env.local not read)', dep.TURNSTILE_REQUIRED === 'false', String(dep.TURNSTILE_REQUIRED));
     } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
   } else {
     console.log('  ! firebase-tools not installed here: behavioural precedence check skipped (static guards above still ran)');

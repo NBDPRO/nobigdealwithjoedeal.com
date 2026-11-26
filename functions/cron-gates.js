@@ -111,6 +111,8 @@ const CRON_GATES = [
   { name: 'DOC_LINK_FOLLOWUP_ENABLED', polarity: 'enabled', file: 'doc-link-followup.js' },
   // Not a cron: the two Firestore triggers that send the portal key-moment emails (2026-11-04). DARK until Jo says go; also needs messaging_controls/automations portalMomentEmail.
   { name: 'PORTAL_MOMENT_EMAILS_ENABLED', polarity: 'enabled', file: 'portal-moments.js' },
+  // Server mail feed (2026-11-25, roadmap step 17 part A): every 15 min, a READ-ONLY redacted copy of new iCloud + Gmail inbox mail. Needs the mail secrets too. Dark until Joe says go.
+  { name: 'MAIL_FEED_ENABLED', polarity: 'enabled', file: 'mail-feed.js' },
 ];
 
 /**

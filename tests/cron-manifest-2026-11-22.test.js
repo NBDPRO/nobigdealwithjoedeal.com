@@ -114,7 +114,7 @@ console.log('\nC. the declarations are tied to the code (require graph, review 2
     viaMc.files.has('messaging-controls.js') && !viaMc.files.has('send-window.js'), [...viaMc.files]);
   const ex = { aSweep: fakeCron('0 9 * * *', 'America/New_York') };
   const claimsWindow = { aSweep: { sendsToCustomers: 'email', usesSendWindow: true, gate: [] } };
-  const p = CM.check(ex, { aSweep: './backup-freshness' }, Object.assign({ entries: claimsWindow }, codeOpts));
+  const p = CM.check(ex, { aSweep: './integrations/compliance' }, Object.assign({ entries: claimsWindow }, codeOpts));
   ok('usesSendWindow: true on a module that never reaches send-window.js fails', p.some((x) => /aSweep: .*never reaches send-window\.js/.test(x)), p);
   const p2 = CM.check(ex, { aSweep: './lead-followup' }, Object.assign({ entries: claimsWindow }, codeOpts));
   ok('...control: the same entry on lead-followup.js is clean', p2.length === 0, p2);
@@ -123,7 +123,7 @@ console.log('\nC. the declarations are tied to the code (require graph, review 2
   ok('a "none" cron whose code reaches resend / twilio with no why fails', p3.some((x) => /aSweep: .*reaches .*why/.test(x)), p3);
   const p4 = CM.check(ex, { aSweep: './lead-followup' }, Object.assign({ entries: { aSweep: Object.assign({ why: 'test: owner mail only' }, quietNone.aSweep) } }, codeOpts));
   ok('...control: the same entry with a why is clean', p4.length === 0, p4);
-  const p5 = CM.check(ex, { aSweep: './backup-freshness' }, Object.assign({ entries: quietNone }, codeOpts));
+  const p5 = CM.check(ex, { aSweep: './integrations/compliance' }, Object.assign({ entries: quietNone }, codeOpts));
   ok('...and a "none" cron that reaches no sender needs no why', p5.length === 0, p5);
 }
 

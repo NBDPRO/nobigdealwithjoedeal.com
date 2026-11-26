@@ -142,7 +142,7 @@ html.nbd-vr-bar-on #view-home .view-scroll{ padding-bottom:calc(74px + env(safe-
   background:rgba(0,0,0,.6); display:flex; align-items:flex-end; justify-content:center;
 }
 .nbd-vr-sheet{
-  width:100%; max-width:480px; max-height:88vh; overflow-y:auto;
+  width:100%; max-width:480px; max-height:88vh; max-height: min(88vh, calc(100dvh - 2 * env(safe-area-inset-top, 0px) - 16px)); overflow-y:auto;
   background:var(--s2, #181C22); color:var(--t, #E8EAF0);
   border-radius:18px 18px 0 0; border:1px solid var(--br, rgba(255,255,255,.12)); border-bottom:0;
   padding:18px 16px calc(18px + env(safe-area-inset-bottom, 0px));

@@ -314,6 +314,22 @@ async function gatherEmailQueue(db) {
 function emailQueueBad(q) {
   return !q || q.pending >= EMAIL_QUEUE_BACKLOG_WARN || q.failed > 0;
 }
+
+// The digest's failure lines also go to owner-notify.js (bell + push + one
+// capped text, roadmap step 13): a broken email queue means this very email
+// may never arrive. null when nothing is failing.
+function digestAlert({ renderPdf, emailQueue, imagePipe }) {
+  const lines = [];
+  const keys = [];
+  if (renderPdfBroken(renderPdf)) { lines.push('Every server PDF render failed in the last 24h (stage ' + (renderPdf.lastFailStage || 'unknown') + ').'); keys.push('render-pdf'); }
+  if (emailQueueBad(emailQueue)) {
+    lines.push(emailQueue ? 'Email queue: ' + emailQueue.pending + ' pending, ' + emailQueue.failed + ' failed for good.' : 'Email queue counts could not be read.');
+    keys.push('email-queue');
+  }
+  if (imagePipe && imagePipe.genuineRecent) { lines.push('Photo variants were orphaned in the last 24h (no photo doc matched).'); keys.push('image-pipeline'); }
+  if (!lines.length) return null;
+  return { title: '⚠ Health digest: ' + keys.join(', '), body: lines.join('\n'), severity: 'alert', key: 'health-digest:' + keys.join(','), type: 'health_digest', clickUrl: '/pro/dashboard.html', idPrefix: 'health-digest-' };
+}
 function renderEmailQueueSection(q) {
   if (!q) return '<div style="font-size:13px;margin-bottom:14px;color:#c0392b;"><strong>⚠ Email queue counts unavailable</strong> (read failed).</div>';
   const line = '<strong>' + fmtNum(q.pending) + '</strong> pending · <strong>' + fmtNum(q.sending) + '</strong> sending · <strong>' + fmtNum(q.failed) + '</strong> failed for good.';
@@ -422,6 +438,7 @@ exports.healthDigestCron = onSchedule(
     maxInstances: 1,
     timeoutSeconds: 540,
     memory: '512MiB',
+    secrets: require('./owner-notify').SMS_SECRETS,
   },
   async () => {
     const enabled = process.env.HEALTH_DIGEST_ENABLED === 'true';
@@ -460,6 +477,12 @@ exports.healthDigestCron = onSchedule(
       + (renderPdfBroken(renderPdf) ? ' · ⚠ PDF renders failing' : '')
       + (emailQueueBad(emailQueue) ? ' · ⚠ email queue' : '');
 
+    const alert = digestAlert({ renderPdf, emailQueue, imagePipe });
+    if (alert) {
+      try { await require('./owner-notify').notifyOwner(db, alert); }
+      catch (e) { logger.warn('health_digest.owner_notify_failed', e && e.message); }
+    }
+
     await db.collection('email_queue').add({
       to: RECIPIENT,
       subject,
@@ -486,4 +509,4 @@ exports.healthDigestCron = onSchedule(
   }
 );
 
-exports._test = { buildEmailBody, fmtUsd, fmtNum, escHtml, gatherImagePipeline, gatherRenderPdf, renderPdfBroken, renderPdfSection, renderCronGatesSection, renderAiSpendSection, gatherEmailQueue, emailQueueBad, renderEmailQueueSection };
+exports._test = { buildEmailBody, fmtUsd, fmtNum, escHtml, gatherImagePipeline, gatherRenderPdf, renderPdfBroken, renderPdfSection, renderCronGatesSection, renderAiSpendSection, gatherEmailQueue, emailQueueBad, renderEmailQueueSection, digestAlert };

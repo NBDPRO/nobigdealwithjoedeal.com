@@ -40,8 +40,9 @@
  * lastSummaryYmd }. pipeline-deadman.js (run by leadAlertWatchdog every 10
  * min) watches checkedAtMs, so this watcher is watched too.
  *
- * Send: ONE swappable function (owner-notify.js: bell + push to the owner).
- * Never a customer, never a text or email.
+ * Send: ONE swappable function (owner-notify.js: bell + push to the owner,
+ * and for a "down" line one capped text; 'critical' when a CRITICAL job is
+ * down). Never a customer.
  *
  * Gate: CRON_DEADMAN_DISABLED=true -> dry run (computes + logs; stamps
  * checkedAtMs; sends nothing, keeps no outage state).
@@ -335,7 +336,8 @@ function step(state, problems, now, expected) {
     s.lastSummaryYmd = today;
   }
   if (s.queue.length > MAX_QUEUE) s.queue = s.queue.slice(-MAX_QUEUE);
-  return { state: s, lines: now_.map((l) => l.text), jobs: [...new Set(now_.map((l) => l.job))], summary, downSent };
+  const critical = now_.some((l) => CRITICAL.has(l.job) && (l.kind === 'down' || l.kind === 'still'));
+  return { state: s, lines: now_.map((l) => l.text), jobs: [...new Set(now_.map((l) => l.job))], summary, downSent, critical };
 }
 
 /**
@@ -360,7 +362,9 @@ function expectedJobs() {
 }
 
 /**
- * One check. deps: { db, nowMs, live, send(title, body) -> Promise<{ pushed }?>, expected? }.
+ * One check. deps: { db, nowMs, live, send(title, body, { severity, key }) -> Promise<{ pushed }?>, expected? }.
+ * severity: 'critical' when a CRITICAL job is down, 'alert' for any other
+ * down / still-down line, 'info' when the message only reports recoveries.
  * Returns { state, problems, downSent, sent, sendError?, pushFailed? }. A read failure
  * rejects (a watcher that cannot read must not look healthy).
  */
@@ -391,7 +395,8 @@ async function run(deps) {
     const msg = message(r);
     let res;
     try {
-      res = await deps.send(msg.title, msg.body);
+      const severity = r.critical ? 'critical' : (r.downSent > 0 ? 'alert' : 'info');
+      res = await deps.send(msg.title, msg.body, { severity, key: 'cron-deadman:' + r.jobs.slice().sort().join(',') });
     } catch (e) {
       // Keep the old outage state, so the next run sends it again.
       await db.doc(STATE_DOC).set(Object.assign({}, state, { startedAtMs, checkedAtMs: nowMs }), { merge: false });
@@ -408,15 +413,23 @@ async function run(deps) {
 }
 
 exports.cronDeadman = onSchedule(
-  { schedule: 'every 30 minutes', timeZone: 'America/New_York', timeoutSeconds: 120, memory: '256MiB', maxInstances: 1 },
+  { schedule: 'every 30 minutes', timeZone: 'America/New_York', timeoutSeconds: 120, memory: '256MiB', maxInstances: 1, secrets: require('./owner-notify').SMS_SECRETS },
   async () => {
     const { getFirestore } = require('firebase-admin/firestore');
     const db = getFirestore();
+    const ON = require('./owner-notify');
+    const live = !deadmanDisabled();
     const r = await run({
-      db, nowMs: Date.now(), live: !deadmanDisabled(),
-      send: (title, body) => require('./owner-notify').notifyOwner(db, title, body, { type: 'cron_watch', clickUrl: '/pro/dashboard.html', idPrefix: 'cron-deadman-' }),
+      db, nowMs: Date.now(), live,
+      send: (title, body, meta) => ON.notifyOwner(db, Object.assign({ title, body, type: 'cron_watch', clickUrl: '/pro/dashboard.html', idPrefix: 'cron-deadman-' }, meta)),
     });
     logger.info('[cronDeadman]', r);
+    // Every owner alert queued overnight (owner-notify.js) goes out as ONE
+    // text on the first run at or after 07:00 ET. Never fails this run. Not
+    // gated on `live`: the queue is owner-notify's (other callers fill it),
+    // and a deadman dry run must not strand it.
+    try { const f = await ON.flushOwnerQueue(db); if (f.sms !== 'none') logger.info('[cronDeadman] owner text queue', f); }
+    catch (e) { logger.warn('[cronDeadman] owner text queue flush failed', { err: e && e.message }); }
     if (r.sendError) throw new Error('cronDeadman: alert send failed: ' + r.sendError + ' (jobs: ' + r.problems.join(', ') + ')');
     if (r.pushFailed) throw new Error('cronDeadman: alert written to the bell but the push reached no device (jobs: ' + r.problems.join(', ') + ')');
     if (r.downSent > 0) throw new Error('cronDeadman: ' + r.problems.join(', '));
@@ -425,3 +438,4 @@ exports.cronDeadman = onSchedule(
 
 exports._test = { cadenceMs, nextDue, cronGapMs, periodMs, slackMs, judgeJobs, step, expectedJobs, isDaytime, CRITICAL, ALERT_START_H, ALERT_END_H, STATE_DOC, SELF };
 exports.run = run;
+exports.isDaytime = isDaytime;

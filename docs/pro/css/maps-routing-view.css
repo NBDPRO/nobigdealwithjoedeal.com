@@ -3,7 +3,7 @@
 .mrx-fs10px-w700-ls1em.mrx-fs10px-w700-ls1em.mrx-fs10px-w700-ls1em { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--orange,#BD5728); margin-bottom: 6px; }
 .mrx-dflex-flewrap-gap4px.mrx-dflex-flewrap-gap4px.mrx-dflex-flewrap-gap4px { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .mrx-mt4px.mrx-mt4px.mrx-mt4px { margin-top: 4px; }
-.mrx-fs10px-c888-curpointer.mrx-fs10px-c888-curpointer.mrx-fs10px-c888-curpointer { font-size: 10px; color: #888; cursor: pointer; user-select: none; }
+.mrx-fs10px-c888-curpointer.mrx-fs10px-c888-curpointer.mrx-fs10px-c888-curpointer { font-size: 10px; color: #888; cursor: pointer; -webkit-user-select: none; user-select: none; }
 .mrx-dflex-flewrap-gap4px-2.mrx-dflex-flewrap-gap4px-2.mrx-dflex-flewrap-gap4px-2 { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .mrx-mt8px-dflex-gap4px.mrx-mt8px-dflex-gap4px.mrx-mt8px-dflex-gap4px { margin-top: 8px; display: flex; gap: 4px; }
 .mrx-fx1-bge0525220-bd1pxsolid.mrx-fx1-bge0525220-bd1pxsolid.mrx-fx1-bge0525220-bd1pxsolid { flex: 1; background: #E0525220; border: 1px solid #E05252; color: #E05252; padding: 5px; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: 600; }
