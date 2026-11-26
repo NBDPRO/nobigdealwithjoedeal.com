@@ -123,7 +123,7 @@ function walk(dir, out) {
 const pages = walk(path.join(ROOT, 'docs'), []);
 const pageRel = pages.map(rel);
 ok('scan covers the public site (> 250 pages)', pages.length > 250, 'pages=' + pages.length);
-for (const must of ['docs/services/hail-damage-mt-orab-oh.html', 'docs/blog/cincinnati-hail-season-2026.html', 'docs/about.html',
+for (const must of ['docs/services/storm-damage-mt-orab-oh.html', 'docs/blog/cincinnati-hail-season-2026.html', 'docs/about.html',
   'docs/services/storm-damage.html', 'docs/services/hail-damage-insurance-claim.html', 'docs/services/storm-damage-covington-ky.html']) {
   ok('scan includes ' + must, pageRel.includes(must));
 }

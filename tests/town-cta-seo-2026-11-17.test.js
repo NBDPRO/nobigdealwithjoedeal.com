@@ -33,7 +33,7 @@ function walk(dir, out) {
 const doc = (r) => K.parseTags(K.read(r));
 const squash = (s) => s.replace(/\s+/g, ' ').trim();
 const LEX = new Set(['areas/lexington-ky', 'areas/georgetown-ky', 'areas/richmond-ky', 'areas/winchester-ky', 'areas/nicholasville-ky', 'areas/versailles-ky',
-  'services/hail-damage-lexington-ky', 'services/storm-damage-lexington-ky', 'services/roof-replacement-lexington-ky'].map((p) => 'docs/' + p + '.html'));
+  'services/storm-damage-lexington-ky', 'services/roof-replacement-lexington-ky'].map((p) => 'docs/' + p + '.html'));
 const LEX_CAL = 'https://cal.com/nobigdeal/roof-inspection-lexington';
 // Eight towns keep their 2026-10-07 Search Console titles; six keep that pass's descriptions too
 const GSC_TITLE = new Set(['fort-mitchell-ky', 'indian-hill-oh', 'amelia-oh', 'mt-orab-oh', 'loveland-oh', 'montgomery-oh', 'mason-oh', 'cincinnati-oh']);
@@ -62,7 +62,7 @@ section('1. one booking path on area and service pages');
     const a = docs.get(r).$$('.cta-section a, .final-cta a').filter((x) => (x.attr('href') || '') === LEX_CAL);
     return a.length !== 1 || squash(a[0].text) !== 'Book a free inspection' || a[0].attr('target') !== '_blank' || !a[0].attr('rel').includes('noopener');
   });
-  ok('the 9 Central KY pages book on the Lexington cal.com event (/inspect cannot route Lexington)', LEX.size === 9 && lexBad.length === 0, lexBad.join(', '));
+  ok('the 8 Central KY pages book on the Lexington cal.com event (/inspect cannot route Lexington)', LEX.size === 8 && lexBad.length === 0, lexBad.join(', '));
   const fl = docs.get('docs/areas/florence-ky.html').$$('.cta-section a').map((a) => (a.attr('href') || '') + ' | ' + squash(a.text));
   ok('Florence final CTA is the phone link then /inspect "Book a free inspection"',
     fl.length === 2 && fl[0].startsWith('tel:+18594207382') && fl[1] === '/inspect | Book a free inspection', fl.join(' ;; '));
@@ -96,12 +96,15 @@ section('3. service hero proof row');
   ok(withProof.length + ' pages with a proof row all carry "Fully insured" + the live rating hook', withProof.length >= 14 && bad.length === 0, bad.join(', '));
 }
 
-section('4. hail-damage town pages');
+section('4. hail-damage town pages (merged into storm-damage-<town>, 2026-11-26)');
 {
+  // GSC content merge: each hail-damage-<town> page now lives inside its storm
+  // twin, retitled "Hail & Storm Damage Roof Repair"; firebase.json 301s the old URLs.
   const hail = pages.filter((r) => /^docs\/services\/hail-damage-[a-z-]+-(oh|ky)\.html$/.test(r));
-  const bad = hail.filter((r) => docs.get(r).$$('h2').some((h) => /Insurance Claims|Hail Damage Repair|Hail Damage Claims|Hail Claims|Claims Estimate/.test(squash(h.text)))).map((r) => r);
-  ok(hail.length + ' hail-damage town pages: no "Insurance Claims" / "Repair" heading under a "Roof Inspection" title', hail.length >= 26 && bad.length === 0, bad.join(', '));
-  const m = docs.get('docs/services/hail-damage-mt-orab-oh.html');
+  const storm = pages.filter((r) => /^docs\/services\/storm-damage-[a-z-]+-(oh|ky)\.html$/.test(r));
+  const bad = storm.filter((r) => !squash(docs.get(r).$('title').text).replace(/&amp;/g, '&').startsWith('Hail & Storm Damage Roof Repair in ')).map((r) => r);
+  ok('no hail-damage town page is left; ' + storm.length + ' storm twins carry the "Hail & Storm Damage Roof Repair" title', hail.length === 0 && storm.length >= 26 && bad.length === 0, hail.concat(bad).join(', '));
+  const m = docs.get('docs/services/storm-damage-mt-orab-oh.html');
   const faq = m.$$('.faq-a').map((e) => squash(e.text)).join(' ');
   ok('Mt. Orab FAQ no longer says an inspection settles whether a claim is worth pursuing', !faq.includes('definitively'), faq.slice(0, 200));
   ok('Mt. Orab FAQ says what the inspection documents instead', faq.includes('documents what is on your roof, with photos, so you can decide whether to file a claim'));
@@ -142,14 +145,14 @@ section('6. follow-ups: unsourced / outcome wording, breadcrumbs, remaining book
 {
   const flo = squash(docs.get('docs/areas/florence-ky.html').$('.city-hero-content p').text);
   ok('Florence hero no longer claims "busiest roofing market" or that other contractors won\'t cross the river', !flo.includes('busiest') && !flo.includes('cross the river') && flo.includes('same pricing'), flo);
-  const cl = docs.get('docs/services/hail-damage-clarksville-oh.html');
+  const cl = docs.get('docs/services/storm-damage-clarksville-oh.html');
   const clText = cl.$$('.faq-a').map((e) => squash(e.text)).join(' ') + cl.$$('script[type="application/ld+json"]').map((e) => e.html).join(' ');
   ok('Clarksville no longer says "you have a claim right" or "definitively"', !clText.includes('claim right') && !clText.includes('definitively') && clText.includes('so you can decide whether to file a claim'));
   const an = squash(docs.get('docs/services/roof-repair-anderson-township-oh.html').$$('.inc-item').map((e) => e.text).join(' | '));
   ok('Anderson Twp roof-repair scope no longer says it identifies if a claim is worth pursuing', !an.includes('worth pursuing') && an.includes('documents the damage so you can decide whether to file a claim'));
-  const hail = pages.filter((r) => /^docs\/services\/hail-damage-[a-z-]+-(oh|ky)\.html$/.test(r) && !r.endsWith('insurance-claim.html'));
+  const hail = pages.filter((r) => /^docs\/services\/storm-damage-[a-z-]+-(oh|ky)\.html$/.test(r));
   const crumb = hail.filter((r) => { const d = docs.get(r); return d.$$('.breadcrumb span, .breadcrumb a').some((e) => squash(e.text).startsWith('Hail Damage Repair')) || d.$$('script[type="application/ld+json"]').some((e) => e.html.includes('Hail Damage Repair')); });
-  ok(hail.length + ' hail town pages: breadcrumbs say "Hail Damage Inspection", not "Repair"', crumb.length === 0, crumb.slice(0, 3).join(', '));
+  ok(hail.length + ' hail & storm town pages: no "Hail Damage Repair" breadcrumb left over', hail.length >= 26 && crumb.length === 0, crumb.slice(0, 3).join(', '));
   const ic = docs.get('docs/services/hail-damage-insurance-claim.html').$$('.final-cta a').map((a) => a.attr('href'));
   ok('hail-damage-insurance-claim final CTA books through /inspect, not /book', ic.includes('/inspect') && !ic.includes('/book'), ic.join(', '));
   const cp = docs.get('docs/services/roof-care-plan.html');
