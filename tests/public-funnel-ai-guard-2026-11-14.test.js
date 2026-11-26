@@ -229,8 +229,10 @@ const ESTIMATE = {
   const v = body.indexOf('buildFunnelRequest('), c = body.indexOf("publicAiDailyCap(res, 'publicFunnelAI')"), f = body.indexOf("fetch('https://api.anthropic.com");
   ok('buildFunnelRequest runs before publicAiDailyCap, which runs before the model call', v !== -1 && c !== -1 && f !== -1 && v < c && c < f, { v, c, f });
 
-  console.log('\nThe three pages send structured requests, never a prompt');
-  for (const p of ['docs/assets/js/inline/4053149b2f.js', 'docs/assets/js/roof-score.js', 'docs/assets/js/storm-check.js']) {
+  // 2026-11-25: /roof-score and /storm-check merged into /roof-check (kind 'stormCheck');
+  // no page posts kind 'roofScore' now, and the server still validates it.
+  console.log('\nThe pages send structured requests, never a prompt');
+  for (const p of ['docs/assets/js/inline/4053149b2f.js', 'docs/assets/js/roof-check.js']) {
     const js = fs.readFileSync(path.join(ROOT, p), 'utf8');
     ok(p + ' sends no `prompt:` to publicFunnelAI', !/prompt:\s*prompt/.test(js) && !/var prompt = 'You are Joe Deal/.test(js));
     const kinds = (js.match(/kind:\s*'(estimate|note|roofScore|stormCheck)'/g) || []).length;

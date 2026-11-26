@@ -1,8 +1,9 @@
 /**
  * functions/public-funnel-ai-logic.js — request shaping for publicFunnelAI.
  *
- * publicFunnelAI is unauthenticated (the /estimate funnel, /roof-score and
- * /storm-check). Until 2026-11-14 it took a free-text `prompt` from the
+ * publicFunnelAI is unauthenticated (the /estimate funnel and /roof-check;
+ * /roof-score and /storm-check posted it until they merged into /roof-check
+ * on 2026-11-25. No page posts kind 'roofScore' now; it stays validated). Until 2026-11-14 it took a free-text `prompt` from the
  * browser, so it worked as a general-purpose chatbot, and it counted the
  * whole-endpoint daily cap BEFORE checking the body, so empty requests could
  * use the cap up and switch the AI off for real homeowners for the day.
@@ -19,7 +20,7 @@
 'use strict';
 
 // Tile answers must be one of the values the three pages actually offer
-// (docs/estimate.html, roof-score.html, storm-check.html); anything else is
+// (docs/estimate.html, roof-check.html; roof-score.html until 2026-11-25); anything else is
 // refused, so these fields can't carry instructions to the model.
 const TIMELINES = new Set(['asap', 'few-weeks', '1-3-months', 'exploring']);
 const ROOF_AGES = new Set(['<5', '5-10', '10-15', '15-20', '20+', 'unsure']);
