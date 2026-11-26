@@ -8,16 +8,16 @@ Jo in the 18-improvement site sweep (lane: "inspect form step tracking").
 
 | Form | Already sent | Missing |
 |---|---|---|
-| All forms (`public-lead-submit.js`) | `generate_lead` on a saved lead, `lead_submit_failed` on any failure (#3263) | the attempt itself, so saved/failed had no denominator |
+| All forms (`public-lead-submit.js`) | `generate_lead` on a saved lead, `lead_submit_failed` on any failure (2026-11-25) | the attempt itself, so saved/failed had no denominator |
 | `/inspect` (`inspect-analytics.js`) | `inspect_form_start`, `inspect_form_error`, `contact_tap` | step views and completes, the thank-you "add details" step. **`inspect_form_error` had not fired for a validation error since 2026-10-26**: the error line moved under the first bad field, and the observer only watched the form's own children. Fixed here (`subtree: true`), with a test that fails on the old code. |
 | Homepage + service/town quick form (`quick-lead-form.js`) | nothing but `generate_lead` | everything |
-| `/storm-check` (`storm-check.js`) | `storm_check_complete` on the result | every step, every "pick an answer" stop |
+| `/roof-check` (`roof-check.js`; replaced /storm-check, /roof-score and /storm-report in #3263 the same day) | `roof_check_generate`, `_history`, `_questions`, `_contact`, `_submit`, `_complete` | step completes, every "pick an answer" / contact stop, the details step |
 | `/estimate` (`inline/4053149b2f.js`) | `funnel_step` per step view, `funnel_lead_save_failed` | step completes, validation stops, the step-1 save succeeding |
 
 ## The event list
 
 Shared names, every form. `form` says which one: `inspect`, `quick`,
-`storm_check`, `estimate`.
+`roof_check`, `estimate`.
 
 | Event | When | Params |
 |---|---|---|
@@ -39,12 +39,12 @@ follow-up saves (`estimate_result`, `cta_click`, `email_estimate_request`) and
 |---|---|
 | `inspect` | 1 `contact` (the form) → 2 `details` (optional, on the thank-you screen) |
 | `quick` | 1 `contact`. The view fires when the form scrolls onto the screen, not on page load (the homepage form sits far down) |
-| `storm_check` | 1 `address` → 2 `storm` → 3 `roof` → 4 `signs` → 5 `contact` (the lead saves here) → 6 `checking` → 7 `result` (`lead_saved` true/false) → 8 `details` (optional) |
+| `roof_check` | 1 `address` → 2 `history` (the free storm history; `lookup_failed` true/false) → 3 `roof` → 4 `contact` (the lead saves here) → 5 `writing` → 6 `result` (`lead_saved` true/false) → 7 `details` (optional) |
 | `estimate` | 1 `address` (contact is on this step; the lead saves when it completes) → 2 `confirm_home` → 3 `project` → 4 `ballpark` → 5 `contact` → 6 `results` |
 
 Old names kept, so nothing already built on them breaks: `inspect_form_start`,
 `inspect_form_error`, `contact_tap`, `funnel_step`, `funnel_lead_save_failed`,
-`storm_check_complete`. New on /estimate: `funnel_lead_saved {at:'step1', created}`
+the six `roof_check_*` events. New on /estimate: `funnel_lead_saved {at:'step1', created}`
 next to `funnel_lead_save_failed`.
 
 ### No personal data
@@ -80,8 +80,8 @@ Unchanged, and respected as it stands:
    created, so do this first.
 2. **Funnel**: Explore → Funnel exploration. Add one step per row, each
    "Event name = `form_step_view`" with a parameter condition, for example for
-   /storm-check: `form = storm_check` and `step_name = address`, then
-   `storm`, `roof`, `signs`, `contact`, `result`. Leave "Make open funnel" off
+   /roof-check: `form = roof_check` and `step_name = address`, then
+   `history`, `roof`, `contact`, `result`. Leave "Make open funnel" off
    (a closed funnel) to see true drop-off. Breakdown by `Device category` shows phone
    vs desktop.
    - /inspect: `form_step_view (inspect, contact)` → `form_start (inspect)` →
@@ -114,9 +114,11 @@ Jo's GA property. Walked each form through an error, a fix and a send:
 - Homepage quick form: nothing until scrolled into view, then
   `form_step_view` → `form_start` → `form_error (phone)` → `lead_submit` →
   `generate_lead` → `form_step_complete`.
-- /storm-check: all 8 steps in order, `form_error` for a missing address,
-  `stormWhen,stormType` and `sc-firstName,sc-phone`, `lead_submit` /
-  `generate_lead` at the contact step, `form_step_view 7 result lead_saved:true`.
+- /roof-check: steps 1 → 7 in order, `form_error` for a missing address,
+  `roofAge` and `rc-firstName,rc-phone`, `lead_submit` / `generate_lead` at the
+  contact step, `form_step_view 6 result lead_saved:true`, then the details
+  step. (The first walk was on /storm-check, before #3263 merged it away; the
+  same events were then moved to /roof-check and walked again.)
 - /estimate: `funnel_step` + `form_step_view` per step, `form_error` on step 1
   (empty fields, then `address_lookup`), `lead_submit` → `generate_lead` →
   `funnel_lead_saved {created:true}` on the step-1 save, and no second
@@ -127,16 +129,17 @@ Tests (each new check fails against the pre-change scripts):
 `tests/lead-submit-failure-signal-2026-11-25.test.js` (`lead_submit`),
 `tests/lead-form-feedback-2026-10-26.test.js` (quick form),
 `tests/estimate-funnel-unblock-2026-10-03.test.js` (/estimate),
-`tests/inspect-cro-light-2026-10-06.test.js` (/inspect, incl. the subtree fix).
-/storm-check and inspect-form.js's step 1 complete / details step are covered
-by the browser walk only.
+`tests/inspect-cro-light-2026-10-06.test.js` (/inspect, incl. the subtree fix),
+`tests/roof-check-merge-2026-11-25.test.js` (/roof-check).
+inspect-form.js's step-1 complete and details step are covered by the
+browser walk only.
 
 ## Notes
 
 - `quick-lead-form.js` is referenced without a `?v=` on many pages, so repeat
   visitors can run the old copy for up to 24 h (`/assets/js/**` cache). The
   other edited scripts were re-versioned (`inspect-form.js?v=13`,
-  `storm-check.js?v=11`, wizard loader `?v=11` → wizard `?v=12`).
+  `roof-check.js?v=2`, wizard loader `?v=11` → wizard `?v=12`).
 - The step-3 button on /estimate stays disabled until service, home size and
   timeline are picked (`btnStep3`), so a `form_error` at step 3 is rare by
   design: a stall there shows as a view with no complete.
