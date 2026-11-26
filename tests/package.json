@@ -81,6 +81,7 @@
     "test:thursday": "firebase emulators:exec --only firestore --project demo-nbd-thursday 'node ./thursday-pipeline.integration.test.js'",
     "test:thursdaypb": "firebase emulators:exec --only firestore --project demo-nbd-thursday-pb 'node ./thursday-label-playbooks.integration.test.js'",
     "test:inboxdedupe": "firebase emulators:exec --only firestore --project demo-nbd-inbox-dedupe 'node ./agent-inbox-dedupe.integration.test.js'",
+    "test:quinngate": "firebase emulators:exec --only firestore --project demo-nbd-quinn-gate 'node ./quinn-gate.integration.test.js'",
     "test:portal": "firebase emulators:exec --only functions,firestore --project demo-nbd-portal 'node ./portal-token.test.js'",
     "test:publicintake": "firebase emulators:exec --only functions,firestore --project demo-nbd-pl 'node ./public-intake.test.js'",
     "test:e2e": "playwright test --config=playwright.config.js",
