@@ -176,7 +176,17 @@ const BAD = {
   // 2026-10-05 — the shipped homeowner lines each was written for.
   'claim-outcome-prediction': 'You likely have a claimable loss — worth a free inspection.',
   'covers-regardless': 'If the damage was caused by a covered peril like hail or wind, insurance should cover it regardless of age.',
+  // 2026-11-26 (Jo) — allowed in section 2 until today; now a verdict on the claim.
+  'claim-verdict': "I'll get on your roof, tell you what you actually have, and walk you through whether a claim makes sense.",
 };
+// The claim-verdict family (2026-11-26), each a shipped line before the sweep.
+for (const s of [
+  "I'll get on the roof, document everything, and tell you whether a claim makes sense — no pressure either way.",
+  'If your area was hit, my free inspection will confirm whether damage occurred and whether a claim makes sense.',
+  'I assess the cause and advise whether an insurance path makes sense before you file anything.',
+  'I evaluate storm-related damage and help property owners determine whether a repair-level claim or full replacement claim is appropriate based on what the inspection actually shows.',
+  'I document the damage, meet your adjuster, and will tell you upfront whether filing makes sense.',
+]) ok(checkSentence(s).length > 0, `claim-verdict family is caught: "${s.slice(0, 70)}"`);
 // The outcome-prediction family (2026-10-05), each caught by SOME rule.
 for (const s of [
   'Strong claim potential — get it documented.',
@@ -244,7 +254,9 @@ const GOOD = [
   'If a shingle defect shows up, I handle the GAF warranty claim support paperwork.',
   'A public adjuster can help you file and argue the claim; I stick to the documentation.',
   // 2026-10-02 rules: explaining, and advice the homeowner acts on, pass.
-  "I'll get on your roof, tell you what you actually have, and walk you through whether a claim makes sense.",
+  // 2026-11-26: Jo's approved sentence (the old "walk you through whether a claim makes sense" now fails).
+  'I document the damage with photos so you can decide whether to file a claim.',
+  "Joe will inspect the damage and document it with photos so you can decide whether to file a claim, before you do anything.",
   "I'll walk you through what a claim looks like for your specific situation.",
   "I'll walk your roof, look at your exposure, and talk through your options.",
   'You can request a reinspection in writing, and many policies include an appraisal clause.',
