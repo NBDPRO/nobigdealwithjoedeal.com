@@ -105,7 +105,7 @@ async function getBrief(o) {
     try {
       const req = B.buildRequest(facts);
       const resp = await callModel(req);
-      await AiSpend.recordAiSpend(AiSpend.rowFromAnthropic('brief-me', req.model, resp), { db, nowMs, log });
+      await AiSpend.recordAiSpend(AiSpend.rowFromAnthropic('brief-me', req.model, resp), { db, nowMs, log, companyId: lead.companyId || lead.userId });
       brief = B.parseBrief(resp);
       if (brief) source = 'ai';
     } catch (e) {
@@ -124,16 +124,15 @@ async function getBrief(o) {
   return out;
 }
 
-/** May this caller spend AI on a brief right now? (verified email + paid plan, kill switch off) */
-async function aiAllowed(db, auth) {
-  const t = auth.token || {};
-  const isAdmin = t.role === 'admin';
-  if (!isAdmin && t.email_verified !== true) return false;
+/**
+ * May this caller spend AI on a brief right now? Kill switch off, then the one
+ * AI gate (functions/ai-gate.js aiGate: verified email + paid plan, fails
+ * closed; and the daily spend breaker). Any refusal = false (the fallback brief).
+ */
+async function aiAllowed(db, auth, feature) {
   try { if (await require('./integrations/killswitch').isAiDisabled()) return false; } catch (_) { /* fail open to the cap */ }
-  if (isAdmin) return true;
-  const sub = await db.doc('subscriptions/' + (t.companyId || auth.uid)).get().catch(() => null);
-  const s = sub && sub.exists ? sub.data() : null;
-  return !!(s && s.plan && s.plan !== 'free' && (s.status === 'active' || s.status === 'trialing'));
+  const g = await require('./ai-gate').aiGate(db, { auth: auth || {}, feature: feature || 'brief-me' });
+  return g.ok === true;
 }
 
 /** Per-user daily cap on fresh generations (transaction; false = over cap). */

@@ -583,10 +583,12 @@ async function channelRead(w, owner) {
   w = world({ v9cons00002: cap('v9cons00002', { consentMode: 'one_party', disclosureAckedAtMs: START }) }, { seed: { ['companies/' + OWNER]: { recordingConsentMode: 'two_party_attested' } } });
   out = await run(w, 'v9cons00002');
   ok('F2 CONTROL: the same company with the acknowledgement on the doc is processed', D(w, 'v9cons00002').pipelineStatus === 'ready' && counts.transcribe === 1);
-  stub({ consent: () => ({ consented: false }) });
+  let consentArgs = null;
+  stub({ consent: (a) => { consentArgs = a; return { consented: false }; } });
   w = world({ v9cons00003: cap('v9cons00003', { consentMode: 'one_party' }) }, { seed: { ['companies/' + OWNER]: { recordingConsentMode: 'two_party_verbal' } } });
   out = await run(w, 'v9cons00003');
   ok('F2: a two-party-verbal company: the phone saying one_party does not skip the opening-window check (no yes -> quarantined)', D(w, 'v9cons00003').pipelineStatus === 'quarantined_consent' && counts.consent === 1 && D(w, 'v9cons00003').transcript === null);
+  ok('the consent check is billed to the visit\'s company (its spend lands on that company\'s daily AI counter)', !!consentArgs && consentArgs.companyId === OWNER, consentArgs && consentArgs.companyId);
   stub();
   w = world({ v9cons00004: cap('v9cons00004', { consentMode: 'one_party' }) });
   out = await run(w, 'v9cons00004');
@@ -1037,6 +1039,13 @@ async function channelRead(w, owner) {
   w = world({ v12blip0001: cap('v12blip0001') });
   await run(w, 'v12blip0001');
   ok('a plan-check blip parks it for a retry (not failed), no spend', counts.transcribe === 0 && D(w, 'v12blip0001').pipelineStatus !== 'failed' && D(w, 'v12blip0001').pipelineNote === 'plan_check_failed' && D(w, 'v12blip0001').pipelineNextAtMs > NOW);
+  // 2026-11-25: the AI spend breaker (functions/ai-gate.js) lifts on its own: parked, never failed.
+  for (const reason of ['company_cap', 'platform_cap', 'paused']) {
+    stub({ entitled: () => ({ ok: false, reason }) });
+    w = world({ v12brk00001: cap('v12brk00001') });
+    await run(w, 'v12brk00001');
+    ok('the spend breaker (' + reason + ') parks it for a retry (not failed), no spend', counts.transcribe === 0 && counts.notes === 0 && D(w, 'v12brk00001').pipelineStatus !== 'failed' && D(w, 'v12brk00001').pipelineNote === reason && D(w, 'v12brk00001').pipelineNextAtMs > NOW, J(D(w, 'v12brk00001')));
+  }
   stub({ budget: () => ({ overBudget: true, claudeOver: true, audioOver: false }) });
   w = world({ v12cap00001: cap('v12cap00001', { transcript: TRANSCRIPT, pipelineStatus: 'notes_pending' }) });
   await run(w, 'v12cap00001');

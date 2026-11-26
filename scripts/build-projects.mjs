@@ -1153,6 +1153,9 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
 <!-- nbd:partial schema-entity -->
 <!-- /nbd:partial schema-entity -->
 <link rel="stylesheet" href="/assets/css/nbd-nav.css">
+<script defer src="/assets/js/ga-loader.js" data-gtag="https://www.googletagmanager.com/gtag/js?id=G-8PG7N9Q3DL"></script>
+<script defer src="/assets/js/inline/2a90205f1b.js"></script>
+<script defer src="/assets/js/clarity-loader.js"></script>
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 <!-- nbd:partial nav-standard cta_href="/inspect" -->

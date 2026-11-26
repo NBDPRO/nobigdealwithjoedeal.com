@@ -223,7 +223,8 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
 //    or the owner. The set of files that can QUEUE a row is pinned, so a new writer (for example one that
 //    queues a homeowner email) must be reviewed and added here on purpose.
 {
-  const QUEUE_WRITERS = ['backup-freshness.js', 'care-plan.js', 'health-digest.js', 'integrations/compliance.js',
+  // ai-gate.js (2026-11-25): the AI spend breaker's one-a-day alert to the platform owner (sendBreakerAlert).
+  const QUEUE_WRITERS = ['ai-gate.js', 'backup-freshness.js', 'care-plan.js', 'health-digest.js', 'integrations/compliance.js',
     'messaging-controls-fns.js', 'monthly-overhead-alert.js', 'pro-prospects.js', 'stripe.js', 'tenant-ops.js'];
   const QUEUE_READERS = ['integrations/email-queue-worker.js', 'messaging-center.js'];
   const found = files.filter((f) => /email_queue['"\/`]/.test(stripJsComments(fs.readFileSync(path.join(ROOT, f.rel), 'utf8'))))
