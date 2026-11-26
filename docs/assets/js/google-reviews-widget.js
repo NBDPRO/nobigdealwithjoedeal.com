@@ -163,6 +163,16 @@
     const limitAttr = container.getAttribute ? container.getAttribute('data-nbd-gr-limit') : null;
     const limit = limitAttr === 'all' ? reviews.length : (parseInt(limitAttr, 10) > 0 ? parseInt(limitAttr, 10) : 6);
 
+    // Compact (2026-11-26, CRO open item 4): beside a lead form, just the newest
+    // card(s) under one small label, no rating/count pills, one column so a
+    // 300 px phone form column never overflows. Same live payload, same dates.
+    if (container.hasAttribute && container.hasAttribute('data-nbd-gr-compact')) {
+      container.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:.78rem;font-weight:700;color:#5d6673;text-transform:uppercase;letter-spacing:.06em">${GOOGLE_G(16)} Newest Google review${limit > 1 ? 's' : ''}</div>
+        ${reviews.slice(0, limit).map(renderReviewCard).join('')}
+      </div>`;
+    } else {
     container.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:24px">
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:center;text-align:center">
@@ -190,6 +200,7 @@
           ${reviews.slice(0, limit).map(renderReviewCard).join('')}
         </div>
       </div>`;
+    }
     // Hide avatars whose Google URL has expired/404s. Was an inline
     // onerror= attribute, but the global CSP's script-src-attr 'none'
     // refuses inline handlers even in JS-built markup (audit 2026-06-10) —
@@ -268,22 +279,44 @@
 
   // Last good payload, so hooks rendered AFTER the fetch (the quick form on
   // service/area pages builds its trust line in JS) can be hydrated too.
+  // Same for review containers: every [data-nbd-google-reviews] on the page is
+  // filled (2026-11-26; it used to be only the first), including one a script
+  // adds after the fetch (the compact card beside the service-page quick form).
+  // Each is filled once; data-nbd-gr-filled marks it.
   let _lastData = null;
-  window.nbdHydrateReviewHooks = function () { if (_lastData) hydrateStaticHooks(_lastData); };
+  let _failed = false;
+  function fillContainers() {
+    if (!_lastData && !_failed) return;
+    document.querySelectorAll('[data-nbd-google-reviews]').forEach((el) => {
+      if (el.hasAttribute('data-nbd-gr-filled')) return;
+      el.setAttribute('data-nbd-gr-filled', '');
+      try {
+        if (_lastData) renderAll(el, _lastData);
+        else renderFallback(el);
+      } catch (err) {
+        console.warn('[google-reviews] render failed:', err);
+        renderFallback(el);
+      }
+    });
+  }
+  window.nbdHydrateReviewHooks = function () {
+    if (_lastData) hydrateStaticHooks(_lastData);
+    fillContainers();
+  };
 
   async function load() {
-    const container = document.querySelector('[data-nbd-google-reviews]');
+    const containers = document.querySelectorAll('[data-nbd-google-reviews]');
     // 2026-10-03: the trust line above every lead form's Submit carries a
     // data-nbd-gr-rating hook on pages with NO review cards (/estimate,
     // /storm-check, /storm-alerts, /inspect, the quick form). Hydrate those
     // too; with neither cards nor hooks there is nothing to fetch for.
     const hasHooks = !!document.querySelector('[data-nbd-gr-rating],[data-nbd-gr-total],[data-nbd-gr-count],[data-nbd-gr-stars]');
-    if (!container && !hasHooks) return;
+    if (!containers.length && !hasHooks) return;
 
-    if (container) {
-      container.innerHTML =
+    containers.forEach((el) => {
+      el.innerHTML =
         '<div style="text-align:center;padding:32px;color:#5d6673;font-size:.9rem">Loading Google reviews&hellip;</div>';
-    }
+    });
 
     try {
       const res = await fetch(ENDPOINT, { credentials: 'omit' });
@@ -292,11 +325,11 @@
       if (data && data.error) throw new Error(data.error);
       _lastData = data || {};
       hydrateStaticHooks(data || {});
-      if (container) renderAll(container, data || {});
     } catch (err) {
       console.warn('[google-reviews] load failed:', err);
-      if (container) renderFallback(container);
+      _failed = true;
     }
+    fillContainers();
   }
 
   if (document.readyState === 'loading') {

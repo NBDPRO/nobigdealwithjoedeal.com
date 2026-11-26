@@ -38,3 +38,6 @@
 .qlf-more>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-size:.84rem;font-weight:700;color:#12223d}
 .qlf-more>summary em{font-style:normal;font-weight:600;color:#646c7a;margin-left:4px}
 .qlf-more[open]{padding-bottom:4px}
+/* newest Google review under Send, service pages (2026-11-26) */
+.qlf-review{margin-top:16px;padding-top:16px;border-top:1px solid #e8e5e0}
+.qlf-review .gr-card{padding:16px!important}

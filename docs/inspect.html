@@ -134,6 +134,9 @@ h1 span{color:#BD5728}
 .ins-details-status{font-size:.85rem;margin-top:8px;color:var(--gray-sub)}
 .ins-details-status.error{color:#7f1d1d}
 .ins-details-status a{color:inherit;font-weight:700}
+/* newest Google review beside the form (CRO open item 4, 2026-11-26) */
+.ins-review{margin-top:18px;padding-top:16px;border-top:1px solid rgba(26,48,87,.15);min-width:0}
+.ins-review .gr-card{padding:16px!important}
 
 .fine-print{font-size:.72rem;color:var(--gray);margin-top:14px;line-height:1.55;text-align:center}
 /* consent (TCPA, 2026-10-03) — same markup as /roof-check's .rc-consent */
@@ -519,6 +522,9 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
         <!-- Photo upload result (intake-extras afterSubmit). -->
         <div id="insIntakeAfter"></div>
       </div>
+      <!-- The newest real Google review, with its date, filled live by
+           google-reviews-widget.js (compact: one card, no rating pills). -->
+      <div class="ins-review" data-nbd-google-reviews data-nbd-gr-limit="1" data-nbd-gr-compact></div>
     </aside>
   </div>
 </section>

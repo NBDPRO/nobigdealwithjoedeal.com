@@ -951,6 +951,7 @@
     "lead-form-phone-contract.test.js",
     "public-form-fixes-2026-10-15.test.js",
     "guides-quick-form-2026-11-25.test.js",
+    "reviews-near-forms-2026-11-26.test.js",
     "guide-email-copy-2026-11-26.test.js",
     "contact-tap-2026-11-26.test.js",
     "lead-submit-failure-signal-2026-11-25.test.js",
