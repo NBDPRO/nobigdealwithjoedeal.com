@@ -325,13 +325,14 @@ function thursdayAudioPatch(nowMs) {
  *   saveRecording  copy the recording into Storage (not once either was removed)
  *   reprocess      run the extraction again (not once the text is stripped:
  *                  there is nothing left to read)
+ *   relink         take Bland's recording link back (not once either was removed)
  */
 function thursdayKeep(d) {
   const x = d || {};
   const r = x.retention && typeof x.retention === 'object' ? x.retention : {};
   const textGone = !!r.transcriptStrippedAtMs;
   const audioGone = x.audioRemoved === 'retention' || !!r.audioDeletedAtMs;
-  return { hydrate: !textGone, saveRecording: !textGone && !audioGone, reprocess: !textGone };
+  return { hydrate: !textGone, saveRecording: !textGone && !audioGone, reprocess: !textGone, relink: !textGone && !audioGone };
 }
 
 module.exports = {

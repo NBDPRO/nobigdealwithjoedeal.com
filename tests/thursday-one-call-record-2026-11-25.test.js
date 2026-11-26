@@ -338,9 +338,9 @@ const thursdayDoc = (over) => Object.assign({
       const audioGone = deepMerge(fresh, R.thursdayAudioPatch(NOW));
       const textGone = deepMerge(audioGone, R.thursdayTranscriptPatch(audioGone, NOW).patch);
       const k = (d) => JSON.stringify(R.thursdayKeep(d));
-      ok('F2: a call retention never touched may hydrate, save its recording and be reprocessed', k(fresh) === JSON.stringify({ hydrate: true, saveRecording: true, reprocess: true }), k(fresh));
-      ok('F2: once its recording is deleted it is never copied back into Storage', k(audioGone) === JSON.stringify({ hydrate: true, saveRecording: false, reprocess: true }), k(audioGone));
-      ok('F2: once its transcript is stripped nothing is re-hydrated, saved or reprocessed', k(textGone) === JSON.stringify({ hydrate: false, saveRecording: false, reprocess: false }), k(textGone));
+      ok('F2: a call retention never touched may hydrate, save its recording and be reprocessed', k(fresh) === JSON.stringify({ hydrate: true, saveRecording: true, reprocess: true, relink: true }), k(fresh));
+      ok('F2: once its recording is deleted it is never copied back into Storage, nor its Bland link', k(audioGone) === JSON.stringify({ hydrate: true, saveRecording: false, reprocess: true, relink: false }), k(audioGone));
+      ok('F2: once its transcript is stripped nothing is re-hydrated, saved or reprocessed', k(textGone) === JSON.stringify({ hydrate: false, saveRecording: false, reprocess: false, relink: false }), k(textGone));
       ok('F2: the audio patch drops Bland\'s recording link too', audioGone.call.recordingUrl === null && audioGone.recordingPath === null);
       const THU_SRC = fs.readFileSync(path.join(FN, 'integrations', 'thursday.js'), 'utf8');
       ok('F2: processCall gates the Bland hydrate on thursdayKeep', /if \(keep\.hydrate && key/.test(THU_SRC));
@@ -534,6 +534,73 @@ const thursdayDoc = (over) => Object.assign({
       });
       const sq2 = await CC.gatherSweepWithPromises({ db: dbQ2, nowMs: NOW });
       ok('...control: two Cube calls from it are', sq2.quietLines.some((l) => /0177/.test(l)), sq2.quietLines);
+    }
+
+    // R2-1: a hydrate after the 12-month audio retention never brings Bland's recording link back.
+    {
+      const THU = require(path.join(FN, 'integrations', 'thursday.js'))._test;
+      const fresh = thursdayDoc({ call: { callId: BLAND, from: '+15135550142', summary: '', transcript: '', recordingUrl: '' } });
+      const audioGone = deepMerge(thursdayDoc({ call: { callId: BLAND, summary: '', transcript: 'kept text' } }), R.thursdayAudioPatch(NOW));
+      const bland = { recordingUrl: 'https://api.bland.ai/rec/again', summary: 'From Bland', transcript: 'kept text' };
+      const h1 = THU.hydrateInto(audioGone.call, bland, R.thursdayKeep(audioGone));
+      ok('R2-1: past the audio limit a hydrate fills the summary but never restores recordingUrl', h1.recordingUrl === null && h1.summary === 'From Bland', h1);
+      const h2 = THU.hydrateInto(fresh.call, bland, R.thursdayKeep(fresh));
+      ok('...control: a call retention never touched still takes Bland\'s recording link', h2.recordingUrl === 'https://api.bland.ai/rec/again' && h2.summary === 'From Bland', h2);
+    }
+
+    // R2-2: a Thursday link never overwrites a Cube-to-Cube redial merge.
+    {
+      const cubeRow = (over) => Object.assign({ userId: OWNER, companyId: OWNER, source: 'cube-acr', phoneDigits: '5135550142', direction: 'inbound', status: 'noted', durationSec: 30 }, over);
+      const dbM = makeDb({
+        'phone_calls/cube_RDA01': cubeRow({ startedAtMs: START - 20000, mergedFrom: 'cube_RDB01', mergedInto: null }),
+        'phone_calls/cube_RDB01': cubeRow({ startedAtMs: START - 3600000, mergedInto: 'cube_RDA01', mergedFrom: null }),
+      });
+      const lM = await PJ.projectThursdayCall({ db: dbM, docId: TDOC, data: thursdayDoc() });
+      const a = dbM.store.get('phone_calls/cube_RDA01'), b = dbM.store.get('phone_calls/cube_RDB01');
+      ok('R2-2: a redial-merged Cube row in the window is not linked; both merge marks stay', !lM.linked && a.mergedFrom === 'cube_RDB01' && b.mergedInto === 'cube_RDA01' && !a.thursdayProjectionId && !dbM.store.get('phone_calls/' + PID).cubeCallId, { lM, a, b });
+      const P = Object.assign({ id: PID }, TP.buildProjection(thursdayDoc(), TDOC));
+      ok('...a row already linked to this same projection still matches (re-link)', TP.cubeMatches(cubeRow({ id: 'cube_RL01', startedAtMs: START - 20000, mergedInto: PID, thursdayProjectionId: PID }), P, PID) === true);
+    }
+
+    // R2-3: Mark unreviewed in the Thursday inbox reopens the copy.
+    {
+      const un = TP.buildProjection(thursdayDoc({ reviewed: false, reviewedBy: { uid: 'u-reviewer', at: new Date(NOW) } }), TDOC);
+      ok('R2-3: an un-reviewed call clears handledAtMs on the copy', un.handledAtMs === null && un.handledBy === 'u-reviewer', un);
+      const never = TP.buildProjection(thursdayDoc({ reviewed: false }), TDOC);
+      ok('...a never-reviewed call writes no handledAtMs (the Calls screen keeps its value)', !('handledAtMs' in never), never);
+      const dbU = makeDb();
+      await PJ.projectThursdayCall({ db: dbU, docId: TDOC, data: thursdayDoc({ reviewed: true, reviewedBy: { uid: OWNER, at: new Date(NOW) } }) });
+      await PJ.projectThursdayCall({ db: dbU, docId: TDOC, data: thursdayDoc({ reviewed: false, reviewedBy: { uid: OWNER, at: new Date(NOW + 1000) } }) });
+      ok('...end to end: reviewed then un-reviewed leaves the copy not handled', dbU.store.get('phone_calls/' + PID).handledAtMs === null);
+    }
+
+    // R2-4: Handled on a KEPT Cube card linked to a Thursday call syncs reviewed.
+    {
+      const dbK = makeDb({
+        ['thursday_calls/' + TDOC]: thursdayDoc(),
+        'phone_calls/cube_KEPT1': { userId: OWNER, companyId: OWNER, source: 'cube-acr', phoneDigits: '5135550142', direction: 'inbound', status: 'noted', transcript: 'Joe: on my way', durationSec: 400, startedAtMs: START + 30000 },
+      });
+      await PJ.projectThursdayCall({ db: dbK, docId: TDOC, data: thursdayDoc() });
+      ok('...(the Cube row is kept, the copy hidden)', dbK.store.get('phone_calls/' + PID).mergedInto === 'cube_KEPT1' && dbK.store.get('phone_calls/cube_KEPT1').thursdayProjectionId === PID);
+      await CC.callAction({ db: dbK, auth, data: { id: 'cube_KEPT1', action: 'handled' }, nowMs: NOW });
+      ok('R2-4: Handled on the kept Cube card marks the Thursday call reviewed', dbK.store.get('thursday_calls/' + TDOC).reviewed === true);
+      await CC.callAction({ db: dbK, auth, data: { id: 'cube_KEPT1', action: 'unhandled' }, nowMs: NOW + 1000 });
+      ok('...and Not handled reopens it', dbK.store.get('thursday_calls/' + TDOC).reviewed === false);
+    }
+
+    // R2-5: the "Said you'd do" deck never files or makes a lead from a Thursday copy.
+    {
+      const vmod = require('vm');
+      let deckCfg = null;
+      const win = { _userClaims: { role: 'company_admin', companyId: OWNER }, auth: { currentUser: { uid: OWNER } }, addEventListener() {}, _leads: [], NBDTriageDeck: { open(cfg) { deckCfg = cfg; } } };
+      const ctx = vmod.createContext({ window: win, document: { addEventListener() {} }, console });
+      vmod.runInContext(fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', 'call-center-view.js'), 'utf8'), ctx);
+      const V = win.NBDCallCenter;
+      const item = (callId) => ({ callId, phoneDigits: '5135550142', leadId: null, kind: 'urgent', channel: 'call', callType: 'lead', who: 'Pat Example', promises: ['Call back'], summary: 's', startedAtMs: START, suggest: { leadId: 'L1', name: 'Pat Example', why: 'their name said on the call' } });
+      const deck = (callId) => { V._promises.items = [item(callId)]; V.openPromises(); return deckCfg.card(deckCfg.items[0]); };
+      const hT = deck(PID), hC = deck('cube_DECK1');
+      ok('R2-5: a Thursday urgent unfiled deck card offers no File on, Make lead or attach', !/data-ccp="(suggest|newlead|attach)"/.test(hT) && !/File on a customer/.test(hT), hT.slice(0, 400));
+      ok('...control: a Cube card in the deck still offers them', /data-ccp="suggest"/.test(hC) && /data-ccp="attach"/.test(hC), hC.slice(0, 400));
     }
   }
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

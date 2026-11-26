@@ -1262,7 +1262,7 @@
     var leads = (window._leads || []).filter(function (l) { return l && l.id && !l.deleted; });
     // Filing goes through one of the caller's CALLS; the server files the
     // rest of the number's calls and texts with it.
-    var anchor = g.items.filter(function (p) { return p.channel !== 'text'; })[0] || null;
+    var anchor = g.items.filter(function (p) { return p.channel !== 'text' && !/^thursday_/.test(p.callId); })[0] || null;
     var withSuggest = g.items.filter(function (p) { return p.suggest; })[0];
     var byNum = anchor ? numberMatch(anchor.phoneDigits).one : null;
     var target = byNum ? { leadId: byNum.leadId, name: byNum.name, why: 'this number is already on them' }

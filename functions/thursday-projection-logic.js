@@ -180,11 +180,15 @@ function buildProjection(d, docId, opts) {
   };
   if (o.captureOff === true) out.labelCapture = 'off';
   // Reviewed in the Thursday inbox (or by Thursday itself on a log-only
-  // route) = Handled here. Never written as null: an unreviewed call keeps
-  // whatever the Calls screen set.
+  // route) = Handled here. Never written as null for a call no one has
+  // reviewed: it keeps whatever the Calls screen set.
   if (d.reviewed === true) {
     out.handledAtMs = toMs(d.reviewedBy && d.reviewedBy.at) || toMs(d.processedAt) || startedAtMs || toMs(d.createdAt);
     out.handledBy = d.reviewedBy && typeof d.reviewedBy.uid === 'string' ? d.reviewedBy.uid : null;
+  } else if (d.reviewed === false && d.reviewedBy && typeof d.reviewedBy.uid === 'string') {
+    // Mark unreviewed (Thursday inbox, or Not handled on the Calls screen) reopens it.
+    out.handledAtMs = null;
+    out.handledBy = d.reviewedBy.uid;
   }
   return out;
 }
@@ -223,6 +227,9 @@ function cubeMatches(cube, projection, projId) {
   if (!cube.userId || cube.userId !== projection.userId) return false;
   if ((cube.companyId || cube.userId) !== (projection.companyId || projection.userId)) return false;
   if (cube.thursdayProjectionId && cube.thursdayProjectionId !== projId) return false;
+  // A Cube-to-Cube redial merge is never overwritten by a Thursday link.
+  const partner = cube.mergedInto || cube.mergedFrom;
+  if (partner && partner !== projId) return false;
   const w = windowOf(projection);
   const c = Number(cube.startedAtMs) || 0;
   return !!w && !!c && c >= w.from && c <= w.to;

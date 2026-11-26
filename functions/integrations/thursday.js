@@ -454,7 +454,7 @@ async function notifyAll(ref, data, ctx) {
   if (Object.keys(results).length) await ref.update(results);
 }
 
-exports._test = { notifyAll, extract }; // test seam (tests/ping-volume-2026-10-13.test.js): the quiet-hours hold
+exports._test = { notifyAll, extract, hydrateInto }; // test seam (tests/ping-volume-2026-10-13.test.js): the quiet-hours hold
 
 // ── Processing trigger ──────────────────────────────────────────────────────
 
@@ -482,6 +482,18 @@ async function claim(ref) {
   });
 }
 
+/** Fill call's empty fields from Bland's copy; never the recording link once retention removed it. */
+function hydrateInto(call, fresh, keep) {
+  const out = Object.assign({}, call);
+  for (const k of Object.keys(fresh || {})) {
+    if (k === 'recordingUrl' && !(keep && keep.relink)) continue;
+    const v = fresh[k];
+    const empty = out[k] == null || out[k] === '' || (Array.isArray(out[k]) && !out[k].length) || out[k] === 0;
+    if (empty && v != null && v !== '') out[k] = v;
+  }
+  return out;
+}
+
 async function processCall(ref, data) {
   const companyId = String(data.companyId || T.NBD_OWNER_UID);
   const ownerUid = String(data.userId || companyId);
@@ -494,14 +506,9 @@ async function processCall(ref, data) {
   const keep = require('../call-retention-logic').thursdayKeep(data);
 
   // 1. Hydrate — the webhook may arrive before Bland finishes the transcript.
-  if (keep.hydrate && key && (!call.transcript || !call.recordingUrl || !call.summary)) {
+  if (keep.hydrate && key && (!call.transcript || (keep.relink && !call.recordingUrl) || !call.summary)) {
     try {
-      const fresh = T.normalizeCall(await fetchBlandCall(call.callId, key));
-      for (const k of Object.keys(fresh)) {
-        const v = fresh[k];
-        const empty = call[k] == null || call[k] === '' || (Array.isArray(call[k]) && !call[k].length) || call[k] === 0;
-        if (empty && v != null && v !== '') call[k] = v;
-      }
+      call = hydrateInto(call, T.normalizeCall(await fetchBlandCall(call.callId, key)), keep);
       update.call = call;
     } catch (e) {
       logger.warn('thursday: hydrate failed', { callId: call.callId, err: e && e.message });

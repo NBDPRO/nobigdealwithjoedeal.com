@@ -1641,6 +1641,12 @@ async function callAction({ db, auth, data, nowMs }) {
   if (action === 'handled' || action === 'unhandled') {
     await ref.set({ handledAtMs: action === 'handled' ? nowMs : null, handledBy: auth.uid }, { merge: true });
     if (isThursday) await syncThursdayReviewed(db, call, auth, action === 'handled', nowMs);
+    else if (!isText && TPL.isProjectionId(call.thursdayProjectionId)) {
+      // A kept Cube card linked to a Thursday call: its Handled is that call's reviewed too.
+      const ps = await db.collection(COLLECTION).doc(call.thursdayProjectionId).get();
+      const proj = ps.exists ? Object.assign({}, ps.data(), { id: ps.id }) : null;
+      if (proj && proj.cubeCallId === id) await syncThursdayReviewed(db, proj, auth, action === 'handled', nowMs);
+    }
     await settleAway(db, call, auth, nowMs);
     return { ok: true };
   }
