@@ -104,6 +104,8 @@ const ROWS = {
     meaning: 'Every 30 minutes: each member\'s counted doors, appointments, estimates sent and deals, today and this week, for the Team widget and the Leaderboard page. Counts only. Off = dry run, logs only.' },
   CALL_RETENTION_ENABLED: { group: 'Calls & texts', dark: true, doc: 'documentation/projects/SESSION-2026-11-09-call-to-close-p2-retention.md',
     meaning: 'Daily 3:20 AM: removes call transcripts and briefs after 24 months and the CRM audio copy after 12. Drive originals and held calls stay. Off = dry run, counts only.' },
+  CALL_RETENTION_THURSDAY_ENABLED: { group: 'Calls & texts', dark: true, doc: 'documentation/projects/SESSION-2026-11-09-call-to-close-p2-retention.md',
+    meaning: 'With call retention on: the same rules for Thursday calls: recordings after 12 months, transcripts and notes after 24. Held calls stay. Off = dry run, logs what it would remove.' },
   SECURE_DOC_LINK_ENABLED: { group: 'Customer follow-ups', doc: 'documentation/projects/DOC-TRACKER-2026-11-04.md',
     meaning: 'Master switch for Secure Document Link: password, tracked viewer page, open count and time with the page open. Off = links behave as before.' },
   DOC_LINK_FOLLOWUP_ENABLED: { group: 'Customer follow-ups', dark: true, doc: 'documentation/projects/DOC-TRACKER-2026-11-04.md',

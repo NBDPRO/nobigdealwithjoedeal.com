@@ -191,7 +191,10 @@ const present = (v) => v != null && !(Array.isArray(v) && v.length === 0) && !(t
 /** The fields of a call that still carry what was said. */
 function transcriptFieldsPresent(call) {
   const c = call || {};
-  return TRANSCRIPT_FIELDS.filter((f) => present(c[f]));
+  // A Thursday call's phone_calls projection (source 'thursday', roadmap step
+  // 17C) also carries Thursday's callNotes, made from the same conversation.
+  const fields = c.source === 'thursday' ? TRANSCRIPT_FIELDS.concat(['callNotes']) : TRANSCRIPT_FIELDS;
+  return fields.filter((f) => present(c[f]));
 }
 
 /** The merge patch that strips a call's transcript + notes, or null when nothing is left to strip. */
@@ -263,7 +266,77 @@ function shouldRescan(state, nowMs) {
   return started == null || nowMs - started >= RESCAN_MS;
 }
 
+// ── Thursday recordings (roadmap step 17C, 2026-11-25) ───────────────────
+// thursday_calls (Bland, integrations/thursday.js) keep their own recording
+// (recordingPath, calls/{owner}/<callId>.<ext>) and transcript, which no
+// retention job covered. The SAME rules as phone_calls: audio 12 months,
+// transcript + the AI notes made from it 24 months, the doc itself kept, the
+// same holds (legalHold on the call or its lead, an open claim). The doc keeps
+// its date, number, caller name, town, route and lead.
+const THURSDAY_TRANSCRIPT_FIELDS = Object.freeze(['call.transcript', 'call.transcripts', 'call.summary', 'issue', 'callNotes', 'extraction', 'raw']);
+
+/** ms from a Firestore Timestamp, a Date, an ISO string or a number; null when none. */
+function anyMs(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') return fin(v);
+  if (typeof v.toMillis === 'function') return fin(v.toMillis());
+  if (v instanceof Date) return fin(v.getTime());
+  if (typeof v === 'object' && typeof v.seconds === 'number') return fin(v.seconds * 1000);
+  if (typeof v === 'string') return fin(Date.parse(v));
+  return null;
+}
+
+/** A Thursday call's age: the later of its start and the doc's creation; null = never eligible. */
+function thursdayAgeMs(d) {
+  const x = d || {};
+  const a = anyMs(x.startedAt) || anyMs(x.call && x.call.startedAt), b = anyMs(x.createdAt);
+  if (a == null && b == null) return null;
+  return Math.max(a || 0, b || 0);
+}
+
+/** The merge patch that strips a Thursday call's transcript + notes, or null when nothing is left. */
+function thursdayTranscriptPatch(d, nowMs) {
+  const x = d || {};
+  const call = x.call && typeof x.call === 'object' ? x.call : {};
+  const fields = THURSDAY_TRANSCRIPT_FIELDS.filter((f) => present(f.startsWith('call.') ? call[f.slice(5)] : x[f]));
+  if (!fields.length) return null;
+  const patch = { retention: { transcriptStrippedAtMs: nowMs, v: POLICY_VERSION } };
+  const callPatch = {};
+  for (const f of fields) {
+    if (f === 'call.transcripts') callPatch.transcripts = [];
+    else if (f.startsWith('call.')) callPatch[f.slice(5)] = null;
+    else patch[f] = null;
+  }
+  if (Object.keys(callPatch).length) patch.call = callPatch;
+  return { patch, fields };
+}
+
+/** The merge patch after a Thursday recording's Storage object is deleted (Bland's link to it goes too). */
+function thursdayAudioPatch(nowMs) {
+  return { recordingPath: null, recordingBytes: null, audioRemoved: 'retention', call: { recordingUrl: null }, retention: { audioDeletedAtMs: nowMs, v: POLICY_VERSION } };
+}
+
+/**
+ * What processing may still do to a Thursday call retention has touched
+ * (integrations/thursday.js processCall + thursdayCallAction). Bland keeps
+ * the audio and the transcript, so a reprocess would otherwise copy the
+ * recording back into Storage and re-hydrate the stripped text.
+ *   hydrate        refill empty call fields from Bland (not once the text is stripped)
+ *   saveRecording  copy the recording into Storage (not once either was removed)
+ *   reprocess      run the extraction again (not once the text is stripped:
+ *                  there is nothing left to read)
+ *   relink         take Bland's recording link back (not once either was removed)
+ */
+function thursdayKeep(d) {
+  const x = d || {};
+  const r = x.retention && typeof x.retention === 'object' ? x.retention : {};
+  const textGone = !!r.transcriptStrippedAtMs;
+  const audioGone = x.audioRemoved === 'retention' || !!r.audioDeletedAtMs;
+  return { hydrate: !textGone, saveRecording: !textGone && !audioGone, reprocess: !textGone, relink: !textGone && !audioGone };
+}
+
 module.exports = {
+  THURSDAY_TRANSCRIPT_FIELDS, thursdayAgeMs, thursdayTranscriptPatch, thursdayAudioPatch, thursdayKeep,
   mergedPartnerId, mergedBack, TZ, POLICY, POLICY_VERSION, TRANSCRIPT_FIELDS, BRIEF_PATH, RESCAN_MS, STAGE_TO_STATUS, INSURANCE_STAGES,
   etYmd, etMidnightMs, minusMonths, cutoffMs, callAgeMs, briefAgeMs, isPast,
   holdReason, openClaim, transcriptFieldsPresent, transcriptPatch, isCrmAudioPath, audioPatch,
