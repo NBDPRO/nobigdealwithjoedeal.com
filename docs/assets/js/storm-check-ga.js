@@ -1,4 +1,5 @@
-/* GA4 bootstrap for /storm-check (externalized to satisfy the global CSP). */
+/* GA4 bootstrap for /roof-check (externalized to satisfy the global CSP; the
+   file kept its old name when /storm-check merged into /roof-check, 2026-11-25). */
 window.dataLayer = window.dataLayer || [];
 function gtag(){ dataLayer.push(arguments); }
 gtag('js', new Date());

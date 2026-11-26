@@ -2,7 +2,11 @@
  * tests/wizard-validation-focus-2026-10-26.test.js
  *
  * The three step-by-step tools (/estimate, /storm-check, /roof-score) went quiet
- * at three points. This suite pins the fixes by BEHAVIOUR: the real shipped
+ * at three points. (2026-11-25: /storm-check and /roof-score merged into
+ * /roof-check; sections 4-6 now drive roof-check.js on docs/roof-check.html.
+ * Roof Score's score screen, band label and moisture/last-inspection step are
+ * gone with it, so their checks went too; the required-answer, aria-pressed and
+ * focus-follows behaviour they guarded is checked on /roof-check.) This suite pins the fixes by BEHAVIOUR: the real shipped
  * scripts run in a vm against a small DOM that is built from the REAL shipped
  * markup (docs/estimate.html, storm-check.html, roof-score.html), so ids,
  * groups, tiles and button rows are the ones a visitor gets. No network: every
@@ -341,158 +345,88 @@ function isFocusedHeading(d, el) { return !!el && d.activeElement === el && el.g
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  console.log('\n4. /storm-check — a missing answer is said out loud; tiles expose their state; focus follows');
+  console.log('\n4. /roof-check — a missing answer is said out loud; tiles expose their state; focus follows');
   // ═══════════════════════════════════════════════════════════════════════
   {
-    const S = boot('docs/storm-check.html', 'docs/assets/js/storm-check.js');
+    const S = boot('docs/roof-check.html', 'docs/assets/js/roof-check.js');
     const d = S.document;
-    const step = (n) => d.getElementById('sc-step' + n);
+    const step = (n) => d.getElementById('rc-step' + n);
     const alertEl = (n) => step(n).querySelector('[role="alert"]');
     const alertOf = (n) => alertEl(n) || { textContent: '(no role=alert element)' };
-    const pressed = (n, group) => step(n).querySelectorAll('[data-group="' + group + '"] .sc-tile').map((t) => t.getAttribute('aria-pressed')).join(',');
+    const pressed = (n, group) => step(n).querySelectorAll('[data-group="' + group + '"] .rc-tile').map((t) => t.getAttribute('aria-pressed')).join(',');
     const tile = (n, group, v) => step(n).querySelector('[data-group="' + group + '"] [data-value="' + v + '"]');
-    const active = () => d.querySelector('.sc-step.active').id;
+    const active = () => d.querySelector('.rc-step.active').id;
 
-    const allTiles = d.querySelectorAll('.sc-tile');
+    const allTiles = d.querySelectorAll('.rc-tile');
     ok('every answer tile is type="button" with aria-pressed="false" at load (' + allTiles.length + ' tiles)',
-      allTiles.length >= 20 && allTiles.every((t) => t.getAttribute('type') === 'button' && t.getAttribute('aria-pressed') === 'false'),
+      allTiles.length >= 15 && allTiles.every((t) => t.getAttribute('type') === 'button' && t.getAttribute('aria-pressed') === 'false'),
       allTiles.filter((t) => t.getAttribute('aria-pressed') !== 'false').length);
-    ok('steps 2 and 3 each have a role=alert line under the subtitle, above the questions, empty until needed',
-      [2, 3].every((n) => { const a = alertEl(n); const lab = step(n).querySelector('.sc-label'); const sub = step(n).querySelector('.sc-sub'); return a && a.textContent === '' && a.style.minHeight === '0' && step(n).nodes.indexOf(a) === step(n).nodes.indexOf(lab) - 1 && step(n).nodes.indexOf(a) > step(n).nodes.indexOf(sub); }));
+    ok('step 3 has a role=alert line under the subtitle, above the questions, empty until needed',
+      [3].every((n) => { const a = alertEl(n); const lab = step(n).querySelector('.rc-label'); const sub = step(n).querySelector('.rc-sub'); return a && a.textContent === '' && a.style.minHeight === '0' && step(n).nodes.indexOf(a) === step(n).nodes.indexOf(lab) - 1 && step(n).nodes.indexOf(a) > step(n).nodes.indexOf(sub); }));
 
-    d.getElementById('sc-address').value = '12 Main St, Mason OH';
-    d.getElementById('sc-step1').querySelector('[data-step="2"]').click();
+    d.getElementById('rc-address').value = '12 Main St, Mason OH';
+    d.getElementById('rc-step1').querySelector('[data-action="generate"]').click();
     await tick(30);
     d.querySelector('[data-action="useTypedAddress"]').click();
-    ok('(setup) typed address lands on step 2', active() === 'sc-step2');
-    ok('step 2: focus is on its heading (tabindex -1), not <body>', isFocusedHeading(d, step(2).querySelector('h2')));
+    await tick(30);
+    ok('(setup) typed address lands on the free storm history, focus on its heading', active() === 'rc-teaser' && isFocusedHeading(d, d.getElementById('rc-teaser-headline')), active());
+    d.getElementById('rc-teaser').querySelector('[data-step="3"]').click();
+    ok('"Get Joe\'s take" opens the roof questions, focus on its heading (tabindex -1), not <body>', active() === 'rc-step3' && isFocusedHeading(d, step(3).querySelector('h2')));
 
-    step(2).querySelector('[data-step="3"]').click();
-    ok('Continue with nothing picked stays on step 2', active() === 'sc-step2');
-    ok('...and says what to pick, in the role=alert line', /when the storm hit/.test(alertOf(2).textContent) && /what kind of storm/.test(alertOf(2).textContent), alertOf(2).textContent);
-    ok('...focus lands on the first unanswered group (the first timeframe tile), without a scroll jump', d.activeElement === tile(2, 'stormWhen', 'recent') && S.focusLog[S.focusLog.length - 1].opts.preventScroll === true);
+    step(3).querySelector('[data-step="4"]').click();
+    ok('Continue with no roof age stays on step 3', active() === 'rc-step3');
+    ok('...and says what to pick, in the role=alert line', /how old the roof is/.test(alertOf(3).textContent), alertOf(3).textContent);
+    ok('...focus lands on the first unanswered group (the first age tile), without a scroll jump', d.activeElement === tile(3, 'roofAge', '<5') && S.focusLog[S.focusLog.length - 1].opts.preventScroll === true);
     ok('...and the page scrolls the message into the middle of the screen (clear of the sticky bars)',
-      S.scrollLog.length > 0 && S.scrollLog[S.scrollLog.length - 1].el === alertEl(2) && S.scrollLog[S.scrollLog.length - 1].opts.block === 'center');
+      S.scrollLog.length > 0 && S.scrollLog[S.scrollLog.length - 1].el === alertEl(3) && S.scrollLog[S.scrollLog.length - 1].opts.block === 'center');
 
-    tile(2, 'stormType', 'hail').click();
-    ok('picking Hail sets aria-pressed true on it and false on its siblings', pressed(2, 'stormType') === 'true,false,false,false', pressed(2, 'stormType'));
-    ok('...and shrinks the message to what is still missing', /when the storm hit/.test(alertOf(2).textContent) && !/kind of storm/.test(alertOf(2).textContent), alertOf(2).textContent);
-    step(2).querySelector('[data-step="3"]').click();
-    ok('Continue with only the timeframe missing still stays, and focuses the timeframe group', active() === 'sc-step2' && d.activeElement === tile(2, 'stormWhen', 'recent'));
-    tile(2, 'stormWhen', 'year').click();
-    ok('answering the last one clears the message', alertOf(2).textContent === '');
-    step(2).querySelector('[data-step="3"]').click();
-    ok('Continue now advances to step 3, with focus on its heading', active() === 'sc-step3' && isFocusedHeading(d, step(3).querySelector('h2')));
-
-    step(3).querySelector('[data-step="4"]').click();
-    ok('step 3 with no roof age: stays, says "how old the roof is", focus on the first age tile',
-      active() === 'sc-step3' && /how old the roof is/.test(alertOf(3).textContent) && d.activeElement === tile(3, 'roofAge', '<5'), alertOf(3).textContent);
     tile(3, 'roofAge', '10-15').click();
-    ok('picking an age clears the message', alertOf(3).textContent === '');
-    step(3).querySelector('[data-step="4"]').click();
-    ok('step 4 (optional signs): reached, focus on its heading', active() === 'sc-step4' && isFocusedHeading(d, step(4).querySelector('h2')));
+    ok('picking an age sets aria-pressed true on it and false on its siblings', pressed(3, 'roofAge') === 'false,false,true,false,false,false', pressed(3, 'roofAge'));
+    ok('...and clears the message', alertOf(3).textContent === '');
 
     // The multi-select group: aria-pressed follows .selected, "none" clears the rest.
-    tile(4, 'signs', 'missing').click();
-    tile(4, 'signs', 'dents').click();
-    ok('signs (multi-select): both picks read pressed', pressed(4, 'signs') === 'true,false,true,false,false,false', pressed(4, 'signs'));
-    tile(4, 'signs', 'none').click();
-    ok('...choosing "None / not sure" un-presses the others', pressed(4, 'signs') === 'false,false,false,false,false,true', pressed(4, 'signs'));
-    tile(4, 'signs', 'none').click();
-    ok('...and toggling it off un-presses it', pressed(4, 'signs') === 'false,false,false,false,false,false', pressed(4, 'signs'));
+    tile(3, 'signs', 'missing').click();
+    tile(3, 'signs', 'dents').click();
+    ok('signs (multi-select): both picks read pressed', pressed(3, 'signs') === 'true,false,true,false,false,false', pressed(3, 'signs'));
+    tile(3, 'signs', 'none').click();
+    ok('...choosing "None / not sure" un-presses the others', pressed(3, 'signs') === 'false,false,false,false,false,true', pressed(3, 'signs'));
+    tile(3, 'signs', 'none').click();
+    ok('...and toggling it off un-presses it', pressed(3, 'signs') === 'false,false,false,false,false,false', pressed(3, 'signs'));
 
-    step(4).querySelector('[data-step="5"]').click();
-    ok('step 5: focus on its heading', active() === 'sc-step5' && isFocusedHeading(d, step(5).querySelector('h2')));
-    d.getElementById('sc-firstName').value = 'Pat';
-    d.getElementById('sc-phone').value = '(859) 555-1234';
-    d.getElementById('sc-submit').click();
-    ok('submitting moves to the loading step, focus on its heading', active() === 'sc-step6' && isFocusedHeading(d, step(6).querySelector('h2')), active());
-    await tick(60);
-    const result = d.getElementById('sc-result');
-    ok('the verdict takes focus when it appears (its headline)', result.classList.contains('active') && isFocusedHeading(d, d.getElementById('sc-result-headline')), d.activeElement && d.activeElement.id);
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  console.log('\n5. /roof-score — the same, with the old border flash kept as decoration');
-  // ═══════════════════════════════════════════════════════════════════════
-  {
-    const R = boot('docs/roof-score.html', 'docs/assets/js/roof-score.js');
-    const d = R.document;
-    const step = (n) => d.getElementById('rs-step' + n);
-    const alertEl = (n) => step(n).querySelector('[role="alert"]');
-    const alertOf = (n) => alertEl(n) || { textContent: '(no role=alert element)' };
-    const pressed = (n, group) => step(n).querySelectorAll('[data-group="' + group + '"] .sc-tile').map((t) => t.getAttribute('aria-pressed')).join(',');
-    const tile = (n, group, v) => step(n).querySelector('[data-group="' + group + '"] [data-value="' + v + '"]');
-    const active = () => d.querySelector('.sc-step.active').id;
-
-    const allTiles = d.querySelectorAll('.sc-tile');
-    ok('every answer tile is type="button" with aria-pressed="false" at load (' + allTiles.length + ' tiles)',
-      allTiles.length >= 20 && allTiles.every((t) => t.getAttribute('type') === 'button' && t.getAttribute('aria-pressed') === 'false'));
-    ok('steps 2 and 4 each have a role=alert line under the subtitle, above the questions, empty until needed',
-      [2, 4].every((n) => { const a = alertEl(n); const lab = step(n).querySelector('.sc-label'); const sub = step(n).querySelector('.sc-sub'); return a && a.textContent === '' && a.style.minHeight === '0' && step(n).nodes.indexOf(a) === step(n).nodes.indexOf(lab) - 1 && step(n).nodes.indexOf(a) > step(n).nodes.indexOf(sub); }));
-
-    d.getElementById('rs-address').value = '12 Main St, Mason OH';
-    d.getElementById('rs-step1').querySelector('[data-step="2"]').click();
-    await tick(30);
-    d.querySelector('[data-action="useTypedAddress"]').click();
-    ok('(setup) typed address lands on step 2, focus on its heading', active() === 'rs-step2' && isFocusedHeading(d, step(2).querySelector('h2')));
-
-    step(2).querySelector('[data-step="3"]').click();
-    ok('Continue with no roof age stays on step 2 and says what to pick', active() === 'rs-step2' && /how old the roof is/.test(alertOf(2).textContent), alertOf(2).textContent);
-    ok('...focus lands on the first age tile, and the page scrolls the message into the middle of the screen',
-      d.activeElement === tile(2, 'roofAge', '<5') && R.scrollLog.length > 0 && R.scrollLog[R.scrollLog.length - 1].el === alertEl(2) && R.scrollLog[R.scrollLog.length - 1].opts.block === 'center');
-    ok('...and the old red border flash still runs as decoration (900 ms)', tile(2, 'roofAge', '<5').style.borderColor === '#c23a2b');
-    tile(2, 'roofAge', '15-20').click();
-    ok('picking an age sets aria-pressed and clears the message', pressed(2, 'roofAge') === 'false,false,false,true,false,false' && alertOf(2).textContent === '', pressed(2, 'roofAge'));
-    step(2).querySelector('[data-step="3"]').click();
-    ok('step 3: reached, focus on its heading', active() === 'rs-step3' && isFocusedHeading(d, step(3).querySelector('h2')));
     step(3).querySelector('[data-step="4"]').click();
-    ok('step 4: focus on its heading', active() === 'rs-step4' && isFocusedHeading(d, step(4).querySelector('h2')));
-
-    d.getElementById('rs-calc').click();
-    ok('"See my score" with nothing answered stays, and names both questions',
-      active() === 'rs-step4' && /water stains/.test(alertOf(4).textContent) && /pro last looked/.test(alertOf(4).textContent), alertOf(4).textContent);
-    ok('...focus lands on the first unanswered group (moisture)', d.activeElement === tile(4, 'moisture', 'none'));
-    tile(4, 'moisture', 'none').click();
-    ok('answering moisture leaves only the inspection question in the message', !/water stains/.test(alertOf(4).textContent) && /pro last looked/.test(alertOf(4).textContent), alertOf(4).textContent);
-    d.getElementById('rs-calc').click();
-    ok('...and Continue now focuses the inspection group', active() === 'rs-step4' && d.activeElement === tile(4, 'lastInspect', 'recent'));
-    tile(4, 'lastInspect', 'mid').click();
-    ok('answering both clears the message', alertOf(4).textContent === '');
-    d.getElementById('rs-calc').click();
-    const band = d.getElementById('rs-band');
-    ok('the score screen shows, with focus on the band label (no <body>)', band.classList.contains('active') && d.activeElement === d.getElementById('rs-band-label') && d.activeElement.getAttribute('tabindex') === '-1', d.activeElement && d.activeElement.id);
-    d.getElementById('rs-firstName').value = 'Pat';
-    d.getElementById('rs-phone').value = '(859) 555-1234';
-    d.getElementById('rs-submit').click();
-    ok('submitting shows the loading step, focus on its heading', active() === 'rs-loading' && isFocusedHeading(d, d.getElementById('rs-loading').querySelector('h2')), active());
+    ok('step 4 (contact): focus on its heading', active() === 'rc-step4' && isFocusedHeading(d, step(4).querySelector('h2')));
+    d.getElementById('rc-firstName').value = 'Pat';
+    d.getElementById('rc-phone').value = '(859) 555-1234';
+    d.getElementById('rc-submit').click();
+    ok('submitting moves to the loading step, focus on its heading', active() === 'rc-step5' && isFocusedHeading(d, step(5).querySelector('h2')), active());
     await tick(60);
-    ok('the full report takes focus when it appears (its band label)', active() === 'rs-report' && d.activeElement === d.getElementById('rs-band-label2'), d.activeElement && d.activeElement.id);
+    const result = d.getElementById('rc-result');
+    ok('the verdict takes focus when it appears (its headline)', result.classList.contains('active') && isFocusedHeading(d, d.getElementById('rc-result-headline')), d.activeElement && d.activeElement.id);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
   console.log('\n6. cache-busts, the /estimate share title, and the font preloads');
   // ═══════════════════════════════════════════════════════════════════════
   {
-    const est = read('docs/estimate.html'), sc = read('docs/storm-check.html'), rs = read('docs/roof-score.html');
+    const est = read('docs/estimate.html'), rc = read('docs/roof-check.html');
     const meta = (h, attr, name) => ((h.match(new RegExp('<meta ' + attr + '="' + name + '" content="([^"]*)"')) || [])[1]);
     // ">= this version": a later edit re-versions the same script (copy-001 wording, 2026-11-04).
     const ver = (h, f) => +((h.match(new RegExp('/assets/js/' + f + '\\?v=(\\d+)"')) || [])[1] || 0);
-    ok('the edited scripts are re-versioned on their pages: storm-check.js?v=6+, roof-score.js?v=5+, loader ?v=6+ -> wizard ?v=7+',
-      ver(sc, 'storm-check\\.js') >= 6 && ver(rs, 'roof-score\\.js') >= 5
+    ok('the scripts are versioned on their pages: roof-check.js?v=1+, loader ?v=6+ -> wizard ?v=7+',
+      ver(rc, 'roof-check\\.js') >= 1
       && ver(est, 'estimate-wizard-loader\\.js') >= 6
       && +((read('docs/assets/js/estimate-wizard-loader.js').match(/\/assets\/js\/inline\/4053149b2f\.js\?v=(\d+)'/) || [])[1] || 0) >= 7);
     ok('/estimate: twitter:title equals og:title (no truncated copy)', !!meta(est, 'property', 'og:title') && meta(est, 'name', 'twitter:title') === meta(est, 'property', 'og:title'), meta(est, 'name', 'twitter:title'));
     const pre = (f) => '<link rel="preload" href="/assets/fonts/' + f + '" as="font" type="font/woff2" crossorigin>';
-    for (const [page, h] of [['/estimate', est], ['/storm-check', sc], ['/roof-score', rs]]) {
+    for (const [page, h] of [['/estimate', est], ['/roof-check', rc]]) {
       const iCss = h.indexOf('<link rel="stylesheet" href="/assets/css/nbd-fonts.css">');
       const iB = h.indexOf(pre('bebas-neue-400-latin.woff2')), iM = h.indexOf(pre('montserrat-400-latin.woff2'));
       ok(page + ': preloads the two above-the-fold fonts, right after the font stylesheet (as /book does)',
         iCss > 0 && iB > iCss && iM > iB && iM - iCss < 400, [iCss, iB, iM].join('/'));
     }
     ok('the preloaded files exist', ['bebas-neue-400-latin.woff2', 'montserrat-400-latin.woff2'].every((f) => fs.existsSync(path.join(ROOT, 'docs', 'assets', 'fonts', f))));
-    ok('no inline handlers or inline scripts were added to the three pages',
-      [est, sc, rs].every((h) => !/\son(click|change|input|blur|keydown)\s*=/i.test(h.replace(/<style[\s\S]*?<\/style>/gi, ''))));
+    ok('no inline handlers or inline scripts were added to the pages',
+      [est, rc].every((h) => !/\son(click|change|input|blur|keydown)\s*=/i.test(h.replace(/<style[\s\S]*?<\/style>/gi, ''))));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
