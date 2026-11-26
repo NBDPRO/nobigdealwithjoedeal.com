@@ -189,7 +189,7 @@ Module helpers re-exported by `Object.assign(exports, …)` and therefore reacha
 | `getPublicSiteConfig` | onRequest | Pillar 5 tenant-microsite config read — strict public-marketing whitelist, active-tenant check, rate-limited |
 | `submitReferral` | onRequest | Per-IP (5/10min) + per-source-customer (10/24h) rate limit, phone/email validation |
 | `referralLinkOpened` | onRequest | (referral-clicks.js, 2026-10-04) POST { ref } from /pro/refer.html once per session; counts the open into companies/{co}/owner_numbers/referral_clicks_YYYY-MM (owner-only read). Per-IP 20/10min; always 204; unknown/ambiguous codes not counted |
-| `stormReport` | onRequest | Public IEM storm-history proxy for /storm-report — server-side yearly chunking + Firestore cache (no API key needed); adds `windGusts` (nearest ASOS station's measured gust on the top storm days, integrations/asos-gust.js) |
+| `stormReport` | onRequest | Public IEM storm-history proxy for /roof-check (was /storm-report) — server-side yearly chunking + Firestore cache (no API key needed); adds `windGusts` (nearest ASOS station's measured gust on the top storm days, integrations/asos-gust.js) |
 | `getGoogleReviews` | onRequest | Cached Google Places reviews proxy (6-hour Firestore cache; keeps API key server-side); 60/min/IP via `guardHttp` (2026-08-10 — previously the ONLY unlimited public endpoint) |
 | `shareSSR` | onRequest | Server-rendered share-link preview HTML with og:/twitter: meta (token-authed lookup) |
 | `cspReport` | onRequest | Logs only, no side effects; 60/min/IP (boolean honored 2026-08-10 — was advisory-only) |
@@ -372,7 +372,7 @@ These operate on the **caller's own data** (owner-scoped Firestore queries insid
 | `onClaimStageChange` | `leads/{leadId}` updated | Push notification on claim-stage transitions |
 | `onAiDraftApproved` | `leads/{leadId}/ai_drafts/{draftId}` updated | Sends approved AI-drafted SMS via Twilio (pending→approved transition only; idempotent) |
 | `estimateEmail` | `estimate_leads/{id}` created | Emails homeowner their estimate on `email_estimate_request`; LIVE by default (2026-07-18), `ESTIMATE_EMAIL_ENABLED=false` forces DRY-RUN |
-| `stormReportEmail` | `inspect_leads/{leadId}` created | Homeowner follow-up email for /storm-report leads (+ measured-gust line for the biggest storm day, when the nearest station has a reading) |
+| `stormReportEmail` | `inspect_leads/{leadId}` created | Homeowner follow-up email for /roof-check (and pre-merge /storm-report) leads (+ measured-gust line for the biggest storm day, when the nearest station has a reading) |
 | `teamInviteEmail` | `companies/{companyId}/members/{memberId}` created | Sends the invite email when a roster invite doc is created |
 | `leadAlertContact` / `leadAlertEstimate` / `leadAlertFreeRoof` / `leadAlertInspect` / `leadAlertStorm` | `contact_leads` / `estimate_leads` / `free_roof_entries` / `inspect_leads` / `storm_alert_subscribers` created | Text + email Joe the moment a public marketing lead lands |
 | `leadAlertEstimateFinished` | `estimate_leads` updated | A started /estimate lead was finished: alert Joe ("Instant Estimate (finished)"); never a homeowner message (2026-11-14) |

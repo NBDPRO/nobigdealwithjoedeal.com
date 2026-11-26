@@ -63,7 +63,7 @@ console.log('\n4. Credentials: GAF Certified #1162011, no stale "application in 
   ok('no public page says a credential is "in progress" / "pending"', stale.length === 0, stale.join(', '));
   ok('field-notes footer names the GAF certification', /GAF Certified Contractor #1162011/.test(read('docs/blog/field-notes-joes-notebook-goes-public.html')));
 }
-ok('storm-check.js: no "files the claim" note left to copy', !/files the claim/i.test(read('docs/assets/js/storm-check.js')));
+ok('roof-check.js (was storm-check.js): no "files the claim" note left to copy', !/files the claim/i.test(read('docs/assets/js/roof-check.js')));
 
 console.log('\n' + (fail ? 'FAILED' : 'OK') + ' -- ' + pass + ' passed, ' + fail + ' failed');
 if (fail) process.exit(1);

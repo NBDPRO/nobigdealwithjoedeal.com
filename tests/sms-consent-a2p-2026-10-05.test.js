@@ -100,9 +100,8 @@ const SENTENCE = /^I agree to receive text messages and calls from No Big Deal H
 const SHARED_WHAT = 'my request, including my results, appointment confirmations and reminders, estimate and project updates, and replies to my questions';
 const EXPECTED = {
   'docs/inspect.html#ins-consent': 'my inspection request, including appointment confirmations and reminders, estimate and project updates, and replies to my questions',
-  'docs/storm-check.html#sc-consent': SHARED_WHAT,
-  'docs/roof-score.html#rs-consent': SHARED_WHAT,
-  'docs/storm-report.html#sr-consent': SHARED_WHAT,
+  // /storm-check, /roof-score and /storm-report merged into /roof-check (2026-11-25).
+  'docs/roof-check.html#rc-consent': SHARED_WHAT,
   // 2026-11-17: the homepage's own #fieldConsent box left with the long form; #contact now renders the quick form's box (the line below).
   "docs/assets/js/quick-lead-form.js#' + uid + '-consent": SHARED_WHAT,
   'docs/storm-alerts.html#sa-consent': 'severe weather near my ZIP code (storm alerts, usually 2–4 per season) and related follow-up, such as inspection scheduling and replies to my questions',

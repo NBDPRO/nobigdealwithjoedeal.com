@@ -177,10 +177,10 @@ const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm,
     ok('a block that never loaded never blocks anything', /if \(!window\.NBDIntake \|\| !box \|\| !box\.childElementCount\) return \{ fields: \{\}, files: \[\] \};/.test(wiz));
     ok('the grant reaches the wizard, and a later CTA/email save cannot wipe it', /if \(res\.photoToken\) window\._lastPhotoToken = res\.photoToken;/.test(estMod) && /photoToken: window\._lastPhotoToken \|\| null/.test(wiz));
 
-    // The storm tools + roof score (same day): each posts an 'inspect' service
-    // lead, so each asks the block, refuses without the choice, sends the
+    // The storm tools + roof score (same day; one tool, /roof-check, since
+    // 2026-11-25): it posts an 'inspect' service lead, so it asks the block, refuses without the choice, sends the
     // answers, and runs afterSubmit only once the lead is saved.
-    for (const [page, js, P, err] of [['storm-check', 'storm-check.js', 'sc', 'sc-contact-err'], ['storm-report', 'storm-report-page.js', 'sr', 'sr-gate-err'], ['roof-score', 'roof-score.js', 'rs', 'rs-contact-err']]) {
+    for (const [page, js, P, err] of [['roof-check', 'roof-check.js', 'rc', 'rc-contact-err']]) {
       const html = read('docs/' + page + '.html');
       const src = strip(read('docs/assets/js/' + js));
       ok('/' + page + ': loads the block and hosts it before the consent box, with a result host',

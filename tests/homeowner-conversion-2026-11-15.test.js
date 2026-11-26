@@ -178,12 +178,13 @@ ok('quick-lead-form.js maps care-plan to "Roof Care Plan"', /'care-plan': 'Roof 
 }
 
 // ── #7 storm check ─────────────────────────────────────────────────────────
-section('#7 /storm-check promises what it delivers');
-const sc = page('docs/storm-check.html');
+// 2026-11-25: /storm-check merged into /roof-check; the same promise holds there.
+section('#7 /roof-check promises what it delivers');
+const sc = page('docs/roof-check.html');
 const scClaim = /worth (a|an insurance) claim|worth filing/i;
 ok('<title> no longer promises a claim verdict', !scClaim.test(sc.$('title').text), sc.$('title').text);
-ok('H1 no longer promises a claim verdict', !scClaim.test(sc.$('h1').text) && /looked at/i.test(sc.$('h1').text), sc.$('h1').text);
-ok('submit button no longer promises a claim verdict', !scClaim.test(sc.byId('sc-submit').text), sc.byId('sc-submit').text);
+ok('H1 no longer promises a claim verdict (it offers the storm check)', !scClaim.test(sc.$('h1').text) && /storm/i.test(sc.$('h1').text), sc.$('h1').text);
+ok('submit button no longer promises a claim verdict', !scClaim.test(sc.byId('rc-submit').text), sc.byId('rc-submit').text);
 const scMeta = sc.$$('meta').filter((m) => /description|title/.test(m.attr('name') || m.attr('property') || ''));
 ok('meta/og/twitter copy no longer promises a claim verdict', scMeta.length >= 4 && scMeta.every((m) => !scClaim.test(m.attr('content') || '')));
 
@@ -219,7 +220,7 @@ section('#10 phone numbers in error and thank-you states are tel: links');
 function fakeEl(text) {
   return { textContent: text, children: [], appendChild(c) { this.children.push(c); } };
 }
-for (const f of ['docs/assets/js/inspect-form.js', 'docs/assets/js/storm-check.js', 'docs/assets/js/roof-score.js']) {
+for (const f of ['docs/assets/js/inspect-form.js', 'docs/assets/js/roof-check.js']) {
   const fn = K.sliceFn(K.read(f), 'telify', { unique: true });
   ok(f + ': has one telify()', !!fn);
   if (!fn) continue;
