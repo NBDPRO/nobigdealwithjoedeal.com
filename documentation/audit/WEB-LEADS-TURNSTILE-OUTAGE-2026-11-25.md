@@ -51,9 +51,15 @@ on 2026-05-23; that needs its own investigation once submits work again.
 
 ## Follow-ups
 
-1. Add an analytics event for a failed submit (status and reason) in
-   `docs/assets/js/public-lead-submit.js`, so an outage shows up in a day.
-2. Alert on `submitpubliclead` 4xx/5xx (`monitoring/`).
-3. Investigate why `/inspect` has zero stored submissions ever.
+1. **Done 2026-11-25:** GA4 event `lead_submit_failed` (kind, page source,
+   HTTP status, server reason code, had_token; no PII) on every failure path
+   of `docs/assets/js/public-lead-submit.js`, guarded by
+   `tests/lead-submit-failure-signal-2026-11-25.test.js`.
+2. **Done 2026-11-25:** alert policy `alert-lead-submit-failures.json`, live as
+   `alertPolicies/15171325019131919808` (see `monitoring/README.md` §12).
+3. **Answered 2026-11-25:** after the fix deployed, a test submit on /inspect
+   returned 200, was stored and bridged to the CRM (then moved to the Deleted
+   bin). It was the first stored /inspect submission, so the form works; its
+   zero before was low traffic plus this outage.
 4. The CRM source report counts by `source` (kind), not `sourcePage` (tool),
    so the storm tools and /inspect are indistinguishable there.
