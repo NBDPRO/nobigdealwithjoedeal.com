@@ -275,11 +275,11 @@ Object.assign(exports, pushFunctions);
 const emailFunctions = require('./email-functions');
 Object.assign(exports, emailFunctions);
 
-// Public storm-history proxy for the /storm-report page (additive; no CRM coupling).
+// Public storm-history proxy for the /roof-check page (was /storm-report; additive; no CRM coupling).
 const stormReportFn = require('./storm-report');
 Object.assign(exports, stormReportFn);
 
-// Homeowner follow-up email when a /storm-report lead is captured (additive trigger).
+// Homeowner follow-up email when a /roof-check lead with an email is captured (additive trigger).
 // By name only: storm-report-email.js also exports _test (2026-10-06 gust line).
 exports.stormReportEmail = require('./storm-report-email').stormReportEmail;
 // "Email me this guide" (2026-11-26): one copy with the guide's PDF attached.

@@ -289,10 +289,10 @@ const MTW = [39.087, -84.39];
     // The gust code that ships (comments stripped): new modules whole, plus the
     // gust blocks in the page / email / CRM files.
     const between = (src, a, b) => { const i = src.indexOf(a); const j = src.indexOf(b, i + 1); return i >= 0 && j > i ? src.slice(i, j) : ''; };
-    const page = stripComments(read('docs/assets/js/storm-report-page.js'));
+    const page = stripComments(read('docs/assets/js/roof-check.js'));
     const email = stripComments(read('functions/storm-report-email.js'));
     const crm = stripComments(read('docs/pro/js/storm-integration.js'));
-    const html = read('docs/storm-report.html').replace(/<!--[\s\S]*?-->/g, ' ');
+    const html = read('docs/roof-check.html').replace(/<!--[\s\S]*?-->/g, ' ');
     const blocks = {
       'asos-gust-logic.js': stripComments(read('functions/asos-gust-logic.js')),
       'integrations/asos-gust.js': stripComments(read('functions/integrations/asos-gust.js')),
@@ -300,7 +300,7 @@ const MTW = [39.087, -84.39];
       'email gustBlock': between(email, 'const gustBlock', 'return `<!DOCTYPE'),
       'email gustForLead': between(email, 'async function gustForLead', 'exports.stormReportEmail'),
       'CRM renderStormProofWind': between(crm, 'var WIND_CONTEXT', 'window.__NBD_CALL_REGISTRY ='),
-      'page markup': between(html, 'id="sr-rep-gusts"', '<a class="sr-cta'),
+      'page markup': between(html, 'id="rc-rep-gusts"', '<div class="rc-cta-row'),
     };
     for (const [name, text] of Object.entries(blocks)) {
       ok(name + ': located for scanning', text.length > 40, String(text.length));
@@ -309,13 +309,13 @@ const MTW = [39.087, -84.39];
     }
     ok('CRM note keeps the inspection + insurer lines', /Only an inspection can show/.test(blocks['CRM renderStormProofWind']) && /up to the insurer/.test(blocks['CRM renderStormProofWind']));
     ok('page markup: context note sits directly after the readings list',
-      /id="sr-rep-gust-list"><\/ul>\s*<div class="sr-gust-note"/.test(blocks['page markup']));
+      /id="rc-rep-gust-list"><\/ul>\s*<div class="rc-gust-note"/.test(blocks['page markup']));
     ok('page: the bottom disclaimer keeps "up to your insurer"', /Whether a claim is approved is up to your insurer/.test(html));
     ok('the retired working title is gone from shipped gust code', !Object.values(blocks).some((t) => /hit your street/i.test(t)));
   }
 
   // ── 11. render: public page (vm, escaped via textContent) ──────────────
-  console.log('\nRENDER — public /storm-report');
+  console.log('\nRENDER — public /roof-check (the storm history that was /storm-report)');
   async function runPage(report) {
     const els = {};
     function el(id) {
@@ -329,7 +329,7 @@ const MTW = [39.087, -84.39];
           set innerHTML(v) { this._html = String(v); },
           get innerHTML() { return this._html || ''; },
           appendChild(c) { kids.push(c); return c; },
-          addEventListener() {},
+          addEventListener() {}, setAttribute() {}, querySelector() { return null; }, querySelectorAll() { return []; }, focus() {},
           get childElementCount() { return 0; },
         };
       }
@@ -339,8 +339,9 @@ const MTW = [39.087, -84.39];
     const created = [];
     const doc = {
       readyState: 'complete',
-      getElementById: (id) => (/^(lf-css|lf-js|sr-map)$/.test(id) ? null : el(id)),
+      getElementById: (id) => (/^(lf-css|lf-js|rc-map)$/.test(id) ? null : el(id)),
       querySelectorAll: () => [],
+      querySelector: () => null,
       addEventListener(t, fn) { if (t === 'click') clickHandler = fn; },
       createElement(tag) { const o = { tagName: tag, style: {}, set textContent(v) { this._text = String(v); }, get textContent() { return this._text || ''; }, set innerHTML(v) { this._html = String(v); } }; created.push(o); return o; },
       head: { appendChild() {} },
@@ -357,14 +358,14 @@ const MTW = [39.087, -84.39];
       fetch: async () => ({ ok: true, status: 200, json: async () => report }),   // a real Response has ok; the page reads it (2026-10-26)
       setTimeout, clearTimeout, setInterval: () => 0, clearInterval() {},
     };
-    vm.runInNewContext(read('docs/assets/js/storm-report-page.js'), sandbox, { filename: 'storm-report-page.js' });
+    vm.runInNewContext(read('docs/assets/js/roof-check.js'), sandbox, { filename: 'roof-check.js' });
     const click = (target) => clickHandler({ target: { closest: (sel) => target(sel) } });
-    win._srAc = [{ display_name: '123 Main St, Cincinnati, OH', lat: '39.087', lon: '-84.39' }];
-    click((sel) => (sel.indexOf('sr-ac-item') >= 0 ? { dataset: { idx: '0' } } : null));
+    win._rcAc = [{ display_name: '123 Main St, Cincinnati, OH', lat: '39.087', lon: '-84.39' }];
+    click((sel) => (sel.indexOf('rc-ac-item') >= 0 ? { dataset: { idx: '0' } } : null));
     click((sel) => (sel === '[data-action]' ? { dataset: { action: 'generate' } } : null));
     await new Promise((r) => setTimeout(r, 10));
-    el('sr-firstName').value = 'Pat'; el('sr-phone').value = '(513) 555-0101'; el('sr-email').value = '';
-    click((sel) => (sel === '[data-action]' ? { dataset: { action: 'unlock' } } : null));
+    el('rc-firstName').value = 'Pat'; el('rc-phone').value = '(513) 555-0101'; el('rc-email').value = '';
+    click((sel) => (sel === '[data-action]' ? { dataset: { action: 'submit' } } : null));
     await new Promise((r) => setTimeout(r, 10));
     return { els, el, posted, created };
   }
@@ -379,26 +380,25 @@ const MTW = [39.087, -84.39];
       windGustSource: L.GUST_SOURCE_LINE, windGustContext: L.GUST_CONTEXT_LINE,
     });
     const r = await runPage(withG);
-    const box = r.el('sr-rep-gusts'), list = r.el('sr-rep-gust-list');
+    const box = r.el('rc-rep-gusts'), list = r.el('rc-rep-gust-list');
     ok('block shown when the nearest station has readings', box.hidden === false);
     ok('one <li> per reading; the 0-mph entry is dropped', list._kids.length === 2, String(list._kids.length));
     ok('lines rendered via textContent (markup stays text)', list._kids[1].textContent === 'At ' + XSS + ' 40 mph' && list._kids.every((k) => k._html === undefined));
     ok('list never written with innerHTML', list._html === null);
-    ok('context note rendered next to the readings', r.el('sr-rep-gust-note').textContent === L.GUST_CONTEXT_LINE);
-    ok('credit line rendered', r.el('sr-rep-gust-source').textContent === 'Wind gusts: ' + L.GUST_SOURCE_LINE);
+    ok('context note rendered next to the readings', r.el('rc-rep-gust-note').textContent === L.GUST_CONTEXT_LINE);
+    ok('credit line rendered', r.el('rc-rep-gust-source').textContent === 'Wind gusts: ' + L.GUST_SOURCE_LINE);
     ok('lead payload carries the report point (lat/lon) for the email', r.posted && r.posted.kind === 'inspect' && r.posted.payload.lat === 39.087 && r.posted.payload.lon === -84.39);
 
     const none = await runPage(Object.assign({}, base, { windGusts: [] }));
-    ok('no readings → block hidden, no "no reading" text, no 0', none.el('sr-rep-gusts').hidden === true && none.el('sr-rep-gust-note').textContent === '' && none.el('sr-rep-gust-list')._kids.length === 0);
+    ok('no readings → block hidden, no "no reading" text, no 0', none.el('rc-rep-gusts').hidden === true && none.el('rc-rep-gust-note').textContent === '' && none.el('rc-rep-gust-list')._kids.length === 0);
     const old = await runPage(base);
-    ok('older API response without windGusts → hidden', old.el('sr-rep-gusts').hidden === true);
+    ok('older API response without windGusts → hidden', old.el('rc-rep-gusts').hidden === true);
     const noCtx = await runPage(Object.assign({}, withG, { windGustContext: null }));
-    ok('readings without the context line → hidden (guardrail)', noCtx.el('sr-rep-gusts').hidden === true);
-    const markup = read('docs/storm-report.html');
-    ok('block ships hidden in the HTML (no flash before render)', /<div class="sr-gusts" id="sr-rep-gusts" hidden>/.test(markup));
-    // At least v4 — later fixes bump it again (R4 storm dates: v5).
-    ok('page loads the bumped storm-report-page.js?v=4', Number((markup.match(/storm-report-page\.js\?v=(\d+)"/) || [])[1]) >= 4);
-    ok('.sr-gusts wraps long words (no 390px overflow)', /\.sr-gusts\{[^}]*overflow-wrap:anywhere/.test(markup));
+    ok('readings without the context line → hidden (guardrail)', noCtx.el('rc-rep-gusts').hidden === true);
+    const markup = read('docs/roof-check.html');
+    ok('block ships hidden in the HTML (no flash before render)', /<div class="rc-gusts" id="rc-rep-gusts" hidden>/.test(markup));
+    ok('page loads roof-check.js with a cache-bust', Number((markup.match(/roof-check\.js\?v=(\d+)"/) || [])[1]) >= 1);
+    ok('.rc-gusts wraps long words (no 390px overflow)', /\.rc-gusts\{[^}]*overflow-wrap:anywhere/.test(markup));
   }
 
   // ── 12. render: email (escaped) ────────────────────────────────────────

@@ -145,15 +145,15 @@ console.log('\n3. no claim-outcome predictions');
   const W = require(path.join(DOCS, 'pro', 'js', 'claim-wording-filter.js'));
   const ids = W.RULES.map((r) => r.id);
   ok('the public claim-wording gate carries the outcome rules', ids.includes('claim-outcome-prediction') && ids.includes('covers-regardless'));
-  const sc = stripComments(read('docs/assets/js/storm-check.js'), 'x.js');
-  const sr = stripComments(read('docs/assets/js/storm-report-page.js'), 'x.js');
-  ok('/storm-check strong result recommends an inspection, not a claim', sc.includes("headline = 'Storm activity near you is worth a free inspection.'"));
-  ok('/storm-report strong result recommends an inspection, not a claim', sr.includes("h: 'Severe storm activity near you — worth a free inspection.'"));
+  // 2026-11-25: /storm-check and /storm-report merged into /roof-check; one
+  // verdict now covers both (the severe-storm case is its strong branch).
+  const rc = stripComments(read('docs/assets/js/roof-check.js'), 'x.js');
+  ok('/roof-check strong result recommends an inspection, not a claim', rc.includes("headline = 'Storm activity near you is worth a free inspection.'"));
   // 2026-10-06 (Jo, #2233): "document anything claimable" predicted a claim
   // outcome (OH/KY wording rules). Neutral replacement pinned; the word is
   // banned anywhere in the page's shipped (comment-stripped) code.
-  ok('/storm-report never says "claimable"', !/claimable/i.test(sr));
-  ok('/storm-report middle verdict uses the neutral wording', sr.includes('Joe will get on the roof and document what he finds so you can decide your next step.'));
+  ok('/roof-check never says "claimable"', !/claimable/i.test(rc));
+  ok('/roof-check middle verdict uses the neutral wording', rc.includes('Joe will get on the roof, document what he finds and tell you straight, so you can decide what to do next.'));
   const blog = read('docs/blog/my-roof-is-too-old-will-insurance-still-pay.html');
   ok('the old-roof FAQ answer says "it depends on your policy", visible AND in JSON-LD', (blog.match(/It depends on your policy\. If a covered peril like hail or wind caused the damage/g) || []).length === 2);
 }
@@ -227,7 +227,7 @@ console.log('\n8. financing, retired orange');
   const fin = hits(/several financing options/i, true);
   ok('no "several financing options" (financing is one marketplace, Acorn)', fin.length === 0, show(fin));
   ok('the Milford FAQ names Acorn Finance', /Financing is available through Acorn Finance/.test(read('docs/services/roof-replacement-milford-oh.html')));
-  ok('roof-score.js uses no retired orange', !/#e8720c|#f08030/i.test(stripComments(read('docs/assets/js/roof-score.js'), 'x.js')));
+  ok('roof-check.js uses no retired orange', !/#e8720c|#f08030/i.test(stripComments(read('docs/assets/js/roof-check.js'), 'x.js')));
 }
 
 // ── 9. "24-hour" means a 24-hour REPLY (what /inspect promises) ────────
@@ -398,9 +398,9 @@ console.log('\n14. No wording about what the insurer decides');
 console.log('\n15. AI-written notes say they are AI-drafted');
 // (2026-11-15, source-pin ratchet) parsed: the note box is found by its class
 // and its own text is read, so a label moved outside the box does not pass.
-for (const page of ['storm-check.html', 'roof-score.html', 'estimate.html']) {
+for (const page of ['roof-check.html', 'estimate.html']) {
   const doc = K.parseTags(read('docs/' + page));
-  const box = doc.$('.sc-take') || doc.$('.joes-take');
+  const box = doc.$('.rc-take') || doc.$('.joes-take');
   const words = box ? box.text.replace(/&#8217;|&rsquo;/g, '’') : '';
   ok(page + ': the AI note box says "AI-drafted" and that Joe hasn\'t seen the roof',
     !!box && words.includes('AI-drafted') && /hasn['’]t seen your roof/.test(words), words.slice(0, 160));

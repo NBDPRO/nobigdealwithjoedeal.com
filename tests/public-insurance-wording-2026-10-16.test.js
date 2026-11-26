@@ -96,7 +96,6 @@ const BANNED = [
 ];
 // Files that quote a banned phrase to forbid it — AI prompt rules, not copy.
 const ALLOW = {
-  'docs/assets/js/roof-score.js': 'AI prompt rule: "Do NOT guarantee … claim approval"',
   'docs/assets/js/inline/4053149b2f.js': 'AI prompt rule: "Do NOT say or imply what insurance will cover or pay …"',
 };
 

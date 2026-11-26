@@ -37,9 +37,10 @@ function fakeDb() {
   const spec = GW._publicLeadSpec;
   const kind = spec.PUBLIC_LEAD_KINDS.inspect;
 
-  // What storm-check.js posts at step 5: name, phone, address, source, story,
-  // tcpaConsent, the scheduling choice and wantsFollowUp (no email any more).
-  const posted = { name: 'Pat', phone: '(859) 555-0100', address: '12 Elm St, Goshen OH', source: '/storm-check', story: 'STORM CHECK | storm: recent/hail', tcpaConsent: false, scheduling: 'contact_me', wantsFollowUp: true };
+  // What the contact step posts (roof-check.js since 2026-11-25; storm-check.js
+  // before): name, phone, address, source, story, tcpaConsent, the scheduling
+  // choice and wantsFollowUp; an email only when one was typed (optional).
+  const posted = { name: 'Pat', phone: '(859) 555-0100', address: '12 Elm St, Goshen OH', source: '/roof-check', story: 'ROOF CHECK | storm records unavailable | roof age: 10-15 (asphalt) | signs: none', tcpaConsent: false, scheduling: 'contact_me', wantsFollowUp: true };
   ok('storm-check posts kind "inspect": a service kind that stores in inspect_leads', spec.SERVICE_KINDS.includes('inspect') && kind.collection === 'inspect_leads');
   ok('...and the step-5 payload carries every required field of that kind', kind.required.every((k) => posted[k]), kind.required);
 
@@ -48,7 +49,7 @@ function fakeDb() {
   ok('wantsFollowUp is enough for a grant: mintPhotoGrant stores one for inspect_leads', /^[a-f0-9]{48}$/.test(token) && db.store.get(PLP.GRANTS + '/' + PLP.hashToken(token)).collection === 'inspect_leads');
 
   const crmKey = 'leads/' + B.bridgeDocId('inspect_leads', 'sc-1');
-  db.store.set('inspect_leads/sc-1', { name: 'Pat', phone: '8595550100', source: '/storm-check' });
+  db.store.set('inspect_leads/sc-1', { name: 'Pat', phone: '8595550100', source: '/roof-check' });
   db.store.set(crmKey, { notes: '', email: '', phoneDigits: '8595550100' });
 
   // The body the result screen sends (storm-check.js saveDetails).
@@ -56,7 +57,7 @@ function fakeDb() {
   const pub = db.store.get('inspect_leads/sc-1');
   const crm = db.store.get(crmKey);
   ok('updatePublicLeadIntake accepts the storm-check follow-up (200, CRM card updated)', out.status === 200 && out.json.crm === true, out);
-  ok('...answers land on the same public lead', pub.bestTime === 'Evening' && pub.insuranceClaim === 'not_sure' && pub.howHeard === 'Google search' && pub.email === 'pat@example.com' && pub.source === '/storm-check');
+  ok('...answers land on the same public lead', pub.bestTime === 'Evening' && pub.insuranceClaim === 'not_sure' && pub.howHeard === 'Google search' && pub.email === 'pat@example.com' && pub.source === '/roof-check');
   ok('...and the CRM card gets the email and the note lines', crm.email === 'pat@example.com' && /Email: pat@example\.com/.test(crm.notes) && crm.phoneDigits === '8595550100');
   ok('...using one of the grant\'s saves', db.store.get(PLP.GRANTS + '/' + PLP.hashToken(token)).intakeUpdates === 1);
 

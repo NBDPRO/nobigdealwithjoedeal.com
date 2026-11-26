@@ -69,8 +69,8 @@ function loadClient({ fetchMode = 'ok' } = {}) {
 }
 const tick = () => new Promise((r) => setImmediate(r));
 
-// ── A tiny fake DOM for the quiz tools (storm-check.js, roof-score.js,
-// storm-report-page.js). Supports getElementById, descendant selectors made of
+// ── A tiny fake DOM for the quiz tool (roof-check.js since 2026-11-25; it
+// replaced storm-check.js, roof-score.js and storm-report-page.js). Supports getElementById, descendant selectors made of
 // `.class`, `[attr]` and `[attr="v"]`, closest(), events, classList.
 function makeDom() {
   const all = [];
@@ -184,18 +184,22 @@ function loadTool(rel, build, { geocode = () => [] } = {}) {
   const nominatimCalls = () => fetches.filter((u) => /nominatim/.test(u)).length;
   return { window, dom, ids, fetches, inits, timers, nominatimCalls, runTimers, fire: dom.fire, $: dom.doc.getElementById };
 }
+// /roof-check: address -> the free storm history (rc-teaser) -> roof questions (rc-step3).
 function buildQuiz(P) {
   return (el) => {
     const root = el('main');
-    const step1 = el('section', { id: P + '-step1', class: 'sc-step active' }, root);
-    const wrap = el('div', { class: 'sc-input-wrap' }, step1);
+    const step1 = el('section', { id: P + '-step1', class: P + '-step active' }, root);
+    const wrap = el('div', { class: P + '-input-wrap' }, step1);
     el('input', { id: P + '-address' }, wrap);
     el('div', { id: P + '-acdrop' }, wrap);
-    el('div', { id: P + '-addr-hint', class: 'sc-hint' }, step1);
-    el('button', { class: 'sc-next', 'data-step': '2' }, step1);
-    const step2 = el('section', { id: P + '-step2', class: 'sc-step' }, root);
-    const group = el('div', { class: 'sc-tiles', 'data-group': 'signs' }, step2);
-    for (const v of ['missing', 'dents', 'none']) el('div', { class: 'sc-tile', 'data-value': v }, group);
+    el('div', { id: P + '-addr-hint', class: P + '-hint' }, step1);
+    el('button', { class: P + '-next', 'data-action': 'generate' }, step1);
+    el('section', { id: P + '-loading', class: P + '-step' }, root);
+    const teaser = el('section', { id: P + '-teaser', class: P + '-step' }, root);
+    for (const id of ['teaser-headline', 'teaser-sub', 'teaser-chips', 'retry']) el('div', { id: P + '-' + id }, teaser);
+    const step3 = el('section', { id: P + '-step3', class: P + '-step' }, root);
+    const group = el('div', { class: P + '-tiles', 'data-group': 'signs' }, step3);
+    for (const v of ['missing', 'dents', 'none']) el('div', { class: P + '-tile', 'data-value': v }, group);
     el('input', { id: P + '-phone' }, root);
     return root;
   };
@@ -242,7 +246,7 @@ function buildQuiz(P) {
     ok('a successful POST clears its abort timer', ![...timers.values()].some((t) => t.ms >= 15000 && t.ms <= 30000), [...timers.values()].map((t) => t.ms));
   }
 
-  for (const [rel, P] of [['docs/assets/js/storm-check.js', 'sc'], ['docs/assets/js/roof-score.js', 'rs']]) {
+  for (const [rel, P] of [['docs/assets/js/roof-check.js', 'rc']]) {
     console.log(`\nH4 — ${rel}: no lookup per keystroke`);
     {
       const t = loadTool(rel, buildQuiz(P), { geocode: () => [{ display_name: '12 Elm St, Goshen, OH', lat: '39.2', lon: '-84.1' }] });
@@ -262,29 +266,31 @@ function buildQuiz(P) {
       const t = loadTool(rel, buildQuiz(P), { geocode });
       const inp = t.$(P + '-address'); inp.value = '4471 New Build Rd, Rural Route 2';
       t.fire(inp, 'input');
-      const next = t.dom.doc.querySelector('[data-step="2"]');
+      const next = t.dom.doc.querySelector('[data-action="generate"]');
       t.fire(next, 'click'); for (let i = 0; i < 4; i++) await tick();
       const hintEl = t.$(P + '-addr-hint');
       const btn = hintEl.children.find((c) => c.getAttribute && c.getAttribute('data-action') === 'useTypedAddress');
-      ok(`${label}: Continue offers a "Use my address as typed" button`, !!btn && /as typed/.test(btn.textContent), hintEl.textContent);
-      ok(`${label}: …and step 1 has not advanced yet`, t.$(P + '-step2').classList.contains('active') === false);
+      ok(`${label}: Check offers a "Use my address as typed" button`, !!btn && /as typed/.test(btn.textContent), hintEl.textContent);
+      ok(`${label}: …and step 1 has not advanced yet`, t.$(P + '-teaser').classList.contains('active') === false);
       if (btn) { t.fire(btn, 'click'); await tick(); }
-      ok(`${label}: clicking it moves on to step 2`, t.$(P + '-step2').classList.contains('active') === true);
+      // No map point means no storm records: the honest "couldn't check" history, never a dead end.
+      ok(`${label}: clicking it moves on to the storm history, which says it could not check`, t.$(P + '-teaser').classList.contains('active') === true && /couldn.t check storm records/i.test(t.$(P + '-teaser-headline').textContent), t.$(P + '-teaser-headline').textContent);
       ok(`${label}: …and the hint is cleared`, t.$(P + '-addr-hint').style.display === 'none');
     }
   }
 
-  console.log('\nM3 — /storm-check: a stalled AI call ends at 30 s and the result shows the canned note');
+  console.log('\nM3 — /roof-check: a stalled AI call ends at 30 s and the result shows the canned note');
   {
-    const t = loadTool('docs/assets/js/storm-check.js', (el) => {
-      const root = buildQuiz('sc')(el);
-      for (const id of ['sc-firstName', 'sc-email', 'sc-consent', 'sc-contact-err', 'sc-submit',
-        'sc-result-headline', 'sc-result-detail', 'sc-result-data', 'sc-result-take', 'sc-result-warn']) el('div', { id }, root);
-      el('section', { id: 'sc-step6', class: 'sc-step' }, root);
-      el('section', { id: 'sc-result', class: 'sc-step' }, root);
+    const t = loadTool('docs/assets/js/roof-check.js', (el) => {
+      const root = buildQuiz('rc')(el);
+      for (const id of ['rc-firstName', 'rc-email', 'rc-consent', 'rc-contact-err', 'rc-submit',
+        'rc-result-headline', 'rc-result-detail', 'rc-result-data', 'rc-result-take', 'rc-result-warn',
+        'rc-rep-summary', 'rc-rep-rows', 'rc-rep-source', 'rc-rep-gusts', 'rc-rep-gust-list', 'rc-rep-gust-note', 'rc-rep-gust-source']) el('div', { id }, root);
+      el('section', { id: 'rc-step5', class: 'rc-step' }, root);
+      el('section', { id: 'rc-result', class: 'rc-step' }, root);
       el('button', { 'data-action': 'submit' }, root);
     });
-    t.$('sc-firstName').value = 'Pat'; t.$('sc-phone').value = '(859) 555-0100'; t.$('sc-consent').checked = true;
+    t.$('rc-firstName').value = 'Pat'; t.$('rc-phone').value = '(859) 555-0100'; t.$('rc-consent').checked = true;
     t.fire(t.dom.doc.querySelector('[data-action="submit"]'), 'click');
     for (let i = 0; i < 6; i++) await tick();
     const aiAt = t.fetches.findIndex((u) => /publicFunnelAI/.test(u));
@@ -292,11 +298,11 @@ function buildQuiz(P) {
     ok('…with an abort signal', aiAt !== -1 && !!t.inits[aiAt].signal);
     const abortT = [...t.timers.values()].find((x) => x.ms === 30000);
     ok('…and a 30 s abort timer', !!abortT, [...t.timers.values()].map((x) => x.ms));
-    ok('the result is not shown while the AI call is pending', !t.$('sc-result').classList.contains('active'));
+    ok('the result is not shown while the AI call is pending', !t.$('rc-result').classList.contains('active'));
     if (abortT) abortT.fn();
     for (let i = 0; i < 6; i++) await tick();
-    ok('after the timeout the result screen shows', t.$('sc-result').classList.contains('active'));
-    ok('…with Joe\'s canned note', /Pat, I’ll get on your roof/.test(t.$('sc-result-take').textContent), t.$('sc-result-take').textContent);
+    ok('after the timeout the result screen shows', t.$('rc-result').classList.contains('active'));
+    ok('…with Joe\'s canned note', /Pat, I’ll get on your roof/.test(t.$('rc-result-take').textContent), t.$('rc-result-take').textContent);
   }
 
   console.log('\nM3 — /estimate: _fetchAI aborts at 30 s');
@@ -329,12 +335,8 @@ function buildQuiz(P) {
       (src.match(/await _fetchAI\(/g) || []).length === 2 && (src.match(/fetch\(CONFIG\.PROXY_URL/g) || []).length === 1);
   }
 
-  console.log('\nM3 — /roof-score: the AI call carries a 30 s abort');
-  {
-    const src = read('docs/assets/js/roof-score.js');
-    const jt = src.slice(src.indexOf('function joesTake()'), src.indexOf('/* ── shared intake block'));
-    ok('joesTake arms a 30 s abort and passes the signal', /setTimeout\(function \(\) \{ ctrl\.abort\(\); \}, 30000\)/.test(jt) && /signal: ctrl \? ctrl\.signal : undefined/.test(jt));
-  }
+  // (2026-11-25) The /roof-score copy of this check went with roof-score.js; the
+  // merged tool's AI timeout is the behavioural /roof-check M3 block above.
 
   console.log('\nM4 — /estimate "Email my estimate" does not promise an email the server may not send');
   {
@@ -376,33 +378,25 @@ function buildQuiz(P) {
   }
 
   console.log('\nM10 — form errors are announced to screen readers');
-  for (const [page, id] of [['docs/storm-check.html', 'sc-contact-err'], ['docs/roof-score.html', 'rs-contact-err'], ['docs/storm-report.html', 'sr-gate-err']]) {
+  for (const [page, id] of [['docs/roof-check.html', 'rc-contact-err']]) {
     const tag = (read(page).match(new RegExp('<div[^>]*id="' + id + '"[^>]*>')) || [])[0] || '';
     ok(`${page}: #${id} has role="alert"`, /\srole="alert"/.test(tag), tag);
   }
 
   console.log('\nM1 — "None / not sure" clears when a real sign is picked');
-  for (const [rel, P] of [['docs/assets/js/storm-check.js', 'sc'], ['docs/assets/js/roof-score.js', 'rs']]) {
+  for (const [rel, P] of [['docs/assets/js/roof-check.js', 'rc']]) {
     const t = loadTool(rel, buildQuiz(P));
-    const tile = (v) => t.dom.doc.querySelector('[data-group="signs"] .sc-tile[data-value="' + v + '"]');
+    const tile = (v) => t.dom.doc.querySelector('[data-group="signs"] .' + P + '-tile[data-value="' + v + '"]');
     t.fire(tile('none'), 'click');
     ok(`${rel}: tapping "none" selects it`, tile('none').classList.contains('selected'));
     t.fire(tile('missing'), 'click');
     ok(`${rel}: tapping "missing" afterwards deselects "none"`, !tile('none').classList.contains('selected') && tile('missing').classList.contains('selected'));
   }
 
-  console.log('\nH4 — storm-report-page.js: no lookup per keystroke; Generate resolves a typed address');
+  console.log('\nH4 — roof-check.js: no lookup per keystroke; Check resolves a typed address (was storm-report-page.js)');
   {
-    const t = loadTool('docs/assets/js/storm-report-page.js', (el) => {
-      const root = el('main');
-      const wrap = el('div', { class: 'sr-input-wrap' }, root);
-      el('input', { id: 'sr-address' }, wrap); el('div', { id: 'sr-acdrop' }, wrap);
-      el('div', { id: 'sr-addr-hint' }, root);
-      el('section', { id: 'sr-loading' }, root);
-      el('button', { 'data-action': 'generate' }, root);
-      el('input', { id: 'sr-phone' }, root);
-    }, { geocode: () => [{ display_name: '12 Elm St, Goshen, OH', lat: '39.2', lon: '-84.1' }] });
-    const inp = t.$('sr-address');
+    const t = loadTool('docs/assets/js/roof-check.js', buildQuiz('rc'), { geocode: () => [{ display_name: '12 Elm St, Goshen, OH', lat: '39.2', lon: '-84.1' }] });
+    const inp = t.$('rc-address');
     for (const v of ['1', '12', '12 E', '12 El', '12 Elm', '12 Elm St']) { inp.value = v; t.fire(inp, 'input'); t.runTimers(); }
     await tick();
     ok('typing sends no Nominatim request', t.nominatimCalls() === 0, t.nominatimCalls());
