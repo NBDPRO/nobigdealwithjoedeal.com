@@ -162,8 +162,9 @@ function walkSite(dir, out) {
 }
 const kyPages = walkSite(path.join(ROOT, 'docs'), []);
 const kyRel = kyPages.map((f) => path.relative(ROOT, f).split(path.sep).join('/'));
-ok('site scan covers the KY town + service pages (>= 35)', kyPages.length >= 35, 'kyPages=' + kyPages.length);
-for (const must of ['docs/areas/covington-ky.html', 'docs/services/storm-damage-covington-ky.html', 'docs/services/hail-damage-lexington-ky.html']) {
+// 2026-11-26: the 5 KY hail-damage-<town> pages were merged into their storm twins (GSC content merge), so the floor drops by 5.
+ok('site scan covers the KY town + service pages (>= 30)', kyPages.length >= 30, 'kyPages=' + kyPages.length);
+for (const must of ['docs/areas/covington-ky.html', 'docs/services/storm-damage-covington-ky.html', 'docs/services/storm-damage-lexington-ky.html']) {
   ok('site scan includes ' + must, kyRel.includes(must));
 }
 ok('site scan excludes docs/pro and Ohio pages', !kyRel.some((r) => r.startsWith('docs/pro/') || /-oh(-|\.html$)/.test(r)));
