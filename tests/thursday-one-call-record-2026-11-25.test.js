@@ -586,6 +586,23 @@ const thursdayDoc = (over) => Object.assign({
       ok('R2-4: Handled on the kept Cube card marks the Thursday call reviewed', dbK.store.get('thursday_calls/' + TDOC).reviewed === true);
       await CC.callAction({ db: dbK, auth, data: { id: 'cube_KEPT1', action: 'unhandled' }, nowMs: NOW + 1000 });
       ok('...and Not handled reopens it', dbK.store.get('thursday_calls/' + TDOC).reviewed === false);
+      // R2-6: the other direction. The Thursday inbox reviews the call -> the
+      // kept Cube card (the one the Calls screen shows) shows Handled; an
+      // inbox un-review reopens it. (The trigger re-projects on each write.)
+      const reviewedDoc = Object.assign(thursdayDoc(), { reviewed: true, reviewedBy: { uid: OWNER, at: NOW + 5000 } });
+      await PJ.projectThursdayCall({ db: dbK, docId: TDOC, data: reviewedDoc });
+      ok('R2-6: an inbox review marks the kept Cube card Handled', !!dbK.store.get('phone_calls/cube_KEPT1').handledAtMs, dbK.store.get('phone_calls/cube_KEPT1'));
+      const unDoc = Object.assign(thursdayDoc(), { reviewed: false, reviewedBy: { uid: OWNER, at: NOW + 6000 } });
+      await PJ.projectThursdayCall({ db: dbK, docId: TDOC, data: unDoc });
+      ok('...and an inbox un-review reopens it', dbK.store.get('phone_calls/cube_KEPT1').handledAtMs == null, dbK.store.get('phone_calls/cube_KEPT1'));
+      // Never reviewed (no reviewedBy): the Cube card keeps its own Handled.
+      await dbK.collection('phone_calls').doc('cube_KEPT1').set({ handledAtMs: NOW + 7000 }, { merge: true });
+      await PJ.projectThursdayCall({ db: dbK, docId: TDOC, data: thursdayDoc() });
+      ok('...a never-reviewed Thursday call leaves the Cube card\'s own Handled alone', dbK.store.get('phone_calls/cube_KEPT1').handledAtMs === NOW + 7000);
+      // Both sides already Handled (a Calls-screen tap synced reviewed, which
+      // re-projects): the card keeps its own time, nothing bounces back.
+      await PJ.projectThursdayCall({ db: dbK, docId: TDOC, data: reviewedDoc });
+      ok('...an agreeing re-projection keeps the Cube card\'s own Handled time', dbK.store.get('phone_calls/cube_KEPT1').handledAtMs === NOW + 7000, dbK.store.get('phone_calls/cube_KEPT1').handledAtMs);
     }
 
     // R2-5: the "Said you'd do" deck never files or makes a lead from a Thursday copy.

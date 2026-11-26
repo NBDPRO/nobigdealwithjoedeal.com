@@ -81,6 +81,20 @@ async function projectThursdayCall({ db, docId, data, log }) {
   if (!same) await ref.set(next, { merge: true });
   const out = { state: same ? 'unchanged' : 'written', id };
   const merged = Object.assign({}, cur || {}, next, { id });
+  // The projection is hidden behind a kept Cube card (mergedInto = that card):
+  // the card is what the Calls screen shows, so an inbox review / un-review
+  // (next carries handledAtMs only then) is mirrored onto it. Written only
+  // when the two disagree, so a Calls-screen tap (which syncs reviewed, which
+  // re-projects here) never bounces back.
+  if (next.handledAtMs !== undefined && merged.cubeCallId && merged.mergedInto === merged.cubeCallId) {
+    const cref = db.collection(CALLS).doc(merged.cubeCallId);
+    const cs = await cref.get();
+    const c = cs && cs.exists ? (cs.data() || {}) : null;
+    if (c && c.thursdayProjectionId === id && !!c.handledAtMs !== !!next.handledAtMs) {
+      await cref.set({ handledAtMs: next.handledAtMs, handledBy: next.handledBy || null }, { merge: true });
+      out.cubeHandled = !!next.handledAtMs;
+    }
+  }
   if (!merged.cubeCallId) {
     const rows = await rowsForNumber(db, next.userId, next.phoneDigits);
     const cube = TP.pickCube(rows, merged, id);
