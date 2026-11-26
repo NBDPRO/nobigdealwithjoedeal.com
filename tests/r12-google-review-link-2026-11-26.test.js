@@ -40,9 +40,15 @@ console.log('A. the allowlist');
     'https://search.google.com/local/writereview?placeid=ChIJacme1234567',
     'https://maps.app.goo.gl/AbCd1234',
     'https://www.google.com/maps/place/Acme+Roofing/@39.1,-84.5,17z',
+    // Real share-sheet forms (silent-failure review): old g.page/<name>/review, maps share params, g.co/kgs, writereview extras.
+    'https://g.page/AcmeRoofing/review',
+    'https://maps.app.goo.gl/AbCd1234?g_st=ic',
+    'https://g.co/kgs/AbC123x',
+    'https://search.google.com/local/writereview?placeid=ChIJacme1234567&source=g.page.m',
   ];
   const bad = [
-    'https://evil.example/review', 'https://bit.ly/abc123', 'http://g.page/r/CXzIjLwvtRPdEBM/review', 'javascript:alert(1)',
+    'https://evil.example/review', 'https://bit.ly/abc123', 'javascript:alert(1)', 'https://maps.app.goo.gl/AbCd1234?u=https://evil.example',
+    'https://search.google.com/local/writereview?placeid=ChIJacme1234567&next=//evil.example', 'http://evil.example/g.page/r/x',
     'https://g.page.evil.example/r/x/review', 'https://evil.example/?u=https://g.page/r/x/review', 'https://g.page/r/x/review"><script>',
     'https://search.google.com/local/writereview?placeid=ChIJacme1234567&redirect=https://evil.example', 'https://google.com.evil.example/maps/place/x',
     'https://www.google.com/url?q=https://evil.example', ' ', '', null, 42,
@@ -52,6 +58,7 @@ console.log('A. the allowlist');
     for (const u of bad) ok('refused: ' + JSON.stringify(u).slice(0, 70), !G.isGoogleReviewUrl(u));
     ok('surrounding spaces are trimmed, not a reason to refuse', G.cleanReviewUrl('  https://g.page/r/CXzIjLwvtRPdEBM/review  ') === 'https://g.page/r/CXzIjLwvtRPdEBM/review');
     ok('cleanReviewUrl answers "" for anything else', G.cleanReviewUrl('https://evil.example/x') === '');
+    ok('an http:// Google link is upgraded to https', G.cleanReviewUrl('http://g.page/r/CXzIjLwvtRPdEBM/review') === 'https://g.page/r/CXzIjLwvtRPdEBM/review');
   }
 }
 

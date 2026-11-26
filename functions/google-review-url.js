@@ -9,21 +9,27 @@
  * R12 of the review-ask guardrail plan: only these shapes are used; anything
  * else is treated as "no link" (NBD then falls back to its own review link).
  *
- * Whole-string matches only, https only, no query beyond the one Google
- * writereview placeid, no redirector (google.com/url) and no look-alike host.
+ * Whole-string matches only, Google's own hosts only, no redirector
+ * (google.com/url) and no look-alike host. A query is allowed only as plain
+ * key=value pairs (letters, digits, . _ -), so no URL can ride inside one.
+ * An http:// Google link is upgraded to https.
  */
 
+// Extra share-sheet parameters (?g_st=ic, &source=g.page.m): values hold no ':' or '/'.
+const PARAMS = '(?:[?&][A-Za-z0-9_]{1,32}=[A-Za-z0-9_.-]{0,64}){0,6}';
 const SHAPES = Object.freeze([
   /^https:\/\/g\.page\/r\/[A-Za-z0-9_-]{2,128}(\/review)?\/?$/,
-  /^https:\/\/search\.google\.com\/local\/writereview\?placeid=[A-Za-z0-9_-]{10,300}$/,
-  /^https:\/\/maps\.app\.goo\.gl\/[A-Za-z0-9_-]{4,64}$/,
+  /^https:\/\/g\.page\/[A-Za-z0-9_-]{2,128}\/review\/?$/,                       // the older g.page/<name>/review form
+  new RegExp('^https://search\\.google\\.com/local/writereview\\?placeid=[A-Za-z0-9_-]{10,300}' + PARAMS.replace('[?&]', '&') + '$'),
+  new RegExp('^https://maps\\.app\\.goo\\.gl/[A-Za-z0-9_-]{4,64}' + PARAMS + '$'),
+  /^https:\/\/g\.co\/kgs\/[A-Za-z0-9_-]{4,64}$/,
   /^https:\/\/(www\.)?google\.com\/maps\/place\/[A-Za-z0-9_.,+%@!:=\/-]{1,400}$/,
 ]);
 
-/** The link trimmed when it is a Google review / Maps page, else ''. */
+/** The link trimmed (and http upgraded to https) when it is a Google review / Maps page, else ''. */
 function cleanReviewUrl(raw) {
   if (typeof raw !== 'string') return '';
-  const s = raw.trim();
+  const s = raw.trim().replace(/^http:\/\//i, 'https://');
   return s.length <= 500 && SHAPES.some((re) => re.test(s)) ? s : '';
 }
 
