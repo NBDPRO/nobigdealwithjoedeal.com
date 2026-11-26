@@ -435,6 +435,7 @@
     "nbd-dialog-2026-11-19.test.js",
     "pwa-manifest.test.js",
     "route-truth.test.js",
+    "goto-single-route-2026-11-26.test.js",
     "scheduling-logic.test.js",
     "secret-stub-guard.test.js",
     "seo-surface.test.js",
