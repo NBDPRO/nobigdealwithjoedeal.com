@@ -74,22 +74,44 @@ Unchanged, and respected as it stands:
 ## Seeing the funnel in GA4
 
 1. **Register the params once** (Admin → Data display → Custom definitions →
-   Create custom dimension, scope **Event**): `form`, `step_name`, `fields`.
-   `step` as a custom dimension too if you want it in tables. Skip any that
-   already exist. GA4 only fills a custom dimension from the day it is
-   created, so do this first.
+   Create custom dimension, scope **Event**). **Done 2026-11-26**, in property
+   `a390539367p532006898`: Form (`form`), Step (`step`), Step name
+   (`step_name`), Form error fields (`fields`). GA4 only fills a custom
+   dimension from the day it is created. `lead_source` and `lead_kind` are
+   **not** registered, so a funnel cannot filter on them; use the
+   `form_step_complete` steps below instead.
 2. **Funnel**: Explore → Funnel exploration. Add one step per row, each
    "Event name = `form_step_view`" with a parameter condition, for example for
    /roof-check: `form = roof_check` and `step_name = address`, then
    `history`, `roof`, `contact`, `result`. Leave "Make open funnel" off
    (a closed funnel) to see true drop-off. Breakdown by `Device category` shows phone
-   vs desktop.
+   vs desktop. The step editor only offers `form` and `step_name` once events
+   carrying them have reached GA4 (it offered nothing on 2026-11-26, before
+   this PR shipped); until then its only choice is "Register new definition",
+   which would duplicate a dimension. Don't pick it.
    - /inspect: `form_step_view (inspect, contact)` → `form_start (inspect)` →
-     `lead_submit (lead_source=/inspect)` → `generate_lead (lead_source=/inspect)`
-     → `form_step_view (inspect, details)` → `form_step_complete (inspect, details)`.
+     `form_step_complete (inspect, contact)` (fires only when the lead saved) →
+     `form_step_view (inspect, details)` → `form_step_complete (inspect, details)`.
    - Quick form: `form_step_view (quick)` → `form_start (quick)` →
-     `lead_submit` → `generate_lead`. Add `Page path` as a breakdown to compare
+     `form_step_complete (quick)`. Add `Page path` as a breakdown to compare
      the homepage with town and service pages.
+
+### Funnel explorations (status 2026-11-26)
+
+| Exploration | Steps | Status |
+|---|---|---|
+| **Roof Check funnel** | `form_step_view`, `form = roof_check`: `address` → `history` → `roof` → `contact` → `result` | Saved with GA's default example steps (first visit → session start → page view → purchase); the real steps were blocked by the no-data rule above |
+| **Inspect funnel** | the /inspect line above (Form shown → Started → Request saved → Details shown → Details sent) | Not created yet |
+
+Two one-time desktop scheduled tasks (Claude app → Scheduled, Auto mode, Chrome
+tools only) finish them on **2026-11-28**: `ga4-roof-check-funnel` at 9:07 and
+`ga4-inspect-funnel` at 9:27. Both use a closed funnel over the last 7 days,
+broken down by Device category. Each run first checks that Chrome is
+connected. If the step editor still doesn't offer `form` and `step_name`, it
+cancels and reports "no form_step_view data yet" without changing anything, and
+it never registers a definition. If that happens, use **Run now** on the task
+once this PR has been live for about a day. The tasks run only while the
+desktop app is open (otherwise at the next launch).
 3. **Why people stop**: Explore → Free form, rows `form`, `step_name`,
    `fields`, value Event count, filtered to `form_error`. On /inspect a row of
    `f-phone` means the phone number is what stopped them.
