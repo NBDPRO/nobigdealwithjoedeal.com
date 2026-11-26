@@ -47,7 +47,7 @@ v = L.verdict([good, L.summarisePage('/down', [])]);
 ok('an unmeasured page is a note, never red', v.red === false && v.unmeasured.join() === '/down' && /not measured \(infra\)/.test(v.summary));
 
 console.log('\n3. Pages + wiring');
-ok('watches the money pages', ['/', '/book', '/estimate', '/our-work', '/storm-check'].every((p) => L.PAGES.includes(p)));
+ok('watches the money pages', ['/', '/book', '/estimate', '/our-work', '/roof-check'].every((p) => L.PAGES.includes(p)));
 ok('live site by default', L.BASE === 'https://nobigdealwithjoedeal.com' || !!process.env.PERF_BASE);
 const wf = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'perf-watch.yml'), 'utf8');
 ok('workflow is scheduled weekly and runnable by hand', /schedule:/.test(wf) && /cron: '[^']+'/.test(wf) && /workflow_dispatch:/.test(wf));
@@ -68,7 +68,7 @@ const lacking = linked.filter((r) => { const h = fs.readFileSync(path.join(DOCS,
 ok('the sweep reaches the public pages (guards against the walker matching nothing)', linked.length > 250, linked.length + ' pages');
 ok('every public page linking nbd-fonts.css preloads both fonts (' + linked.length + ' pages)', lacking.length === 0, lacking.length + ' lack them, e.g. ' + lacking.slice(0, 4).join(', '));
 ok('the only exemption (the offline fallback) names a real page', FP.NOT_MARKETING.every((r) => fs.existsSync(path.join(DOCS, r))));
-ok('the money pages perf-watch measures (/estimate, /storm-check) are in the sweep, not exempt', ['estimate.html', 'storm-check.html'].every((r) => pages.includes(r)));
+ok('the money pages perf-watch measures (/estimate, /roof-check) are in the sweep, not exempt', ['estimate.html', 'roof-check.html'].every((r) => pages.includes(r)));
 ok('docs/pro, admin, dev and sites stay out of the sweep', pages.every((r) => !/^(pro|admin|dev|sites)\//.test(r)));
 const LINK = '<link rel="stylesheet" href="/assets/css/nbd-fonts.css">';
 const stamped = FP.stamp('<head>\n  ' + LINK + '\n<style></style>\n');

@@ -113,7 +113,7 @@ const REQUIRED = {
 
 // Pages that must link each guide (the audit's "lives on" list).
 const LINKED_FROM = {
-  'kentucky-ohio-storm-claim-guide': ['docs/services/storm-damage.html', 'docs/services/hail-damage-insurance-claim.html', 'docs/storm-report.html', 'docs/storm-check.html', 'docs/blog/hail-season-prep-checklist.html', 'docs/free-tools/index.html'],
+  'kentucky-ohio-storm-claim-guide': ['docs/services/storm-damage.html', 'docs/services/hail-damage-insurance-claim.html', 'docs/roof-check.html', 'docs/blog/hail-season-prep-checklist.html', 'docs/free-tools/index.html'],
   'hail-photo-baseline-sheet': ['docs/blog/hail-season-prep-checklist.html', 'docs/services/storm-damage.html', 'docs/free-tools/index.html'],
   'compare-roofing-quotes-checklist': ['docs/services/roof-replacement.html', 'docs/estimate.html', 'docs/blog/how-to-choose-a-roofer-after-a-storm.html', 'docs/free-tools/index.html'],
   // The CRM's Job done hand-off card (docs/pro/js/review-handoff.js) is
