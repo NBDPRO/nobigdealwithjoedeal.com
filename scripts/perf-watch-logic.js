@@ -21,8 +21,9 @@
 const BASE = process.env.PERF_BASE || 'https://nobigdealwithjoedeal.com';
 
 // The money pages: the home page, booking, the estimate tool, the proof
-// gallery, and the storm checker that most storm traffic lands on.
-const PAGES = ['/', '/book', '/estimate', '/our-work', '/storm-check'];
+// gallery, and the roof check that most storm traffic lands on (was
+// /storm-check until the 2026-11-25 merge; that URL now 301s here).
+const PAGES = ['/', '/book', '/estimate', '/our-work', '/roof-check'];
 
 const RUNS = 3;
 
