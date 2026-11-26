@@ -82,7 +82,10 @@
           }
         }
       }
-    }).observe(form, { childList: true });
+    // subtree (2026-11-26): since 2026-10-26 inspect-form.js puts the error
+    // under the first bad field, not at the form's end, so watching only the
+    // form's own children missed every validation error.
+    }).observe(form, { childList: true, subtree: true });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onReady);

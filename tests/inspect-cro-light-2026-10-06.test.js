@@ -103,7 +103,7 @@ const form = el('inspectForm', {}, formPanel);
 const consent = el('ins-consent', {}, form);
 const inputs = [el('f-name', { 'aria-invalid': 'false' }, form), el('f-address', { 'aria-invalid': 'false' }, form), el('f-phone', { 'aria-invalid': 'false' }, form)];
 form.querySelectorAll = (sel) => (sel === '[aria-invalid="true"]' ? inputs.filter((i) => i.attrs['aria-invalid'] === 'true') : []);
-let observer = null;
+let observer = null; let observeOpts = null;
 const sandbox = {
   window: { gtag: function () { events.push([].slice.call(arguments)); } },
   document: {
@@ -111,7 +111,7 @@ const sandbox = {
     addEventListener(t, fn) { (docListeners[t] = docListeners[t] || []).push(fn); },
     getElementById(id) { return { inspectForm: form, 'ins-consent': consent }[id] || null; }
   },
-  MutationObserver: function (cb) { this.observe = () => { observer = cb; }; }
+  MutationObserver: function (cb) { this.observe = (t, o) => { observer = cb; observeOpts = o; }; }
 };
 vm.runInNewContext(jsSrc, sandbox);
 const tap = (a) => (docListeners.click || []).forEach((fn) => fn({ target: a }));
@@ -135,6 +135,9 @@ consent.checked = true;
 added({ id: 'inspectFormError' });
 last = events[events.length - 1];
 ok('a server-side failure reports "submit"', last[2] && last[2].fields === 'submit', JSON.stringify(last));
+// The error line sits under the first bad field (inspect-form.js since 2026-10-26),
+// not at the form's end: the observer has to watch the whole subtree.
+ok('the error observer watches the form subtree, not just its own children', !!observeOpts && observeOpts.subtree === true && observeOpts.childList === true, JSON.stringify(observeOpts));
 // form-funnel events (2026-11-26): the shared names ride next to the old ones.
 ok('form_step_view {form:"inspect", step:1} fires on load', events.some((e) => e[1] === 'form_step_view' && e[2].form === 'inspect' && e[2].step === 1), JSON.stringify(events));
 ok('form_start fires once, with inspect_form_start', names().filter((n) => n === 'form_start').length === 1, JSON.stringify(events));
