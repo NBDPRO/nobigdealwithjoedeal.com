@@ -9,6 +9,15 @@
  *   contact_tap          any tel:/sms: link; method 'tel'|'sms', place =
  *                        'hero' | 'form' | 'thanks' | 'sticky' | 'other'
  *
+ * Shared form-funnel names (2026-11-26, same on /inspect, the quick form,
+ * /storm-check and /estimate; documentation/projects/FORM-FUNNEL-EVENTS-2026-11-26.md):
+ *   form_step_view       {form:'inspect', step:1, step_name:'contact'} on load
+ *   form_start           next to inspect_form_start
+ *   form_error           next to inspect_form_error, same `fields`
+ * inspect-form.js sends the step completes and the thank-you details step.
+ * Each event also goes to Clarity as a custom event when Clarity is loaded
+ * (clarity-loader.js keeps its own DNT/GPC and domain gate).
+ *
  * No PII: never reads an input's value, a phone number or the error text.
  * Read-only on the page: it only listens and observes, so the form works the
  * same with this file missing. GA4's gtag uses sendBeacon, so the tap event
@@ -20,6 +29,9 @@
   function send(name, params) {
     try {
       if (typeof window.gtag === 'function') window.gtag('event', name, params || {});
+    } catch (e) {}
+    try {
+      if (typeof window.clarity === 'function') window.clarity('event', name);
     } catch (e) {}
   }
 
@@ -43,11 +55,14 @@
     var form = document.getElementById('inspectForm');
     if (!form) return;
 
+    send('form_step_view', { form: 'inspect', step: 1, step_name: 'contact' });
+
     var started = false;
     form.addEventListener('focusin', function () {
       if (started) return;
       started = true;
       send('inspect_form_start', { page: 'inspect' });
+      send('form_start', { form: 'inspect' });
     });
 
     if (typeof MutationObserver !== 'function') return;
@@ -61,12 +76,16 @@
             // The SMS box is optional (2026-10-15), so it never blocks a
             // submit and is never the field to blame.
             if (!ids.length) ids.push('submit');
+            send('form_error', { form: 'inspect', step: 1, step_name: 'contact', fields: ids.join(',') });
             send('inspect_form_error', { fields: ids.join(','), page: 'inspect' });
             return;
           }
         }
       }
-    }).observe(form, { childList: true });
+    // subtree (2026-11-26): since 2026-10-26 inspect-form.js puts the error
+    // under the first bad field, not at the form's end, so watching only the
+    // form's own children missed every validation error.
+    }).observe(form, { childList: true, subtree: true });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onReady);
