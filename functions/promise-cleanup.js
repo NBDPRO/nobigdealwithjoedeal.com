@@ -96,10 +96,13 @@ exports.promiseCleanup = onSchedule(
   async () => {
     try {
       if (await require('./integrations/killswitch').isAiDisabled()) { logger.info('[promiseCleanup] AI disabled — skipped'); return; }
+      // The one AI gate (functions/ai-gate.js aiGate): the owner tenant's plan and the daily spend breaker.
+      const gate = await require('./ai-gate').aiGate(getFirestore(), { companyId: OWNER, feature: 'promise-cleanup' });
+      if (!gate.ok) { logger.info('[promiseCleanup] AI gate refused — skipped', { reason: gate.reason }); return; }
       const { claudeNotes } = require('./call-center');
       const r = await runPromiseCleanup({
         db: getFirestore(), nowMs: Date.now(), live: enabled(),
-        ask: ({ system, prompt }) => claudeNotes({ system, prompt, feature: 'promise-cleanup', maxTokens: 600 }),
+        ask: ({ system, prompt }) => claudeNotes({ system, prompt, feature: 'promise-cleanup', maxTokens: 600, companyId: OWNER }),
       });
       logger.info('[promiseCleanup]', Object.assign({ mode: enabled() ? 'live' : 'dry-run' }, r));
     } catch (e) {

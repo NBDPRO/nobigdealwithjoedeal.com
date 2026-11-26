@@ -252,7 +252,7 @@ async function briefCallable({ db, auth, data, nowMs, callModel, log = logger })
 
   const t = auth.token || {};
   if (!(t.role === 'admin' || t.email_verified === true)) throw new HttpsError('permission-denied', 'Call briefs need a verified email.');
-  if (!(await aiAllowed(db, auth))) throw new HttpsError('permission-denied', 'Call briefs need a verified email and a paid plan.');
+  if (!(await aiAllowed(db, auth, 'call-brief'))) throw new HttpsError('permission-denied', 'Call briefs need a verified email and a paid plan.');
   const over = await takeQuota(db, auth.uid, g.companyId, nowMs);
   if (over === 'user') throw new HttpsError('resource-exhausted', 'You have drafted ' + L.USER_DAY_CAP + ' call briefs today, the daily limit. Try again tomorrow.');
   if (over === 'company') throw new HttpsError('resource-exhausted', 'Your company has drafted ' + L.COMPANY_DAY_CAP + ' call briefs today, the daily limit. Try again tomorrow.');
@@ -279,7 +279,7 @@ async function generate({ db, g, auth, nowMs, callModel, log = logger, transcrip
     log.warn('call_brief_ai_failed', { callId: g.callId, err: e && e.message });
     throw new HttpsError('unavailable', 'The brief did not come back. Try again in a minute.');
   }
-  await AiSpend.recordAiSpend(AiSpend.rowFromAnthropic('call-brief', req.model, resp), { db, nowMs, log });
+  await AiSpend.recordAiSpend(AiSpend.rowFromAnthropic('call-brief', req.model, resp), { db, nowMs, log, companyId: g.companyId });
   const raw = L.parseResponse(resp);
   if (!raw) throw new HttpsError('unavailable', 'The brief did not come back. Try again in a minute.');
   // segIndex (P1): Whisper's per-segment confidence; hard-to-hear quotes are marked unsure.
@@ -463,7 +463,7 @@ async function autoBriefHandler({ db, callId, before, after, nowMs, callModel, g
   const cached = cs && cs.exists ? cs.data() : null;
   if (L.cacheState(cached, hash, nowMs, false) === 'use') return { state: 'cached' };
   const t = auth.token;
-  if (!(t.role === 'admin' || t.email_verified === true) || !(await aiAllowed(db, auth))) return { state: 'plan' };
+  if (!(t.role === 'admin' || t.email_verified === true) || !(await aiAllowed(db, auth, 'call-brief'))) return { state: 'plan' };
   const over = await takeQuota(db, auth.uid, g.companyId, nowMs);
   if (over) return { state: 'quota', why: over };
   try {

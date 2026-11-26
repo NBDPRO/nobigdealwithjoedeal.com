@@ -499,9 +499,10 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-20  1197/75/1359 -> 1199/75/1361: recordings Bin PR 1 adds recordings-bin-logic and recordings-bin-server (node). MEASURED via --check.
 //   2026-11-19  1199/75/1361 -> 1200/75/1362: book time per job type adds job-hours-2026-11-20 (node). MEASURED via --check.
 //   2026-11-20  1200/75/1362 -> 1202/75/1364: call center compact view adds two node suites. MEASURED via --check.
-const FLOORS = { node: 1219, smoke: 75, disk: 1383 };
+const FLOORS = { node: 1221, smoke: 75, disk: 1385 };
 //   2026-11-20  1202/75/1364 -> 1203/75/1365: bottom-edge queue adds bottom-edge-queue-2026-11-19 (node). MEASURED via --check.
 //   2026-11-25  1204/75/1366 -> 1205/75/1368 (rebased onto the ai-fence suite; +1 node, +1 emulator): inbox dedupe_key adds agent-inbox-dedupe-2026-11-22 (node). MEASURED via --check.
+//   2026-11-25  1205/75/1368 -> 1208/75/1371: AI spend breaker adds ai-spend-breaker + ai-gate-entry-points + one more node suite (step 12). MEASURED via --check.
 //   2026-11-25  1205/75/1368 -> 1207/75/1371 (main already held one more node suite than the floor): the Quinn gate adds quinn-gate-2026-11-25 (node) + quinn-gate.integration (emulator). MEASURED via --check.
 //   2026-11-25  1208/75/1371 -> 1211/75/1374: server mail feed adds mail-feed-2026-11-25 (node); the floor had gone 2 stale on main. MEASURED via --check.
 //   2026-11-25  1205/75/1368 -> 1207/75/1370: one notify path (roadmap step 13) adds owner-notify-one-path-2026-11-25 (node); +1 node already on main above the old floor. MEASURED via --check.

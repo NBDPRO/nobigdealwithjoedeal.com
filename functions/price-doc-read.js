@@ -145,7 +145,7 @@ async function priceDocRead(request, deps) {
   const usage = (body && body.usage) || {};
   const costUsd = ((usage.input_tokens || 0) * COST_INPUT_PER_TOKEN) + ((usage.output_tokens || 0) * COST_OUTPUT_PER_TOKEN);
   await settle(costUsd - RESERVE_USD, 0);
-  try { await deps.recordAiSpend('price-doc-read', MODEL, body); } catch (e) { deps.logger.warn('[priceDocRead] ai spend log failed'); }
+  try { await deps.recordAiSpend('price-doc-read', MODEL, body, companyId); } catch (e) { deps.logger.warn('[priceDocRead] ai spend log failed'); }
 
   const text = Array.isArray(body && body.content) ? (body.content.find((c) => c && c.type === 'text') || {}).text : '';
   const parsed = D.parseDocJson(text);
@@ -173,7 +173,7 @@ const realDeps = () => ({
   assertAiEntitled: (db, auth) => require('./ai-gate').assertAiEntitled(db, auth),
   isHeicBytes: (buf) => require('./receipt-inbox-logic').isHeicBytes(buf),
   heicToJpeg: async (buf) => Buffer.from(await require('heic-convert')({ buffer: buf, format: 'JPEG', quality: 0.85 })),
-  recordAiSpend: (feature, model, body) => { const s = require('./ai-spend'); return s.recordAiSpend(s.rowFromAnthropic(feature, model, body), { log: logger }); },
+  recordAiSpend: (feature, model, body, companyId) => { const s = require('./ai-spend'); return s.recordAiSpend(s.rowFromAnthropic(feature, model, body), { log: logger, companyId }); },
 });
 
 const OPTS = { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true, secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 120, memory: '1GiB', maxInstances: 5, concurrency: 4 };   // 1GiB: a 12MP HEIC decodes to a ~40-50MB raw buffer (as the receipt inbox)

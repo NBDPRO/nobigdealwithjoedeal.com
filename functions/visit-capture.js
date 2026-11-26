@@ -58,17 +58,19 @@ function deps() {
   if (_deps) return _deps;
   const V = require('./integrations/voice-intelligence');
   return {
-    transcribe: ({ buffer, ext, prompt }) => V.transcribeGroqBuffer({
+    transcribe: ({ buffer, ext, prompt, companyId }) => V.transcribeGroqBuffer({
       buffer, mimeType: ext === 'm4a' ? 'audio/mp4' : (ext === 'webm' ? 'audio/webm' : 'audio/' + ext),
       filename: 'visit.' + ext, timeoutMs: 480_000, feature: 'visit-transcribe', prompt,
       // Call to Close P2 integration: per-segment confidence (avg_logprob), so a
       // walkthrough brief marks hard-to-hear quotes as a call's does.
       confidence: true,
+      companyId,
     }),
     notes: (a) => require('./call-center').claudeNotes(a),
     checkConsent: (a) => V._checkVerbalConsent(a),
     checkBudget: (db, companyId, plan) => V._checkBudget(db, companyId, plan),
-    entitled: (db, uid) => require('./ai-gate').aiEntitlementForUid(db, uid),
+    // The one AI gate (2026-11-25): the same entitlement plus the spend breaker.
+    entitled: (db, uid) => require('./ai-gate').aiGate(db, { forUid: uid, feature: 'visit-capture' }),
     recordUsage: (db, a) => V._incrementVoiceUsage(db, a),
     aiDisabled: async () => {
       const K = require('./integrations/killswitch');
@@ -326,9 +328,11 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
   // audio kept until retention; a plan-check blip retries in 30 minutes.
   const ent = D.entitled ? await D.entitled(db, uid) : { ok: false, reason: 'plan_check_failed' };
   if (!ent.ok) {
-    if (ent.reason === 'plan_check_failed') {
-      await state({ pipelineStatus: d.pipelineStatus || PIPELINE.QUEUED, pipelineNote: 'plan_check_failed', pipelineNextAtMs: nowMs + 30 * 60000 });
-      return { step: 'process', state: d.pipelineStatus || PIPELINE.QUEUED, note: 'plan_check_failed' };
+    // A plan-check blip, or the spend breaker (daily cap / stop-all, which
+    // lift on their own), parks the work and retries; only a plan refusal fails it.
+    if (['plan_check_failed', 'platform_cap', 'company_cap', 'paused'].includes(ent.reason)) {
+      await state({ pipelineStatus: d.pipelineStatus || PIPELINE.QUEUED, pipelineNote: ent.reason, pipelineNextAtMs: nowMs + 30 * 60000 });
+      return { step: 'process', state: d.pipelineStatus || PIPELINE.QUEUED, note: ent.reason };
     }
     const note = ent.reason === 'unverified' ? 'needs_confirmed_email' : 'needs_paid_plan';
     await state({ pipelineStatus: PIPELINE.FAILED, pipelineNote: note, pipelineNextAtMs: 0 });
@@ -439,7 +443,7 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
     }
     let t;
     try {
-      t = await D.transcribe({ buffer, ext: extOf(d.audioPath), prompt });
+      t = await D.transcribe({ buffer, ext: extOf(d.audioPath), prompt, companyId: ctx.companyId });
     } catch (e) {
       const outage = LG.visitOutage(e);
       // One poisoned file can answer 5xx / time out for ever: after TRANSIENT_MAX in a row it is the file's fault.
@@ -501,7 +505,7 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
     try {
       let c;
       try {
-        c = await D.checkConsent({ transcript: transcriptText, segments: segments.map((s) => ({ start: s.s, end: s.e, text: s.t })) });
+        c = await D.checkConsent({ transcript: transcriptText, segments: segments.map((s) => ({ start: s.s, end: s.e, text: s.t })), companyId: ctx.companyId });
       } catch (ce) {
         if (!LG.visitOutage(ce)) await countClaudeCall();
         throw ce;
@@ -536,7 +540,7 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
   let notes;
   const notesPrompt = LG.buildVisitNotesPrompt({ capture: Object.assign({}, d, { durationSec }), transcript: transcriptText, leadName: name, nowMs });
   try {
-    const raw = await D.notes({ system: LG.VISIT_NOTES_SYSTEM, prompt: notesPrompt, feature: 'visit-notes', maxTokens: 1500 });
+    const raw = await D.notes({ system: LG.VISIT_NOTES_SYSTEM, prompt: notesPrompt, feature: 'visit-notes', maxTokens: 1500, companyId: ctx.companyId });
     notes = LG.sanitizeVisitNotes(raw);
   } catch (e) {
     const outage = LG.visitOutage(e);

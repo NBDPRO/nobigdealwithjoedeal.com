@@ -262,12 +262,15 @@ console.log('\nSeat picker — assignSeats (over-capacity cap-enforced choice)')
 
 console.log('\nCompany-keyed billing reads (AI surfaces)');
 {
-  const ai = read('functions/handlers/ai.js');
-  assert('ai.js resolves billingKey = companyId || uid',
-    /billingKey = decoded\.companyId \|\| decoded\.uid/.test(ai)
-    && /subscriptions\/\$\{billingKey\}/.test(ai));
-  assert('ai.js accepts trialing as paid',
-    /sub\.status === 'active' \|\| sub\.status === 'trialing'/.test(ai),
+  // 2026-11-25 (roadmap step 12): claudeProxy's own inline plan read moved into the one
+  // shared gate, functions/ai-gate.js aiGate(); the invariants stay pinned there.
+  // (That claudeProxy really calls the gate is proven by behaviour in
+  // tests/ai-gate-entry-points-2026-11-25.test.js.)
+  const gate = read('functions/ai-gate.js');
+  assert('ai-gate.js resolves billingId = companyId || uid',
+    /billingId = t\.companyId \|\| id/.test(gate) && /subscriptions\/' \+ billingId/.test(gate));
+  assert('ai-gate.js accepts trialing as paid',
+    /s\.status === 'active' \|\| s\.status === 'trialing'/.test(gate),
     'a Growth trial is the conversion window — AI must work during it');
   const pv = read('functions/photo-vision.js');
   // photo-vision's spend path is one classifyPhoto() shared by the callable
