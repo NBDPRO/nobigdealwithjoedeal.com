@@ -529,6 +529,12 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project demo-nbd-inbox-dedupe 'node ./agent-inbox-dedupe.integration.test.js'
+      # The Quinn gate (2026-11-25, roadmap step 8): the real crmMcp handler + agentDraftAction
+      # end to end: unchecked drafts need the owner's confirm, withdraw_item, no self-verify.
+      - name: Run Quinn-gate tests under firestore emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project demo-nbd-quinn-gate 'node ./quinn-gate.integration.test.js'
 
   syntax-check:
     name: Node syntax check

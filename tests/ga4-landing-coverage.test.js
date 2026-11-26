@@ -52,6 +52,13 @@ console.log('\nSCOPE — the pages that earn leads');
 const pages = tool.scopePages();
 {
   ok('scope covers docs/services and docs/areas', tool.SCOPE_DIRS.includes('services') && tool.SCOPE_DIRS.includes('areas'));
+  // 2026-11-25: the 33 blog posts and 51 /our-work case studies had no tag at all.
+  const rel = (p) => path.relative(ROOT, p).replace(/\\/g, '/');
+  ok('scope covers docs/blog and docs/our-work (every post and case study)',
+     tool.SCOPE_DIRS.includes('blog') && tool.SCOPE_DIRS.includes('our-work') &&
+     pages.filter((p) => rel(p).startsWith('docs/blog/')).length >= 30 &&
+     pages.filter((p) => rel(p).startsWith('docs/our-work/')).length >= 50,
+     pages.filter((p) => /docs[\\/](blog|our-work)[\\/]/.test(p)).length + ' blog + our-work pages in scope');
   ok('scope is the 160+ landing pages the audit counted', pages.length >= 160, String(pages.length));
   ok('the three untagged top-level public pages are in scope', ['careers.html', 'partners.html', 'storm-alerts.html'].every((f) => tool.SCOPE_FILES.includes(f)));
   ok('the CRM, admin, tenant microsites and the 404 are NOT in scope',

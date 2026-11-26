@@ -296,14 +296,17 @@ async function runTool(name, args, key) {
       const waiting = await db().collection('agent_inbox').where('companyId', '==', company).where('leadId', '==', lead.id).limit(L.MAX_LIST).get();
       if (waiting.docs.some((d) => L.reviewDraftWaiting(d.data()))) return L.toolErr('A review ask for this customer is already in the Agent inbox. Do not draft another.');
     }
+    // The Quinn gate (roadmap step 8): unchecked until verify_item passes or flags it.
+    item.quinn = { state: 'unchecked' };
     return fileItem(key, today, item, 'Draft is in the Agent inbox. Nothing was sent — only the owner can send it.', dk.key);
   }
 
   if (name === 'file_social_draft') {
     const d = L.buildSocialDraft(args);
     if (d.error) return L.toolErr(d.error);
-    const wording = L.claimWordingProblem(d.item.text);
+    const wording = L.socialWordingProblem(d.item.text, key.isNbd);
     if (wording) return L.toolErr(wording);
+    d.item.quinn = { state: 'unchecked' };
     return fileItem(key, today, d.item, 'Social draft is in the Agent inbox for the owner to send to Social Studio. Nothing was posted.'
       + (d.needsMedia ? ' This platform needs a photo or video before it can be approved.' : ''), dk.key);
   }
@@ -442,18 +445,38 @@ async function runTool(name, args, key) {
     const snap = await db().collection('agent_inbox').where('companyId', '==', company).where('status', '==', 'pending').limit(L.MAX_LIST).get();
     const items = snap.docs.map((d) => Object.assign({ item_id: d.id }, d.data()))
       .sort((a, b) => L.ms(a.createdAt) - L.ms(b.createdAt)).slice(0, Math.min(Number(args.limit) || 20, L.MAX_LIST))
-      .map((i) => ({ item_id: i.item_id, bot: i.bot, kind: i.kind, lead_id: i.leadId || null, due_date: i.dueDate || null, title: i.title || '', text: i.text, verified: !!i.verified, quinn_note: i.quinnNote || '' }));
+      .map((i) => ({ item_id: i.item_id, bot: i.bot, kind: i.kind, lead_id: i.leadId || null, due_date: i.dueDate || null, title: i.title || '', text: i.text, verified: !!i.verified, quinn_note: i.quinnNote || '', quinn: L.quinnState(i) }));
     return L.toolText({ items });
   }
 
-  if (name === 'verify_item') {
+  // verify_item / withdraw_item (roadmap step 8): read and write the item in
+  // one transaction, so the owner's decision and the bot's never cross.
+  if (name === 'verify_item' || name === 'withdraw_item') {
     const ref = db().doc('agent_inbox/' + String(args.item_id || '').replace(/[^A-Za-z0-9_-]/g, ''));
-    const snap = await ref.get();
-    const it = snap.exists ? snap.data() : null;
-    if (!it || it.companyId !== company) return L.toolErr('unknown item_id');
-    if (it.status !== 'pending') return L.toolErr('already decided by the owner');
-    await ref.update({ verified: !!args.ok, verifiedBy: key.bot.name, quinnNote: String(args.note || '').slice(0, 500), verifiedAt: FieldValue.serverTimestamp() });
-    return L.toolText({ ok: true, item_id: snap.id, verified: !!args.ok });
+    const verify = name === 'verify_item';
+    const out = await db().runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const it = snap.exists ? snap.data() : null;
+      const ts = FieldValue.serverTimestamp();
+      if (verify) {
+        const v = L.verifyDecision(it, company, key.botId, args.ok, args.note);
+        if (v.error) return v;
+        // The legacy fields stay: the inbox, the deck and team_activity read them.
+        // keyId on the item itself: which key checked it survives a lost audit row.
+        tx.update(ref, { quinn: { state: v.state, reason: v.reason, by: key.bot.name, botId: key.botId, keyId: key.id.slice(0, 12), at: ts },
+          verified: v.state === 'passed', verifiedBy: key.bot.name, quinnNote: v.reason, verifiedAt: ts });
+        return { verified: v.state === 'passed', quinn: v.state };
+      }
+      const w = L.withdrawDecision(it, company, key.botId, L.isHouseChecker(key.botId), args.reason);
+      if (w.error) return w;
+      tx.update(ref, { status: 'withdrawn', withdrawReason: w.reason, withdrawnBy: key.bot.name, withdrawnByBotId: key.botId, withdrawnByKeyId: key.id.slice(0, 12), withdrawnAt: ts, decidedAt: ts });
+      return { withdrawn: true };
+    });
+    if (out.error) return L.toolErr(out.error);
+    const res = L.toolText(Object.assign({ ok: true, item_id: ref.id }, out));
+    // Read by handleRpc's audit row only; not enumerable, so never sent to the bot.
+    Object.defineProperty(res, 'auditItemId', { value: ref.id, enumerable: false });
+    return res;
   }
   return L.toolErr('unknown tool');
 }
@@ -569,7 +592,7 @@ async function handleRpc(msg, keyIn) {
       let out;
       try { out = await runTool(name, p.arguments || {}, key); }
       catch (e) { logger.error('[crmMcp] tool failed', { name, msg: e.message }); out = L.toolErr('The CRM could not answer right now.'); }
-      db().collection('agent_audit').add(Object.assign({ keyId: key.id.slice(0, 12), botId: key.botId, companyId: key.companyId, tool: name, ok: !out.isError, at: FieldValue.serverTimestamp() }, out.deduped ? { deduped: true } : {})).catch(() => {});
+      db().collection('agent_audit').add(Object.assign({ keyId: key.id.slice(0, 12), botId: key.botId, companyId: key.companyId, tool: name, ok: !out.isError, at: FieldValue.serverTimestamp() }, out.deduped ? { deduped: true } : {}, out.auditItemId ? { itemId: out.auditItemId } : {})).catch(() => {});
       return L.rpcResult(msg.id, out);
     }
     default:
@@ -852,8 +875,10 @@ async function draftLead(c, it) {
   return Object.assign({ id: it.leadId }, lead);
 }
 async function draftCheck(c, it) {
-  if (!it || it.companyId !== c.company || (it.kind !== 'draft_text' && it.kind !== 'draft_email')) return { ok: false, reason: 'Not a draft in your inbox.' };
+  if (!it || it.companyId !== c.company || L.DRAFT_KINDS.indexOf(it.kind) === -1) return { ok: false, reason: 'Not a draft in your inbox.' };
   if (it.status !== 'pending') return { ok: false, reason: 'Already decided.' };
+  // A social draft has no recipient; it is checked for its Quinn label only (roadmap step 8).
+  if (it.kind === 'social_draft') return { ok: true };
   const lead = await draftLead(c, it);
   if (!lead) return { ok: false, reason: 'That customer is no longer on your board.' };
   const name = L.minimalLead(lead).name;
@@ -884,7 +909,13 @@ async function draftAction(request) {
   if (data.action === 'check') {
     const ids = (Array.isArray(data.ids) ? data.ids : []).slice(0, L.MAX_LIST).map((id) => cleanId(id, /[^A-Za-z0-9_-]/g)).filter(Boolean);
     const results = {};
-    for (const id of ids) results[id] = await draftCheck(c, await readDoc('agent_inbox/' + id));
+    for (const id of ids) {
+      const it = await readDoc('agent_inbox/' + id);
+      const r = await draftCheck(c, it);
+      // The Quinn gate (roadmap step 8): what the owner is warned about before sending, or null.
+      if (r.ok) r.quinn = L.quinnLabel(it);
+      results[id] = r;
+    }
     return { results };
   }
   if (data.action !== 'sent') throw new HttpsError('invalid-argument', 'Unknown action.');
@@ -912,6 +943,13 @@ async function draftAction(request) {
     const chk = await textCheck(c, lead);
     if (!chk.ok) throw new HttpsError(chk.code === 'unverified' ? 'unavailable' : 'failed-precondition', chk.reason);
   }
+  // The Quinn gate (roadmap step 8; Joe: warn + one extra tap, never block): a
+  // house bot's draft Quinn has not passed goes only with confirmUnverified,
+  // which the inbox sends after the owner's one extra confirm. Checked again
+  // on the item as the transaction reads it.
+  const confirmed = data.confirmUnverified === true;
+  const unverified = L.sendGateProblem(it, confirmed);
+  if (unverified) throw new HttpsError('failed-precondition', unverified);
   // A review ask (the bot's marker, or a Google review link in what is sent)
   // stamps the lead asked in the same transaction, the fields every other
   // "already asked?" check reads (review-ask-auto.js, post_job, the nudge).
@@ -931,7 +969,10 @@ async function draftAction(request) {
       if (!cur || cur.deleted === true) throw new HttpsError('not-found', 'That customer is no longer on your board.');
       if (L.sprintAsked(cur)) throw new HttpsError('failed-precondition', 'This customer was already asked for a review. Not sent.');
     }
-    tx.update(ref, { status: 'sent_by_owner', decidedAt: FieldValue.serverTimestamp(), decidedBy: c.uid, text: body, title: isText ? '' : subject });
+    const late = L.sendGateProblem(s.data(), confirmed);
+    if (late) throw new HttpsError('failed-precondition', late);
+    const gated = L.quinnGated(s.data()) ? { quinnAtSend: L.quinnState(s.data()) } : {};
+    tx.update(ref, Object.assign({ status: 'sent_by_owner', decidedAt: FieldValue.serverTimestamp(), decidedBy: c.uid, text: body, title: isText ? '' : subject }, gated));
     if (reviewAsk) tx.update(leadRef, { reviewRequested: true, reviewRequestedAt: FieldValue.serverTimestamp(), reviewRequestSource: isText ? 'agent-draft-text' : 'agent-draft-email' });
     return true;
   });
