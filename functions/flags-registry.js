@@ -72,7 +72,7 @@ const ROWS = {
     meaning: 'Texts the homeowner a quick acknowledgement when a new lead arrives. Off = no acknowledgement text.' },
   MAIL_FEED_ENABLED: { group: 'Calls & texts', dark: true, doc: 'documentation/runbooks/MAIL-FEED-SETUP.md',
     meaning: 'Every 15 minutes: a read-only, masked copy of new iCloud (jd@, info@) and Gmail inbox mail for the office team. Never marks, moves or answers mail. Also needs the mail secrets. Off = nothing is read.' },
-  STORM_TIPS_EMAIL_ENABLED: { group: 'Calls & texts', dark: true, doc: 'documentation/projects/STORM-TIPS-EMAIL-2026-11-26.md',
+  STORM_TIPS_EMAIL_ENABLED: { group: 'Calls & texts', doc: 'documentation/projects/STORM-TIPS-EMAIL-2026-11-26.md',
     meaning: 'Storm-season tips email to guide subscribers who ticked the box (Joe presses send on /pro/storm-tips; the schedule also needs messaging_controls/automations stormTipsEmail). Off = nothing is sent.' },
   STORM_TEXT_ENABLED: { group: 'Calls & texts', doc: 'documentation/projects/AI-AUTOMATIONS-2026-10-04.md',
     meaning: 'Storm-watch texts to Storm Alert subscribers after hail. Also needs messaging_controls/automations stormText and a confirmed (replied YES) subscriber. Off = the watch runs but sends nothing.' },
