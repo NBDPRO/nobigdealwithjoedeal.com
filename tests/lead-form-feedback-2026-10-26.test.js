@@ -207,7 +207,7 @@ function fakeEls(ids) {
     ok('a bad phone sends form_error {fields:"phone"} (a field name, not its value)', !!err && err.params.fields === 'phone' && err.params.form === 'quick', err);
     q.el('ph').value = '(859) 555-0100';
     await q.submit();
-    ok('a saved lead sends form_step_complete', names().includes('form_step_complete'), names());
+    ok('a saved lead sends form_step_complete', q.events.some((e) => e.name === 'form_step_complete'), names());
     fail = true;
     await q.submit();
     ok('a refused send sends form_error {fields:"submit"}', q.events.some((e) => e.name === 'form_error' && e.params.fields === 'submit'), q.events);
