@@ -55,6 +55,8 @@ const SAMPLE = {
   address: '1 Probe St, Cincinnati, OH 45202',
   source: 'lead-gateway-probe',
   story: 'Daily lead-gateway probe. Not a homeowner; never stored.',
+  // guide_copy checks the slug against the published guides.
+  guide: require('./guide-copy-logic').GUIDE_SLUGS[0],
 };
 
 function probeKinds(spec) {

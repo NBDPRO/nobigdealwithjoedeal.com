@@ -101,10 +101,13 @@ const CUSTOMER_EMAIL_RULES = {
   'functions/funnel-recovery.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/lead-followup.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/review-ask-auto.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
+  // v2 sends (2026-11-26): every email through guardEmail + the email switch; the automation status is the sweep's (review-ask-auto.js).
+  'functions/review-ask-v2.js': ['MessagingControls.guardEmail(', "MessagingControls.channelStatus(db, 'email')"],
   'functions/portal-moments.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/lead-alert.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/estimate-email.js': ['MessagingControls.guardEmail('],
   'functions/storm-report-email.js': ['MessagingControls.guardEmail('],
+  'functions/guide-copy-email.js': ['MessagingControls.guardEmail('],
   'functions/esign-io.js': ['MessagingControls.guardResend('],
   'functions/remote-signing.js': ['MessagingControls.guardResend('],
   'functions/report-sharing.js': ['MessagingControls.guardResend('],
@@ -137,7 +140,7 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
 
 // E3. One-shot triggers check the pause BEFORE they take their claim (a pause must not burn the claim).
 {
-  for (const [rel, claimToken] of [['functions/estimate-email.js', 'runTransaction('], ['functions/storm-report-email.js', 'runTransaction('], ['functions/pro-prospects.js', 'runTransaction(']]) {
+  for (const [rel, claimToken] of [['functions/estimate-email.js', 'runTransaction('], ['functions/storm-report-email.js', 'runTransaction('], ['functions/guide-copy-email.js', 'runTransaction('], ['functions/pro-prospects.js', 'runTransaction(']]) {
     const code = byRel(rel);
     const iCheck = code.indexOf('channelStatus(');
     const iClaim = code.indexOf(claimToken, iCheck > 0 ? 0 : 0);
@@ -239,7 +242,7 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
 // H. One-shot triggers (Cloud Function bodies, no test hook): a pause OR a canary redirect that lands AFTER the
 //    pre-check (a flip between the pre-check and guardEmail) must release the claim, never leave it stamped emailed.
 {
-  for (const [rel, field] of [['estimate-email.js', 'estimateEmailedAt'], ['storm-report-email.js', 'reportEmailedAt']]) {
+  for (const [rel, field] of [['estimate-email.js', 'estimateEmailedAt'], ['storm-report-email.js', 'reportEmailedAt'], ['guide-copy-email.js', 'guideEmailedAt']]) {
     const src = stripJsComments(fs.readFileSync(path.join(FN, rel), 'utf8'));
     const afterGuard = src.slice(src.indexOf('guardEmail('));
     const release = new RegExp(field + ': FieldValue\\.delete\\(\\)', 'g');

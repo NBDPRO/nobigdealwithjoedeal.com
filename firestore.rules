@@ -4370,6 +4370,12 @@ service cloud.firestore {
       allow read: if isAdmin();
     }
 
+    // Homeowner "email me this guide" requests (2026-11-26), gateway-only.
+    match /guide_copy_requests/{reqId} {
+      allow create, update, delete: if false;
+      allow read: if isAdmin();
+    }
+
     match /contact_leads/{leadId} {
       allow create, update, delete: if false;
       allow read: if isAdmin();

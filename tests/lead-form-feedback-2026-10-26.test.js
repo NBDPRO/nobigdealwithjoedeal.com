@@ -97,13 +97,15 @@ function loadQuickForm({ submitPublicLead, intake, values = {} } = {}) {
     set innerHTML(v) { html = v; }, get innerHTML() { return html; },
     querySelector: (sel) => (sel === 'form' ? form : null),
   };
-  const window = { document, location: { pathname: '/services/roof-repair-mason-oh' }, submitPublicLead, NBDIntake: intake, console: { warn: (...a) => warns.push(a.map(String).join(' ')), log() {}, error() {} } };
+  const events = [];
+  const window = { document, location: { pathname: '/services/roof-repair-mason-oh' }, submitPublicLead, NBDIntake: intake, console: { warn: (...a) => warns.push(a.map(String).join(' ')), log() {}, error() {} },
+    gtag: (kind, name, params) => { if (kind === 'event') events.push({ name, params }); } };
   window.window = window;
   vm.createContext(window);
   vm.runInContext(read('docs/assets/js/quick-lead-form.js'), window, { filename: 'quick-lead-form.js' });
   const uid = (html.match(/id="(qlf-\d+)-h"/) || [])[1];
   const el = (suffix) => document.getElementById(uid + '-' + suffix);
-  return { window, form, html, uid, el, focusLog, warns, submit: async () => { form.listeners.submit[0]({ preventDefault() {} }); await settle(); } };
+  return { window, form, html, uid, el, focusLog, warns, events, submit: async () => { form.listeners.submit[0]({ preventDefault() {} }); await settle(); } };
 }
 const GOOD = { fn: 'Pat', ph: '(859) 555-0100', ad: '12 Elm St, Mason OH', hp: '' };
 const centered = (e) => e.calls.some((c) => c[0] === 'scrollIntoView' && c[1] && c[1].block === 'center');
@@ -191,6 +193,27 @@ function fakeEls(ids) {
     await q.submit();
     ok('a fixed form clears the old mark and the old message', q.el('ph').getAttribute('aria-invalid') === null && !/phone/.test(q.el('err').textContent), q.el('err').textContent);
   }
+  console.log('\nform-funnel events (2026-11-26) — the quick form');
+  {
+    let fail = false;
+    const q = loadQuickForm({ submitPublicLead: async () => (fail ? { ok: false, reason: 'x' } : { ok: true }), values: { fn: 'Pat', ph: '123', ad: '12 Elm St, Mason OH' } });
+    const names = () => q.events.map((e) => e.name);
+    ok('no IntersectionObserver (old browser): form_step_view {form:"quick", step:1} fires on render', q.events.some((e) => e.name === 'form_step_view' && e.params.form === 'quick' && e.params.step === 1 && e.params.step_name === 'contact'), q.events);
+    const focusin = q.form.listeners.focusin || [];
+    focusin.forEach((fn) => fn({})); focusin.forEach((fn) => fn({}));
+    ok('form_start fires once on the first focus', names().filter((n) => n === 'form_start').length === 1, names());
+    await q.submit();
+    const err = q.events.find((e) => e.name === 'form_error');
+    ok('a bad phone sends form_error {fields:"phone"} (a field name, not its value)', !!err && err.params.fields === 'phone' && err.params.form === 'quick', err);
+    q.el('ph').value = '(859) 555-0100';
+    await q.submit();
+    ok('a saved lead sends form_step_complete', q.events.some((e) => e.name === 'form_step_complete'), names());
+    fail = true;
+    await q.submit();
+    ok('a refused send sends form_error {fields:"submit"}', q.events.some((e) => e.name === 'form_error' && e.params.fields === 'submit'), q.events);
+    ok('no event carries the name, phone or address', !/Pat|555|Elm/.test(JSON.stringify(q.events)), JSON.stringify(q.events));
+  }
+
   console.log('\nfunnel-1 — the scheduling-choice error is also shown where it can be seen');
   {
     const radio = fakeEls(['radio']).radio;

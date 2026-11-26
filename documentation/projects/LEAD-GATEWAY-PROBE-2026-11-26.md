@@ -20,7 +20,7 @@ morning, so a broken gateway shows up even with no traffic.
 ## How it works
 
 - `leadGatewayProbe` (`functions/lead-gateway-probe.js`) runs daily at 09:00 ET.
-  For each public lead kind (guide, contact, estimate, storm, free_roof, inspect)
+  For each public lead kind (guide, guide_copy, contact, estimate, storm, free_roof, inspect)
   it POSTs a body built from the gateway's own field spec to the live
   `submitPublicLead`. Each request carries the site Origin, the `x-nbd-lead-probe`
   header, and an ID token in `x-nbd-probe-token`, minted by the metadata server
@@ -80,7 +80,7 @@ service account for `submitPublicLead` and `leadGatewayProbe` would narrow it.
 
 1. Nothing to create: the token comes from the runtime service account, and the
    heartbeat rides the existing `daily-syncs` check.
-2. The first 09:00 ET run should log `leadGatewayProbe` with `ok: true` and six
+2. The first 09:00 ET run should log `leadGatewayProbe` with `ok: true` and seven
    `submitPublicLead: probe ok` lines in `submitpubliclead`.
 3. If it fails because the token is refused (`probe refused` /
    `wrong-account`), the gateway and the cron are running as different service
