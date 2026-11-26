@@ -17,11 +17,14 @@
  * confirmedSourceWriteOk), by hand, one tap per customer. Never inferred: the
  * intake source is shown as a hint and is NEVER copied into the answer.
  *
- * Two screens in one modal (button on the CRM board toolbar):
+ * Three screens in one modal (button on the CRM board toolbar):
  *   Review  one customer at a time, collected customers still missing an
  *           answer, biggest collected dollars first, nine big tap targets.
  *   Report  per confirmed source: customers paid, collected dollars, ad spend
  *           where entered, collected dollars per ad dollar.
+ *   Website pages (2026-11-26) per website page: leads, inspected, sold and
+ *           COLLECTED dollars, last month and the last 12 months (wpBuild,
+ *           the same rules as the monthly marketing report).
  *
  * Money rules: "collected" = invoice payments minus refunds, dated by when the
  * payment arrived (NBDRevenue.paymentsOf, the one definition in
@@ -228,10 +231,144 @@
     return (neg ? '-$' : '$') + String(d).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + r;
   }
 
+  // ── Website pages (2026-11-26) ───────────────────────────────────────
+  // Per website page: leads -> inspected -> sold -> COLLECTED dollars, last
+  // calendar month and the trailing 12 months. The same rules as the monthly
+  // marketing report (functions/website-page-revenue.js, PR #3275; kept in
+  // step by tests/lead-source-fixer-2026-10-19.test.js): the page a web lead
+  // was sent from (lead.sourcePage), redirected URLs folded into their new
+  // home; Inspected = an inspected-or-later stage now or in stageHistory, or
+  // an inspection date already passed; Sold = numbers-logic isSale; Collected
+  // = payments minus refunds dated by arrival (NBDRevenue.paymentsOf) from any
+  // customer who came off that page, whenever they came in. Integer cents.
+  var WP_ALIAS = {
+    '/storm-check': '/roof-check', '/roof-score': '/roof-check', '/storm-report': '/roof-check',
+    '/book': '/inspect', '/index': '/', 'homepage': '/',
+    'estimate-funnel-v2': '/estimate', 'storm-alerts-page': '/storm-alerts',
+  };
+  var WP_COLLECTION = {
+    estimate_leads: 'Instant Estimate', inspect_leads: 'Inspection / Storm tool', contact_leads: 'Contact form',
+    free_roof_entries: 'Free Roof entry', storm_alert_subscribers: 'Storm signup',
+  };
+  // Built-in stage keys (functions/stage-roles.js BUILTIN_KEYS) and legacy names.
+  var WP_STAGES = ('new contacted inspected claim_filed adjuster_meeting_scheduled adjuster_inspection_done scope_received ' +
+    'estimate_submitted supplement_requested supplement_approved estimate_sent_cash negotiating prequal_sent loan_approved ' +
+    'contract_signed job_created permit_pulled materials_ordered materials_delivered crew_scheduled install_in_progress ' +
+    'install_complete final_photos deductible_collected final_payment collections closed warranty_claim warranty_scheduled ' +
+    'warranty_repaired service_quoted service_approved lost').split(' ');
+  var WP_LEGACY = {
+    'new lead': 'new', 'estimate sent': 'estimate_submitted', 'approved': 'contract_signed', 'in progress': 'install_in_progress',
+    'complete': 'closed', 'closed won': 'closed', 'closed lost': 'lost', 'won': 'closed', 'closed_won': 'closed', 'closed-won': 'closed',
+  };
+
+  function wpPageKey(lead) {
+    var s = String((lead && lead.sourcePage) || '').trim();
+    if (/^calcom:/i.test(s)) return 'Cal.com booking';
+    s = s.replace(/^page-form:/i, '');
+    if (!s) {
+      var col = WP_COLLECTION[lead && lead.publicLeadCollection];
+      return '(page not recorded)' + (col ? ' · ' + col : '');
+    }
+    s = s.replace(/^https?:\/\/[^/]+/i, '').split(/[?#]/)[0].toLowerCase();
+    if (s.charAt(0) === '/') {
+      s = s.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
+      if (s.length > 1) s = s.replace(/\/+$/, '');
+      if (!s) s = '/';
+    }
+    return WP_ALIAS[s] || s;
+  }
+  /** Built-in stage key, or null for a tenant custom stage ('' = 'new'). */
+  function wpStageKey(stage) {
+    var s = String(stage == null ? '' : stage).trim();
+    if (!s) return 'new';
+    if (WP_STAGES.indexOf(s) >= 0) return s;
+    var lower = s.toLowerCase();
+    if (WP_LEGACY[lower]) return WP_LEGACY[lower];
+    var snake = lower.replace(/[\s-]+/g, '_');
+    return WP_STAGES.indexOf(snake) >= 0 ? snake : null;
+  }
+  function wpInspectedStage(stage) {
+    var k = wpStageKey(stage);
+    return !!k && k !== 'new' && k !== 'contacted' && k !== 'lost';
+  }
+  function wpReachedInspection(lead, nowMs, isSale) {
+    if (!lead) return false;
+    if (isSale(lead) || wpInspectedStage(lead.stage)) return true;
+    var hist = Array.isArray(lead.stageHistory) ? lead.stageHistory : [];
+    for (var i = 0; i < hist.length; i++) {
+      var h = hist[i];
+      if (h && (wpInspectedStage(h.to) || (h.from && wpInspectedStage(h.from)))) return true;
+    }
+    var insp = toMs(lead.inspectionDate);
+    return insp > 0 && insp <= nowMs;
+  }
+  function wpAddMonths(ym, n) {
+    var y = Number(ym.slice(0, 4)), m = Number(ym.slice(5, 7)) - 1 + n;
+    var yy = y + Math.floor(m / 12), mm = ((m % 12) + 12) % 12;
+    return yy + '-' + String(mm + 1).padStart(2, '0');
+  }
+  /** Last calendar month and the 12 months ending with it; from inclusive, to exclusive, YYYY-MM-DD. */
+  function wpWindows(todayYmd) {
+    var thisMonth = String(todayYmd).slice(0, 7), last = wpAddMonths(thisMonth, -1), to = thisMonth + '-01';
+    return {
+      month: { from: last + '-01', to: to, label: last },
+      year: { from: wpAddMonths(last, -11) + '-01', to: to, label: wpAddMonths(last, -11) + ' to ' + last },
+    };
+  }
+  function wpDay(ms, tz) {
+    try {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+    } catch (e) { return new Date(ms).toISOString().slice(0, 10); }
+  }
+  function wpEmpty(page) {
+    return { page: page, month: { leads: 0, inspected: 0, sold: 0, collectedCents: 0 }, year: { leads: 0, inspected: 0, sold: 0, collectedCents: 0 } };
+  }
+  /**
+   * @param {{leads:Array, invoices:Array, paymentsOf:Function, isSale:Function, nowMs:number, tz:string}} o
+   * @returns {{windows, rows, total}} rows biggest 12-month collected first
+   */
+  function wpBuild(o) {
+    var tz = o.tz || 'America/New_York', now = o.nowMs || Date.now();
+    var win = wpWindows(wpDay(now, tz)), rows = {}, pageOf = {}, KEYS = ['month', 'year'];
+    function row(p) { return rows[p] || (rows[p] = wpEmpty(p)); }
+    function inWin(day, k) { return day >= win[k].from && day < win[k].to; }
+    (o.leads || []).forEach(function (l) {
+      if (!l || l.webLead !== true || l.deleted === true || l.e2eTestData || l.isProspect) return;
+      var p = wpPageKey(l);
+      if (l.id) pageOf[l.id] = p;
+      var t = toMs(l.createdAt);
+      if (!t) return;
+      var day = wpDay(t, tz), insp = wpReachedInspection(l, now, o.isSale), sold = !!o.isSale(l);
+      KEYS.forEach(function (k) {
+        if (!inWin(day, k)) return;
+        var r = row(p)[k];
+        r.leads++; if (insp) r.inspected++; if (sold) r.sold++;
+      });
+    });
+    (o.invoices || []).forEach(function (inv) {
+      if (!inv || inv.deleted === true || inv.e2eTestData) return;
+      var p = inv.leadId ? pageOf[inv.leadId] : null;
+      if (!p) return;                                     // not a website customer
+      o.paymentsOf(inv).forEach(function (pay) {
+        var t = toMs(pay.at);
+        if (!t) return;
+        var day = wpDay(t, tz), c = Math.round((parseFloat(pay.amount) || 0) * 100);
+        KEYS.forEach(function (k) { if (inWin(day, k)) row(p)[k].collectedCents += c; });
+      });
+    });
+    var list = Object.keys(rows).map(function (k) { return rows[k]; }).sort(function (a, b) {
+      return b.year.collectedCents - a.year.collectedCents || b.year.sold - a.year.sold || b.year.leads - a.year.leads || (a.page < b.page ? -1 : 1);
+    });
+    var total = wpEmpty('All website pages');
+    list.forEach(function (r) { KEYS.forEach(function (k) { ['leads', 'inspected', 'sold', 'collectedCents'].forEach(function (f) { total[k][f] += r[k][f]; }); }); });
+    return { windows: win, rows: list, total: total };
+  }
+
   var pure = {
     isValidSource: isValidSource, labelOf: labelOf, cleanNote: cleanNote, canConfirm: canConfirm, rangeFor: rangeFor,
     collectedCents: collectedCents, reviewQueue: reviewQueue, coverage: coverage, spendCentsFor: spendCentsFor,
     buildReport: buildReport, answerPatch: answerPatch, fmtMoney: fmtMoney,
+    wpPageKey: wpPageKey, wpStageKey: wpStageKey, wpReachedInspection: wpReachedInspection, wpWindows: wpWindows, wpBuild: wpBuild, WP_ALIAS: WP_ALIAS,
     SOURCES: SOURCES, SOURCE_KEYS: SOURCE_KEYS, SPEND_KEY: SPEND_KEY, RANGES: RANGES, NOTE_MAX: NOTE_MAX, FLAG: FLAG,
   };
   if (typeof module !== 'undefined' && module.exports) { module.exports = pure; }
@@ -320,15 +457,41 @@
     return h;
   }
 
+  function companyTz() {
+    var z = w.NBDCompanyTimeZone && typeof w.NBDCompanyTimeZone.current === 'function' ? w.NBDCompanyTimeZone.current(w._companyProfile) : '';
+    if (z) return z;
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'; } catch (e) { return 'America/New_York'; }
+  }
+  function pagesHtml() {
+    var N = w.NBDNumbers;
+    if (!N || typeof N.isSale !== 'function') return '<p class="lsf-empty" role="alert">Sales data is not loaded on this page. Reload and try again.</p>';
+    var rep = wpBuild({ leads: leads(), invoices: st.invoices || [], paymentsOf: w.NBDRevenue.paymentsOf, isSale: function (l) { return N.isSale(l); }, nowMs: Date.now(), tz: companyTz() });
+    var cells = function (r, k) {
+      return '<td data-label="Leads">' + r[k].leads + '</td><td data-label="Inspected">' + r[k].inspected + '</td>' +
+        '<td data-label="Sold">' + r[k].sold + '</td><td data-label="Collected">' + esc(fmtMoney(r[k].collectedCents)) + '</td>';
+    };
+    var table = function (k, title) {
+      var list = rep.rows.filter(function (r) { return r[k].leads || r[k].collectedCents; });
+      var h = '<h3 class="lsf-q">' + esc(title) + '</h3>';
+      if (!list.length) return h + '<p class="lsf-empty">No website leads or website money in this period.</p>';
+      return h + '<table class="lsf-table"><thead><tr><th>Page</th><th>Leads</th><th>Inspected</th><th>Sold</th><th>Collected</th></tr></thead><tbody>' +
+        list.map(function (r) { return '<tr class="lsf-row"><td class="lsf-c-name" data-label="Page">' + esc(r.page) + '</td>' + cells(r, k) + '</tr>'; }).join('') +
+        '<tr class="lsf-row"><td class="lsf-c-name" data-label="Page"><strong>' + esc(rep.total.page) + '</strong></td>' + cells(rep.total, k) + '</tr></tbody></table>';
+    };
+    return table('month', 'Last month (' + rep.windows.month.label + ')') + table('year', 'Last 12 months (' + rep.windows.year.label + ')') +
+      '<p class="lsf-foot-note">Leads, inspected and sold count website leads that came in during the period, by the page they were sent from (old addresses that now redirect count as their new page). Collected is money actually received in the period, payments minus refunds, from any customer who came off that page, whenever they first came in. Estimates, contracts and pipeline are never counted as collected.</p>';
+  }
+
   function bodyHtml() {
     var h = '<div class="lsf-head"><h2 class="lsf-title" id="lsfTitle">Where customers came from</h2>' +
       '<button type="button" class="lsf-x" data-lsf-act="close" aria-label="Close">×</button></div>' +
       '<div class="lsf-tabs" role="tablist">' +
       '<button type="button" role="tab" class="lsf-tab' + (st.tab === 'review' ? ' on' : '') + '" aria-selected="' + (st.tab === 'review') + '" data-lsf-tab="review">Review</button>' +
-      '<button type="button" role="tab" class="lsf-tab' + (st.tab === 'report' ? ' on' : '') + '" aria-selected="' + (st.tab === 'report') + '" data-lsf-tab="report">Report</button></div>';
+      '<button type="button" role="tab" class="lsf-tab' + (st.tab === 'report' ? ' on' : '') + '" aria-selected="' + (st.tab === 'report') + '" data-lsf-tab="report">Report</button>' +
+      '<button type="button" role="tab" class="lsf-tab' + (st.tab === 'pages' ? ' on' : '') + '" aria-selected="' + (st.tab === 'pages') + '" data-lsf-tab="pages">Website pages</button></div>';
     if (st.loading) return h + '<p class="lsf-empty" role="status">Loading payments…</p>';
     if (st.error) return h + '<p class="lsf-empty" role="alert">' + esc(st.error) + '</p><div class="lsf-foot"><button type="button" class="lsf-btn" data-lsf-act="retry">Try again</button></div>';
-    return h + (st.tab === 'report' ? reportHtml() : reviewHtml());
+    return h + (st.tab === 'report' ? reportHtml() : st.tab === 'pages' ? pagesHtml() : reviewHtml());
   }
 
   function paint() {
@@ -400,7 +563,7 @@
     if (!overlay || !available()) return;
     var act = t.getAttribute('data-lsf-act'), p = t.getAttribute('data-lsf-pick'), tab = t.getAttribute('data-lsf-tab');
     if (p) { pick(p).catch(function (e) { st.saving = false; toast('Could not save: ' + (e && e.message || 'unknown error'), 'error'); paint(); }); return; }
-    if (tab) { st.tab = tab === 'report' ? 'report' : 'review'; paint(); return; }
+    if (tab) { st.tab = tab === 'report' || tab === 'pages' ? tab : 'review'; paint(); return; }
     if (act === 'close') close();
     else if (act === 'retry') loadData();
     else if (act === 'skip') { var q = queue(); if (q.length) { st.skipped.add(q[0].id); st.note = ''; paint(); } }

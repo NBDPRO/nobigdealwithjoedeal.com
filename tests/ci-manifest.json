@@ -952,6 +952,7 @@
     "guides-quick-form-2026-11-25.test.js",
     "guide-email-copy-2026-11-26.test.js",
     "storm-tips-email-2026-11-26.test.js",
+    "contact-tap-2026-11-26.test.js",
     "lead-submit-failure-signal-2026-11-25.test.js",
     "roof-check-merge-2026-11-25.test.js",
     "pro-claims-honesty-2026-09-13.test.js",
@@ -973,6 +974,7 @@
     "seo-hub-vs-town-2026-10-06.test.js",
     "seo-gsc-titles-2026-10-07.test.js",
     "town-cta-seo-2026-11-17.test.js",
+    "town-nearby-jobs-2026-11-26.test.js",
     "worth-a-claim-sweep-2026-11-18.test.js",
     "meta-description-cuts-2026-10-26.test.js",
     "town-rr-pages-overlap-2026-10-06.test.js",
@@ -1242,7 +1244,8 @@
     "atproto-did-2026-11-16.test.js",
     "call-center-reupload-dedupe-2026-11-18.test.js",
     "send-window-2026-11-22.test.js",
-    "cron-manifest-2026-11-22.test.js"
+    "cron-manifest-2026-11-22.test.js",
+    "website-page-revenue-2026-11-26.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
