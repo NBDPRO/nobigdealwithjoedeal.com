@@ -130,8 +130,9 @@ group('nbd-nav.css is linked in <head>, exactly once (render-blocking perf, 2026
   });
   // Positive controls: the scan found the partial pages AND the hand-authored
   // homepage, whose nav lives outside the markers.
-  assert('at least 280 marketing pages carry a nav partial or link nbd-nav.css',
-    scoped.length >= 280, 'found ' + scoped.length);
+  // 2026-11-26: 278 after the GSC content merge deleted 26 hail town pages and 2 blog posts (301s in firebase.json).
+  assert('at least 270 marketing pages carry a nav partial or link nbd-nav.css',
+    scoped.length >= 270, 'found ' + scoped.length);
   assert('the homepage is in scope', scoped.some((p) => rel(p) === 'docs/index.html'));
 
   const bad = { missing: [], twice: [], body: [] };

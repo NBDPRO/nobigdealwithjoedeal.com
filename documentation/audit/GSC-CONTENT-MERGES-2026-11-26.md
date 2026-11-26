@@ -155,10 +155,16 @@ sitemap lost 28 URLs (`build-sitemap.js --write --keep-lastmod`).
 
 ## Follow-ups (not done here)
 
-- Rerunning `scripts/add-location-interlinks.js` would rewrite the placeholder
-  GeoCoordinates (39.2, -84.15, Goshen's point) that **43 area pages** still
-  carry on main. Out of scope here, so that restamp was reverted; worth its own
-  small PR.
+- **Not a bug, checked 2026-11-26:** the GeoCoordinates (39.2, -84.15) on the
+  area pages are the business's own `#org` point (Goshen, OH). They come from the
+  `schema-entity` partial and sit on all 274 pages; area pages carry no
+  city-level geo of their own. The trap is step 1 of
+  `scripts/add-location-interlinks.js`. It was written when the area pages had
+  their own placeholder geo, and it now matches the org block, so a rerun
+  rewrites the business's location to each town's point inside a
+  generator-owned `nbd:partial` region. That restamp was reverted here. Don't
+  "fix" those coordinates, and treat step 1 as stale before rerunning the script.
+  Adding real per-town geo (e.g. an `areaServed` Place) would be a new feature.
 - Many blog pages carry a CSS comment "copied verbatim from
   /blog/how-roof-financing-actually-works.html". The file is gone; the comments
   are history and harmless.
