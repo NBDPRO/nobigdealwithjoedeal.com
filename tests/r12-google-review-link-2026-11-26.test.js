@@ -80,6 +80,8 @@ console.log('C. the portal review button and the agent review sprint use the sam
   ok('portalReviewUrl no longer accepts any http(s) link', !/\^https\?:/.test(fnBody), fnBody.slice(0, 200));
   const agent = strip(fs.readFileSync(path.join(FN, 'agent-mcp.js'), 'utf8'));
   ok('the agent review sprint resolves the link through RA.reviewUrlFor (covered by B)', /RA\.reviewUrlFor\(/.test(agent));
+  ok('...and says a saved non-Google link is not used, instead of claiming no link is set',
+    /is not a Google review page, so it is not used/.test(agent) && /No Google review link is set/.test(agent));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
