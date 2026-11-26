@@ -79,7 +79,8 @@ section('2. announcement bar: no free-roof slide on the swept pages');
     if (doc(r).$$('[data-nbd-freeroof-ann]').length) left.push(r);
   }
   ok('no data-nbd-freeroof-ann slide outside index.html and blog/', left.length === 0, left.slice(0, 5).join(', '));
-  const slides = docs.get('docs/areas/florence-ky.html').$$('.ann-bar .ann-slide');
+  // The seasonal slide (scripts/seasonal-ann-slide.js) comes and goes; the three standing slides do not.
+  const slides = docs.get('docs/areas/florence-ky.html').$$('.ann-bar .ann-slide').filter((s) => !s.has('data-nbd-season-ann'));
   ok('Florence keeps the other three slides, phone slide still linked', slides.length === 3 && !!slides[1].$('a[href="tel:+18594207382"]'));
 }
 
