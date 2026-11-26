@@ -641,6 +641,8 @@
     "agent-mcp-more-tools-2026-10-02.test.js",
     "agent-inbox-dedupe-2026-11-22.test.js",
     "quinn-gate-2026-11-25.test.js",
+    "agent-door-hardening-2026-11-25.test.js",
+    "thursday-kill-switch-2026-11-25.test.js",
     "price-change-devices-2026-11.test.js",
     "agent-personal-keys-2026-10-02.test.js",
     "call-watch-2026-10-02.test.js",

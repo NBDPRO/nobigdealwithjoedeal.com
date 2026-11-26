@@ -44,7 +44,9 @@ function summarizeBots({ inbox, audit }) {
     pending: i.filter((r) => r.status === 'pending').length,
     calls: a.length,
     callsByTool: countBy(a, (r) => r.tool),
-    errors: a.filter((r) => r.ok === false).length,
+    // A call refused by the runtime pause is not an error (agent-mcp.js, 2026-11-25).
+    errors: a.filter((r) => r.ok === false && r.paused !== true).length,
+    paused: a.filter((r) => r.paused === true).length,
   };
 }
 
