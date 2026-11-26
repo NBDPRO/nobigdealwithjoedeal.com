@@ -53,6 +53,8 @@ const CRON_GATES = [
   { name: 'LEADERBOARD_AGGREGATE_ENABLED', polarity: 'enabled', file: 'leaderboard-aggregate.js' },
   // Call retention (2026-11-09, Call to Close Q7): daily 03:20 ET, transcripts + briefs 24 months, CRM audio copies 12 months, Drive untouched. Dry-run (counts only) until Jo says go.
   { name: 'CALL_RETENTION_ENABLED', polarity: 'enabled', file: 'call-retention.js' },
+  // ...and its Thursday phases (2026-11-25, roadmap step 17C): thursday_calls recordings 12 months, transcripts 24. Act only with CALL_RETENTION_ENABLED too; otherwise dry (logs what they would delete).
+  { name: 'CALL_RETENTION_THURSDAY_ENABLED', polarity: 'enabled', file: 'call-retention.js' },
   // Away mode: the 15-min tick that tells the backup person (dry-run until Jo
   // says go). Ending an expired window is NOT behind this gate.
   { name: 'AWAY_MODE_ENABLED', polarity: 'enabled', file: 'away-mode.js' },
