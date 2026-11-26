@@ -5,17 +5,24 @@
  * Called by reviewAskAutoSweep (review-ask-auto.js) only when
  * REVIEW_ASK_V2_ENABLED === 'true'; the rules and the words are in
  * review-ask-v2-logic.js. Flag off: nothing here runs and v1 is unchanged.
+ * NBD's own customers only (v1's baseEligibility 'not_nbd', re-checked by
+ * companyId before every text).
  *
  *   askOneV2      one job's ask: TEXT first (consent, STOP register, declined
- *                 consent, the company's OWN registered sender, the SMS switch),
- *                 EMAIL otherwise (suppression, the company's postal address,
- *                 its name as From and its business email as Reply-To). v1's
- *                 once-per-job claim precedes either send.
+ *                 consent, the texting gate, the SMS switch, one ask per phone
+ *                 number per PHONE_WINDOW_DAYS), EMAIL otherwise (v1's email,
+ *                 suppression + CAN-SPAM footer). v1's once-per-job claim
+ *                 precedes either send.
  *   runReminders  the one reminder, REMINDER_DAYS after a v2 ask, same channel.
- *                 Every check is re-read at send time; its own claim
- *                 (reviewAutoAsk.reminder) and, for a text, its own send-once key.
+ *                 Every check re-read at send time (incl. still paid in full);
+ *                 its own claim (reviewAutoAsk.reminder) and send-once key.
+ *
+ * Every text body passes V2.smsContentOk (Google review link only, the STOP
+ * line, <= 320 chars) right before the send; a body that fails is not sent.
+ * Every send writes a review_requests row with triggeredBy.
  */
 
+const crypto = require('crypto');
 const { logger: fnLogger } = require('firebase-functions/v2');
 const { FieldValue } = require('firebase-admin/firestore');
 const RA = require('./review-ask-auto-logic');
@@ -28,45 +35,44 @@ const OptOut = require('./sms-optout');
 const TextingGate = require('./sms-texting-gate');
 const ConsentDeclined = require('./sms-consent-declined');
 const SendWindow = require('./send-window');
-const { senderFor } = require('./tenant-ops-logic');
 
-// v1's claim / settle / recordSent and its NBD sender, read at call time (review-ask-auto.js requires this file).
+// v1's claim / settle / recordSent and NBD's sender, read at call time (review-ask-auto.js requires this file).
 const A = () => require('./review-ask-auto')._test;
-// Another company's email goes from the platform's verified address under that
-// company's name and replies to its own business email (tenant-ops-logic senderFor).
-const PLATFORM_FROM = 'NBD Pro <noreply@nobigdealwithjoedeal.com>';
+const TRIGGERED_BY = 'system:reviewAskAutoSweep';
+// One doc per phone number (hashed): the last review ask to it, from any lead or job. Admin SDK only.
+const PHONE_COLLECTION = 'review_ask_phones';
 
-const tenantOf = (rec) => String((rec && (rec.companyId || rec.userId)) || '');
+const phoneKey = (to) => crypto.createHash('sha256').update('review_ask|' + String(to).replace(/\D/g, '').slice(-10)).digest('hex').slice(0, 40);
 
-/** companyProfile/{key} (raw doc, {} when absent) and its zone, cached per run in d.profiles. null = unreadable. */
-async function companyFor(db, key, d) {
-  if (!d.profiles) d.profiles = new Map();
-  if (!d.profiles.has(key)) {
-    d.profiles.set(key, (async () => {
-      if (!key || key.indexOf('/') !== -1) return null;
-      try {
-        const s = await db.doc('companyProfile/' + key).get();
-        const raw = s.exists ? (s.data() || {}) : {};
-        const zone = await SendWindow.readCompanyZone(db, key).catch(() => null);
-        return { raw, zone };
-      } catch (_) { return null; }
-    })());
-  }
-  return d.profiles.get(key);
+/** Was this number asked for a review (any lead, any job) in the last PHONE_WINDOW_DAYS? Read-only. */
+async function phoneRecentlyAsked(db, to, nowMs) {
+  const s = await db.collection(PHONE_COLLECTION).doc(phoneKey(to)).get();
+  const last = s.exists ? Number((s.data() || {}).lastAskMs) || 0 : 0;
+  return last > 0 && nowMs - last < V2.PHONE_WINDOW_DAYS * V2.DAY_MS;
+}
+
+/** Claim the number's one ask for the window. → true when this run owns it. */
+async function claimPhone(db, to, leadId, nowMs) {
+  const ref = db.collection(PHONE_COLLECTION).doc(phoneKey(to));
+  return db.runTransaction(async (tx) => {
+    const s = await tx.get(ref);
+    const last = s.exists ? Number((s.data() || {}).lastAskMs) || 0 : 0;
+    if (last > 0 && nowMs - last < V2.PHONE_WINDOW_DAYS * V2.DAY_MS) return false;
+    tx.set(ref, { lastAskMs: nowMs, leadId, companyId: RA.NBD_OWNER_UID });
+    return true;
+  });
 }
 
 /**
- * May this customer be texted by THIS company right now? Every read a text
- * needs, before any claim. → { ok: true, to } | { ok: false, reason, final }
- * final: the customer said no (STOP, declined) — the reminder closes for good.
- * The texting gate must say the shared A2P number is this company's own
- * registered sender (isNbd today): registered === true alone does not give a
- * company its own number, so every other company is emailed instead.
+ * May this NBD customer be texted right now? Every read a text needs, before
+ * any claim. → { ok: true, to } | { ok: false, reason, final }
+ * final: the customer said no (STOP, declined) — a reminder closes for good.
  */
-async function textReady(db, lead, tenantKey, d, nowMs, log) {
+async function textReady(db, lead, d, nowMs, log, opts) {
   const pt = V2.planText({ env: d.env || process.env, lead, nowMs, ignoreHours: !!d.sendWindow });
-  if (!pt.send) return { ok: false, reason: pt.reason, final: pt.reason === 'do_not_text' };
+  if (!pt.send) return { ok: false, reason: pt.reason, final: pt.reason === 'do_not_text' || pt.reason === 'not_nbd' };
   if (typeof d.sendText !== 'function') return { ok: false, reason: 'no_sender', final: false };
+  const tenantKey = RA.NBD_OWNER_UID;
   try {
     const opt = await OptOut.isOptedOut(db, pt.to, { companyId: tenantKey, timeoutMs: OptOut.READ_TIMEOUT_MS });
     if (opt.optedOut) return { ok: false, reason: 'opted_out', final: true };
@@ -78,24 +84,25 @@ async function textReady(db, lead, tenantKey, d, nowMs, log) {
   let gate;
   try { gate = await TextingGate.textingStatus(db, tenantKey); } catch (_) { return { ok: false, reason: 'texting_unverified', final: false }; }
   if (!gate.allowed) return { ok: false, reason: 'texting_' + gate.reason, final: false };
-  if (!gate.isNbd) return { ok: false, reason: 'no_own_sender', final: false };
+  if (!(opts && opts.reminder)) {
+    try { if (await phoneRecentlyAsked(db, pt.to, nowMs)) return { ok: false, reason: 'phone_recently_asked', final: false }; }
+    catch (_) { return { ok: false, reason: 'phone_unverified', final: false }; }
+  }
   const sw = await MessagingControls.channelStatus(db, 'sms');
   if (!sw.allowed) return { ok: false, reason: 'messaging_paused', final: false };
   if (sw.canary) return { ok: false, reason: 'canary', final: false };
   return { ok: true, to: pt.to };
 }
 
-/**
- * The email's suppression gate + sender for this company. → { ok: true, to, gate, from, replyTo } | { ok: false, reason, final }
- */
-async function emailReady(db, lead, tenantKey, raw, d, log) {
+/** The email's suppression gate (NBD's register and postal address). → { ok: true, to, gate } | { ok: false, reason, final } */
+async function emailReady(db, lead, d, log) {
   const FV = d.FieldValue || FieldValue;
   const pe = V2.planEmail({ env: d.env || process.env, lead });
   if (!pe.send) return { ok: false, reason: pe.reason, final: false };
   if (!d.resend) return { ok: false, reason: 'no_sender', final: false };
   let gate;
   try {
-    gate = await Suppression.gateCommercialEmail(db, { companyId: tenantKey, email: pe.to, leadId: lead.id, source: 'review-ask-auto' },
+    gate = await Suppression.gateCommercialEmail(db, { companyId: RA.NBD_OWNER_UID, email: pe.to, leadId: lead.id, source: 'review-ask-auto' },
       { timeoutMs: Suppression.READ_TIMEOUT_MS, serverTimestamp: FV.serverTimestamp });
   } catch (e) {
     log.warn('review_auto_suppression_unverified', { leadId: lead.id, err: e && e.message });
@@ -106,24 +113,29 @@ async function emailReady(db, lead, tenantKey, raw, d, log) {
   const sw = await MessagingControls.channelStatus(db, 'email');
   if (!sw.allowed) return { ok: false, reason: 'messaging_paused', final: false };
   if (sw.canary) return { ok: false, reason: 'canary', final: false };
-  const isNbdKey = tenantKey === RA.NBD_OWNER_UID;
-  const s = senderFor(tenantKey, raw, isNbdKey ? A().FROM : PLATFORM_FROM);
-  return { ok: true, to: pe.to, gate, from: s.from, replyTo: s.replyTo || (isNbdKey ? A().REPLY_TO : null) };
+  return { ok: true, to: pe.to, gate };
 }
 
 async function sendEmail(db, d, ready, content, campaign, attachments) {
   const body = Suppression.applyFooter(ready.gate, content.html, content.text);
   const msg = {
-    from: ready.from, to: ready.to, subject: content.subject, html: body.html, text: body.text,
+    from: A().FROM, to: ready.to, reply_to: A().REPLY_TO, subject: content.subject, html: body.html, text: body.text,
     headers: Object.assign({ 'X-NBD-Campaign': campaign }, ready.gate.headers), tags: ready.gate.tags,
   };
-  if (ready.replyTo) msg.reply_to = ready.replyTo;
   if (attachments) msg.attachments = attachments;
   const gated = await MessagingControls.guardEmail(db, msg);
   if (!gated.send) throw new Error('messaging_paused:' + gated.reason);
   if (gated.canary) throw new Error('canary_redirect');
   const r = await d.resend.emails.send(gated.msg);
   if (resendRejected(r)) throw new Error(resendErrorMessage(r));
+}
+
+/** The text, checked once more: NBD's customer by companyId, a fixed template that passes smsContentOk. */
+async function sendCheckedText(d, lead, to, body, url, nowMs) {
+  if (!RA.isNbd(lead)) throw new Error('not_nbd');
+  const bad = V2.smsContentOk(body, url);
+  if (bad) throw new Error('sms_content_' + bad);
+  await d.sendText({ to, body, recipient: lead, companyProfile: d.companyProfile || null, nowMs });
 }
 
 /**
@@ -138,34 +150,33 @@ async function askOneV2(db, entry, uid, deps) {
   const env = d.env || process.env;
   try {
     if (d.maxAgeDays != null && !MessagingControls.withinAutomationAge(entry.receivedMs, nowMs, d.maxAgeDays)) return { sent: false, reason: 'too_old' };
-    const tenantKey = tenantOf(entry);
-    const co = await companyFor(db, tenantKey, d);
-    if (!co) return { sent: false, reason: 'profile_unreadable' };
-    const settings = V2.profileSettings(co.raw);
-    const el = V2.eligibility({ lead: entry, job: entry.job || null, jobId: entry.jobId || null, recvMs: entry.receivedMs, nowMs, settings });
+    const el = V2.eligibility({ lead: entry, job: entry.job || null, jobId: entry.jobId || null, recvMs: entry.receivedMs, nowMs });
     if (!el.ok) return { sent: false, reason: el.reason };
-    const win = typeof d.sendWindow === 'function' ? d.sendWindow(entry, nowMs) : SendWindow.check(nowMs, entry, co.zone);
+    const win = typeof d.sendWindow === 'function' ? d.sendWindow(entry, nowMs) : SendWindow.check(nowMs, entry, d.companyProfile || null);
     if (!win.ok) return { sent: false, reason: 'outside_send_window' };
+    const url = V2.reviewUrlFor(d.repUrl);
     const reminderDueMs = nowMs + V2.REMINDER_DAYS * V2.DAY_MS;
+    const audit = { triggeredBy: TRIGGERED_BY, v2: true };
 
     // 1. The text, when every check passes.
-    const tr = await textReady(db, entry, tenantKey, d, nowMs, log);
+    const tr = await textReady(db, entry, d, nowMs, log);
     if (tr.ok) {
       if (!(await A().claim(db, entry.id, entry.jobId, 'text', nowMs))) return { sent: false, reason: 'claimed' };
       try {
-        if (!(await MessagingControls.claimSendOnce(db, tr.to, 'review_ask_text', entry.jobId || entry.id))) return { sent: false, reason: 'duplicate' };
-        await d.sendText({ to: tr.to, body: V2.textBody(entry, settings), recipient: entry, companyProfile: co.zone || null, nowMs });
+        if (!(await claimPhone(db, tr.to, entry.id, nowMs))) throw new Error('phone_recently_asked');
+        if (!(await MessagingControls.claimSendOnce(db, tr.to, 'review_ask_text', entry.jobId || entry.id))) throw new Error('duplicate');
+        await sendCheckedText(d, entry, tr.to, V2.textBody(entry, url), url, nowMs);
       } catch (e) {
         log.warn('review_auto_text_failed', { leadId: entry.id, err: e && e.message });
         await A().settle(db, entry.id, entry.jobId, 'text', 'failed', { atMs: nowMs, error: String((e && e.message) || e).slice(0, 200) });
         return { sent: false, reason: 'send_failed' };
       }
-      await A().recordSent(db, entry, uid, 'text', nowMs, FV, { reminderDueMs, v2: true });
+      await A().recordSent(db, entry, uid, 'text', nowMs, FV, { reminderDueMs, v2: true }, audit);
       return { sent: true, channel: 'text', reason: 'sent' };
     }
 
-    // 2. Otherwise the email.
-    const er = await emailReady(db, entry, tenantKey, co.raw, d, log);
+    // 2. Otherwise v1's email.
+    const er = await emailReady(db, entry, d, log);
     if (!er.ok) {
       if (er.reason === 'no_email' || er.reason === 'email_flag_disabled') return { sent: false, reason: 'no_channel', text: tr.reason };
       if (er.final) await A().settle(db, entry.id, entry.jobId, 'email', er.reason === 'unsubscribed' ? 'unsubscribed' : 'blocked_no_postal_address', { atMs: nowMs });
@@ -174,8 +185,7 @@ async function askOneV2(db, entry, uid, deps) {
     const photo = RP.photoFlagOn(env) ? await RP.photoForEmail(db, entry, { loader: d.photoLoader, bucket: d.bucket, logger: log }) : null;
     if (!(await A().claim(db, entry.id, entry.jobId, 'email', nowMs))) return { sent: false, reason: 'claimed' };
     try {
-      const content = V2.emailContent(entry, Object.assign({}, settings, { canReply: !!er.replyTo }), photo ? photo.content : null);
-      await sendEmail(db, d, er, content, 'review-ask-auto-v2', photo ? photo.attachments : null);
+      await sendEmail(db, d, er, RA.emailContent(entry, url, photo ? photo.content : null), 'review-ask-auto-v2', photo ? photo.attachments : null);
     } catch (e) {
       log.warn('review_auto_email_failed', { leadId: entry.id, err: e && e.message });
       if (e && e.message === 'canary_redirect') {
@@ -185,7 +195,7 @@ async function askOneV2(db, entry, uid, deps) {
       await A().settle(db, entry.id, entry.jobId, 'email', 'failed', { atMs: nowMs, error: String((e && e.message) || e).slice(0, 200) });
       return { sent: false, reason: 'send_failed' };
     }
-    await A().recordSent(db, entry, uid, 'email', nowMs, FV, { reminderDueMs, v2: true });
+    await A().recordSent(db, entry, uid, 'email', nowMs, FV, { reminderDueMs, v2: true }, audit);
     return { sent: true, channel: 'email', reason: 'sent' };
   } catch (e) {
     log.warn('review_auto_skipped', { leadId: entry && entry.id, err: e && e.message });
@@ -223,9 +233,8 @@ async function claimReminder(db, leadId, nowMs) {
 
 /**
  * The one reminder per v2 ask, REMINDER_DAYS after it, on the same channel.
- * Every check is re-read now (STOP, declined consent, unsubscribe, paid in
- * full, marked complete, the company's opt-in): nothing is taken from the
- * sweep that sent the ask. → { reminded, results }
+ * Every check is re-read now: nothing is taken from the sweep that asked.
+ * → { reminded, results }
  */
 async function runReminders(db, deps) {
   const d = Object.assign({}, deps || {});
@@ -238,62 +247,63 @@ async function runReminders(db, deps) {
   if (!V2.v2On(env)) return { reminded, results };
   const RN = require('./review-request-nudge')._test;
   const snap = await db.collection('leads').where('reviewAutoAsk.reminderDueMs', '<=', nowMs).limit(200).get();
+  const repUrls = new Map();
   for (const doc of snap.docs) {
     const lead = Object.assign({ id: doc.id }, doc.data() || {});
     const a = lead.reviewAutoAsk || {};
     const out = (reason, sent) => { results.push({ leadId: lead.id, sent: !!sent, reason }); };
     try {
       if (d.maxAsks != null && reminded >= d.maxAsks) { out('per_run_cap'); break; }
-      const tenantKey = tenantOf(lead);
       let reviewSeen = false;
       try {
         const rl = await db.doc('review_log/' + lead.id).get();
         const r = rl.exists ? (rl.data() || {}) : {};
-        reviewSeen = r.reviewSeen === true && (!r.companyId || r.companyId === tenantKey);
+        reviewSeen = r.reviewSeen === true;
       } catch (_) { out('review_log_unreadable'); continue; }
       const plan = V2.reminderPlan({ env, lead, nowMs, reviewSeen });
       if (!plan.send) { if (plan.final) await closeReminder(db, lead.id, 'skipped', { reason: plan.reason }, nowMs); out(plan.reason); continue; }
-      const co = await companyFor(db, tenantKey, d);
-      if (!co) { out('profile_unreadable'); continue; }
-      const settings = V2.profileSettings(co.raw);
-      const missing = !settings.enabled ? 'not_opted_in' : !settings.reviewUrl ? 'no_review_url' : !settings.companyName ? 'no_company_name' : '';
-      if (missing) { await closeReminder(db, lead.id, 'skipped', { reason: missing }, nowMs); out(missing); continue; }
-      // Still paid in full and still marked complete (a refund, a reopened balance or a walked-back stage ends it).
+      // Still paid in full (a refund or a reopened balance ends it) and no open claim on the job.
       const jobId = a.jobId || null;
       let job = null;
       if (jobId) { try { const js = await db.collection('leads').doc(lead.id).collection('jobs').doc(jobId).get(); job = js.exists ? js.data() : null; } catch (_) { job = null; } }
+      if (V2.openClaim(job)) { await closeReminder(db, lead.id, 'skipped', { reason: 'open_claim' }, nowMs); out('open_claim'); continue; }
       const useJob = jobId && job && lead.activeJobId && jobId !== lead.activeJobId;
       const rec = useJob ? Object.assign({}, job, { companyId: lead.companyId, userId: lead.userId }) : lead;
       const paid = await RN.paidAnchor(db, rec, lead.id, jobId);
       if (!paid) { await closeReminder(db, lead.id, 'skipped', { reason: 'not_paid' }, nowMs); out('not_paid'); continue; }
-      if (!V2.markedComplete(lead, job, jobId)) { await closeReminder(db, lead.id, 'skipped', { reason: 'not_marked_complete' }, nowMs); out('not_marked_complete'); continue; }
-      const win = typeof d.sendWindow === 'function' ? d.sendWindow(lead, nowMs) : SendWindow.check(nowMs, lead, co.zone);
+      const win = typeof d.sendWindow === 'function' ? d.sendWindow(lead, nowMs) : SendWindow.check(nowMs, lead, d.companyProfile || null);
       if (!win.ok) { out('outside_send_window'); continue; }
+      const uid = String(lead.userId || '');
+      if (d.repUrl == null && !repUrls.has(uid)) {
+        let u = '';
+        try { const s = await db.collection('users').doc(uid).get(); u = (s.exists && (s.data() || {}).googleReviewUrl) || ''; } catch (_) { u = ''; }
+        repUrls.set(uid, u);
+      }
+      const url = V2.reviewUrlFor(d.repUrl != null ? d.repUrl : repUrls.get(uid));
 
       if (plan.channel === 'text') {
-        const tr = await textReady(db, lead, tenantKey, d, nowMs, log);
+        const tr = await textReady(db, lead, d, nowMs, log, { reminder: true });
         if (!tr.ok) { if (tr.final) await closeReminder(db, lead.id, 'skipped', { reason: tr.reason }, nowMs); out(tr.reason); continue; }
         if (!(await claimReminder(db, lead.id, nowMs))) { out('claimed'); continue; }
         try {
-          if (!(await MessagingControls.claimSendOnce(db, tr.to, V2.REMINDER_TEMPLATE, a.jobKey || lead.id))) { out('duplicate'); continue; }
-          await d.sendText({ to: tr.to, body: V2.reminderText(lead, settings), recipient: lead, companyProfile: co.zone || null, nowMs });
+          if (!(await MessagingControls.claimSendOnce(db, tr.to, V2.REMINDER_TEMPLATE, a.jobKey || lead.id))) throw new Error('duplicate');
+          await sendCheckedText(d, lead, tr.to, V2.reminderText(lead, url), url, nowMs);
         } catch (e) {
           log.warn('review_reminder_text_failed', { leadId: lead.id, err: e && e.message });
           await closeReminder(db, lead.id, 'failed', { error: String((e && e.message) || e).slice(0, 200) }, nowMs);
           out('send_failed'); continue;
         }
       } else {
-        const er = await emailReady(db, lead, tenantKey, co.raw, d, log);
+        const er = await emailReady(db, lead, d, log);
         if (!er.ok) { if (er.final) await closeReminder(db, lead.id, 'skipped', { reason: er.reason }, nowMs); out(er.reason); continue; }
         if (!(await claimReminder(db, lead.id, nowMs))) { out('claimed'); continue; }
         try {
-          await sendEmail(db, d, er, V2.reminderEmail(lead, settings), 'review-ask-reminder-v2', null);
+          await sendEmail(db, d, er, V2.reminderEmail(lead, url), 'review-ask-reminder-v2', null);
         } catch (e) {
           log.warn('review_reminder_email_failed', { leadId: lead.id, err: e && e.message });
           if (e && e.message === 'canary_redirect') {
             // Nothing went out: the reminder is still owed.
-            const ref = db.collection('leads').doc(lead.id);
-            await ref.update({ reviewAutoAsk: Object.assign({}, a) }).catch(() => {});
+            await db.collection('leads').doc(lead.id).update({ reviewAutoAsk: Object.assign({}, a) }).catch(() => {});
             out('canary'); continue;
           }
           await closeReminder(db, lead.id, 'failed', { error: String((e && e.message) || e).slice(0, 200) }, nowMs);
@@ -303,7 +313,7 @@ async function runReminders(db, deps) {
       await closeReminder(db, lead.id, 'sent', { channel: plan.channel }, nowMs);
       const said = plan.channel === 'text' ? 'Review reminder texted automatically' : 'Review reminder emailed automatically';
       const source = plan.channel === 'text' ? 'auto-text-reminder' : 'auto-email-reminder';
-      await db.collection('review_requests').add({ leadId: lead.id, userId: lead.userId || null, method: plan.channel === 'text' ? 'sms' : 'email', source, jobId, sentAt: FV.serverTimestamp(), status: 'sent' }).catch(() => {});
+      await db.collection('review_requests').add({ leadId: lead.id, userId: lead.userId || null, method: plan.channel === 'text' ? 'sms' : 'email', source, jobId, sentAt: FV.serverTimestamp(), status: 'sent', triggeredBy: TRIGGERED_BY, v2: true }).catch(() => {});
       await db.collection('leads').doc(lead.id).collection('activity').add({ userId: lead.userId || null, type: 'review_request_sent', label: said, message: said + ' (the one reminder).', source, createdAt: FV.serverTimestamp() }).catch(() => {});
       reminded++;
       out('sent', true);
@@ -315,4 +325,4 @@ async function runReminders(db, deps) {
   return { reminded, results };
 }
 
-module.exports = { askOneV2, runReminders, textReady, emailReady, PLATFORM_FROM };
+module.exports = { askOneV2, runReminders, textReady, emailReady, phoneKey, PHONE_COLLECTION, TRIGGERED_BY };

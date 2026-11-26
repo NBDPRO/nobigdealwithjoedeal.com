@@ -160,10 +160,10 @@ function planText(args) {
  * the nudge goes back to normal for it.
  */
 function willHandle(args) {
-  // v2 (review-ask-v2-logic.js, 2026-11-26) also needs the job marked complete:
-  // a job it will not ask stays with the rep nudge. Flag off: unchanged.
+  // v2 (review-ask-v2-logic.js, 2026-11-26) skips a job with an open warranty
+  // claim: that job stays with the rep nudge. Flag off: unchanged.
   const a = args || {};
-  if (a.env && a.env.REVIEW_ASK_V2_ENABLED === 'true' && !require('./review-ask-v2-logic').markedComplete(a.lead, a.job, a.jobId)) return false;
+  if (a.env && a.env.REVIEW_ASK_V2_ENABLED === 'true' && require('./review-ask-v2-logic').eligibility(a).reason === 'open_claim') return false;
   return planEmail(args).send || planText(Object.assign({}, args, { ignoreHours: true })).send;
 }
 
@@ -254,5 +254,5 @@ function textBody(lead, reviewUrl) {
 module.exports = {
   EMAIL_FLAG, TEXT_FLAG, MIN_DAYS, MAX_DAYS, NBD_OWNER_UID, NBD_REVIEW_URL, SOURCE, TEXT_SOURCE,
   receivedMs, inWindow, baseEligibility, planEmail, planText, willHandle, reviewUrlFor,
-  emailContent, textBody, jobKey, attempted, isNbd, validEmail, photoBlock,
+  emailContent, textBody, jobKey, attempted, isNbd, validEmail,
 };

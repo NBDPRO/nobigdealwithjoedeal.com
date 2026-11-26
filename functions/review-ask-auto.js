@@ -86,8 +86,11 @@ async function settle(db, leadId, jobId, channel, status, extra) {
   await db.collection('leads').doc(leadId).update(patch).catch(() => {});
 }
 
-/** Everything that says "asked" after a real send. `askExtra` joins reviewAutoAsk (v2: reminderDueMs). */
-async function recordSent(db, entry, uid, channel, nowMs, FV, askExtra) {
+/**
+ * Everything that says "asked" after a real send. `askExtra` joins reviewAutoAsk
+ * (v2: reminderDueMs); `auditExtra` joins the review_requests row (v2: triggeredBy).
+ */
+async function recordSent(db, entry, uid, channel, nowMs, FV, askExtra, auditExtra) {
   const source = channel === 'text' ? RA.TEXT_SOURCE : RA.SOURCE;
   const leadRef = db.collection('leads').doc(entry.id);
   const patch = {
@@ -104,7 +107,7 @@ async function recordSent(db, entry, uid, channel, nowMs, FV, askExtra) {
     await leadRef.collection('jobs').doc(entry.jobId).update({ reviewRequestedAt: FV.serverTimestamp(), reviewNudgedAt: FV.serverTimestamp(), reviewRequestSource: source }).catch(() => {});
   }
   const said = channel === 'text' ? 'Review ask texted automatically' : 'Review ask emailed automatically';
-  await db.collection('review_requests').add({ leadId: entry.id, userId: uid, method: channel === 'text' ? 'sms' : 'email', source, jobId: entry.jobId || null, sentAt: FV.serverTimestamp(), status: 'sent' }).catch(() => {});
+  await db.collection('review_requests').add(Object.assign({ leadId: entry.id, userId: uid, method: channel === 'text' ? 'sms' : 'email', source, jobId: entry.jobId || null, sentAt: FV.serverTimestamp(), status: 'sent' }, auditExtra || {})).catch(() => {});
   await leadRef.collection('activity').add({ userId: uid, type: 'review_request_sent', label: said, message: said + ' (paid in full).', source, createdAt: FV.serverTimestamp() }).catch(() => {});
   const name = ((entry.firstName || '') + ' ' + (entry.lastName || '')).trim() || 'Customer';
   const note = { userId: uid, leadId: entry.id, type: 'review_request', title: '⭐ ' + said, message: said + ' to ' + name + '.', source, read: false, dismissed: false, createdAt: FV.serverTimestamp() };
@@ -241,7 +244,7 @@ async function runForUser(db, uid, deps) {
   const due = await RN.findReviewDueLeads(db, uid, { mode: 'auto', env: d.env || process.env, nowMs: d.nowMs });
   if (!due.length) return { asked: 0, results: [] };
   const v2 = V2.v2On(d.env || process.env);
-  if (!v2) d.repUrl = d.repUrl != null ? d.repUrl : await repReviewUrl(db, uid);
+  d.repUrl = d.repUrl != null ? d.repUrl : await repReviewUrl(db, uid);
   const results = [];
   let asked = 0;
   for (const entry of due) {
@@ -291,9 +294,6 @@ exports.reviewAskAutoSweep = onSchedule(
     // user #501+). Only NBD's customers are ever asked (jd@ speaks for NBD:
     // review-ask-auto-logic.js baseEligibility 'not_nbd').
     const counts = {};
-    // v2: one company-profile cache for the whole run (each lead's own company,
-    // never NBD's profile as the fallback zone). v1: exactly as before.
-    const v2Deps = V2.v2On(runEnv) ? { profiles: new Map() } : {};
     let asked = 0, cursor = null;
     while (true) {
       let q = db.collection('users').orderBy(FieldPath.documentId()).limit(500);
@@ -304,7 +304,7 @@ exports.reviewAskAutoSweep = onSchedule(
         if ((u.data() || {}).e2eTestAccount) continue;
         if (asked >= runCap) break;
         try {
-          const out = await runForUser(db, u.id, Object.assign({ env: runEnv, resend, sendText: textOn ? sendTextTwilio : null, companyProfile: nbdProfile, logger: fnLogger, maxAsks: runCap - asked, maxAgeDays: MessagingControls.MAX_AUTOMATION_AGE_DAYS }, v2Deps));
+          const out = await runForUser(db, u.id, { env: runEnv, resend, sendText: textOn ? sendTextTwilio : null, companyProfile: nbdProfile, logger: fnLogger, maxAsks: runCap - asked, maxAgeDays: MessagingControls.MAX_AUTOMATION_AGE_DAYS });
           asked += out.asked;
           for (const r of out.results) counts[r.reason] = (counts[r.reason] || 0) + 1;
         } catch (e) {
@@ -317,7 +317,7 @@ exports.reviewAskAutoSweep = onSchedule(
     }
     // The one reminder per v2 ask (same switches, the run's cap is shared).
     if (V2.v2On(runEnv)) {
-      const rem = await require('./review-ask-v2').runReminders(db, Object.assign({ env: runEnv, resend, sendText: textOn ? sendTextTwilio : null, logger: fnLogger, maxAsks: Math.max(0, runCap - asked) }, v2Deps));
+      const rem = await require('./review-ask-v2').runReminders(db, { env: runEnv, resend, sendText: textOn ? sendTextTwilio : null, companyProfile: nbdProfile, logger: fnLogger, maxAsks: Math.max(0, runCap - asked) });
       for (const r of rem.results) counts['reminder_' + r.reason] = (counts['reminder_' + r.reason] || 0) + 1;
     }
     fnLogger.info('review_auto_complete', { asked, counts });
