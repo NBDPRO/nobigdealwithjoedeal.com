@@ -4067,6 +4067,17 @@ async function run() {
   // carry the claim: the provenance FIELDS are refused on their own.
   await x63('forged booking shape at a newline-suffixed calcom__ id', 'deny', setDoc(doc(t63, 'leads/' + 'calcom__bk63nl' + String.fromCharCode(10)),
     Object.assign({}, base63, { webLead: true, publicLeadKind: 'calcom_booking', calcomBookingId: 'bk63nl' + String.fromCharCode(10) })));
+  // Provenance is frozen on UPDATE too (review-ask guardrail plan S0, 2026-11-26): a rep who
+  // owns a hand-typed lead must not stamp it as a website / Cal.com / bridge intake afterwards
+  // (lead-alert reads these, and the review ask for other companies will).
+  const s63Rep = env.authenticatedContext('t63rep', { role: 'sales_rep', companyId: 'co-63' }).firestore();
+  await x63('control: a sales_rep creates its own plain lead', 'allow', setDoc(doc(s63Rep, 'leads/s63-rep'), Object.assign({}, base63, { userId: 't63rep' })));
+  await x63('control: company_admin edits an ordinary field on its own lead', 'allow', updateDoc(doc(t63, 'leads/s63-plain'), { name: 'ZZ_QA relay renamed' }));
+  await x63('control: sales_rep edits an ordinary field on its own lead', 'allow', updateDoc(doc(s63Rep, 'leads/s63-rep'), { name: 'ZZ_QA rep renamed' }));
+  for (const [k, v] of [['webLead', true], ['publicLeadKind', 'inspect'], ['publicLeadCollection', 'thumbtack_leads'], ['publicLeadId', 'r1'], ['calcomBookingId', 'bk9'], ['backfilledBy', 'x']]) {
+    await x63('update adds ' + k + ' (company_admin)', 'deny', updateDoc(doc(t63, 'leads/s63-plain'), { [k]: v }));
+    await x63('update adds ' + k + ' (sales_rep, own lead)', 'deny', updateDoc(doc(s63Rep, 'leads/s63-rep'), { [k]: v }));
+  }
   console.log('  63: ' + s63Pass + ' lead-alert provenance checks passed, ' + s63Fail.length + ' failed');
   if (s63Fail.length) {
     throw new Error('63 lead-alert provenance: ' + s63Fail.length + ' check(s) went the wrong way:\n    ' + s63Fail.join('\n    '));
