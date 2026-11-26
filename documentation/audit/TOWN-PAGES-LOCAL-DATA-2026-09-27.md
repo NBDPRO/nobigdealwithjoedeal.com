@@ -212,3 +212,13 @@ permit status is `unknown` with the city's Building Inspector as `ask`.
 Liberty Township is `yes` on the same Butler County re-roofing application as
 West Chester; the township issues the zoning certificate and the county the
 building permit.
+
+## Update 2026-11-26: town coordinates
+
+Every `towns[]` entry now carries `geo` (`lat`, `lng`, `geoid`): the Census 2024
+Gazetteer internal point for the same GEOID as `housing.source` (places file for
+cities, villages and CDPs; county-subdivisions file for Anderson, Goshen,
+Liberty, Sycamore and West Chester townships). `otherPlaces[]` holds the same
+point for job towns with no area page (White Oak OH, Evansville IN, West
+Liberty KY). `scripts/build-projects.mjs` uses them for the nearby-jobs
+fallback; see [PUBLISH-PROJECT](../runbooks/PUBLISH-PROJECT.md).
