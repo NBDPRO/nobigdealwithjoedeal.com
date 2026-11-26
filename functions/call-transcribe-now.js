@@ -123,6 +123,10 @@ async function transcribeNow({ db, bucket, auth, data, nowMs, log = logger }) {
   try { off = await require('./integrations/killswitch').isAiDisabled(); } catch (_) { off = false; }
   if (off) refuse('AI is switched off right now, so calls are not transcribed.');
   if (!enabled()) refuse('Call transcription is switched off.');
+  // The one AI gate (functions/ai-gate.js aiGate, 2026-11-25): the caller's
+  // confirmed email + paid plan (fails closed) and the daily spend breaker.
+  const gate = await require('./ai-gate').aiGate(db, { auth, feature: 'call-transcribe-now' });
+  if (!gate.ok) throw new HttpsError(gate.code, gate.message);
   const cs = await db.doc(CC._test.CONFIG).get();
   const cfg = cs.exists ? (cs.data() || {}) : {};
   if (cfg.paused === true) refuse('Call transcription is paused.');
@@ -153,6 +157,7 @@ async function transcribeNow({ db, bucket, auth, data, nowMs, log = logger }) {
   if (c.status === 'noted' && String(c.transcript || '').trim()) state = out && out.noted > 0 ? 'noted' : 'already';
   else if (c.status === 'personal') state = 'personal';
   else if (out && out.providerOutage) state = 'outage';
+  else if (out && out.state === 'gated') state = 'gated'; // the AI gate refused inside the pass
   else if (!out || out.leased || leased(c, nowMs)) state = 'busy';
   else state = 'failed';
   // Only a run that did the work keeps its count, and a provider outage: it
@@ -163,7 +168,8 @@ async function transcribeNow({ db, bucket, auth, data, nowMs, log = logger }) {
   }
   log.info('call_transcribe_now', { callId, state, by: auth.uid });
   // The capture-off rule filed it personal without transcribing anything.
-  const msg = state === 'personal' && out && out.captureOff ? MESSAGES.captureOff : MESSAGES[state];
+  const msg = state === 'personal' && out && out.captureOff ? MESSAGES.captureOff
+    : (state === 'gated' ? (require('./ai-gate').MESSAGES[out.reason] || require('./ai-gate').MESSAGES.plan) : MESSAGES[state]);
   const res = { state, message: c.status === 'too_large' ? 'This recording is too long to transcribe automatically.' : msg };
   if (state === 'noted' || state === 'already') res.transcript = String(c.transcript);
   return res;

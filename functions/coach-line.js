@@ -60,20 +60,15 @@ async function optedIn(db, companyId) {
   return !!(s && s.exists && (s.data() || {}).coachAiEnabled === true);
 }
 
-/** May this caller spend AI on a line right now? (lead-brief.js aiAllowed, plus this feature's own switch) */
+/** May this caller spend AI on a line right now? (this feature's own switch, then the one AI gate: functions/ai-gate.js aiGate) */
 async function aiAllowed(db, auth) {
-  const t = auth.token || {};
-  const isAdmin = t.role === 'admin';
-  if (!isAdmin && t.email_verified !== true) return false;
   try {
     const K = require('./integrations/killswitch');
     if (await K.isAiDisabled()) return false;
     if (typeof K.isCoachLineDisabled === 'function' && await K.isCoachLineDisabled()) return false;
   } catch (_) { /* fail open to the caps, as the other AI callables do */ }
-  if (isAdmin) return true;
-  const sub = await db.doc('subscriptions/' + (t.companyId || auth.uid)).get().catch(() => null);
-  const s = sub && sub.exists ? sub.data() : null;
-  return !!(s && s.plan && s.plan !== 'free' && (s.status === 'active' || s.status === 'trialing'));
+  const g = await require('./ai-gate').aiGate(db, { auth: auth || {}, feature: 'coach-line' });
+  return g.ok === true;
 }
 
 // Quota day counters expire a week after the write (Firestore TTL on
@@ -118,7 +113,7 @@ async function coachLineCallable({ db, auth, data, nowMs, callModel, log = logge
     log.warn('coach_line_ai_failed', { uid: auth.uid, err: e && e.message });
     return { line: null, cached: false, reason: 'model' };
   }
-  await AiSpend.recordAiSpend(AiSpend.rowFromAnthropic('coach-line', req.model, resp), { db, nowMs, log });
+  await AiSpend.recordAiSpend(AiSpend.rowFromAnthropic('coach-line', req.model, resp), { db, nowMs, log, companyId });
   const line = L.parseLine(resp);
   const check = L.checkLine(line, facts);
   if (!line || !check.ok) {

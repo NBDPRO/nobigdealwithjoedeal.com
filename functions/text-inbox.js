@@ -218,6 +218,17 @@ async function runTextNotes({ db, live, nowMs }) {
   const todo = days.filter((d) => !have.has(d.id) || have.get(d.id).sig !== d.sig).slice(0, NOTES_PER_RUN);
   const out = { days: days.length, pending: todo.length, noted: 0, personal: 0, tasks: 0, reopened: 0, failed: 0 };
   if (!live) return Object.assign({ state: 'dry_run' }, out);
+  // The one AI gate (functions/ai-gate.js aiGate, 2026-11-25): the owner
+  // tenant's plan and the daily spend breaker, before any model call.
+  if (todo.length) {
+    const gate = await require('./ai-gate').aiGate(db, { companyId: OWNER, feature: 'text-notes' });
+    if (!gate.ok) {
+      // Recorded like any other run (not only logged): the AI gate paused it.
+      const gated = Object.assign({ state: 'gated', reason: gate.reason }, out);
+      await db.doc(CONFIG).set({ lastNotesAtMs: nowMs, lastNotes: gated }, { merge: true });
+      return gated;
+    }
+  }
 
   const notesFn = _notesFn || require('./call-center').claudeNotes;
   const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
@@ -228,7 +239,7 @@ async function runTextNotes({ db, live, nowMs }) {
         const ls = await db.doc('leads/' + day.leadId).get();
         if (ls.exists) { const l = ls.data(); leadName = ((l.firstName || '') + ' ' + (l.lastName || '')).trim(); }
       }
-      const notes = CC.sanitizeNotes(await notesFn({ system: T.TEXT_NOTES_SYSTEM, prompt: T.buildTextNotesPrompt({ day, leadName }), feature: 'text-notes' }));
+      const notes = CC.sanitizeNotes(await notesFn({ system: T.TEXT_NOTES_SYSTEM, prompt: T.buildTextNotesPrompt({ day, leadName }), feature: 'text-notes', companyId: OWNER }));
       const personal = notes.callType === 'personal';
       if (personal) notes.summary = 'Personal texts.';
       // H1 / QA #10: a NEW inbound text after Jo closed the day (Handled, or the

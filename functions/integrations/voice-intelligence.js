@@ -34,7 +34,7 @@ const { getStorage } = require('firebase-admin/storage');
 const { FieldValue } = require('firebase-admin/firestore');
 const { getSecret, hasSecret, secretValue, PROVIDERS, SECRETS } = require('./_shared');
 const { isVoiceIntelDisabled } = require('./killswitch');
-const { aiEntitlementForUid, MESSAGES: AI_GATE_MESSAGES, PLATFORM_UID } = require('../ai-gate');
+const { aiGate, MESSAGES: AI_GATE_MESSAGES, PLATFORM_UID } = require('../ai-gate');
 const prompts = require('../voice-prompts');
 const { matchDocPath } = require('../collection-group-paths');
 const { isReservedLeadId } = require('../lead-artifact-paths');
@@ -249,10 +249,10 @@ async function incrementVoiceUsage(db, {
 // PROVIDERS.voiceTranscription. Each adapter is responsible for
 // its own auth + request shape. Unified return contract so the
 // state machine never has to know which provider ran.
-async function transcribeAudio({ bucket, path, mimeType, provider }) {
+async function transcribeAudio({ bucket, path, mimeType, provider, companyId }) {
   const p = (provider || PROVIDERS.voiceTranscription || 'groq').toLowerCase();
   switch (p) {
-    case 'groq':     return transcribeGroq({ bucket, path, mimeType });
+    case 'groq':     return transcribeGroq({ bucket, path, mimeType, companyId });
     default:
       throw new VoiceError('transcription-provider-unknown',
         'PROVIDERS.voiceTranscription="' + p + '" not implemented');
@@ -273,7 +273,7 @@ class VoiceError extends Error {
 // Groq Whisper-large-v3-turbo. Expects multipart/form-data with the
 // audio file. Returns verbose_json including segments + duration.
 // Docs: https://console.groq.com/docs/speech-text
-async function transcribeGroq({ bucket, path, mimeType }) {
+async function transcribeGroq({ bucket, path, mimeType, companyId }) {
   if (!hasSecret('GROQ_API_KEY')) {
     throw new VoiceError('groq-not-configured',
       'GROQ_API_KEY secret is unset. Set via firebase functions:secrets:set GROQ_API_KEY.');
@@ -298,7 +298,8 @@ async function transcribeGroq({ bucket, path, mimeType }) {
   return transcribeGroqBuffer({
     buffer,
     mimeType,
-    filename: 'audio.' + (path.split('.').pop() || 'webm')
+    filename: 'audio.' + (path.split('.').pop() || 'webm'),
+    companyId, // the per-company daily AI spend counter (ai-gate.js breaker)
   });
 }
 
@@ -321,7 +322,7 @@ async function transcribeGroq({ bucket, path, mimeType }) {
 // avg_logprob and no_speech_prob (verbose_json already returns them) as
 // `avgLogprob` / `noSpeechProb`. Same request; default off, so every other
 // caller's segments keep exactly { start, end, text }.
-async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs, words, feature, prompt, confidence }) {
+async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs, words, feature, prompt, confidence, companyId }) {
   if (!hasSecret('GROQ_API_KEY')) {
     throw new VoiceError('groq-not-configured',
       'GROQ_API_KEY secret is unset. Set via firebase functions:secrets:set GROQ_API_KEY.');
@@ -363,7 +364,7 @@ async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs, wor
     throw new VoiceError('groq-empty-response', 'Groq returned no transcript text');
   }
   // AI spend in one place: Groq bills by audio seconds.
-  await require('../ai-spend').recordAiSpend({ feature: feature || 'voice-transcribe', model: 'whisper-large-v3-turbo', audioSec: Number(data.duration) || 0 });
+  await require('../ai-spend').recordAiSpend({ feature: feature || 'voice-transcribe', model: 'whisper-large-v3-turbo', audioSec: Number(data.duration) || 0, companyId });
   return {
     text: data.text,
     segments: Array.isArray(data.segments) ? data.segments.map(s => Object.assign({
@@ -416,7 +417,7 @@ const VOICE_CONSENT_MAX_TOKENS = 120;
 // mount the key on integrationStatus, which binds every registry entry.
 // dictate.js and handlers/ai-texting.js read it the same way as here.
 // tests/voice-intel-anthropic-key.test.js runs the pipeline against it.
-async function callClaudeJson({ systemPrompt, userPrompt, maxTokens, purpose }) {
+async function callClaudeJson({ systemPrompt, userPrompt, maxTokens, purpose, companyId }) {
   const apiKey = secretValue(ANTHROPIC_API_KEY_FOR_VOICE); // '__unset__' stub → null
   if (!apiKey) {
     throw new VoiceError('anthropic-not-configured',
@@ -451,7 +452,7 @@ async function callClaudeJson({ systemPrompt, userPrompt, maxTokens, purpose }) 
     throw new VoiceError('analysis-api-error',
       purpose + ' rejected: ' + String(msg).slice(0, 300));
   }
-  await require('../ai-spend').recordAiSpend(require('../ai-spend').rowFromAnthropic('voice-' + String(purpose || 'analysis').toLowerCase(), VOICE_ANALYSIS_MODEL, data));
+  await require('../ai-spend').recordAiSpend(require('../ai-spend').rowFromAnthropic('voice-' + String(purpose || 'analysis').toLowerCase(), VOICE_ANALYSIS_MODEL, data), { companyId });
   const text = data && data.content && Array.isArray(data.content)
     ? data.content.map(c => (c && c.type === 'text' ? c.text : '')).join('')
     : '';
@@ -488,14 +489,15 @@ async function callClaudeJson({ systemPrompt, userPrompt, maxTokens, purpose }) 
 // analyzeTranscript: runs the roofing-specific structured-summary
 // prompt and returns {summary, speakers, tokens}. Caller stamps
 // tokens onto the recording doc for per-lead cost attribution.
-async function analyzeTranscript({ transcript, segments, leadName, callType }) {
+async function analyzeTranscript({ transcript, segments, leadName, callType, companyId }) {
   const userPrompt = prompts.buildAnalyzePrompt({
     leadName, callType, transcript, segments
   });
   const result = await callClaudeJson({
     userPrompt,
     maxTokens: VOICE_ANALYSIS_MAX_TOKENS,
-    purpose: 'analysis'
+    purpose: 'analysis',
+    companyId
   });
 
   const p = result.parsed || {};
@@ -543,7 +545,7 @@ async function analyzeTranscript({ transcript, segments, leadName, callType }) {
 // affirmative consent. Returns { consented, evidence, tokens }.
 // Only invoked when company.recordingConsentMode === 'two_party_verbal'.
 // Fails CLOSED — any error on this step quarantines the recording.
-async function checkVerbalConsent({ transcript, segments }) {
+async function checkVerbalConsent({ transcript, segments, companyId }) {
   // Pick the opening window — prefer segments so we get a clean
   // 20-second cut; fall back to the first 2000 chars of raw text.
   let opening = '';
@@ -559,7 +561,8 @@ async function checkVerbalConsent({ transcript, segments }) {
   const result = await callClaudeJson({
     userPrompt,
     maxTokens: VOICE_CONSENT_MAX_TOKENS,
-    purpose: 'consent-check'
+    purpose: 'consent-check',
+    companyId
   });
 
   const p = result.parsed || {};
@@ -637,12 +640,14 @@ async function processRecording({
   // (NBD itself exempt), read from their Auth record: this trigger has no
   // ID token. A failed doc (not a silent no-op) so the customer page stops
   // waiting; the audio is kept, so it can be reprocessed after an upgrade.
-  let ent = await aiEntitlementForUid(db, uid);
+  // The one AI gate (functions/ai-gate.js aiGate, 2026-11-25): the same
+  // entitlement plus the daily spend breaker.
+  let ent = await aiGate(db, { forUid: uid, feature: 'voice-intel' });
   if (!ent.ok && ent.reason === 'plan_check_failed') {
     // This trigger never retries, so one blip would fail a paying tenant's
     // recording for good: look again once before refusing.
     await new Promise((r) => setTimeout(r, PLAN_RECHECK_MS));
-    ent = await aiEntitlementForUid(db, uid);
+    ent = await aiGate(db, { forUid: uid, feature: 'voice-intel' });
   }
   if (!ent.ok) {
     await recordingRef.set({
@@ -657,6 +662,8 @@ async function processRecording({
     logger.info('voice: uploader not entitled to AI — not processed', { uid, leadId, recordingId, reason: ent.reason });
     return { ok: true, skipped: 'not_entitled', reason: ent.reason };
   }
+  // The company this clip's AI spend is metered to (the breaker's per-company counter).
+  const billingCo = ent.companyId || ctx.companyId;
 
   // ── Global kill switch (SPEND_KILLSWITCH.md) ──
   // One write to feature_flags/global.voiceIntelDisabled halts new Groq/
@@ -761,7 +768,8 @@ async function processRecording({
     } else {
       transcriptResult = await transcribeAudio({
         bucket, path, mimeType: contentType,
-        provider: PROVIDERS.voiceTranscription
+        provider: PROVIDERS.voiceTranscription,
+        companyId: billingCo
       });
       await recordingRef.set({
         transcript: transcriptResult.text,
@@ -781,7 +789,8 @@ async function processRecording({
         claudeCalls++;
         consentResult = await checkVerbalConsent({
           transcript: transcriptResult.text,
-          segments: transcriptResult.segments
+          segments: transcriptResult.segments,
+          companyId: billingCo
         });
         tokensUsed += consentResult.inputTokens + consentResult.outputTokens;
       } catch (e) {
@@ -844,7 +853,8 @@ async function processRecording({
       transcript: transcriptResult.text,
       segments:   transcriptResult.segments,
       leadName,
-      callType:   baseDoc.callType
+      callType:   baseDoc.callType,
+      companyId:  billingCo
     });
     tokensUsed += analysis.inputTokens + analysis.outputTokens;
 
