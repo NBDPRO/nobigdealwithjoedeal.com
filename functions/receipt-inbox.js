@@ -334,3 +334,4 @@ exports.onInboxReceiptDropped = onDocumentUpdated(
     return handleDropped(before, after, event.params.inboxId, { db: getFirestore(), bucket: () => getStorage().bucket(), logger });
   });
 exports._handleDropped = handleDropped;
+exports._MODEL = MODEL; // functions/ai-models.js cross-checks its receipt-inbox row

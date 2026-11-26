@@ -523,7 +523,6 @@ exports.callCenterIngest = onSchedule(
 const { defineSecret } = require('firebase-functions/params');
 const { SECRETS, secretValue } = require('./integrations/_shared');
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
-const NOTES_MODEL = 'claude-haiku-4-5-20251001';
 const TRANSCRIBE_PER_RUN = 12;
 const TRANSIENT_MAX = 6; // consecutive 5xx/overloaded failures of ONE call before it counts as the call's fault
 const transcribeEnabled = () => process.env.CALL_CENTER_TRANSCRIBE_ENABLED === 'true';
@@ -547,24 +546,19 @@ function deps() {
 }
 
 // Shared with text-inbox.js (textInboxNotes binds its own ANTHROPIC_API_KEY).
+// 2026-11-25 (roadmap step 15): through functions/ai-client.js (the Anthropic
+// SDK). The route is the feature (call-center-notes / -facts, text-notes,
+// visit-notes, promise-cleanup), so the model, timeout and retries come from
+// functions/ai-models.js; ai-client records the spend with the companyId.
+// Every caller runs the one AI gate before its pass (gate: 'caller'). Errors
+// keep their old shape ('anthropic 529: …', status, provider) for
+// L.classifyProviderError.
 async function claudeNotes({ system, prompt, feature, maxTokens, companyId }) {
-  const key = secretValue(ANTHROPIC_API_KEY);
-  if (!key) throw new Error('anthropic-not-configured');
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'x-api-key': key },
-    body: JSON.stringify({ model: NOTES_MODEL, max_tokens: Number(maxTokens) || 900, system, messages: [{ role: 'user', content: prompt }] }),
-    signal: AbortSignal.timeout(60_000),
+  const r = await require('./ai-client').createMessage({
+    route: feature || 'call-center-notes', system, messages: [{ role: 'user', content: prompt }],
+    maxTokens, companyId, gate: 'caller', apiKey: secretValue(ANTHROPIC_API_KEY), log: logger,
   });
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    const err = new Error('anthropic ' + res.status + ': ' + String((data && data.error && data.error.message) || '').slice(0, 200));
-    err.status = res.status; err.provider = 'anthropic'; // L.classifyProviderError
-    throw err;
-  }
-  // AI spend in one place (functions/ai-spend.js) — one counter row per call.
-  await require('./ai-spend').recordAiSpend(require('./ai-spend').rowFromAnthropic(feature || 'call-center-notes', NOTES_MODEL, data), { log: logger, companyId });
-  const text = ((data && data.content) || []).map((c) => (c && c.type === 'text' ? c.text : '')).join('').trim();
+  const text = r.text;
   const m = /\{[\s\S]*\}/.exec(text);
   if (!m) throw new Error('notes: no JSON');
   return JSON.parse(m[0]);

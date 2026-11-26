@@ -558,7 +558,11 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
       return out;
     };
     const allFiles = walkJs(FUNCTIONS, '', []);
-    const senders = allFiles.filter((f) => /messages\s*\.\s*create\s*\(/.test(stripComments(fs.readFileSync(path.join(FUNCTIONS, f), 'utf8'))));
+    // Same shape, not Twilio: the Anthropic SDK model call (2026-11-25). Its one
+    // site is pinned in messaging-senders-guarded-2026-10-19 RAW_PINS, so a
+    // second send added to that file still fails there.
+    const NOT_TWILIO = { 'ai-client.js': 'Anthropic SDK client.messages.create: a model call, not a text' };
+    const senders = allFiles.filter((f) => !NOT_TWILIO[f] && /messages\s*\.\s*create\s*\(/.test(stripComments(fs.readFileSync(path.join(FUNCTIONS, f), 'utf8'))));
     ok('the Twilio senders found are exactly the ledger\'s (a NEW sender must be classified)',
       JSON.stringify(senders.sort()) === JSON.stringify(Object.keys(LEDGER).sort()), senders.join(','));
     // Static backstops (behaviour is asserted above). Comments stripped and the

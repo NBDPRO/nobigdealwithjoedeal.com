@@ -559,4 +559,4 @@ exports.onPhotoCreatedClassify = onDocumentCreated({
 });
 
 // Export the sanitizer + core for unit testing.
-exports._test = { sanitizeSuggestion, classifyPhoto, handlePhotoCreated, triggerSkipReason, CLAIM_TTL_MS };
+exports._test = { sanitizeSuggestion, classifyPhoto, handlePhotoCreated, triggerSkipReason, CLAIM_TTL_MS, MODEL };
