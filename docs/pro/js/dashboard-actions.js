@@ -458,10 +458,14 @@ function goTo(name, params = {}) {
     try { window.D2D.leaveView(); } catch (_) {}
   }
 
-  // Update URL hash (without triggering hashchange event)
+  // Update URL hash. Writing it DOES fire 'hashchange'; window._goToHash tells
+  // dashboard-main.js's listener to skip that one echo, or every view ran its
+  // setup twice (two D2D.init()s re-rendered the Knock button under an open
+  // sheet; tests/goto-single-route-2026-11-26.test.js).
   if (!params.skipHash) {
     const hash = params.id ? `#/${name}/${params.id}` : `#/${name}`;
     if (window.location.hash !== hash) {
+      window._goToHash = hash;
       window.location.hash = hash;
     }
   }

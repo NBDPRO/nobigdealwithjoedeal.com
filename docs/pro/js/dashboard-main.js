@@ -76,6 +76,10 @@ window.addEventListener('hashchange', () => {
   // same default the boot below uses. Previously this path sent an empty
   // hash to 'dash' while the boot sent it to 'home', so browser Back from
   // the first view landed on the ops-overview Dashboard.
+  // The echo of goTo's own hash write: goTo already routed it.
+  const echo = window._goToHash;
+  window._goToHash = null;
+  if (echo && echo === window.location.hash) return;
   const { name, id } = routeFromHash();
   if (routeConfig[name]) {
     goTo(name, { id, skipHash: true });
