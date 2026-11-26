@@ -56,8 +56,8 @@ ok('esignReminderSweep runs hourly so every zone reaches its window', byName.esi
 ok('module / timeoutSeconds are derived (function-map + endpoint)', byName.emailQueueWorker && byName.emailQueueWorker.module === MAP.emailQueueWorker
   && byName.emailQueueWorker.timeoutSeconds === idx.emailQueueWorker.__endpoint.timeoutSeconds, byName.emailQueueWorker);
 const senders = rows.filter((r) => r.sendsToCustomers !== 'none').map((r) => r.name).sort();
-ok('the customer-sending crons are exactly the known six', JSON.stringify(senders) === JSON.stringify(
-  ['callCenterIngest', 'esignReminderSweep', 'leadFollowUpSweep', 'reviewAskAutoSweep', 'runAbandonRecovery', 'stormPoller']), senders);
+ok('the customer-sending crons are exactly the known seven (+ stormTipsSweep 2026-11-26)', JSON.stringify(senders) === JSON.stringify(
+  ['callCenterIngest', 'esignReminderSweep', 'leadFollowUpSweep', 'reviewAskAutoSweep', 'runAbandonRecovery', 'stormPoller', 'stormTipsSweep']), senders);
 
 console.log('\nB. the checker fails on drift');
 const fakeCron = (schedule, timeZone) => {

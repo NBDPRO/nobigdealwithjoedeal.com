@@ -1,0 +1,78 @@
+/* storm-tips.css — /pro/storm-tips owner screen (2026-11-26). Theme tokens only. */
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg);
+  color: var(--t);
+  font-family: 'Barlow', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 15px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+button, input, select, textarea { font-family: inherit; }
+a { color: var(--orange); text-decoration: none; }
+
+.st-header {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px;
+  background: var(--s);
+  border-bottom: 1px solid var(--br);
+}
+.st-back {
+  display: inline-flex; align-items: center; min-height: 44px;
+  padding: 0 12px; border: 1px solid var(--br); border-radius: 7px;
+  color: var(--t); font-size: 13px; font-weight: 600;
+}
+.st-eyebrow {
+  font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--orange);
+}
+.st-title h1 { margin: 0; font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 800; }
+
+.st-main { max-width: 760px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+.st-loading { color: var(--m); }
+.st-card {
+  background: var(--s); border: 1px solid var(--br); border-radius: 10px; padding: 16px;
+}
+.st-card h2 { margin: 0 0 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 700; }
+.st-count { color: var(--m); font-weight: 600; font-variant-numeric: tabular-nums; }
+.st-note { margin: 0 0 12px; color: var(--m); font-size: 14px; }
+
+.st-gates { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.st-gates li { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+.st-gates b[data-on="true"] { color: var(--green); }
+.st-gates b[data-on="false"] { color: var(--m); }
+
+.st-row { display: grid; gap: 4px; margin-bottom: 12px; }
+.st-row label { font-size: 13px; font-weight: 600; color: var(--m); }
+.st-row select, .st-row input {
+  min-height: 44px; padding: 8px 10px; font-size: 15px;
+  background: var(--bg); color: var(--t);
+  border: 1px solid var(--br); border-radius: 7px;
+}
+.st-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.st-btn {
+  min-height: 44px; padding: 0 18px; border-radius: 7px; cursor: pointer;
+  font-size: 14px; font-weight: 700; display: inline-flex; align-items: center;
+}
+.st-btn-primary { background: var(--orange); color: var(--accent-fg); border: none; }
+.st-btn-quiet { background: transparent; color: var(--t); border: 1px solid var(--br); }
+.st-btn:disabled { opacity: .45; cursor: not-allowed; }
+.st-msg { margin: 10px 0 0; font-size: 14px; }
+.st-msg[data-kind="err"] { color: var(--red); }
+
+.st-preview { margin-top: 14px; }
+.st-preview-subject { margin: 0 0 6px; font-weight: 700; }
+.st-preview iframe { width: 100%; height: 520px; border: 1px solid var(--br); border-radius: 7px; background: var(--bg); }
+
+.st-empty { display: grid; gap: 10px; justify-items: start; color: var(--m); }
+.st-empty p { margin: 0; }
+.st-subs { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.st-sub { border: 1px solid var(--br); border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; }
+.st-sub-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.st-sub-top label { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 600; word-break: break-all; }
+.st-sub-top input[type="checkbox"] { width: 20px; height: 20px; }
+.st-sub-meta { font-size: 13px; color: var(--m); font-variant-numeric: tabular-nums; }
+.st-sub-flag { font-size: 12px; font-weight: 700; color: var(--orange); }
+.st-sub-actions { display: flex; gap: 8px; flex-wrap: wrap; }

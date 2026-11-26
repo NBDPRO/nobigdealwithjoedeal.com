@@ -106,6 +106,8 @@ const CUSTOMER_EMAIL_RULES = {
   'functions/estimate-email.js': ['MessagingControls.guardEmail('],
   'functions/storm-report-email.js': ['MessagingControls.guardEmail('],
   'functions/guide-copy-email.js': ['MessagingControls.guardEmail('],
+  // Storm-tips email (2026-11-26, dark): deps-injected MessagingControls, so the token is MC.
+  'functions/storm-tips-email.js': ['MC.guardResend(', 'MC.automationStatus('],
   'functions/esign-io.js': ['MessagingControls.guardResend('],
   'functions/remote-signing.js': ['MessagingControls.guardResend('],
   'functions/report-sharing.js': ['MessagingControls.guardResend('],

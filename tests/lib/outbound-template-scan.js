@@ -49,6 +49,8 @@ const TEMPLATE_FILES = Object.freeze([
   'functions/storm-report-email.js',
   'functions/guide-copy-email.js',
   'functions/guide-copy-logic.js',   // the guide-copy email's text (2026-11-26)
+  'functions/storm-tips-email.js',
+  'functions/storm-tips-logic.js',   // the storm-tips email issues (2026-11-26)
   'functions/estimate-email.js',
   'functions/estimate-email-logic.js', // the estimate email's text since 2026-11-17 (sweep M3)
   'functions/email-functions.js',

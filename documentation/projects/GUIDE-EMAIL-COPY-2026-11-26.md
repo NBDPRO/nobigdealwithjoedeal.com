@@ -12,6 +12,8 @@ on-page quick lead form). Joe chose this design on 2026-11-26:
 - **Storm tips box:** records consent only (`emailConsent`,
   `emailConsentAt`, `emailConsentVersion: guide-storm-tips-2026-11-26`). No
   storm-tips email program exists yet, so nothing reads it.
+  *Update 2026-11-26:* the storm-tips email now reads it (built dark), and the
+  form has an optional ZIP: [STORM-TIPS-EMAIL-2026-11-26](STORM-TIPS-EMAIL-2026-11-26.md).
 
 ## How it works
 

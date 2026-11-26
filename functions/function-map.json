@@ -129,6 +129,8 @@
   "getThursdayRecording": "./integrations/thursday",
   "googleCalendarReconcile": "./google-calendar",
   "guideCopyEmail": "./guide-copy-email",
+  "stormTipsAdmin": "./storm-tips-email",
+  "stormTipsSweep": "./storm-tips-email",
   "hailMatchCron": "./integrations/hail-cron",
   "healthDigestCron": "./health-digest",
   "healthShortcutIngest": "./health-shortcut",

@@ -392,7 +392,8 @@ const SEND_PATHS = Object.freeze({
   'funnel-recovery.js': 'commercial',         // runAbandonRecovery → website visitor
   'portal-moments.js': 'commercial',          // key-moment emails with the homeowner's portal link (dark, 2026-11-04)
   'lead-followup.js': 'commercial',           // leadFollowUpSweep → homeowner
-  'review-ask-auto.js': 'commercial',         // reviewAskAutoSweep → paid-in-full homeowner's review ask
+  'review-ask-auto.js': 'commercial',
+  'storm-tips-email.js': 'commercial',        // storm-season tips to guide subscribers who opted in (2026-11-26, dark)         // reviewAskAutoSweep → paid-in-full homeowner's review ask
   'pro-prospects.js': 'commercial',          // onGuideLeadCreated → the contractor's one playbook welcome email (2026-10-16)
   'estimate-email.js': 'transactional',       // homeowner explicitly asked "Email My Estimate"
   'storm-report-email.js': 'transactional',   // homeowner asked for their storm report copy

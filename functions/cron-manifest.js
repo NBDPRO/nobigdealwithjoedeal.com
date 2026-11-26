@@ -48,6 +48,7 @@ const CALL_CENTER_WHY = 'shares call-center.js, whose one customer send (the mis
 const ENTRIES = Object.freeze({
   // ── automated CUSTOMER sends: every one waits for the send window ──
   esignReminderSweep: { sendsToCustomers: 'email', usesSendWindow: true, gate: ['env:ESIGN_REMINDERS_DISABLED'] },
+  stormTipsSweep: { sendsToCustomers: 'email', usesSendWindow: true, gate: ['env:STORM_TIPS_EMAIL_ENABLED', 'automation:stormTipsEmail'] },
   runAbandonRecovery: { sendsToCustomers: 'email', usesSendWindow: true, gate: ['env:FUNNEL_RECOVERY_ENABLED', 'automation:funnelRecoveryEmail'] },
   leadFollowUpSweep: { sendsToCustomers: 'email', usesSendWindow: true, gate: ['env:LEAD_FOLLOWUP_ENABLED', 'automation:leadFollowupEmail'] },
   reviewAskAutoSweep: { sendsToCustomers: 'email+text', usesSendWindow: true, gate: ['env:REVIEW_ASK_AUTO_EMAIL_ENABLED', 'env:REVIEW_ASK_AUTO_TEXT_ENABLED', 'automation:reviewAskAutoEmail', 'automation:reviewAskAutoText'] },

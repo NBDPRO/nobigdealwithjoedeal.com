@@ -8,9 +8,11 @@
  *   <section data-guide-copy="<slug>" hidden> … <form id="guideCopyForm"> …
  *
  * Posts through public-lead-submit.js: submitPublicLead('guide_copy', { email,
- * guide, source, emailConsent }). The server emails one copy with the PDF
- * attached (functions/guide-copy-email.js) and files a cold CRM lead. The
- * optional box records consent to storm tips only. A failed save is never
+ * guide, source, emailConsent, zip? }). The ZIP is optional; it lets a
+ * storm-tips email go only to people near a real storm. The server emails one
+ * copy with the PDF attached (functions/guide-copy-email.js) and files a cold
+ * CRM lead. The optional box records consent to storm tips (storm-tips-email.js
+ * sends them, dark until Joe turns it on). A failed save is never
  * shown as success. No inline script (CSP): loaded with defer.
  */
 (function () {
@@ -55,8 +57,14 @@
     if (hp && hp.value) return;
     const email = (form.querySelector('input[name="email"]').value || '').trim();
     const consent = form.querySelector('input[name="emailConsent"]');
+    const zipEl = form.querySelector('input[name="zip"]');
+    const zip = zipEl ? (zipEl.value || '').trim() : '';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 200) {
       say('err', 'That email doesn’t look right. Check it and try again.');
+      return;
+    }
+    if (zip && !/^\d{5}$/.test(zip)) {
+      say('err', 'Enter a 5-digit ZIP code, or leave it blank.');
       return;
     }
     if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
@@ -66,7 +74,7 @@
         res = await window.submitPublicLead('guide_copy', Object.assign({
           email: email, guide: slug, source: '/guides/' + slug,
           emailConsent: !!(consent && consent.checked)
-        }, utm()));
+        }, zip ? { zip: zip } : {}, utm()));
       }
     } catch (err) { res = null; }
     if (btn) { btn.disabled = false; btn.textContent = LABEL; }
