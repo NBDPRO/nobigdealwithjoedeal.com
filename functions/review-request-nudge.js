@@ -306,7 +306,20 @@ async function findReviewDueLeads(db, uid, opts) {
   const env = o.env || process.env;
   const now = Number(o.nowMs) || Date.now();         // the 3–21 day window lives in reviewAskDue
   // A job the automatic ask will take: skipped by the nudge (see above).
-  const leaveForAuto = (lead, job, jobId, paid) => !auto && RA.willHandle({ env, lead, job, jobId, recvMs: paid.receivedMs, nowMs: now });
+  // ...and a job the review ask for OTHER companies will take (review-ask-tenant.js, 2026-11-26): only for a
+  // company in opts.tenantAuto (its ask is on), and only while its no-read checks pass. A job the sweep then
+  // skips for good is stamped done, so the nudge takes it back the next morning.
+  const TA = o.tenantAuto instanceof Map && o.tenantAuto.size ? o.tenantAuto : null;
+  const leaveForTenant = (lead, job, jobId, paid) => {
+    if (!TA) return false;
+    const T = require('./review-ask-tenant-logic');
+    const co = T.tenantOf(lead);
+    const uids = TA.get(co);
+    if (!uids || !uids.has(String(lead.userId || co))) return false;                 // a rep the sweep never visits keeps the nudge
+    if (!require('./messaging-controls').withinAutomationAge(paid.receivedMs, now)) return false;   // past the sweep's 7 days: back to the rep
+    return !T.preReadReason({ companyId: co, lead, job, jobId, recvMs: paid.receivedMs, nowMs: now });
+  };
+  const leaveForAuto = (lead, job, jobId, paid) => !auto && (RA.willHandle({ env, lead, job, jobId, recvMs: paid.receivedMs, nowMs: now }) || leaveForTenant(lead, job, jobId, paid));
 
   // Two query lanes, merged + deduped: persisted-role (custom stages
   // included — leads(userId, stageRole) composite) and the legacy key
@@ -477,7 +490,9 @@ async function markReviewNudged(db, leadId, jobId) {
  * in its email when it absorbs this one — morning-brief-absorb.js).
  */
 async function nudgeUser(db, uid) {
-  const dueLeads = await findReviewDueLeads(db, uid);
+  const tenantAuto = await require('./review-ask-tenant').tenantAutoSet(db, process.env)
+    .catch((e) => { logger.warn('review_nudge_tenant_auto_unreadable', { err: e && e.message }); return new Map(); });
+  const dueLeads = await findReviewDueLeads(db, uid, { tenantAuto });
   let notified = 0;
   for (const lead of dueLeads) {
     await writeReviewActivity(db, lead.id, uid);
@@ -516,6 +531,9 @@ exports.reviewRequestNudge = onSchedule(
 
     // Paginate ALL users (the anniversary 2.6 lesson: a bare limit(500)
     // silently drops user #501+ as tenants grow).
+    // Companies whose automatic review ask is on: their jobs are left to reviewAskTenantSweep (11:00 ET).
+    const tenantAuto = await require('./review-ask-tenant').tenantAutoSet(db, process.env)
+      .catch((e) => { logger.warn('review_nudge_tenant_auto_unreadable', { err: e && e.message }); return new Map(); });
     let totalUsers = 0;
     let userCursor = null;
     while (true) {
@@ -537,7 +555,7 @@ exports.reviewRequestNudge = onSchedule(
         if (absorbedOwner && uid === OWNER_UID)       { skippedAbsorbed++; continue; }
 
         try {
-          const dueLeads = await findReviewDueLeads(db, uid);
+          const dueLeads = await findReviewDueLeads(db, uid, { tenantAuto });
           if (dueLeads.length === 0) { skippedNothing++; continue; }
 
           // Activity + notification + the idempotency mark fire in EVERY

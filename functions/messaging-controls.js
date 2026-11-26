@@ -263,6 +263,8 @@ const AUTOMATION_KEYS = Object.freeze([
   'a2pServerTexts', 'stormConfirmText',
   // Key-moment emails with the portal link (portal-moments.js, 2026-11-04).
   'portalMomentEmail',
+  // The review ask for OTHER companies, email only (review-ask-tenant.js, 2026-11-26, dark).
+  'reviewAskTenantEmail',
   // Storm-season tips email's optional schedule (storm-tips-email.js, 2026-11-26).
   'stormTipsEmail',
 ]);

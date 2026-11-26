@@ -140,6 +140,8 @@ const ROWS = {
     meaning: 'Texts the review ask to a customer with no email who gave texting consent on a web form (8am-9pm). Waits on A2P.' },
   REVIEW_ASK_V2_ENABLED: { group: 'Customer follow-ups', kind: 'enabled', file: 'review-ask-auto-logic.js', dark: true, doc: 'documentation/projects/REVIEW-ASK-V2-2026-11-26.md',
     meaning: 'Review ask v2: texts first (consented NBD customers, one ask per number per 180 days), email otherwise, plus one reminder 7 days later. Off = the v1 email-first ask.' },
+  REVIEW_ASK_TENANTS_ENABLED: { group: 'Customer follow-ups', dark: true, doc: ENV_DOC,
+    meaning: 'Emails one Google review ask to OTHER companies\' paid-in-full, completed customers, only for companies a platform admin approved and turned on. Also needs automations reviewAskTenantEmail. Off = nothing sent.' },
   REVIEW_NUDGE_ENABLED: { group: 'Customer follow-ups', doc: ENV_DOC,
     meaning: 'Emails your reps the list of won jobs not yet asked for a review. Off = the bell row only.' },
   ESIGN_REMINDERS_DISABLED: { group: 'Customer follow-ups', doc: ENV_DOC,

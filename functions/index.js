@@ -923,6 +923,14 @@ exports.reviewRequestNudge = require('./review-request-nudge').reviewRequestNudg
 // (REVIEW_ASK_AUTO_TEXT_ENABLED). functions/review-ask-auto.js.
 exports.reviewAskAutoSweep = require('./review-ask-auto').reviewAskAutoSweep;
 
+// The review ask for OTHER companies (2026-11-26), EMAIL ONLY, DARK
+// (REVIEW_ASK_TENANTS_ENABLED + automations reviewAskTenantEmail): daily 11:00 ET
+// sweep, the company's profile request and the platform admin's approval /
+// switches. functions/review-ask-tenant.js.
+exports.reviewAskTenantSweep = require('./review-ask-tenant').reviewAskTenantSweep;
+exports.setReviewAskProfile = require('./review-ask-tenant').setReviewAskProfile;
+exports.manageReviewAskTenant = require('./review-ask-tenant').manageReviewAskTenant;
+
 // ═══════════════════════════════════════════════════════════════
 // MORNING BRIEF — 06:45 ET appointment brief for the owner
 // ═══════════════════════════════════════════════════════════════
