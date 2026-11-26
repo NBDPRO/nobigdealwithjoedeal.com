@@ -42,6 +42,8 @@ const TEMPLATE_FILES = Object.freeze([
   'functions/portal-moments.js',     // key-moment emails with the portal link (2026-11-04)
   'functions/review-ask-auto.js',
   'functions/review-ask-auto-logic.js',
+  'functions/review-ask-v2.js',       // v2 sends: text first + one reminder (dark, 2026-11-26)
+  'functions/review-ask-v2-logic.js', // v2 words: the reminder text + email
   'functions/missed-call-reply-logic.js',
   'functions/missed-call-autotext.js',
   'functions/storm-watch.js',
