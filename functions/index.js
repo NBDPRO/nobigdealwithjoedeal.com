@@ -282,6 +282,8 @@ Object.assign(exports, stormReportFn);
 // Homeowner follow-up email when a /roof-check lead with an email is captured (additive trigger).
 // By name only: storm-report-email.js also exports _test (2026-10-06 gust line).
 exports.stormReportEmail = require('./storm-report-email').stormReportEmail;
+// "Email me this guide" (2026-11-26): one copy with the guide's PDF attached.
+exports.guideCopyEmail = require('./guide-copy-email').guideCopyEmail;
 
 // Text + email Joe the moment any public marketing lead lands (additive triggers).
 const leadAlertFns = require('./lead-alert');
