@@ -135,6 +135,10 @@ consent.checked = true;
 added({ id: 'inspectFormError' });
 last = events[events.length - 1];
 ok('a server-side failure reports "submit"', last[2] && last[2].fields === 'submit', JSON.stringify(last));
+// form-funnel events (2026-11-26): the shared names ride next to the old ones.
+ok('form_step_view {form:"inspect", step:1} fires on load', events.some((e) => e[1] === 'form_step_view' && e[2].form === 'inspect' && e[2].step === 1), JSON.stringify(events));
+ok('form_start fires once, with inspect_form_start', names().filter((n) => n === 'form_start').length === 1, JSON.stringify(events));
+ok('form_error carries the same field ids as inspect_form_error', events.some((e) => e[1] === 'form_error' && e[2].form === 'inspect' && e[2].fields === 'f-phone'), JSON.stringify(events));
 const before = events.length;
 added({ id: 'somethingElse' });
 ok('other added nodes are ignored', events.length === before);
