@@ -14,6 +14,7 @@ rollback: [ALERT-POLICIES-LIVE-2026-09-13](../documentation/audit/ALERT-POLICIES
 | file | live policy id | state |
 |---|---|---|
 | `alert-turnstile-token-present.json` | 15802792625691337472 | live |
+| `alert-lead-submit-failures.json` | 15171325019131919808 | live (2026-11-25) |
 | `alert-backup-cron-stale.json` | 4583991940756031706 | live |
 | `alert-email-queue-worker-stale.json` | 13778878090024007435 | live (fixed first) |
 | `alert-function-latency.json` | 10772729232835340080 | live |
@@ -224,6 +225,18 @@ Two Windows traps hit while creating it:
   then create a **duplicate**. List policies before running it from Windows.
 - An empty `policies list` is a real `[]` only if the same command lists the
   two notification channels. Run that positive control.
+
+### 12. `alert-lead-submit-failures.json` — **LIVE since 2026-11-25**
+Fires on **any** 400, 403 or 5xx from `submitpubliclead` in an hour (Cloud
+Run `request_count`, 429 excluded). Each one is a homeowner whose lead was not
+saved. Added after every submit 403'd from 2026-10-13 to 2026-11-25 with no
+alert: `alert-functions-error-rate` needs > 50 ERROR entries in 5 minutes, and
+the site sends a few real submits a month. Replayed over the previous 30 days
+it fires on exactly the 6 hours with rejected visits (2026-10-29, 11-05, 11-12,
+11-13) and nowhere else. The browser side is the GA4 event
+`lead_submit_failed` (`docs/assets/js/public-lead-submit.js`). Created as
+`projects/nobigdeal-pro/alertPolicies/15171325019131919808`, same two channels.
+Record: [WEB-LEADS-TURNSTILE-OUTAGE-2026-11-25](../documentation/audit/WEB-LEADS-TURNSTILE-OUTAGE-2026-11-25.md).
 
 ### Stripe webhook delivery (Stripe dashboard, not here)
 Stripe webhook **non-delivery** (bad signature, endpoint down) produces no
