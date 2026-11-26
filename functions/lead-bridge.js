@@ -261,6 +261,7 @@ exports.leadBridgeEstimate = onDocumentCreated({ ...TRIGGER_OPTS, document: 'est
 exports.leadBridgeInspect  = onDocumentCreated({ ...TRIGGER_OPTS, document: 'inspect_leads/{leadId}' },      onLeadCreated('inspect_leads'));
 exports.leadBridgeFreeRoof = onDocumentCreated({ ...TRIGGER_OPTS, document: 'free_roof_entries/{leadId}' }, onLeadCreated('free_roof_entries'));
 exports.leadBridgeStorm    = onDocumentCreated({ ...TRIGGER_OPTS, document: 'storm_alert_subscribers/{leadId}' }, onStormBridge());
+exports.leadBridgeGuideCopy = onDocumentCreated({ ...TRIGGER_OPTS, document: 'guide_copy_requests/{leadId}' }, onLeadCreated('guide_copy_requests'));
 exports.leadBridgeThumbtack = onDocumentCreated({ ...TRIGGER_OPTS, document: 'thumbtack_leads/{leadId}' }, onThumbtackBridge());
 
 // Exposed for tests / wiring sanity.
