@@ -6,6 +6,14 @@ optional box: "Also email me storm-season tips from Joe now and then.
 Unsubscribe any time." Until this PR it only recorded consent. This builds the
 email those people agreed to. **Nothing sends until Joe turns it on.**
 
+## Update 2026-11-26: turned on
+
+Joe said "turn it on" after #3283 merged. `STORM_TIPS_EMAIL_ENABLED=true` is now in
+`functions/.env.nobigdeal-pro` and the flag is no longer marked dark. That alone sends
+nothing: an email goes out only when Joe presses Send on `/pro/storm-tips`, and the
+schedule still needs `messaging_controls/automations.stormTipsEmail`. Customer sends +
+email, canary and the postal address still gate every send.
+
 ## Joe's decisions (2026-11-26)
 
 - **Trigger:** first contact is **Joe pressing send**. After that he can put
