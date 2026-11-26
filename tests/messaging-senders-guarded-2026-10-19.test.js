@@ -101,6 +101,8 @@ const CUSTOMER_EMAIL_RULES = {
   'functions/funnel-recovery.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/lead-followup.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/review-ask-auto.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
+  // v2 sends (2026-11-26): every email through guardEmail + the email switch; the automation status is the sweep's (review-ask-auto.js).
+  'functions/review-ask-v2.js': ['MessagingControls.guardEmail(', "MessagingControls.channelStatus(db, 'email')"],
   'functions/portal-moments.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/lead-alert.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/estimate-email.js': ['MessagingControls.guardEmail('],

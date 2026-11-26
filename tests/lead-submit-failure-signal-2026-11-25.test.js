@@ -118,6 +118,26 @@ const failures = (events) => events.filter((e) => e.name === 'lead_submit_failed
     ok('…and reports failure "timeout"', p.failure === 'timeout' && p.lead_source === '/storm-check', p);
   }
 
+  console.log('\nlead_submit — one attempt event per new lead (2026-11-26, form-funnel events)');
+  {
+    const { window, events } = loadClient({ mode: 'http', status: 403, body: { reason: 'turnstile-required' } });
+    await window.submitPublicLead('inspect', { name: 'Pat', phone: '8595550100', address: '1 Main St', source: '/inspect' });
+    const s = events.filter((e) => e.name === 'lead_submit');
+    ok('a failed submit still counts as one attempt (lead_submit before lead_submit_failed)', s.length === 1 && events.indexOf(s[0]) < events.indexOf(failures(events)[0]), events.map((e) => e.name));
+    ok('…with kind and page source only, no PII', s[0] && s[0].params.lead_kind === 'inspect' && s[0].params.lead_source === '/inspect' && !/Pat|8595550100|Main St/.test(JSON.stringify(s[0].params)), s[0]);
+  }
+  {
+    const { window, events } = loadClient({ mode: 'ok' });
+    await window.submitPublicLead('contact', { source: 'homepage' });
+    ok('a saved lead sends lead_submit then generate_lead', events.map((e) => e.name).join(',') === 'lead_submit,generate_lead', events.map((e) => e.name));
+  }
+  {
+    const { window, events } = loadClient({ mode: 'ok' });
+    await window.submitPublicLead('estimate', { source: 'estimate-funnel-v2', type: 'estimate_result' });
+    await window.submitPublicLead('estimate', { source: 'estimate-funnel-v2', leadToken: 'a'.repeat(48) });
+    ok('follow-up saves and step-1 updates send no lead_submit (same rule as generate_lead)', events.filter((e) => e.name === 'lead_submit').length === 0, events.map((e) => e.name));
+  }
+
   console.log('\nSuccess and robustness');
   {
     const { window, events } = loadClient({ mode: 'ok' });
