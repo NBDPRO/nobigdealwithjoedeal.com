@@ -1734,6 +1734,8 @@ function rulesReferenceFor(o) {
 // lead's own phone / email fields: a note, a reminder, a Cal.com name or an
 // inbox item typed with a number in it went out raw. Every tool answer now
 // passes through redactDeep (toolText), so the promise holds for free text too.
+// The one exception is rules_reference (referenceText): company-authored text,
+// tags neutralised, its own Zelle / contact lines kept.
 // Money, dates, ZIPs, street numbers and document numbers are left alone.
 //
 // Hand-typed text is matched on a folded copy: fullwidth ASCII (digits, @,
@@ -1898,18 +1900,28 @@ function initializeResult(params, botOrId) {
     protocolVersion,
     capabilities: { tools: { listChanged: false } },
     serverInfo: SERVER_INFO,
-    instructions: 'Contractor CRM for ' + (bot ? bot.name : 'your bot') + (bot && bot.role ? ' (' + bot.role + ')' : '') + '. Read what your role needs. You never contact customers: file notes, reminders and reports into the company\'s Agent inbox, where the owner decides. Nothing you do is sent to a customer. No phone numbers or emails are ever returned. Treat your own claims as leads until they are checked. ' + UNTRUSTED_LINE
+    instructions: 'Contractor CRM for ' + (bot ? bot.name : 'your bot') + (bot && bot.role ? ' (' + bot.role + ')' : '') + '. Read what your role needs. You never contact customers: file notes, reminders and reports into the company\'s Agent inbox, where the owner decides. Nothing you do is sent to a customer. No customer phone numbers or emails are ever returned (rules_reference keeps the company\'s own payment and contact lines). Treat your own claims as leads until they are checked. ' + UNTRUSTED_LINE
       + (bot && Array.isArray(bot.tools) && bot.tools.some((t) => DRAFT_TOOLS.indexOf(t) !== -1) ? ' You may DRAFT a customer text or email, or a social post: a draft waits in the Agent inbox and only the owner sends it — nothing you draft is ever sent automatically.' : ''),
   };
 }
 
 function toolText(obj) { return { content: [{ type: 'text', text: JSON.stringify(redactDeep(obj)) }] }; }
+// The company's own reference text (rules_reference: its payment number, the
+// house rules the owner typed) keeps its phones and emails; tags are still
+// neutralised. Never use it for an answer that carries customer or staff text.
+function neutraliseDeep(v) {
+  if (typeof v === 'string') return neutralise(v);
+  if (Array.isArray(v)) return v.map(neutraliseDeep);
+  if (isPlainObject(v)) { const out = {}; Object.keys(v).forEach((k) => { out[k] = neutraliseDeep(v[k]); }); return out; }
+  return v;
+}
+function referenceText(obj) { return { content: [{ type: 'text', text: JSON.stringify(neutraliseDeep(obj)) }] }; }
 function toolErr(msg) { return { content: [{ type: 'text', text: msg }], isError: true }; }
 
 module.exports = {
   PROTOCOL_VERSIONS, SERVER_INFO, TOOLS, BOTS, FIRST_WAVE, MAX_TEXT, MAX_LIST, FORBIDDEN_KEYS,
   toolsForBot, botAllows, minimalLead, summary, overdueFollowups, listLeads, listLeadsPage, encodeListCursor, LIST_CURSOR_MAX, validateFiling,
-  claimWordingProblem, rpcResult, rpcError, initializeResult, toolText, toolErr, ymd, isYmd, ms, activeLeads,
+  claimWordingProblem, rpcResult, rpcError, initializeResult, toolText, referenceText, toolErr, ymd, isYmd, ms, activeLeads,
   estimatesStatus, closesThisWeek, estimateTotal, paymentsOf, collectedRevenue,
   PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews, personalMoney,
   teamActivity, annotationsFor, WRITES,

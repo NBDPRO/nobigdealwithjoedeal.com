@@ -357,7 +357,7 @@ async function runTool(name, args, key) {
 
   // The company's own rules (NBD's for NBD; any other company its own
   // profile rules + house rules, else neutral guidance — never NBD's).
-  if (name === 'rules_reference') return L.toolText(L.rulesReferenceFor({ isNbd: key.isNbd, profile: key.profile, houseRules: (key.settings || {}).houseRules }));
+  if (name === 'rules_reference') return L.referenceText(L.rulesReferenceFor({ isNbd: key.isNbd, profile: key.profile, houseRules: (key.settings || {}).houseRules }));
 
   if (name === 'post_job') {
     const [leads, invoices] = await Promise.all([companyLeads(company), companyDocs('invoices', company, ['companyId', 'createdBy'])]);
