@@ -63,18 +63,30 @@ jobs:
       # Classic PAT, NO scopes. Enables the global code-search channel;
       # empty = channel declared OFF in the summary (see header).
       COPYCAT_CODE_SEARCH_TOKEN: ${{ secrets.COPYCAT_CODE_SEARCH_TOKEN }}
-      REPO: jdealtia-sys/nobigdealwithjoedeal.com
+      # The running repo, never a hard-coded name: the repo moved to a new
+      # org and the old string made the watch flag our own repo (2026-11-25).
+      # Any repo of the same owner/org is ours (scripts/copycat-foreign-repos.js).
+      REPO: ${{ github.repository }}
       # Acknowledged-benign baseline. When a known-friendly fork/star
       # appears, bump the number here (with a comment saying whose) and
       # the alert clears.
       BASELINE_FORKS: '0'
       BASELINE_STARS: '0'
       BASELINE_WATCHERS: '0'
-      # Space-separated full_name regexes for known-noise repos that
-      # legitimately match a search term (none at baseline).
+      # One JavaScript RegExp over full_name for known-noise repos that
+      # legitimately match a search term (none at baseline). Since 2026-11-25
+      # it is read by scripts/copycat-foreign-repos.js, NOT grep -E: no POSIX
+      # classes like [[:alnum:]] (use [A-Za-z0-9]); join several with |.
       ALLOWLIST: '^$'
 
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Own repo is not a match (dry run of the filter)
+        run: node scripts/copycat-foreign-repos.js --self "$REPO" --allow "$ALLOWLIST" --dry-run
+
       - name: Sweep public signals
         run: |
           set -u
@@ -111,9 +123,10 @@ jobs:
           for TERM in nobigdealwithjoedeal roofivent; do
             HITS=$(gh api -X GET search/repositories -f q="$TERM" --jq \
               '[.items[].full_name] | join(" ")') || { infra "repo-name search '$TERM' FAILED"; continue; }
-            for R in $HITS; do
-              [ "$R" = "$REPO" ] && continue
-              echo "$R" | grep -Eq "$ALLOWLIST" && continue
+            # Capture first: a filter that crashes is an infra failure, never "no hits".
+            # shellcheck disable=SC2086 # HITS is a space-separated list
+            FOREIGN=$(node scripts/copycat-foreign-repos.js --self "$REPO" --allow "$ALLOWLIST" $HITS) || { infra "copycat filter FAILED on repo-name search '$TERM'"; continue; }
+            for R in $FOREIGN; do
               signal "repo-name search '$TERM' hit foreign repo: https://github.com/$R"
             done
             sleep 3
@@ -151,9 +164,9 @@ jobs:
               for TERM in 'Roofivent' 'NBD_ESTIMATE_CONFIG' 'nobigdeal-pro' 'site_wide_spec_20260410' '"no big deal with joe deal"'; do
                 HITS=$(run_code_search "$TERM") \
                   || { sleep 30; HITS=$(run_code_search "$TERM") || { infra "code search $TERM FAILED twice (control was sighted — transient, not blindness)"; sleep 7; continue; }; }
-                for R in $HITS; do
-                  [ "$R" = "$REPO" ] && continue
-                  echo "$R" | grep -Eq "$ALLOWLIST" && continue
+                # shellcheck disable=SC2086 # HITS is a space-separated list
+                FOREIGN=$(node scripts/copycat-foreign-repos.js --self "$REPO" --allow "$ALLOWLIST" $HITS) || { infra "copycat filter FAILED on code search $TERM"; sleep 7; continue; }
+                for R in $FOREIGN; do
                   signal "code search $TERM hit foreign repo: https://github.com/$R"
                 done
                 sleep 7   # authenticated code search allows 10 req/min

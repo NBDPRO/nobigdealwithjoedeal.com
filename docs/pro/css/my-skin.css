@@ -142,7 +142,7 @@
   object-fit: contain;
   pointer-events: none;
   z-index: 1800;
-  user-select: none;
+  -webkit-user-select: none; user-select: none;
 }
 :root.my-skin-mascot-left .myskin-mascot { left: 8px; }
 :root.my-skin-mascot-right .myskin-mascot { right: 8px; }

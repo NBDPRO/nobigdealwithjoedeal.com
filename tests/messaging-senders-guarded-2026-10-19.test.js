@@ -65,6 +65,8 @@ const SMS_RULES = {
   'functions/review-ask-auto.js': ['MessagingControls.guardTwilio('],
   'functions/call-center.js': ['MessagingControls.guardTwilio('],
   'functions/verify-functions.js': ['MessagingControls.internalAlertStatus('],
+  // The one owner system-alert text (roadmap step 13): internal, never a customer.
+  'functions/owner-notify.js': ['MessagingControls.internalAlertStatus('],
 };
 // Same shape, not Twilio: the Anthropic SDK model call (2026-11-25); its one
 // site is pinned in RAW_PINS below, so a second send in that file still fails.
@@ -174,6 +176,7 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
     'functions/marketing-report.js': [1, 'owner monthly report'],
     'functions/messaging-controls.js': [1, 'the guardTwilio wrapper itself'],
     'functions/morning-brief.js': [1, 'owner brief'],
+    'functions/owner-notify.js': [1, 'owner system-alert SMS (internal alert, internalAlertStatus; daily cap + dedupe)'],
     'functions/review-request-nudge.js': [1, 'rep digest'],
     'functions/storm-watch.js': [2, 'owner storm SMS + owner storm email (internal alerts, internalAlertStatus)'],
     'functions/verify-functions.js': [3, 'the OTP call (switch + STOP register checked first), the owner new-lead SMS and email (internalAlertStatus)'],

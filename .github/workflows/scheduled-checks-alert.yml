@@ -1,0 +1,60 @@
+name: Scheduled checks alert
+
+# ─────────────────────────────────────────────────────────────
+# WHY THIS EXISTS (roadmap step 13, 2026-11-25)
+# ─────────────────────────────────────────────────────────────
+# A red SCHEDULED run only emails whoever reads Actions mail. perf-watch
+# sat red for three weeks and copycat-watch flagged our own repo after the
+# org move without anyone acting. When any watch below finishes a scheduled
+# run, scripts/scheduled-checks-issue.js opens or updates ONE issue titled
+# "Scheduled checks failing" (label `ops`) listing every red watch, comments
+# when a watch newly fails, and closes the issue when all are green again.
+#
+# The list below must match WATCHED in scripts/scheduled-checks-issue.js
+# (`node scripts/scheduled-checks-issue.js --check` and
+# tests/owner-notify-one-path-2026-11-25.test.js hold them together).
+#
+# No text from here: no repo secret or webhook path for SMS exists, so the
+# issue (GitHub notifies the repo owner) is the whole channel.
+
+on:
+  workflow_run:
+    workflows:
+      - "Copycat watch"
+      - "Page-speed watch"
+      - "Authed E2E canary (@shard2 @shard3, nightly)"
+      - "Outbound link check"
+      - "Public-invoker watch"
+      - "Lead address audit"
+    types: [completed]
+
+# contents: read only for the checkout of the script; actions: read to
+# re-read each watch's latest scheduled run; issues: write is the one write
+# scope.
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+# One run at a time (the issue body is read-modify-write). GitHub keeps only
+# ONE pending run here and cancels an older pending one, so the script does
+# not trust the triggering event alone: it re-reads every watch's latest
+# scheduled run each time, and a cancelled event is folded in by the next run.
+concurrency:
+  group: scheduled-checks-alert
+  cancel-in-progress: false
+
+jobs:
+  issue:
+    name: Open, update or close the scheduled-checks issue
+    if: github.event.workflow_run.event == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Update the issue
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/scheduled-checks-issue.js
