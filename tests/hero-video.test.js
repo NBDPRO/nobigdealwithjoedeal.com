@@ -10,7 +10,7 @@
  *  2. Never sound, never autoplay-by-markup: each <video data-hero-video> is
  *     muted, playsinline, preload="none", aria-hidden, has no src/autoplay/
  *     controls attribute, and every media file has exactly one track: video.
- *  3. Reduced motion, Save-Data and 2g get no video: the stylesheet hides it
+ *  3. Reduced motion, Save-Data, 3g and 2g get no video: the stylesheet hides it
  *     and the script (run here in a stub DOM) never assigns a src. The normal
  *     path picks AV1 when the browser says "probably", MP4 otherwise, the
  *     portrait cut on portrait phones, and swallows a rejected play().
@@ -120,6 +120,7 @@ function runScript(opts) {
   const attrs = {
     'data-src-av1': '/v/720.av1.webm', 'data-src-mp4': '/v/720.mp4',
     'data-src-av1-portrait': '/v/p.av1.webm', 'data-src-mp4-portrait': '/v/p.mp4',
+    'data-src-av1-1080': '/v/1080.av1.webm', 'data-src-mp4-1080': '/v/1080.mp4',
   };
   const listeners = {};
   const video = {
@@ -140,7 +141,7 @@ function runScript(opts) {
     IntersectionObserver: function (cb) { ioCb = cb; this.observe = () => {}; },
     requestIdleCallback: (cb) => cb(),
     addEventListener: (ev, cb) => { listeners[ev] = cb; },
-    innerWidth: 1440, devicePixelRatio: 1,
+    innerWidth: opts.width || 1440, devicePixelRatio: opts.dpr || 1,
   };
   const ctx = {
     window: win, navigator: { connection: opts.connection || {} },
@@ -163,6 +164,14 @@ function runScript(opts) {
   ok('normal path: AV1 720p when canPlayType says probably, muted, play() called', a.src === '/v/720.av1.webm' && a.muted === true && a.plays === 1, a.src);
   ok('no AV1 support: H.264 MP4', runScript({ av1: false }).src === '/v/720.mp4');
   ok('portrait phone: the 720x1280 cut', runScript({ av1: true, portrait: true }).src === '/v/p.av1.webm');
+  // 1080p is for big desktop screens only (2026-11-26): a phone turned sideways is 844 CSS px at DPR 3 (2532 device px),
+  // which passed the old device-pixel test alone and pulled the 6 MB 1080p MP4 over a cell connection.
+  ok('big dense desktop: 1080p (positive control)', runScript({ av1: false, width: 1440, dpr: 2 }).src === '/v/1080.mp4');
+  const sideways = runScript({ av1: false, width: 844, dpr: 3 }).src;
+  ok('landscape phone (844 px at DPR 3): 720p, never 1080p', sideways === '/v/720.mp4', sideways);
+  ok('landscape tablet (1024 px at DPR 2): 720p', runScript({ av1: true, width: 1024, dpr: 2 }).src === '/v/720.av1.webm');
+  ok('3g: no src, the poster/photo is the hero', runScript({ connection: { effectiveType: '3g' } }).src === '');
+  ok('4g still plays (control for the 3g skip)', runScript({ av1: true, connection: { effectiveType: '4g' } }).src === '/v/720.av1.webm');
   let unhandled = false;
   const onUnhandled = () => { unhandled = true; };
   process.on('unhandledRejection', onUnhandled);

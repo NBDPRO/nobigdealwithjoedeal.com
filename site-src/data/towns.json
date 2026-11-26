@@ -6,6 +6,7 @@
    "storms": "NOAA NCEI Storm Events Database bulk files, Jan 2019 - Jun 2026 (https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/). Events whose begin/end point lies within storms.radiusKm of the town centroid (Census 2024 Gazetteer); hail >= 1 in, thunderstorm wind >= 50 kt or with property damage, tornadoes; one per episode+type, ranked tornado > hail size > wind speed. basis \"report\" = an NWS damage report carrying the default 50 kt estimate. noaa = NOAA event id (https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=<noaa>); county is omitted when it is the town’s own county; top 4 kept here.",
    "permits": "permit.status is yes | no | unknown | varies, read from the official page at permit.url. \"unknown\" means no official page settles it; permit.ask names who to call. Ohio re-roofs generally need plan approval (OBBS memo 2017-04-04) unless local policy treats them as minor repair; Kentucky leaves single-family permits to local ordinance (815 KAR 7:125).",
    "siding": "Optional per town: the siding permit answer (status/summary/url/ask, read from the official page) and, where a local design review covers exterior work, review/reviewUrl. Used by TOWNSCOPE / TOWNSVCFAQ on the siding-replacement and siding-repair pages; without it the page says no written siding rule was found and names the building office.",
+   "geo": "Per town: geo.lat/geo.lng is the Census 2024 Gazetteer internal point for the same GEOID as housing.source (places and county-subdivisions files, https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html). scripts/build-projects.mjs measures straight-line miles between these points to show the nearest real jobs, labelled with town and distance, on pages whose own town has none yet. otherPlaces holds the same point for project towns that have no /areas page.",
    "rule": "Publish nothing without a source URL. historic.review = true only where an official page confirms exterior/roof design review."
  },
  "towns": [
@@ -17,6 +18,7 @@
    "region": "cincy-oh",
    "zips": ["45102"],
    "housing": {"medianYearBuilt":1995,"ownerOccupiedPct":61.3,"population":12871,"source":"https://censusreporter.org/profiles/16000US3901742/"},
+   "geo": {"lat":39.026864,"lng":-84.21806,"geoid":"3901742"},
    "storms": {"radiusKm": 6.1, "nearbyCount": 14, "hailReports": 1, "hailDays": 1, "maxHailIn": 1.25, "maxHail": {"in":1.25,"date":"2020-05-23","place":"Amelia","noaa":882799}, "lastHail": {"in":1.25,"date":"2020-05-23","place":"Amelia","noaa":882799}, "tornadoes": 0, "events": [
     {"date":"2020-05-23","kind":"hail","hailIn":1.25,"place":"Amelia","km":0.4,"noaa":882799},
     {"date":"2019-03-14","kind":"wind","kt":50,"basis":"report","place":"Amelia","km":3.7,"noaa":803029},
@@ -37,6 +39,7 @@
    "region": "cincy-oh",
    "zips": ["45244","45255","45230"],
    "housing": {"medianYearBuilt":1976,"ownerOccupiedPct":85,"population":43867,"source":"https://censusreporter.org/profiles/06000US3906101980/"},
+   "geo": {"lat":39.08822,"lng":-84.354208,"geoid":"3906101980"},
    "storms": {"radiusKm": 9, "nearbyCount": 39, "hailReports": 8, "hailDays": 4, "maxHailIn": 1.25, "maxHail": {"in":1.25,"date":"2020-05-23","place":"Mt. Summit","noaa":882792}, "lastHail": {"in":1,"date":"2023-07-24","place":"Lunken Airport","noaa":1116976}, "tornadoes": 0, "events": [
     {"date":"2020-05-23","kind":"hail","hailIn":1.25,"place":"Mt. Summit","km":3.1,"noaa":882792},
     {"date":"2023-07-02","kind":"hail","hailIn":1.25,"place":"Cincinnati’s East End","km":8.7,"noaa":1114124},
@@ -57,6 +60,7 @@
    "region": "cincy-oh",
    "zips": ["45103"],
    "housing": {"medianYearBuilt":1955,"ownerOccupiedPct":58.4,"population":2794,"source":"https://censusreporter.org/profiles/16000US3904150/"},
+   "geo": {"lat":39.075273,"lng":-84.176122,"geoid":"3904150"},
    "storms": {"radiusKm": 5.6, "nearbyCount": 15, "hailReports": 0, "hailDays": 0, "maxHailIn": null, "maxHail": null, "lastHail": null, "tornadoes": 0, "events": [
     {"date":"2019-05-23","kind":"wind","kt":50,"basis":"report","place":"Stonelick","km":5.2,"damageUsd":10000,"noaa":817189},
     {"date":"2019-03-14","kind":"wind","kt":50,"basis":"report","place":"Sky Hills airport, Amelia","km":5.1,"noaa":802996},
@@ -77,6 +81,7 @@
    "region": "cincy-oh",
    "zips": ["45106"],
    "housing": {"medianYearBuilt":1958,"ownerOccupiedPct":48.3,"population":2658,"source":"https://censusreporter.org/profiles/16000US3906068/"},
+   "geo": {"lat":38.962859,"lng":-84.084562,"geoid":"3906068"},
    "storms": {"radiusKm": 5.1, "nearbyCount": 9, "hailReports": 2, "hailDays": 1, "maxHailIn": 1.5, "maxHail": {"in":1.5,"date":"2020-04-08","place":"Bethel","noaa":876482}, "lastHail": {"in":1.5,"date":"2020-04-08","place":"Bethel","noaa":876482}, "tornadoes": 1, "events": [
     {"date":"2023-03-03","kind":"tornado","rating":"EF0","pathMi":1.29,"place":"Nicholsville to Bethel","km":2.7,"damageUsd":100000,"noaa":1074118},
     {"date":"2020-04-08","kind":"hail","hailIn":1.5,"place":"Bethel","km":0.5,"noaa":876482},
@@ -96,6 +101,7 @@
    "region": "cincy-oh",
    "zips": ["45107"],
    "housing": {"medianYearBuilt":1964,"ownerOccupiedPct":62.7,"population":4538,"source":"https://censusreporter.org/profiles/16000US3906908/"},
+   "geo": {"lat":39.295039,"lng":-83.972995,"geoid":"3906908"},
    "storms": {"radiusKm": 5.8, "nearbyCount": 13, "hailReports": 1, "hailDays": 1, "maxHailIn": 1, "maxHail": {"in":1,"date":"2019-03-14","place":"Pansy","noaa":802850}, "lastHail": {"in":1,"date":"2019-03-14","place":"Pansy","noaa":802850}, "tornadoes": 3, "events": [
     {"date":"2024-07-30","kind":"tornado","rating":"EF1","pathMi":5.27,"place":"Hammel to Middleboro","county":"Warren","km":3.8,"damageUsd":40000,"noaa":1191765},
     {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":0.78,"place":"Fayetteville airstrip","km":4.5,"noaa":879630},
@@ -116,6 +122,7 @@
    "region": "cincy-oh",
    "zips": ["45242","45241","45236"],
    "housing": {"medianYearBuilt":1981,"ownerOccupiedPct":64.9,"population":13455,"source":"https://censusreporter.org/profiles/16000US3907300/"},
+   "geo": {"lat":39.246055,"lng":-84.386845,"geoid":"3907300"},
    "storms": {"radiusKm": 6.5, "nearbyCount": 25, "hailReports": 5, "hailDays": 2, "maxHailIn": 1.5, "maxHail": {"in":1.5,"date":"2020-04-08","place":"Blue Ash airport","noaa":876493}, "lastHail": {"in":1.5,"date":"2020-04-08","place":"Blue Ash airport","noaa":876493}, "tornadoes": 1, "events": [
     {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":3.3,"place":"Silverton to Milford","km":5,"damageUsd":45000,"noaa":876954},
     {"date":"2020-04-08","kind":"hail","hailIn":1.5,"place":"Blue Ash airport","km":0.7,"noaa":876493},
@@ -136,6 +143,7 @@
    "region": "cincy-oh",
    "zips": ["45230","45226","45211","45223","45208","45232","45224","45238","45237","45225","45220","45204","45205","45229","45214","45202","45227"],
    "housing": {"medianYearBuilt":1951,"ownerOccupiedPct":39.8,"population":311224,"source":"https://censusreporter.org/profiles/16000US3915000/"},
+   "geo": {"lat":39.140183,"lng":-84.505829,"geoid":"3915000"},
    "storms": {"radiusKm": 12, "nearbyCount": 75, "hailReports": 9, "hailDays": 7, "maxHailIn": 1.25, "maxHail": {"in":1.25,"date":"2023-07-02","place":"Cincinnati’s East End","noaa":1114124}, "lastHail": {"in":1,"date":"2024-04-02","place":"Covington","noaa":1168930}, "tornadoes": 1, "events": [
     {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":6.2,"place":"Bevis to Hartwell","km":9.2,"damageUsd":100000,"noaa":876910},
     {"date":"2023-07-02","kind":"hail","hailIn":1.25,"place":"Cincinnati’s East End","km":5.8,"noaa":1114124},
@@ -158,6 +166,7 @@
    "region": "cincy-oh",
    "zips": ["45113"],
    "housing": {"medianYearBuilt":1960,"ownerOccupiedPct":49.6,"population":573,"source":"https://censusreporter.org/profiles/16000US3915406/"},
+   "geo": {"lat":39.401781,"lng":-83.988901,"geoid":"3915406"},
    "storms": {"radiusKm": 4.6, "nearbyCount": 18, "hailReports": 2, "hailDays": 1, "maxHailIn": 1.5, "maxHail": {"in":1.5,"date":"2023-07-18","place":"Middleboro","noaa":1116258}, "lastHail": {"in":1.5,"date":"2023-07-18","place":"Middleboro","noaa":1116258}, "tornadoes": 2, "events": [
     {"date":"2022-03-23","kind":"tornado","rating":"EF0","pathMi":1.52,"place":"Middleboro","county":"Warren","km":0.7,"damageUsd":10000,"noaa":1004202},
     {"date":"2024-05-07","kind":"tornado","rating":"EF0","pathMi":0.51,"place":"Middleboro","county":"Warren","km":2.8,"damageUsd":50000,"noaa":1179825},
@@ -177,6 +186,7 @@
    "region": "cincy-oh",
    "zips": ["45014","45011"],
    "housing": {"medianYearBuilt":1978,"ownerOccupiedPct":63.2,"population":44828,"source":"https://censusreporter.org/profiles/16000US3925970/"},
+   "geo": {"lat":39.33142,"lng":-84.542716,"geoid":"3925970"},
    "storms": {"radiusKm": 8.1, "nearbyCount": 27, "hailReports": 5, "hailDays": 3, "maxHailIn": 1.25, "maxHail": {"in":1.25,"date":"2025-05-16","place":"Hamilton airport","noaa":1247261}, "lastHail": {"in":1.25,"date":"2025-05-16","place":"Hamilton airport","noaa":1247261}, "tornadoes": 0, "events": [
     {"date":"2025-05-16","kind":"hail","hailIn":1.25,"place":"Hamilton airport","km":4.2,"noaa":1247261},
     {"date":"2020-04-08","kind":"hail","hailIn":1,"place":"Springdale","county":"Hamilton","km":7.1,"noaa":876492},
@@ -197,6 +207,7 @@
    "region": "cincy-oh",
    "zips": ["45118"],
    "housing": {"medianYearBuilt":1958,"ownerOccupiedPct":75.6,"population":324,"source":"https://censusreporter.org/profiles/16000US3926796/"},
+   "geo": {"lat":39.185373,"lng":-83.931964,"geoid":"3926796"},
    "storms": {"radiusKm": 4.6, "nearbyCount": 17, "hailReports": 1, "hailDays": 1, "maxHailIn": 1, "maxHail": {"in":1,"date":"2024-03-14","place":"Vera Cruz","noaa":1158494}, "lastHail": {"in":1,"date":"2024-03-14","place":"Vera Cruz","noaa":1158494}, "tornadoes": 3, "events": [
     {"date":"2022-07-06","kind":"tornado","rating":"EF1","pathMi":3.34,"place":"Vera Cruz to Fayetteville airstrip","km":2.3,"damageUsd":500000,"noaa":1035507},
     {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":2.88,"place":"Vera Cruz to Fayetteville airstrip","km":2.1,"damageUsd":15000,"noaa":883800},
@@ -216,6 +227,7 @@
    "region": "cincy-oh",
    "zips": ["45005"],
    "housing": {"medianYearBuilt":1967,"ownerOccupiedPct":60.7,"population":11712,"source":"https://censusreporter.org/profiles/16000US3928476/"},
+   "geo": {"lat":39.554951,"lng":-84.295728,"geoid":"3928476"},
    "storms": {"radiusKm": 6.8, "nearbyCount": 13, "hailReports": 0, "hailDays": 0, "maxHailIn": null, "maxHail": null, "lastHail": null, "tornadoes": 0, "events": [
     {"date":"2019-04-12","kind":"wind","kt":56,"basis":"estimated","place":"Springboro","km":4.3,"damageUsd":25000,"noaa":807488},
     {"date":"2023-07-17","kind":"wind","kt":50,"basis":"report","place":"Carlisle Junction","km":4.1,"damageUsd":40000,"noaa":1116228},
@@ -236,6 +248,7 @@
    "region": "cincy-oh",
    "zips": ["45122","45140","45150","45162"],
    "housing": {"medianYearBuilt":1983,"ownerOccupiedPct":85,"population":16310,"source":"https://censusreporter.org/profiles/06000US3902531010/"},
+   "geo": {"lat":39.227624,"lng":-84.157595,"geoid":"3902531010"},
    "storms": {"radiusKm": 9.3, "nearbyCount": 37, "hailReports": 0, "hailDays": 0, "maxHailIn": null, "maxHail": null, "lastHail": null, "tornadoes": 2, "events": [
     {"date":"2022-07-06","kind":"tornado","rating":"EF2","pathMi":4.81,"place":"Goshen to Modest","km":2.8,"damageUsd":3000000,"noaa":1035499},
     {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":5.92,"place":"Newtonsville to Lerado","km":7.3,"damageUsd":25000,"noaa":876956},
@@ -254,6 +267,7 @@
    "region": "cincy-oh",
    "zips": ["45243","45242"],
    "housing": {"medianYearBuilt":1974,"ownerOccupiedPct":96.7,"population":6052,"source":"https://censusreporter.org/profiles/16000US3976582/"},
+   "geo": {"lat":39.188557,"lng":-84.336021,"geoid":"3976582"},
    "storms": {"radiusKm": 8, "nearbyCount": 39, "hailReports": 7, "hailDays": 4, "maxHailIn": 1.5, "maxHail": {"in":1.5,"date":"2020-04-08","place":"Blue Ash airport","noaa":876493}, "lastHail": {"in":1,"date":"2022-07-05","place":"Miamiville","noaa":1034087}, "tornadoes": 2, "events": [
     {"date":"2022-07-06","kind":"tornado","rating":"EF1","pathMi":2.24,"place":"Branch Hill to Epworth Heights","county":"Clermont","km":7.5,"damageUsd":100000,"noaa":1035485},
     {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":3.3,"place":"Silverton to Milford","km":2.8,"damageUsd":45000,"noaa":876954},
@@ -274,6 +288,7 @@
    "region": "cincy-oh",
    "zips": ["45036"],
    "housing": {"medianYearBuilt":1986,"ownerOccupiedPct":61.1,"population":21501,"source":"https://censusreporter.org/profiles/16000US3942364/"},
+   "geo": {"lat":39.424229,"lng":-84.217998,"geoid":"3942364"},
    "storms": {"radiusKm": 7.3, "nearbyCount": 20, "hailReports": 0, "hailDays": 0, "maxHailIn": null, "maxHail": null, "lastHail": null, "tornadoes": 1, "events": [
     {"date":"2024-05-07","kind":"tornado","rating":"EF1","pathMi":2.64,"place":"South Lebanon to Stubbs Mills","km":5.6,"damageUsd":200000,"noaa":1179640},
     {"date":"2025-03-30","kind":"wind","kt":65,"basis":"estimated","place":"Red Lion","km":5.2,"damageUsd":40000,"noaa":1241856},
@@ -295,6 +310,7 @@
    "region": "cincy-oh",
    "zips": ["45011","45044","45069"],
    "housing": {"medianYearBuilt":2001,"ownerOccupiedPct":89.4,"population":44633,"source":"https://censusreporter.org/profiles/06000US3901743050/"},
+   "geo": {"lat":39.399265,"lng":-84.410849,"geoid":"3901743050"},
    "storms": {"radiusKm": 8.9, "nearbyCount": 31, "hailReports": 7, "hailDays": 4, "maxHailIn": 2, "maxHail": {"in":2,"date":"2025-05-16","place":"Kyles","noaa":1247257}, "lastHail": {"in":2,"date":"2025-05-16","place":"Kyles","noaa":1247257}, "tornadoes": 2, "events": [
     {"date":"2025-03-30","kind":"tornado","rating":"EF0","pathMi":6.89,"place":"North Hamilton airport to LeSourdsville","km":6.3,"damageUsd":250000,"noaa":1241784},
     {"date":"2023-08-14","kind":"tornado","rating":"EF0","pathMi":1.33,"place":"Rockdale to LeSourdsville","km":4.9,"noaa":1122752},
@@ -315,6 +331,7 @@
    "region": "cincy-oh",
    "zips": ["45140"],
    "housing": {"medianYearBuilt":1985,"ownerOccupiedPct":74.6,"population":13197,"source":"https://censusreporter.org/profiles/16000US3945108/"},
+   "geo": {"lat":39.26768,"lng":-84.268756,"geoid":"3945108"},
    "storms": {"radiusKm": 6.1, "nearbyCount": 23, "hailReports": 6, "hailDays": 3, "maxHailIn": 2, "maxHail": {"in":2,"date":"2020-04-08","place":"Socialville","noaa":876505}, "lastHail": {"in":1,"date":"2022-07-05","place":"Miamiville","noaa":1034087}, "tornadoes": 1, "events": [
     {"date":"2022-07-06","kind":"tornado","rating":"EF1","pathMi":2.24,"place":"Branch Hill to Epworth Heights","km":3.3,"damageUsd":100000,"noaa":1035485},
     {"date":"2020-04-08","kind":"hail","hailIn":2,"place":"Socialville","km":4,"noaa":876505},
@@ -337,6 +354,7 @@
    "region": "cincy-oh",
    "zips": ["45243","45227","45236"],
    "housing": {"medianYearBuilt":1960,"ownerOccupiedPct":92.2,"population":9484,"source":"https://censusreporter.org/profiles/16000US3946312/"},
+   "geo": {"lat":39.185105,"lng":-84.373106,"geoid":"3946312"},
    "storms": {"radiusKm": 5.7, "nearbyCount": 23, "hailReports": 2, "hailDays": 2, "maxHailIn": 1, "maxHail": {"in":1,"date":"2019-03-14","place":"Golf Manor","noaa":802805}, "lastHail": {"in":1,"date":"2019-07-30","place":"Deer Park","noaa":833913}, "tornadoes": 1, "events": [
     {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":3.3,"place":"Silverton to Milford","km":3,"damageUsd":45000,"noaa":876954},
     {"date":"2019-03-14","kind":"hail","hailIn":1,"place":"Golf Manor","km":4.9,"noaa":802805},
@@ -356,6 +374,7 @@
    "region": "cincy-oh",
    "zips": ["45039","45140","45152"],
    "housing": {"medianYearBuilt":2004,"ownerOccupiedPct":77,"population":2070,"source":"https://censusreporter.org/profiles/16000US3946872/"},
+   "geo": {"lat":39.31945,"lng":-84.185128,"geoid":"3946872"},
    "storms": {"radiusKm": 5.1, "nearbyCount": 6, "hailReports": 0, "hailDays": 0, "maxHailIn": null, "maxHail": null, "lastHail": null, "tornadoes": 2, "events": [
     {"date":"2025-03-30","kind":"tornado","rating":"EF0","pathMi":9.73,"place":"Mason to Stubbs Mills","km":4.4,"damageUsd":215000,"noaa":1241789},
     {"date":"2025-04-03","kind":"tornado","rating":"EF0","pathMi":8.51,"place":"Maineville to Middleboro","km":0.1,"damageUsd":200000,"noaa":1243098},
@@ -375,6 +394,7 @@
    "region": "cincy-oh",
    "zips": ["45040","45036"],
    "housing": {"medianYearBuilt":1996,"ownerOccupiedPct":80.1,"population":35509,"source":"https://censusreporter.org/profiles/16000US3948188/"},
+   "geo": {"lat":39.360722,"lng":-84.295867,"geoid":"3948188"},
    "storms": {"radiusKm": 8, "nearbyCount": 39, "hailReports": 8, "hailDays": 3, "maxHailIn": 2, "maxHail": {"in":2,"date":"2020-04-08","place":"Socialville","noaa":876505}, "lastHail": {"in":1,"date":"2023-07-18","place":"Mason","noaa":1116706}, "tornadoes": 2, "events": [
     {"date":"2024-05-07","kind":"tornado","rating":"EF1","pathMi":2.64,"place":"South Lebanon to Stubbs Mills","km":7.2,"damageUsd":200000,"noaa":1179640},
     {"date":"2025-03-30","kind":"tornado","rating":"EF0","pathMi":9.73,"place":"Mason to Stubbs Mills","km":4.5,"damageUsd":215000,"noaa":1241789},
@@ -395,6 +415,7 @@
    "region": "cincy-oh",
    "zips": ["45342","45449"],
    "housing": {"medianYearBuilt":1976,"ownerOccupiedPct":72.9,"population":19948,"source":"https://censusreporter.org/profiles/16000US3949434/"},
+   "geo": {"lat":39.630938,"lng":-84.270742,"geoid":"3949434"},
    "storms": {"radiusKm": 7.2, "nearbyCount": 18, "hailReports": 2, "hailDays": 2, "maxHailIn": 1, "maxHail": {"in":1,"date":"2025-02-27","place":"Miamisburg","noaa":1231566}, "lastHail": {"in":1,"date":"2025-04-29","place":"Whitfield","noaa":1246758}, "tornadoes": 0, "events": [
     {"date":"2025-02-27","kind":"hail","hailIn":1,"place":"Miamisburg","km":1.9,"noaa":1231566},
     {"date":"2025-04-29","kind":"hail","hailIn":1,"place":"Whitfield","km":5.7,"noaa":1246758},
@@ -414,6 +435,7 @@
    "region": "cincy-oh",
    "zips": ["45150"],
    "housing": {"medianYearBuilt":1968,"ownerOccupiedPct":49.6,"population":6497,"source":"https://censusreporter.org/profiles/16000US3950176/"},
+   "geo": {"lat":39.165209,"lng":-84.284784,"geoid":"3950176"},
    "storms": {"radiusKm": 5.7, "nearbyCount": 25, "hailReports": 1, "hailDays": 1, "maxHailIn": 1, "maxHail": {"in":1,"date":"2019-03-14","place":"Terrace Park","noaa":802815}, "lastHail": {"in":1,"date":"2019-03-14","place":"Terrace Park","noaa":802815}, "tornadoes": 1, "events": [
     {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":3.3,"place":"Silverton to Milford","county":"Hamilton","km":2.4,"damageUsd":45000,"noaa":876954},
     {"date":"2020-04-08","kind":"wind","kt":78,"basis":"estimated","place":"Day Heights","km":5.2,"damageUsd":30000,"noaa":880844},
@@ -432,6 +454,7 @@
    "region": "cincy-oh",
    "zips": ["45050","45044","45036"],
    "housing": {"medianYearBuilt":2001,"ownerOccupiedPct":80.9,"population":15401,"source":"https://censusreporter.org/profiles/16000US3951310/"},
+   "geo": {"lat":39.44599,"lng":-84.365772,"geoid":"3951310"},
    "storms": {"radiusKm": 7.6, "nearbyCount": 22, "hailReports": 6, "hailDays": 2, "maxHailIn": 2, "maxHail": {"in":2,"date":"2025-05-16","place":"Kyles","noaa":1247257}, "lastHail": {"in":2,"date":"2025-05-16","place":"Kyles","noaa":1247257}, "tornadoes": 3, "events": [
     {"date":"2023-08-14","kind":"tornado","rating":"EF0","pathMi":1.33,"place":"Rockdale to LeSourdsville","km":6.3,"noaa":1122752},
     {"date":"2024-05-07","kind":"tornado","rating":"EF0","pathMi":0.28,"place":"Oakland","km":3.8,"damageUsd":20000,"noaa":1179824},
@@ -451,6 +474,7 @@
    "region": "cincy-oh",
    "zips": ["45242","45249"],
    "housing": {"medianYearBuilt":1976,"ownerOccupiedPct":90.1,"population":10855,"source":"https://censusreporter.org/profiles/16000US3951716/"},
+   "geo": {"lat":39.251232,"lng":-84.347994,"geoid":"3951716"},
    "storms": {"radiusKm": 6.1, "nearbyCount": 28, "hailReports": 6, "hailDays": 3, "maxHailIn": 1.5, "maxHail": {"in":1.5,"date":"2020-04-08","place":"Blue Ash airport","noaa":876493}, "lastHail": {"in":1,"date":"2022-07-05","place":"Miamiville","noaa":1034087}, "tornadoes": 1, "events": [
     {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":3.3,"place":"Silverton to Milford","km":4.8,"damageUsd":45000,"noaa":876954},
     {"date":"2020-04-08","kind":"hail","hailIn":1.5,"place":"Blue Ash airport","km":2.8,"noaa":876493},
@@ -472,6 +496,7 @@
    "region": "cincy-oh",
    "zips": ["45154","45176"],
    "housing": {"medianYearBuilt":1994,"ownerOccupiedPct":59.8,"population":4987,"source":"https://censusreporter.org/profiles/16000US3952906/"},
+   "geo": {"lat":39.029304,"lng":-83.92663,"geoid":"3952906"},
    "storms": {"radiusKm": 6.8, "nearbyCount": 11, "hailReports": 2, "hailDays": 1, "maxHailIn": 1.75, "maxHail": {"in":1.75,"date":"2020-04-08","place":"Mt. Orab","noaa":876489}, "lastHail": {"in":1.75,"date":"2020-04-08","place":"Mt. Orab","noaa":876489}, "tornadoes": 0, "events": [
     {"date":"2020-04-08","kind":"hail","hailIn":1.75,"place":"Mt. Orab","km":0.6,"noaa":876489},
     {"date":"2019-06-24","kind":"wind","kt":65,"basis":"estimated","place":"Bardwell","km":2.6,"damageUsd":15000,"noaa":829918},
@@ -491,6 +516,7 @@
    "region": "cincy-oh",
    "zips": ["45157"],
    "housing": {"medianYearBuilt":1986,"ownerOccupiedPct":72.2,"population":2766,"source":"https://censusreporter.org/profiles/16000US3955384/"},
+   "geo": {"lat":38.973762,"lng":-84.281548,"geoid":"3955384"},
    "storms": {"radiusKm": 5.7, "nearbyCount": 11, "hailReports": 0, "hailDays": 0, "maxHailIn": null, "maxHail": null, "lastHail": null, "tornadoes": 0, "events": [
     {"date":"2019-05-29","kind":"wind","kt":50,"basis":"report","place":"Mt. Pisgah","km":5.7,"noaa":816347},
     {"date":"2019-08-22","kind":"wind","kt":50,"basis":"report","place":"Carthage","county":"Campbell","km":4.9,"noaa":838473},
@@ -511,6 +537,7 @@
    "region": "cincy-oh",
    "zips": ["45244"],
    "housing": {"medianYearBuilt":1989,"ownerOccupiedPct":67.2,"population":2685,"source":"https://censusreporter.org/profiles/16000US3955678/"},
+   "geo": {"lat":39.124004,"lng":-84.351689,"geoid":"3955678"},
    "storms": {"radiusKm": 5.3, "nearbyCount": 11, "hailReports": 0, "hailDays": 0, "maxHailIn": null, "maxHail": null, "lastHail": null, "tornadoes": 0, "events": [
     {"date":"2020-04-08","kind":"wind","kt":50,"basis":"report","place":"Red Bank","km":5,"noaa":876622},
     {"date":"2021-08-27","kind":"wind","kt":50,"basis":"report","place":"Mt. Summit","km":3.9,"noaa":969986},
@@ -530,6 +557,7 @@
    "region": "cincy-oh",
    "zips": ["45212","45209"],
    "housing": {"medianYearBuilt":1938,"ownerOccupiedPct":47.5,"population":19114,"source":"https://censusreporter.org/profiles/16000US3957386/"},
+   "geo": {"lat":39.160503,"lng":-84.453599,"geoid":"3957386"},
    "storms": {"radiusKm": 5.6, "nearbyCount": 13, "hailReports": 2, "hailDays": 2, "maxHailIn": 1.25, "maxHail": {"in":1.25,"date":"2023-07-02","place":"Cincinnati’s East End","noaa":1114124}, "lastHail": {"in":1.25,"date":"2023-07-02","place":"Cincinnati’s East End","noaa":1114124}, "tornadoes": 0, "events": [
     {"date":"2023-07-02","kind":"hail","hailIn":1.25,"place":"Cincinnati’s East End","km":3.6,"noaa":1114124},
     {"date":"2019-03-14","kind":"hail","hailIn":1,"place":"Golf Manor","km":3,"noaa":802805},
@@ -550,6 +578,7 @@
    "region": "cincy-oh",
    "zips": ["45241","45246"],
    "housing": {"medianYearBuilt":1974,"ownerOccupiedPct":57.1,"population":14030,"source":"https://censusreporter.org/profiles/16000US3971892/"},
+   "geo": {"lat":39.280586,"lng":-84.407514,"geoid":"3971892"},
    "storms": {"radiusKm": 6.8, "nearbyCount": 17, "hailReports": 7, "hailDays": 3, "maxHailIn": 1.5, "maxHail": {"in":1.5,"date":"2020-04-08","place":"Blue Ash airport","noaa":876493}, "lastHail": {"in":1,"date":"2023-07-02","place":"Glendale","noaa":1114100}, "tornadoes": 0, "events": [
     {"date":"2020-04-08","kind":"hail","hailIn":1.5,"place":"Blue Ash airport","km":4.1,"noaa":876493},
     {"date":"2021-06-18","kind":"hail","hailIn":1,"place":"West Chester","km":5.5,"noaa":955711},
@@ -570,6 +599,7 @@
    "region": "cincy-oh",
    "zips": ["45066","45342"],
    "housing": {"medianYearBuilt":1996,"ownerOccupiedPct":88.9,"population":19980,"source":"https://censusreporter.org/profiles/16000US3974076/"},
+   "geo": {"lat":39.562227,"lng":-84.233602,"geoid":"3974076"},
    "storms": {"radiusKm": 6.8, "nearbyCount": 11, "hailReports": 1, "hailDays": 1, "maxHailIn": 1, "maxHail": {"in":1,"date":"2025-02-27","place":"Springboro","noaa":1231565}, "lastHail": {"in":1,"date":"2025-02-27","place":"Springboro","noaa":1231565}, "tornadoes": 1, "events": [
     {"date":"2025-04-02","kind":"tornado","rating":"EF0","pathMi":0.8,"place":"Five Points","km":6.3,"damageUsd":40000,"noaa":1243061},
     {"date":"2022-06-13","kind":"wind","kt":60,"basis":"estimated","place":"Five Points","km":3.4,"damageUsd":20000,"noaa":1023957},
@@ -591,6 +621,7 @@
    "region": "cincy-oh",
    "zips": ["45236","45249","45242","45243","45241"],
    "housing": {"medianYearBuilt":1967,"ownerOccupiedPct":70.4,"population":19530,"source":"https://censusreporter.org/profiles/06000US3906175973/"},
+   "geo": {"lat":39.21655,"lng":-84.364139,"geoid":"3906175973"},
    "storms": {"radiusKm": 6.4, "nearbyCount": 26, "hailReports": 4, "hailDays": 2, "maxHailIn": 1.5, "maxHail": {"in":1.5,"date":"2020-04-08","place":"Blue Ash airport","noaa":876493}, "lastHail": {"in":1.5,"date":"2020-04-08","place":"Blue Ash airport","noaa":876493}, "tornadoes": 1, "events": [
     {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":3.3,"place":"Silverton to Milford","km":1.2,"damageUsd":45000,"noaa":876954},
     {"date":"2020-04-08","kind":"hail","hailIn":1.5,"place":"Blue Ash airport","km":4,"noaa":876493},
@@ -610,6 +641,7 @@
    "region": "cincy-oh",
    "zips": ["45069","45241","45246","45011"],
    "housing": {"medianYearBuilt":1988,"ownerOccupiedPct":76.6,"population":65755,"source":"https://censusreporter.org/profiles/06000US3901783150/"},
+   "geo": {"lat":39.338194,"lng":-84.417103,"geoid":"3901783150"},
    "storms": {"radiusKm": 9.4, "nearbyCount": 32, "hailReports": 8, "hailDays": 6, "maxHailIn": 2, "maxHail": {"in":2,"date":"2025-05-16","place":"Kyles","noaa":1247257}, "lastHail": {"in":2,"date":"2025-05-16","place":"Kyles","noaa":1247257}, "tornadoes": 1, "events": [
     {"date":"2025-03-30","kind":"tornado","rating":"EF0","pathMi":9.73,"place":"Mason to Stubbs Mills","county":"Warren","km":6.3,"damageUsd":215000,"noaa":1241789},
     {"date":"2025-05-16","kind":"hail","hailIn":2,"place":"Kyles","km":8,"noaa":1247257},
@@ -630,6 +662,7 @@
    "region": "cincy-oh",
    "zips": ["45177"],
    "housing": {"medianYearBuilt":1977,"ownerOccupiedPct":58.2,"population":12620,"source":"https://censusreporter.org/profiles/16000US3985792/"},
+   "geo": {"lat":39.429125,"lng":-83.816172,"geoid":"3985792"},
    "storms": {"radiusKm": 7.3, "nearbyCount": 44, "hailReports": 3, "hailDays": 1, "maxHailIn": 2.5, "maxHail": {"in":2.5,"date":"2025-05-16","place":"Burtonville","noaa":1247267}, "lastHail": {"in":2.5,"date":"2025-05-16","place":"Burtonville","noaa":1247267}, "tornadoes": 0, "events": [
     {"date":"2025-05-16","kind":"hail","hailIn":2.5,"place":"Burtonville","km":5.8,"noaa":1247267},
     {"date":"2023-07-20","kind":"wind","kt":62,"basis":"measured","place":"Wilmington Air Park","km":2.6,"noaa":1116809},
@@ -650,6 +683,7 @@
    "region": "nky",
    "zips": ["41015","41017","41011","41014"],
    "housing": {"medianYearBuilt":1947,"ownerOccupiedPct":51.8,"population":41110,"source":"https://censusreporter.org/profiles/16000US2117848/"},
+   "geo": {"lat":39.035109,"lng":-84.519648,"geoid":"2117848"},
    "storms": {"radiusKm": 7.3, "nearbyCount": 35, "hailReports": 4, "hailDays": 3, "maxHailIn": 1, "maxHail": {"in":1,"date":"2019-03-14","place":"Erlanger","noaa":802778}, "lastHail": {"in":1,"date":"2024-04-02","place":"Covington","noaa":1168930}, "tornadoes": 0, "events": [
     {"date":"2019-04-12","kind":"wind","kt":61,"basis":"estimated","place":"South Fort Mitchell","km":4.5,"noaa":808048},
     {"date":"2019-05-23","kind":"hail","hailIn":1,"place":"Highland Heights","county":"Campbell","km":3.8,"noaa":817213},
@@ -672,6 +706,7 @@
    "region": "nky",
    "zips": ["41018","41051","41017"],
    "housing": {"medianYearBuilt":1976,"ownerOccupiedPct":69.3,"population":19875,"source":"https://censusreporter.org/profiles/16000US2125300/"},
+   "geo": {"lat":39.039429,"lng":-84.600135,"geoid":"2125300"},
    "storms": {"radiusKm": 6.6, "nearbyCount": 35, "hailReports": 3, "hailDays": 3, "maxHailIn": 1, "maxHail": {"in":1,"date":"2019-03-14","place":"Erlanger","noaa":802778}, "lastHail": {"in":1,"date":"2025-04-30","place":"Erlanger","noaa":1246711}, "tornadoes": 2, "events": [
     {"date":"2025-03-19","kind":"tornado","rating":"EF1","pathMi":3.15,"place":"Burlington to CVG airport","county":"Boone","km":4.8,"damageUsd":250000,"noaa":1239802},
     {"date":"2026-06-17","kind":"tornado","rating":"EF1","pathMi":4.77,"place":"Limaburg to Florence","county":"Boone","km":5.8,"damageUsd":250000,"noaa":1340869},
@@ -693,6 +728,7 @@
    "region": "nky",
    "zips": ["41042","41091","41018"],
    "housing": {"medianYearBuilt":1985,"ownerOccupiedPct":57.5,"population":32803,"source":"https://censusreporter.org/profiles/16000US2127982/"},
+   "geo": {"lat":38.993405,"lng":-84.648186,"geoid":"2127982"},
    "storms": {"radiusKm": 7, "nearbyCount": 44, "hailReports": 4, "hailDays": 4, "maxHailIn": 1.75, "maxHail": {"in":1.75,"date":"2021-06-18","place":"Burlington","noaa":954924}, "lastHail": {"in":1,"date":"2025-04-30","place":"Erlanger","noaa":1246711}, "tornadoes": 1, "events": [
     {"date":"2026-06-17","kind":"tornado","rating":"EF1","pathMi":4.77,"place":"Limaburg to Florence","km":3.1,"damageUsd":250000,"noaa":1340869},
     {"date":"2021-06-18","kind":"hail","hailIn":1.75,"place":"Burlington","km":6.9,"noaa":954924},
@@ -713,6 +749,7 @@
    "region": "nky",
    "zips": ["41017","41011"],
    "housing": {"medianYearBuilt":1971,"ownerOccupiedPct":58.3,"population":8713,"source":"https://censusreporter.org/profiles/16000US2128558/"},
+   "geo": {"lat":39.045546,"lng":-84.556154,"geoid":"2128558"},
    "storms": {"radiusKm": 5.6, "nearbyCount": 21, "hailReports": 2, "hailDays": 2, "maxHailIn": 1, "maxHail": {"in":1,"date":"2019-03-14","place":"Erlanger","noaa":802778}, "lastHail": {"in":1,"date":"2024-04-02","place":"Covington","noaa":1168930}, "tornadoes": 0, "events": [
     {"date":"2019-04-12","kind":"wind","kt":61,"basis":"estimated","place":"South Fort Mitchell","km":4,"noaa":808048},
     {"date":"2019-03-14","kind":"hail","hailIn":1,"place":"Erlanger","km":4.9,"noaa":802778},
@@ -733,6 +770,7 @@
    "region": "nky",
    "zips": ["41051","41015"],
    "housing": {"medianYearBuilt":1999,"ownerOccupiedPct":83.8,"population":29392,"source":"https://censusreporter.org/profiles/16000US2139142/"},
+   "geo": {"lat":38.957442,"lng":-84.547372,"geoid":"2139142"},
    "storms": {"radiusKm": 7.8, "nearbyCount": 37, "hailReports": 3, "hailDays": 3, "maxHailIn": 1.25, "maxHail": {"in":1.25,"date":"2025-04-14","place":"Independence","noaa":1245799}, "lastHail": {"in":1,"date":"2025-04-30","place":"Erlanger","noaa":1246711}, "tornadoes": 1, "events": [
     {"date":"2026-06-17","kind":"tornado","rating":"EF1","pathMi":4.77,"place":"Limaburg to Florence","county":"Boone","km":6.6,"damageUsd":250000,"noaa":1340869},
     {"date":"2025-04-14","kind":"hail","hailIn":1.25,"place":"Independence","km":0.9,"noaa":1245799},
@@ -753,6 +791,7 @@
    "region": "nky",
    "zips": ["41071"],
    "housing": {"medianYearBuilt":1947,"ownerOccupiedPct":47.7,"population":13967,"source":"https://censusreporter.org/profiles/16000US2155884/"},
+   "geo": {"lat":39.0861,"lng":-84.486933,"geoid":"2155884"},
    "storms": {"radiusKm": 5.5, "nearbyCount": 19, "hailReports": 3, "hailDays": 3, "maxHailIn": 1, "maxHail": {"in":1,"date":"2020-04-08","place":"Bellevue","noaa":878267}, "lastHail": {"in":1,"date":"2024-04-02","place":"Covington","noaa":1168930}, "tornadoes": 0, "events": [
     {"date":"2020-04-08","kind":"hail","hailIn":1,"place":"Bellevue","km":3.3,"noaa":878267},
     {"date":"2023-07-24","kind":"hail","hailIn":1,"place":"Cincinnati’s East End","county":"Hamilton","km":4.8,"noaa":1116977},
@@ -773,6 +812,7 @@
    "region": "nky",
    "zips": ["41091","41042"],
    "housing": {"medianYearBuilt":2007,"ownerOccupiedPct":82.5,"population":7642,"source":"https://censusreporter.org/profiles/16000US2178384/"},
+   "geo": {"lat":38.947624,"lng":-84.675174,"geoid":"2178384"},
    "storms": {"radiusKm": 5.8, "nearbyCount": 15, "hailReports": 2, "hailDays": 1, "maxHailIn": 1.25, "maxHail": {"in":1.25,"date":"2025-04-14","place":"Union","noaa":1245795}, "lastHail": {"in":1.25,"date":"2025-04-14","place":"Union","noaa":1245795}, "tornadoes": 1, "events": [
     {"date":"2026-06-17","kind":"tornado","rating":"EF1","pathMi":4.77,"place":"Limaburg to Florence","km":5.2,"damageUsd":250000,"noaa":1340869},
     {"date":"2025-04-14","kind":"hail","hailIn":1.25,"place":"Union","km":0.5,"noaa":1245795},
@@ -793,6 +833,7 @@
    "region": "central-ky",
    "zips": ["40511","40515","40509","40516","40510","40513","40503"],
    "housing": {"medianYearBuilt":1984,"ownerOccupiedPct":53.8,"population":323725,"source":"https://censusreporter.org/profiles/16000US2146027/"},
+   "geo": {"lat":38.040678,"lng":-84.458272,"geoid":"2146027"},
    "storms": {"radiusKm": 19.3, "nearbyCount": 91, "hailReports": 16, "hailDays": 7, "maxHailIn": 3, "maxHail": {"in":3,"date":"2022-05-19","place":"Chilesburg","noaa":1030762}, "lastHail": {"in":1,"date":"2026-02-19","place":"South Elkhorn","noaa":1317812}, "tornadoes": 1, "events": [
     {"date":"2024-04-02","kind":"tornado","rating":"EF1","pathMi":1.94,"place":"Becknerville","county":"Clark","km":15.2,"noaa":1176387},
     {"date":"2022-05-19","kind":"hail","hailIn":3,"place":"Chilesburg","km":9.3,"noaa":1030762},
@@ -815,6 +856,7 @@
    "region": "central-ky",
    "zips": ["40324"],
    "housing": {"medianYearBuilt":2001,"ownerOccupiedPct":62.3,"population":39117,"source":"https://censusreporter.org/profiles/16000US2130700/"},
+   "geo": {"lat":38.260181,"lng":-84.534921,"geoid":"2130700"},
    "storms": {"radiusKm": 7.8, "nearbyCount": 19, "hailReports": 2, "hailDays": 2, "maxHailIn": 1, "maxHail": {"in":1,"date":"2019-08-31","place":"Georgetown","noaa":847211}, "lastHail": {"in":1,"date":"2020-05-23","place":"Georgetown","noaa":898063}, "tornadoes": 0, "events": [
     {"date":"2019-08-31","kind":"hail","hailIn":1,"place":"Georgetown","km":6.7,"noaa":847211},
     {"date":"2020-05-23","kind":"hail","hailIn":1,"place":"Georgetown","km":5.7,"noaa":898063},
@@ -835,6 +877,7 @@
    "region": "central-ky",
    "zips": ["40356"],
    "housing": {"medianYearBuilt":1993,"ownerOccupiedPct":58.2,"population":32197,"source":"https://censusreporter.org/profiles/16000US2156136/"},
+   "geo": {"lat":37.89226,"lng":-84.565647,"geoid":"2156136"},
    "storms": {"radiusKm": 7.5, "nearbyCount": 15, "hailReports": 2, "hailDays": 2, "maxHailIn": 1, "maxHail": {"in":1,"date":"2022-05-19","place":"Ambrose","noaa":1030728}, "lastHail": {"in":1,"date":"2023-07-18","place":"Nicholasville","noaa":1128838}, "tornadoes": 2, "events": [
     {"date":"2024-04-02","kind":"tornado","rating":"EF1","pathMi":0.42,"place":"Brannon","km":4.9,"noaa":1176619},
     {"date":"2025-10-19","kind":"tornado","rating":"EF1","pathMi":0.65,"place":"Nicholasville","km":3.6,"noaa":1297628},
@@ -856,6 +899,7 @@
    "region": "central-ky",
    "zips": ["40475"],
    "housing": {"medianYearBuilt":1994,"ownerOccupiedPct":38.3,"population":37111,"source":"https://censusreporter.org/profiles/16000US2165226/"},
+   "geo": {"lat":37.729145,"lng":-84.299364,"geoid":"2165226"},
    "storms": {"radiusKm": 8.3, "nearbyCount": 18, "hailReports": 4, "hailDays": 1, "maxHailIn": 2.5, "maxHail": {"in":2.5,"date":"2023-06-25","place":"Richmond","noaa":1115523}, "lastHail": {"in":2.5,"date":"2023-06-25","place":"Richmond","noaa":1115523}, "tornadoes": 1, "events": [
     {"date":"2023-01-12","kind":"tornado","rating":"EF1","pathMi":1.2,"place":"Union City","km":6.7,"noaa":1075507},
     {"date":"2023-06-25","kind":"hail","hailIn":2.5,"place":"Richmond","km":4.9,"noaa":1115523},
@@ -877,6 +921,7 @@
    "region": "central-ky",
    "zips": ["40383"],
    "housing": {"medianYearBuilt":1982,"ownerOccupiedPct":59.9,"population":10492,"source":"https://censusreporter.org/profiles/16000US2179482/"},
+   "geo": {"lat":38.049073,"lng":-84.724968,"geoid":"2179482"},
    "storms": {"radiusKm": 6.3, "nearbyCount": 16, "hailReports": 2, "hailDays": 2, "maxHailIn": 1, "maxHail": {"in":1,"date":"2021-08-10","place":"Versailles","noaa":981048}, "lastHail": {"in":1,"date":"2025-04-30","place":"Bonita","noaa":1259216}, "tornadoes": 0, "events": [
     {"date":"2021-08-10","kind":"hail","hailIn":1,"place":"Versailles","km":2.4,"noaa":981048},
     {"date":"2025-04-30","kind":"hail","hailIn":1,"place":"Bonita","km":2.4,"noaa":1259216},
@@ -898,6 +943,7 @@
    "region": "central-ky",
    "zips": ["40391"],
    "housing": {"medianYearBuilt":1972,"ownerOccupiedPct":60.5,"population":19213,"source":"https://censusreporter.org/profiles/16000US2183676/"},
+   "geo": {"lat":38.002364,"lng":-84.190586,"geoid":"2183676"},
    "storms": {"radiusKm": 6.8, "nearbyCount": 14, "hailReports": 2, "hailDays": 2, "maxHailIn": 1.5, "maxHail": {"in":1.5,"date":"2022-05-19","place":"Winchester heliport","noaa":1030766}, "lastHail": {"in":1.25,"date":"2024-02-28","place":"Winchester","noaa":1163787}, "tornadoes": 0, "events": [
     {"date":"2022-05-19","kind":"hail","hailIn":1.5,"place":"Winchester heliport","km":2.6,"noaa":1030766},
     {"date":"2024-02-28","kind":"hail","hailIn":1.25,"place":"Winchester","km":0.3,"noaa":1163787},
@@ -910,5 +956,10 @@
     {"cat":"history","text":"The Clark County Court House downtown dates from 1853, and Ale-8-One has been bottled in Winchester since 1926.","url":"https://en.wikipedia.org/wiki/Winchester,_Kentucky"}
    ]
   }
+ ],
+ "otherPlaces": [
+  {"town": "White Oak", "state": "OH", "geo": {"lat":39.210636,"lng":-84.606186,"geoid":"3984812"}},
+  {"town": "Evansville", "state": "IN", "geo": {"lat":37.987737,"lng":-87.534705,"geoid":"1822000"}},
+  {"town": "West Liberty", "state": "KY", "geo": {"lat":37.918042,"lng":-83.26741,"geoid":"2181858"}}
  ]
 }
