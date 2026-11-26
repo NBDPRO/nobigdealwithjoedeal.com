@@ -301,9 +301,9 @@
           (S.data.partial ? ' Some of the records couldn’t be checked just now, so there may be more.' : '')
         : 'That doesn’t rule out damage. A free inspection is the only way to be sure.';
       $('rc-teaser-chips').innerHTML =
-        chip('🧊 ' + (c.hail || 0) + ' hail') + chip('💨 ' + (c.wind || 0) + ' wind') +
-        chip('🌪️ ' + (c.tornado || 0) + ' tornado') + chip('📅 ' + (c.stormDays || 0) + ' storm days') +
-        (h10 ? chip('📍 ' + h10 + ' hail within 10 mi') : '');
+        chip((c.hail || 0) + ' hail') + chip((c.wind || 0) + ' wind') +
+        chip((c.tornado || 0) + ' tornado') + chip((c.stormDays || 0) + ' storm days') +
+        (h10 ? chip(h10 + ' hail within 10 mi') : '');
     }
     S.step = 2;
     show('rc-teaser', PROGRESS[2]);
@@ -365,10 +365,10 @@
     }
     var headline, detail;
     if (d._err) {
-      headline = hasSigns || oldRoof ? 'It’s worth a free inspection.' : 'A free inspection is the only way to be sure.';
+      headline = 'We couldn’t check storm records right now';
       detail = 'The storm-records lookup didn’t finish, so this result has no storm data in it. That is not a “no storms” result. ' +
-        (hasSigns ? 'The signs you described are reason enough to get a trained eye on the roof. ' : '') +
-        'Joe checks it free, documents anything he finds and tells you straight what he saw.';
+        (hasSigns ? 'The signs you described are reason enough to get a trained eye on the roof. ' : (oldRoof ? 'At your roof’s age it’s worth a trained eye anyway. ' : '')) +
+        'A free inspection is the only way to be sure: Joe checks it free, documents anything he finds and tells you straight what he saw.';
     } else if (stormy && (oldRoof || hasSigns || ((hailNear || c.tornado) && severe))) {
       headline = 'Storm activity near you is worth a free inspection.';
       detail = 'Documented storms near your home plus ' + (hasSigns ? 'the signs you described' : (oldRoof ? 'your roof’s age' : 'how severe they were')) +
@@ -502,7 +502,7 @@
     if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { err.textContent = 'That email doesn’t look right. Fix it, or leave it blank.'; return; }
     // Texting consent is optional (2026-10-15): the lead is saved either way; no automatic text without it.
     var intake = readIntake();
-    if (intake.error) { err.textContent = intake.error; if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid'); return; }
+    if (intake.error) { $('rc-contact-err').textContent = intake.error; if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid'); return; }
     S.intake = intake;
     err.textContent = '';
     S.firstName = fn; S.phone = ph; S.email = em;
