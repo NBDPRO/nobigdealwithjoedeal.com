@@ -363,7 +363,8 @@ console.log('\nLANDING (2026-10-04) — every /pro section claim is tied to the 
       lim('free', 'aiCalls') === '0' && lim('starter', 'aiCalls') === '20' && lim('team', 'aiCalls') === '100' && lim('growth', 'aiCalls') === 'Infinity'
         && has(/No AI features/) && has(/20 AI calls a month/) && has(/100 AI calls a month/) && has(/Unlimited AI calls/));
     ok('13 reps on /pro match PLAN_LIMITS (team 2, growth 5)', lim('team', 'reps') === '2' && lim('growth', 'reps') === '5' && has(/You \+ 2 reps/) && has(/You \+ 5 reps/));
-    ok('13 the free tier has no AI server-side (claudeProxy needs a paid plan)', code('functions/handlers/ai.js', "sub.plan !== 'free'"));
+    // 2026-11-25: claudeProxy calls the one AI gate (functions/ai-gate.js), which holds the paid-plan rule.
+    ok('13 the free tier has no AI server-side (claudeProxy needs a paid plan)', code('functions/handlers/ai.js', "require('../ai-gate').aiGate(getFirestore(), { auth:") && code('functions/ai-gate.js', "s.plan !== 'free'"));
     ok('13 no plan lists a reports cap nothing meters (no trackUsage(\'reports\') caller)',
       !/reports? (per|a) month/i.test(idx) && !/reports? (per|a) month/i.test(pricing));
     ok('13 no plan claims "most popular" or white-label', ![idx, pricing].some((s) => /most popular|white-label/i.test(s)));

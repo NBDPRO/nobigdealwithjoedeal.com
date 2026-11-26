@@ -68,7 +68,10 @@ const SMS_RULES = {
   // The one owner system-alert text (roadmap step 13): internal, never a customer.
   'functions/owner-notify.js': ['MessagingControls.internalAlertStatus('],
 };
-const smsSenders = files.filter((f) => /\.messages\.create\(/.test(f.code)).map((f) => f.rel);
+// Same shape, not Twilio: the Anthropic SDK model call (2026-11-25); its one
+// site is pinned in RAW_PINS below, so a second send in that file still fails.
+const NOT_TWILIO = { 'functions/ai-client.js': 'Anthropic SDK client.messages.create: a model call, not a text' };
+const smsSenders = files.filter((f) => !NOT_TWILIO[f.rel] && /\.messages\.create\(/.test(f.code)).map((f) => f.rel);
 for (const rel of smsSenders) {
   const need = SMS_RULES[rel];
   ok('Twilio sender is classified: ' + rel, !!need);
@@ -158,6 +161,7 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
   // file -> exact number of RAW (unguarded) send sites, with why each is not a customer message.
   // A NEW raw site in an already-listed file changes the count and fails here.
   const RAW_PINS = {
+    'functions/ai-client.js': [1, 'the Anthropic SDK model call (client.messages.create), not a message to anyone'],
     'functions/alert-recipients-fns.js': [1, 'security notice to the account owner\'s own verified address'],
     'functions/anniversary-touch.js': [1, 'rep digest'],
     'functions/call-center.js': [1, 'owner reminder digest'],
@@ -223,7 +227,8 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
 //    or the owner. The set of files that can QUEUE a row is pinned, so a new writer (for example one that
 //    queues a homeowner email) must be reviewed and added here on purpose.
 {
-  const QUEUE_WRITERS = ['backup-freshness.js', 'care-plan.js', 'health-digest.js', 'integrations/compliance.js',
+  // ai-gate.js (2026-11-25): the AI spend breaker's one-a-day alert to the platform owner (sendBreakerAlert).
+  const QUEUE_WRITERS = ['ai-gate.js', 'backup-freshness.js', 'care-plan.js', 'health-digest.js', 'integrations/compliance.js',
     'messaging-controls-fns.js', 'monthly-overhead-alert.js', 'pro-prospects.js', 'stripe.js', 'tenant-ops.js'];
   const QUEUE_READERS = ['integrations/email-queue-worker.js', 'messaging-center.js'];
   const found = files.filter((f) => /email_queue['"\/`]/.test(stripJsComments(fs.readFileSync(path.join(ROOT, f.rel), 'utf8'))))

@@ -142,8 +142,10 @@
         }
       }
     }
-    // A merged redial (Call to Close P2) shows through its first call.
-    return Object.keys(byId).map(function (k) { return byId[k]; }).filter(function (x) { return !x.mergedInto; }).sort(function (a, b) {
+    // A merged redial (Call to Close P2) shows through its first call. A
+    // Thursday call's phone_calls projection (source 'thursday', roadmap step
+    // 17C) is already here from thursday_calls: one row, not two.
+    return Object.keys(byId).map(function (k) { return byId[k]; }).filter(function (x) { return !x.mergedInto && !(x._kind === 'phone' && x.source === 'thursday'); }).sort(function (a, b) {
       return callTime(b) - callTime(a);
     });
   }

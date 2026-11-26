@@ -89,7 +89,8 @@ async function loadConfig(companyId) {
     const c = snap.exists ? snap.data() || {} : {};
     const owner = await MessagingControls.readOwnerContact(db());
     return {
-      enabled: c.enabled !== false,
+      enabled: c.enabled !== false,               // the CRM inbox widget switch only
+      thursdayDisabled: c.thursdayDisabled === true,   // the server off switch (T.thursdayHoldReason)
       agentNumber: T.toE164(c.agentNumber) || DEFAULT_CONFIG.agentNumber,
       smsEnabled: c.smsEnabled === true,
       smsTo: T.toE164(c.smsTo) || owner.phone || DEFAULT_CONFIG.smsTo,
@@ -178,9 +179,14 @@ exports.thursdayWebhook = onRequest(
       return;
     }
 
+    // Switched off (thursday_config / feature_flags/global, audit §3.3): still a
+    // 200 so Bland does not retry, and the call is kept, as 'held' — the
+    // processor only claims 'pending' / 'reprocess', so nothing runs on it.
+    // The owner can reprocess it from the Thursday inbox once she is back on.
+    const held = T.thursdayHoldReason(cfg, await require('./killswitch').getFlags());
     const ref = db().doc('thursday_calls/' + T.callDocId(call.callId));
     try {
-      await ref.create(Object.assign(T.buildPendingCallDoc(call, 'webhook', { raw: trimRaw(body) }),
+      await ref.create(Object.assign(T.buildPendingCallDoc(call, 'webhook', Object.assign({ raw: trimRaw(body) }, held ? { status: 'held', heldReason: held } : {})),
         { createdAt: FieldValue.serverTimestamp() }));
     } catch (e) {
       if (e && (e.code === 6 || /already exists/i.test(String(e.message)))) {
@@ -190,6 +196,11 @@ exports.thursdayWebhook = onRequest(
       }
       logger.error('thursdayWebhook: write failed', { callId: call.callId, err: e && e.message });
       res.status(500).json({ error: 'Write failed' });   // Bland retries on 5xx
+      return;
+    }
+    if (held) {
+      logger.info('thursdayWebhook: Thursday is switched off — call held', { callId: call.callId, reason: held });
+      res.status(200).json({ ok: true, held: true });
       return;
     }
     logger.info('thursdayWebhook: call queued', { callId: call.callId, durationSec: call.durationSec });
@@ -261,6 +272,11 @@ async function extract(call) {
   // the failed-extraction path, so the call still reaches Jo with Bland's summary.
   const flags = await require('./killswitch').getFlags();
   if (flags.aiDisabled === true || flags.thursdayExtractDisabled === true) throw new T.ExtractionError('ai-disabled');
+  // The one AI gate (functions/ai-gate.js aiGate, 2026-11-25): the line
+  // owner's plan and the daily spend breaker. A refusal takes the same
+  // failed-extraction path, so the call still reaches Jo.
+  const gate = await require('../ai-gate').aiGate(db(), { companyId: T.NBD_OWNER_UID, feature: 'thursday' });
+  if (!gate.ok) throw new T.ExtractionError('ai-gate-' + gate.reason);
   const key = secretValue(ANTHROPIC_API_KEY);
   if (!key) throw new T.ExtractionError('anthropic-not-configured');
   let r;
@@ -279,7 +295,7 @@ async function extract(call) {
     throw new T.ExtractionError('api-' + r.status, String((json && json.error && json.error.message) || '').slice(0, 300));
   }
   // AI spend in one place — counted even when the parse below fails.
-  await require('../ai-spend').recordAiSpend(require('../ai-spend').rowFromAnthropic('thursday', T.EXTRACTION_MODEL, json), { log: logger });
+  await require('../ai-spend').recordAiSpend(require('../ai-spend').rowFromAnthropic('thursday', T.EXTRACTION_MODEL, json), { log: logger, companyId: T.NBD_OWNER_UID });
   const p = T.parseExtractionResponse(json);
   return {
     extraction: T.sanitizeExtraction(p.parsed),
@@ -449,7 +465,8 @@ async function notifyAll(ref, data, ctx) {
   if (Object.keys(results).length) await ref.update(results);
 }
 
-exports._test = { notifyAll, extract }; // test seam (tests/ping-volume-2026-10-13.test.js): the quiet-hours hold
+exports._test = { notifyAll, extract, hydrateInto }; // test seam (tests/ping-volume-2026-10-13.test.js): the quiet-hours hold
+exports._test.processCall = (ref, data) => processCall(ref, data); // tests/thursday-kill-switch-2026-11-25.test.js (processCall is defined below)
 
 // ── Processing trigger ──────────────────────────────────────────────────────
 
@@ -477,23 +494,42 @@ async function claim(ref) {
   });
 }
 
+/** Fill call's empty fields from Bland's copy; never the recording link once retention removed it. */
+function hydrateInto(call, fresh, keep) {
+  const out = Object.assign({}, call);
+  for (const k of Object.keys(fresh || {})) {
+    if (k === 'recordingUrl' && !(keep && keep.relink)) continue;
+    const v = fresh[k];
+    const empty = out[k] == null || out[k] === '' || (Array.isArray(out[k]) && !out[k].length) || out[k] === 0;
+    if (empty && v != null && v !== '') out[k] = v;
+  }
+  return out;
+}
+
 async function processCall(ref, data) {
   const companyId = String(data.companyId || T.NBD_OWNER_UID);
   const ownerUid = String(data.userId || companyId);
   const cfg = await loadConfig(companyId);
+  // Switched off (audit §3.3): a reprocess or a backfill doc that reaches the
+  // processor is parked as 'held' before any Bland fetch, extraction, match,
+  // route or alert.
+  const held = T.thursdayHoldReason(cfg, await require('./killswitch').getFlags());
+  if (held) {
+    await ref.update({ status: 'held', heldReason: held, heldAt: FieldValue.serverTimestamp() });
+    logger.info('thursday: switched off — call held', { doc: ref.id, reason: held });
+    return;
+  }
   let call = Object.assign({}, data.call || {});
   const key = blandKey();
   const update = {};
+  // Call retention (roadmap step 17C) removed the recording or the text: Bland
+  // still has both, so never copy them back (call-retention-logic thursdayKeep).
+  const keep = require('../call-retention-logic').thursdayKeep(data);
 
   // 1. Hydrate — the webhook may arrive before Bland finishes the transcript.
-  if (key && (!call.transcript || !call.recordingUrl || !call.summary)) {
+  if (keep.hydrate && key && (!call.transcript || (keep.relink && !call.recordingUrl) || !call.summary)) {
     try {
-      const fresh = T.normalizeCall(await fetchBlandCall(call.callId, key));
-      for (const k of Object.keys(fresh)) {
-        const v = fresh[k];
-        const empty = call[k] == null || call[k] === '' || (Array.isArray(call[k]) && !call[k].length) || call[k] === 0;
-        if (empty && v != null && v !== '') call[k] = v;
-      }
+      call = hydrateInto(call, T.normalizeCall(await fetchBlandCall(call.callId, key)), keep);
       update.call = call;
     } catch (e) {
       logger.warn('thursday: hydrate failed', { callId: call.callId, err: e && e.message });
@@ -501,7 +537,7 @@ async function processCall(ref, data) {
   }
 
   // 2. Recording → Storage.
-  if (!data.recordingPath && key) {
+  if (keep.saveRecording && !data.recordingPath && key) {
     try {
       const rec = await saveRecording(call, key, ownerUid);
       update.recordingPath = rec.path;
@@ -590,6 +626,14 @@ exports.thursdayCallProcess = onDocumentWritten(
   async (event) => {
     const after = event.data && event.data.after;
     if (!after || !after.exists) return;
+    // One call record (roadmap step 17C): a finished call is projected into
+    // phone_calls/thursday_<id> so Call Brief, the sweep and the Calls screen
+    // see it (functions/thursday-projection.js). Never blocks processing.
+    try {
+      await require('../thursday-projection').projectThursdayCall({ db: db(), docId: after.id || (event.params && event.params.docId), data: after.data() || {}, log: logger });
+    } catch (e) {
+      logger.warn('thursday: phone_calls projection failed', { doc: after.id, err: e && e.message });
+    }
     const status = (after.data() || {}).status;
     if (status !== 'pending' && status !== 'reprocess') return;
     const ref = after.ref;
@@ -694,14 +738,34 @@ exports.thursdayCallerLookup = onRequest(
     const from = T.str(body.from || body.phone_number || body.caller || '', 32);
     const digits = String(from).replace(/\D/g, '').replace(/^1/, '').slice(-10);
     if (digits.length !== 10) { res.status(200).json(unknown); return; }
+    // Switched off (thursday_config.thursdayDisabled / feature_flags/global,
+    // audit §3.3): the live agent gets the plain unknown reply, no CRM context
+    // or playbook. The switch reads (the config doc only, not loadConfig's
+    // owner-contact read) run BESIDE the lead queries, since the Bland snippet
+    // aborts the whole lookup at 2.5 s; the hold is decided once they are all
+    // in, before any CRM context goes back. A failed config read counts as on
+    // (as loadConfig's defaults do) and getFlags falls back to its last value,
+    // so a Firestore blip never blocks the greeting.
+    const switchCfgP = db().doc('thursday_config/' + T.NBD_OWNER_UID).get()
+      .then((s) => (s.exists ? s.data() || {} : {}))
+      .catch((e) => { logger.warn('thursdayCallerLookup: config read failed, treating Thursday as on', { err: e && e.message }); return {}; });
+    const switchFlagsP = require('./killswitch').getFlags().catch(() => ({}));
     // Flag on: the playbook reads start now and run beside the lead queries.
     const inputsP = playbooksEnabled() ? loadPlaybookInputs(T.NBD_OWNER_UID, digits) : null;
     try {
       const col = db().collection('leads').where('companyId', '==', T.NBD_OWNER_UID);
-      const [byMain, byAlt] = await Promise.all([
+      const [byMain, byAlt, lookupCfg, lookupFlags] = await Promise.all([
         col.where('phoneDigits', '==', digits).select(...LEAD_MATCH_FIELDS).limit(5).get(),
         col.where('altPhoneDigits', '==', digits).select(...LEAD_MATCH_FIELDS).limit(5).get(),
+        switchCfgP,
+        switchFlagsP,
       ]);
+      const lookupHeld = T.thursdayHoldReason(lookupCfg, lookupFlags);
+      if (lookupHeld) {
+        logger.info('thursdayCallerLookup: Thursday is switched off — plain reply', { last4: digits.slice(-4), reason: lookupHeld });
+        res.status(200).json(unknown);
+        return;
+      }
       const leads = byMain.docs.concat(byAlt.docs).map((d) => Object.assign({ id: d.id }, d.data()));
       const base = T.buildLookupResponse({ companyId: T.NBD_OWNER_UID, from: digits, leads });
       let out = base;
@@ -785,6 +849,11 @@ exports.thursdayCallAction = onCall(
       return { ok: true };
     }
     if (action === 'reprocess') {
+      // Past call retention's 24 months the transcript is gone: nothing to
+      // re-read, and a reprocess would fetch it back from Bland.
+      if (!require('../call-retention-logic').thursdayKeep(data).reprocess) {
+        throw new HttpsError('failed-precondition', 'This call is past the retention limit; its transcript was removed.');
+      }
       // A live run is refused; a STALE claim (killed by the trigger's
       // timeout — the doc would otherwise sit in 'processing' forever) is
       // re-queued. Same staleness rule as claim().

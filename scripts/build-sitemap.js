@@ -75,7 +75,6 @@ const USAGE = [
 const CORE_PAGES = [
   ['',             'index.html',            '1.0',  'weekly'],
   ['the-pledge',   'the-pledge/index.html', '0.95', 'monthly'],
-  ['book',         'book/index.html',       '0.9',  'weekly'],
   ['about',        'about.html',            '0.8',  'monthly'],
   ['credentials',  'credentials.html',      '0.6',  'monthly'],
   ['our-work',     'our-work.html',         '0.8',  'monthly'],

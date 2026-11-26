@@ -7,6 +7,7 @@
   },
   "main": "index.js",
   "dependencies": {
+    "@anthropic-ai/sdk": "1.8.0",
     "@sentry/node": "^11.10.0",
     "@sparticuz/chromium": "153.0.0",
     "firebase-admin": "^14.5.0",

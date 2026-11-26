@@ -163,7 +163,15 @@ function fakeRes() {
       ok('...and the extraction fails (the call still reaches Jo through the failure path)', r.err && r.err.code === 'ai-disabled', r.err && r.err.code);
       r = await tryExtract({ thursdayExtractDisabled: true });
       ok('thursdayExtractDisabled → no Anthropic call', fetches.length === 0 && r.err && r.err.code === 'ai-disabled', { fetches, code: r.err && r.err.code });
-      r = await tryExtract({});
+      // 2026-11-25: extract also runs the one AI gate (functions/ai-gate.js), which
+      // reads Firestore; for this control the gate says yes and a throwaway app
+      // stands in for Firestore (nothing is read from it).
+      const AG = require(path.join(FN, 'ai-gate.js'));
+      const realGate = AG.aiGate;
+      const FA = require(require.resolve('firebase-admin/app', { paths: [FN] }));
+      const tmpApp = FA.getApps().length ? null : FA.initializeApp({ projectId: 'demo-sweep-lows' });
+      AG.aiGate = async () => ({ ok: true });
+      try { r = await tryExtract({}); } finally { AG.aiGate = realGate; if (tmpApp) await FA.deleteApp(tmpApp); }
       ok('control: no flag → Anthropic is called', fetches.length === 1 && /api\.anthropic\.com/.test(fetches[0]), fetches);
       KS.getFlags = async () => ({ aiDisabled: true });
       fetches.length = 0;

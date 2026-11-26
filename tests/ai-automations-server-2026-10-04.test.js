@@ -217,7 +217,9 @@ const DAY = 24 * 3600 * 1000;
     ok('health digest carries the AI spend section', html.includes('AI Spend') && html.includes('AI spend yesterday $0.42'));
     // Every server-side AI call site the batch lists records a usage row.
     const sites = {
-      'functions/call-center.js': /recordAiSpend\(require\('\.\/ai-spend'\)\.rowFromAnthropic\(feature \|\| 'call-center-notes'/,
+      // call-center.js claudeNotes moved to ai-client.js (2026-11-25), which records
+      // for every migrated route (driven in tests/ai-client-registry-2026-11-25.test.js).
+      'functions/ai-client.js': /recordAiSpend\(S\.rowFromAnthropic\(route, req\.model, message\)/,
       'functions/integrations/voice-intelligence.js': /recordAiSpend\(\{ feature: feature \|\| 'voice-transcribe', model: 'whisper-large-v3-turbo', audioSec/,
       'functions/integrations/thursday.js': /rowFromAnthropic\('thursday'/,
       'functions/photo-vision.js': /rowFromAnthropic\('photo-vision'/,

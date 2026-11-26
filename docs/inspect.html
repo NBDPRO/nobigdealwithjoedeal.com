@@ -165,6 +165,21 @@ h1 span{color:#BD5728}
 .ins-faq summary{cursor:pointer;font-weight:700;padding:14px 0;min-height:44px;display:flex;align-items:center;color:var(--navy)}
 .ins-faq details p{padding:0 0 14px;font-size:.92rem;line-height:1.6;color:var(--gray-sub)}
 @media(max-width:720px){.ins-steps{grid-template-columns:minmax(0,1fr)}}
+/* Other visit types (2026-11-25): /book folded in here; /book 301s to #other-visits. */
+.ins-visits{background:var(--light-gray);padding:44px 5% 40px;color:var(--navy);scroll-margin-top:16px}
+.ins-visits-inner{max-width:880px;margin:0 auto}
+.ins-visits h2{font-family:'Bebas Neue',sans-serif;font-size:clamp(1.6rem,4vw,2.2rem);letter-spacing:.02em;margin-bottom:6px;color:var(--navy)}
+.ins-visits-lede{margin:0 0 18px}
+.ins-visit-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.ins-visit{display:block;height:100%;background:#fff;border:1px solid rgba(26,48,87,.15);border-radius:10px;padding:16px;text-decoration:none;color:var(--navy);min-height:44px}
+.ins-visit:hover,.ins-visit:focus-visible{border-color:var(--orange)}
+.ins-visit strong{display:block;font-size:1rem;margin-bottom:2px}
+.ins-visit .ins-visit-meta{display:block;font-size:.78rem;font-weight:700;color:#a14a22;margin-bottom:6px}
+.ins-visit .ins-visit-desc{display:block;font-size:.88rem;line-height:1.55;color:var(--gray-sub)}
+.ins-visit .ins-visit-cta{display:block;margin-top:8px;font-size:.85rem;font-weight:700;color:#a14a22;text-decoration:underline}
+.ins-visits-note{margin:18px 0 0;font-size:.9rem}
+.ins-visits-note a{color:var(--navy);font-weight:700;text-decoration:underline}
+@media(max-width:720px){.ins-visit-list{grid-template-columns:minmax(0,1fr)}}
 
 /* Tagline footer */
 .tagline-bar{background:var(--navy-dark);color:#fff;text-align:center;padding:36px 5%;font-family:'Bebas Neue',sans-serif;font-size:clamp(1.1rem,2.6vw,1.55rem);letter-spacing:.04em}
@@ -526,6 +541,21 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
   </div>
 </section>
 
+<section class="ins-visits" id="other-visits" aria-labelledby="insVisitsTitle">
+  <div class="ins-visits-inner">
+    <h2 id="insVisitsTitle">Need a different kind of visit?</h2>
+    <p class="ins-visits-lede">Not every question needs someone on your roof. Pick a time on Joe&rsquo;s calendar. The confirmation comes straight from him, not a call center.</p>
+    <ul class="ins-visit-list">
+      <li><a class="ins-visit" href="https://cal.com/nobigdeal/roof-question-call" target="_blank" rel="noopener noreferrer"><strong>15-minute roof question call</strong><span class="ins-visit-meta">15 min &middot; Phone &middot; Free</span><span class="ins-visit-desc">A quote you want a second opinion on, or a question before anyone gets on your roof. Joe calls you.</span><span class="ins-visit-cta">Ask Joe a question &rarr;</span></a></li>
+      <li><a class="ins-visit" href="https://cal.com/nobigdeal/adjuster-meeting" target="_blank" rel="noopener noreferrer"><strong>Insurance adjuster meeting</strong><span class="ins-visit-meta">30&ndash;90 min &middot; At your home &middot; Free</span><span class="ins-visit-desc">Your adjuster is coming out and you want Joe there. He walks the roof with them and documents the damage with photos.</span><span class="ins-visit-cta">Book the adjuster visit &rarr;</span></a></li>
+      <li><a class="ins-visit" href="https://cal.com/nobigdeal/estimate-walkthrough" target="_blank" rel="noopener noreferrer"><strong>Estimate walkthrough</strong><span class="ins-visit-meta">30 min &middot; Phone &middot; Free</span><span class="ins-visit-desc">You have Joe&rsquo;s estimate and want to understand it: line items, materials, timeline, warranty, financing. Nothing to sign.</span><span class="ins-visit-cta">Walk through my estimate &rarr;</span></a></li>
+      <li><a class="ins-visit" href="https://cal.com/nobigdeal/gutter-siding-estimate" target="_blank" rel="noopener noreferrer"><strong>Gutters &amp; siding estimate</strong><span class="ins-visit-meta">30 min &middot; At your home &middot; Free</span><span class="ins-visit-desc">Gutters, gutter guards, siding or wood trim, no roof work needed. Joe measures, photographs and leaves you a written number.</span><span class="ins-visit-cta">Book a gutters or siding visit &rarr;</span></a></li>
+      <li><a class="ins-visit" href="https://cal.com/nobigdeal/interior-repair-estimate" target="_blank" rel="noopener noreferrer"><strong>Interior repair estimate</strong><span class="ins-visit-meta">30 min &middot; At your home &middot; Free</span><span class="ins-visit-desc">Drywall and ceiling repair, including leak damage. If a roof leak caused it, Joe fixes the roof first, then the ceiling.</span><span class="ins-visit-cta">Book an interior visit &rarr;</span></a></li>
+    </ul>
+    <p class="ins-visits-note"><strong>Water coming in right now?</strong> Don&rsquo;t book a slot. Call or text Joe at <a href="tel:+18594207382">(859) 420-7382</a>; emergencies jump the line.</p>
+  </div>
+</section>
+
 <section class="tagline-bar">
   &hellip;seriously, it&rsquo;s in the <span>name</span>.
   <span class="sub">No Big Deal Home Solutions &middot; Greater Cincinnati</span>
@@ -560,6 +590,7 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
 <script src="/assets/js/intake-extras.js?v=4" defer></script>
 <script src="/assets/js/inspect-region.js" defer></script>
 <script src="/assets/js/inspect-form.js?v=12" defer></script>
+<script src="/assets/js/booking-clicks.js" defer></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
 <!-- nbd:partial mobile-cta book_href="#inspectForm" -->
 <div class="mobile-cta-strip mobile-cta-bookfirst" role="region" aria-label="Quick contact options">

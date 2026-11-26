@@ -212,12 +212,15 @@ async function gatherSections({ db, owner, nowMs, log }) {
 }
 
 /** "Brief me" one-liners for the day's appointment leads (cache → Haiku → fallback). */
-async function gatherBriefLines({ db, leadIds, leadsById, nowMs, log }) {
+async function gatherBriefLines({ db, leadIds, leadsById, nowMs, log, owner }) {
   const out = {};
   const { getBrief } = require('./lead-brief');
   // The global AI kill switch turns these into the deterministic line.
   let useAi = true;
   try { useAi = !(await require('./integrations/killswitch').isAiDisabled()); } catch (_) { useAi = false; }
+  // So does the one AI gate (functions/ai-gate.js aiGate, 2026-11-25): the
+  // owner tenant's plan and the daily spend breaker.
+  if (useAi && leadIds.length) useAi = (await require('./ai-gate').aiGate(db, { companyId: owner || OWNER, feature: 'brief-me', nowMs })).ok === true;
   for (const id of leadIds.slice(0, MAX_BRIEF_LINES)) {
     try {
       const b = await getBrief({ db, leadId: id, lead: leadsById.get(id) || {}, nowMs, log, useAi });
@@ -276,7 +279,7 @@ async function runMorningBrief(deps) {
   const hist = await readHistory(db, leadIds, (id) => (leadsById.get(id) || {}).companyId || owner, log);
   // One line per appointment (live runs only — a dry run spends no AI).
   const briefLines = enabled && leadIds.length
-    ? await ((deps && deps.briefLines) || gatherBriefLines)({ db, leadIds, leadsById, nowMs, log }).catch(() => ({}))
+    ? await ((deps && deps.briefLines) || gatherBriefLines)({ db, leadIds, leadsById, nowMs, log, owner }).catch(() => ({}))
     : {};
 
   // The weather.gov forecast for today's job days (warns only). Never fails
