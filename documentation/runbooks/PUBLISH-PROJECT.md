@@ -31,6 +31,18 @@
 > go in `TOWN_ALIASES` in the generator. A town with no area page gets no area
 > link — nothing is guessed.
 >
+> **Update 2026-11-26 — nearby fallback.** A town page or town-service page
+> whose own town has no matching live job now gets the same region filled with
+> the 3 nearest real jobs within 30 miles, headed "Jobs Near <Town>", each card
+> labelled "Nearby: <its town> · N mi away". Distances are straight-line miles
+> between Census 2024 Gazetteer points in `site-src/data/towns.json`
+> (`towns[].geo`, plus `otherPlaces[]` for job towns with no area page). **A new
+> job in a town that has no point there makes `build-projects.mjs` exit with
+> an error:** add the town's Gazetteer `INTPTLAT`/`INTPTLONG` to `otherPlaces`
+> (or to its `towns[]` entry) and restamp. Towns with nothing inside 30 miles
+> (the central-KY towns today) get no block. Guard:
+> `tests/town-nearby-jobs-2026-11-26.test.js`.
+>
 > **Optional case-study fields** — add any of these to an entry and the case
 > page grows the matching H2; leave them out and nothing is rendered:
 > `problem` (The problem), `scope` (What we did — string or list),

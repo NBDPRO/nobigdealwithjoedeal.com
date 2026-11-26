@@ -3,7 +3,7 @@
  * One component for every hero that has one (markup: site-src/partials/
  * hero-video-*.html, mapping: site-src/data/hero-video.json). The <video>
  * ships with no src and preload="none", so nothing is fetched until this runs:
- *   - never on prefers-reduced-motion, Save-Data, or a 2g / slow-2g connection
+ *   - never on prefers-reduced-motion, Save-Data, or a 3g / 2g / slow-2g connection
  *     (the poster, or the homepage photo, is the whole hero then);
  *   - only after the page's load event plus an idle slot (1.5 s cap), so the
  *     video can never compete with the LCP image or text;
@@ -11,7 +11,8 @@
  *     the tab is hidden.
  * Source: AV1 WebM when the browser says it can play it, else H.264 MP4;
  * the 720x1280 cut on portrait phones up to 600px wide; 1080p only for big
- * dense screens on a fast connection where the clip has it; 720p otherwise.
+ * dense screens (1200+ CSS px wide, so never a phone or tablet held sideways)
+ * where the clip has it; 720p otherwise.
  * Always muted, never controls, never sound. A rejected play() just leaves
  * the poster showing.
  * Bump ASSET_VERSION in scripts/hero-video.mjs when this file changes. */
@@ -23,13 +24,13 @@
   if (reduce.matches) return;
   var conn = navigator.connection || {};
   var type = String(conn.effectiveType || '');
-  if (conn.saveData || /(^|-)2g$/.test(type)) return;
+  if (conn.saveData || /(^|-)[23]g$/.test(type)) return;
 
   function pickSrc(v) {
     var ext = v.canPlayType('video/webm; codecs="av01.0.08M.08"') === 'probably' ? 'av1' : 'mp4';
     var key = '';
     if (window.matchMedia('(max-width: 600px) and (orientation: portrait)').matches) key = '-portrait';
-    else if (type !== '3g' && window.innerWidth * (window.devicePixelRatio || 1) >= 1800 &&
+    else if (window.innerWidth >= 1200 && window.innerWidth * (window.devicePixelRatio || 1) >= 1800 &&
              v.hasAttribute('data-src-' + ext + '-1080')) key = '-1080';
     return v.getAttribute('data-src-' + ext + key) || v.getAttribute('data-src-mp4');
   }
