@@ -171,7 +171,9 @@ async function run() {
       { plan: 'growth', status: 'active' });
     // Section 65 (2026-11-26): every review_ask_* doc exists, so update / delete / get are tested on real docs.
     for (const pth of ['review_ask_tenants/co-65', 'review_ask_profile/co-65', 'review_ask_sends/s1', 'review_ask_audit/a1',
-      'review_ask_emails/co-65_h1', 'review_ask_recipient/h1', 'review_ask_counters/co-65_d20261126', 'review_ask_jobs/co-65_L1__lead']) {
+      'review_ask_emails/co-65_h1', 'review_ask_recipient/h1', 'review_ask_counters/co-65_d20261126', 'review_ask_jobs/co-65_L1__lead',
+    // S3 (2026-11-26, review-ask-health.js): the health counters, the count-once marks and the callback heartbeat.
+    'review_ask_health/co-65_2026-11-26', 'review_ask_counted/s1_undelivered', 'review_ask_heartbeat/co-65']) {
       await setDoc(doc(db, pth), { companyId: 'co-65', enabled: true, paused: false, rampStage: 1 });
     }
   });
@@ -4152,7 +4154,9 @@ async function run() {
   await x65('control: the same tenant can still create a plain lead (harness wired)', 'allow',
     setDoc(doc(adm65, 'leads/s65-ok'), { userId: 't65adm', companyId: 'co-65', name: 'ZZ_QA review ask', meter: 'manual' }));
   const docs65 = ['review_ask_tenants/co-65', 'review_ask_profile/co-65', 'review_ask_sends/s1', 'review_ask_audit/a1',
-    'review_ask_emails/co-65_h1', 'review_ask_recipient/h1', 'review_ask_counters/co-65_d20261126', 'review_ask_jobs/co-65_L1__lead'];
+    'review_ask_emails/co-65_h1', 'review_ask_recipient/h1', 'review_ask_counters/co-65_d20261126', 'review_ask_jobs/co-65_L1__lead',
+    // S3 (2026-11-26, review-ask-health.js): the health counters, the count-once marks and the callback heartbeat.
+    'review_ask_health/co-65_2026-11-26', 'review_ask_counted/s1_undelivered', 'review_ask_heartbeat/co-65'];
   const adm66 = env.authenticatedContext('t66adm', { role: 'company_admin', companyId: 'co-66' }).firestore();
   const mgr65 = env.authenticatedContext('t65mgr', { role: 'manager', companyId: 'co-65' }).firestore();
   for (const [label, db65] of [['solo owner', own65], ['company_admin', adm65], ['another company admin', adm66], ['manager', mgr65]]) {

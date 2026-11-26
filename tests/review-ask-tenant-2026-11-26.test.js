@@ -296,7 +296,8 @@ const sends = (db) => [...db.store.entries()].filter(([p]) => p.startsWith('revi
     const call = (role, data) => H.handleManage({ auth: { uid: 'u1', token: role ? { role, companyId: 'co-a' } : {} }, data }, { db, FieldValue: FV, nowMs: NOW, assertCallerAccountEnabled: enabledCheck });
     ok('company_admin → permission-denied', await throwsCode(call('company_admin', { action: 'enable', companyId: 'co-a' }), 'permission-denied'));
     ok('a solo owner (no role) → permission-denied', await throwsCode(call(null, { action: 'enable', companyId: 'co-a' }), 'permission-denied'));
-    ok('NBD → failed-precondition', await throwsCode(call('admin', { action: 'get', companyId: 'nbd-owner' }), 'failed-precondition'));
+    // S3 (2026-11-26): an admin may get / pause / unpause NBD's health pause; every other action on NBD stays refused.
+    ok('NBD → failed-precondition', await throwsCode(call('admin', { action: 'enable', companyId: 'nbd-owner' }), 'failed-precondition'));
     ok('enable before approve → failed-precondition', await throwsCode(call('admin', { action: 'enable', companyId: 'co-a' }), 'failed-precondition'));
     ok('approve without confirmPlace → failed-precondition', await throwsCode(call('admin', { action: 'approve', companyId: 'co-a' }), 'failed-precondition'));
     ok('approve with a mailing address that is a link → failed-precondition', await throwsCode(call('admin', { action: 'approve', companyId: 'co-bad', confirmPlace: true }), 'failed-precondition'));

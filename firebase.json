@@ -163,6 +163,8 @@
       { "source": "/api/twilio/sms-status", "function": { "functionId": "twilioSmsStatus", "region": "us-central1" } },
       { "source": "/api/twilio/voice", "function": { "functionId": "twilioVoiceWebhook", "region": "us-central1" } },
       { "source": "/api/twilio/voice-status", "function": { "functionId": "twilioVoiceDialStatus", "region": "us-central1" } },
+      { "_comment": "Review-ask text status callback (2026-11-26, S3, functions/review-ask-health.js). Each review text's statusCallback is /api/review-ask/status?s=<opaque send id>; the handler looks the send up, then verifies X-Twilio-Signature with that send's own sender token. DARK until REVIEW_ASK_HEALTH_ENABLED=true (200, nothing written).",
+        "source": "/api/review-ask/status", "function": { "functionId": "reviewAskTextStatus", "region": "us-central1" } },
       { "_comment": "Inspection report sharing. /report/<token> serves a saved inspection report HTML first-party, token-authed, no login. See functions/report-sharing.js.",
         "source": "/report/**", "function": { "functionId": "getSharedReport", "region": "us-central1" } },
       { "_comment": "Confirm a custom lead-alert address (2026-10-13). GET shows a Confirm button and writes nothing; POST consumes the one-time token. Token-authed, no login, no script. See functions/alert-recipients-fns.js.",

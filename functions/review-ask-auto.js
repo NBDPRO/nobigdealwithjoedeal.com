@@ -103,6 +103,8 @@ async function recordSent(db, entry, uid, channel, nowMs, FV, askExtra, auditExt
   };
   if (entry.jobId) patch.reviewJobCount = FV.increment(1);
   await leadRef.update(patch).catch((e) => fnLogger.warn('review_auto_mark_failed', { leadId: entry.id, err: e && e.message }));
+  // S3: the review-email denominator for the bounce rate (dark = no write; never throws).
+  if (channel === 'email') await require('./review-ask-health').noteEmailSend(db, RA.NBD_OWNER_UID, { nowMs, FieldValue: FV });
   if (entry.jobId) {
     await leadRef.collection('jobs').doc(entry.jobId).update({ reviewRequestedAt: FV.serverTimestamp(), reviewNudgedAt: FV.serverTimestamp(), reviewRequestSource: source }).catch(() => {});
   }
@@ -256,11 +258,13 @@ async function runForUser(db, uid, deps) {
   return { asked, results };
 }
 
-async function sendTextTwilio({ to, body, recipient, companyProfile, nowMs }) {
+async function sendTextTwilio({ to, body, recipient, companyProfile, nowMs, statusCallback }) {
   const { secretValue: sv } = require('./integrations/_shared');
   const sid = sv(TWILIO_ACCOUNT_SID), tok = sv(TWILIO_AUTH_TOKEN), from = sv(TWILIO_PHONE_NUMBER);
   if (!sid || !tok || !from) throw new Error('twilio-not-configured');
-  return MessagingControls.guardTwilio(getFirestore(), require('twilio')(sid, tok)).messages.create({ to, from, body }, { recipient, companyProfile, nowMs });
+  // v2 (S3): the delivery callback to this send's own opaque id (review-ask-health.js).
+  const msg = statusCallback ? { to, from, body, statusCallback } : { to, from, body };
+  return MessagingControls.guardTwilio(getFirestore(), require('twilio')(sid, tok)).messages.create(msg, { recipient, companyProfile, nowMs });
 }
 
 exports.reviewAskAutoSweep = onSchedule(

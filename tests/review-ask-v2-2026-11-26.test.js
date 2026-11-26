@@ -143,7 +143,9 @@ const seedOf = (extra) => Object.assign({}, OPEN_CONTROLS, {
   ['companyProfile/' + OTHER]: { brand: { contact: { mailingAddress: '9 Other Way, Dayton, OH 45402' } } },
 }, extra || {});
 
-const ALL_ON = { REVIEW_ASK_V2_ENABLED: 'true', REVIEW_ASK_AUTO_TEXT_ENABLED: 'true', REVIEW_ASK_AUTO_EMAIL_ENABLED: 'true' };
+// S3 (2026-11-26): a review text also needs the carrier-health handler on (REVIEW_ASK_HEALTH_ENABLED):
+// dark, the text pre-flight fails closed (tests/review-ask-health-2026-11-26.test.js §F).
+const ALL_ON = { REVIEW_ASK_V2_ENABLED: 'true', REVIEW_ASK_AUTO_TEXT_ENABLED: 'true', REVIEW_ASK_AUTO_EMAIL_ENABLED: 'true', REVIEW_ASK_HEALTH_ENABLED: 'true' };
 function fakeResend() {
   const sent = [];
   return { sent, emails: { send: async (m) => { sent.push(m); return { data: { id: 're_' + sent.length }, error: null }; } } };
@@ -155,6 +157,8 @@ function fakeTexts() {
   return fn;
 }
 const deps = (o) => Object.assign({ env: ALL_ON, FieldValue: FV, logger: quiet, nowMs: NOON, sendWindow: () => ({ ok: true }) }, o || {});
+/** Every review text's status callback arrived: the S3 heartbeat has nothing pending. */
+const callbacksArrived = (db) => { for (const k of db.store.keys()) if (k.startsWith('review_ask_heartbeat/')) db.store.set(k, Object.assign({}, db.store.get(k), { pending: {} })); };
 const rows = (db, pred) => [...db.store.entries()].filter(([k, v]) => k.startsWith('review_requests/') && pred(v)).map(([, v]) => v);
 
 (async () => {
@@ -285,7 +289,8 @@ const rows = (db, pred) => [...db.store.entries()].filter(([k, v]) => k.startsWi
     const askedAt = NOON;
     const freshDb = (leadExtra) => makeDb(seedOf({ 'leads/R1': leadOf(leadExtra), 'invoices/r1': paidInvOf('R1', ago(5)) }));
     const ask = async (db, tx, rs) => AUTO.runForUser(db, NBD, deps({ sendText: tx, resend: rs, nowMs: askedAt }));
-    const remind = async (db, tx, rs, at, env, extra) => V2IO.runReminders(db, deps(Object.assign({ sendText: tx, resend: rs, nowMs: at, env: env || ALL_ON }, extra || {})));
+    // Twilio's status callback for the ask came back (S3 heartbeat), so the reminder's pre-flight passes.
+    const remind = async (db, tx, rs, at, env, extra) => { callbacksArrived(db); return V2IO.runReminders(db, deps(Object.assign({ sendText: tx, resend: rs, nowMs: at, env: env || ALL_ON }, extra || {}))); };
 
     const db = freshDb();
     const tx = fakeTexts(), rs = fakeResend();
@@ -349,6 +354,7 @@ const rows = (db, pred) => [...db.store.entries()].filter(([k, v]) => k.startsWi
     const db = makeDb(seedOf({ 'leads/A1': leadOf(), 'invoices/a1': paidInvOf('A1', ago(5)) }));
     const tx = fakeTexts();
     await AUTO.runForUser(db, NBD, deps({ sendText: tx, resend: fakeResend() }));
+    callbacksArrived(db);
     await V2IO.runReminders(db, deps({ sendText: tx, resend: fakeResend(), nowMs: NOON + 7 * DAY }));
     const r = rows(db, (v) => v.leadId === 'A1');
     ok('the ask and the reminder each write a review_requests row with triggeredBy', r.length === 2 && r.every((v) => v.triggeredBy === V2IO.TRIGGERED_BY && v.v2 === true)

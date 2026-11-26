@@ -140,6 +140,8 @@ const ROWS = {
     meaning: 'Review ask v2: texts first (consented NBD customers, one ask per number per 180 days), email otherwise, plus one reminder 7 days later. Off = the v1 email-first ask.' },
   REVIEW_ASK_TENANTS_ENABLED: { group: 'Customer follow-ups', dark: true, doc: ENV_DOC,
     meaning: 'Emails one Google review ask to OTHER companies\' paid-in-full, completed customers, only for companies a platform admin approved and turned on. Also needs automations reviewAskTenantEmail. Off = nothing sent.' },
+  REVIEW_ASK_HEALTH_ENABLED: { group: 'Customer follow-ups', kind: 'enabled', file: 'review-ask-health-logic.js', dark: true, doc: 'documentation/projects/REVIEW-ASK-S3-HEALTH-2026-11-26.md',
+    meaning: 'Tracks carrier errors, STOP replies and email complaints for review asks, per company, and pauses a company that passes a limit (only a platform admin unpauses). Off = no review TEXT is sent at all; the email still goes.' },
   REVIEW_NUDGE_ENABLED: { group: 'Customer follow-ups', doc: ENV_DOC,
     meaning: 'Emails your reps the list of won jobs not yet asked for a review. Off = the bell row only.' },
   ESIGN_REMINDERS_DISABLED: { group: 'Customer follow-ups', doc: ENV_DOC,

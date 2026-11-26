@@ -121,6 +121,7 @@ async function handleSetProfile(request, deps) {
 // ── manageReviewAskTenant (platform admin only) ─────────────────────────
 
 const ACTIONS = ['get', 'approve', 'enable', 'disable', 'pause', 'unpause', 'setRamp'];
+const NBD_ACTIONS = ['get', 'pause', 'unpause'];
 
 async function handleManage(request, deps) {
   const d = deps || {};
@@ -135,8 +136,9 @@ async function handleManage(request, deps) {
   const data = (request && request.data) || {};
   const companyId = cleanCompanyId(data.companyId);
   if (!companyId) throw new HttpsError('invalid-argument', 'companyId required');
-  if (companyId === NBD()) throw new HttpsError('failed-precondition', 'NBD uses its own review ask.');
   if (!ACTIONS.includes(data.action)) throw new HttpsError('invalid-argument', 'Unknown action');
+  // NBD uses its own review ask; only its health pause (S3, review-ask-health.js) is managed here.
+  if (companyId === NBD() && !NBD_ACTIONS.includes(data.action)) throw new HttpsError('failed-precondition', 'NBD uses its own review ask.');
   const tRef = db.collection(C.tenants).doc(companyId);
   const pRef = db.collection(C.profiles).doc(companyId);
   const [tSnap, pSnap] = await Promise.all([tRef.get(), pRef.get()]);
@@ -261,6 +263,8 @@ async function recordSent(db, companyId, entry, nowMs, FV) {
     reviewRequested: true, reviewRequestedAt: FV.serverTimestamp(), reviewRequestSource: SOURCE, reviewNudgedAt: FV.serverTimestamp(),
     reviewAutoAsk: { jobKey: RA.jobKey(entry.jobId), jobId: entry.jobId || null, channel: 'email', status: 'sent', sentAtMs: nowMs },
   }).catch((e) => fnLogger.warn('review_ask_tenant_mark_failed', { leadId: entry.id, err: e && e.message }));
+  // S3: the review-email denominator for this company's bounce rate (dark = no write; never throws).
+  await require('./review-ask-health').noteEmailSend(db, companyId, { nowMs, FieldValue: FV });
   if (entry.jobId) {
     await leadRef.collection('jobs').doc(entry.jobId).update({ reviewRequestedAt: FV.serverTimestamp(), reviewNudgedAt: FV.serverTimestamp(), reviewRequestSource: SOURCE }).catch(() => {});
   }

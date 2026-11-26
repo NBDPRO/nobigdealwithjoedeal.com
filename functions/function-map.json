@@ -264,6 +264,7 @@
   "reversePayment": "./payment-reversal",
   "reviewAskAutoSweep": "./review-ask-auto",
   "reviewAskTenantSweep": "./review-ask-tenant",
+  "reviewAskTextStatus": "./review-ask-health",
   "reviewRequestNudge": "./review-request-nudge",
   "revokeAgentKey": "./agent-mcp",
   "revokeDocumentLink": "./estimate-send",

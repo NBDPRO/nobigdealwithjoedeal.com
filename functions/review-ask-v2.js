@@ -35,6 +35,7 @@ const OptOut = require('./sms-optout');
 const TextingGate = require('./sms-texting-gate');
 const ConsentDeclined = require('./sms-consent-declined');
 const SendWindow = require('./send-window');
+const Health = require('./review-ask-health');
 
 // v1's claim / settle / recordSent and NBD's sender, read at call time (review-ask-auto.js requires this file).
 const A = () => require('./review-ask-auto')._test;
@@ -73,6 +74,10 @@ async function textReady(db, lead, d, nowMs, log, opts) {
   if (!pt.send) return { ok: false, reason: pt.reason, final: pt.reason === 'do_not_text' || pt.reason === 'not_nbd' };
   if (typeof d.sendText !== 'function') return { ok: false, reason: 'no_sender', final: false };
   const tenantKey = RA.NBD_OWNER_UID;
+  // S3 (G3): carrier health. A dark handler, a pause or missing callbacks = no text (fails closed).
+  let hh;
+  try { hh = await Health.textHealthOk(db, tenantKey, { env: d.env || process.env, nowMs }); } catch (_) { hh = { ok: false, reason: 'health_unverified' }; }
+  if (!hh.ok) return { ok: false, reason: /^health_/.test(hh.reason) ? hh.reason : 'health_' + hh.reason, final: false };
   try {
     const opt = await OptOut.isOptedOut(db, pt.to, { companyId: tenantKey, timeoutMs: OptOut.READ_TIMEOUT_MS });
     if (opt.optedOut) return { ok: false, reason: 'opted_out', final: true };
@@ -130,12 +135,22 @@ async function sendEmail(db, d, ready, content, campaign, attachments) {
   if (resendRejected(r)) throw new Error(resendErrorMessage(r));
 }
 
-/** The text, checked once more: NBD's customer by companyId, a fixed template that passes smsContentOk. */
-async function sendCheckedText(d, lead, to, body, url, nowMs) {
+/**
+ * The text, checked once more: NBD's customer by companyId, a fixed template that passes smsContentOk.
+ * S3: its review_ask_sends row (an opaque id) is written first and the text carries a statusCallback
+ * to it; no row = no text.
+ */
+async function sendCheckedText(db, d, lead, to, body, url, nowMs, template) {
   if (!RA.isNbd(lead)) throw new Error('not_nbd');
   const bad = V2.smsContentOk(body, url);
   if (bad) throw new Error('sms_content_' + bad);
-  await d.sendText({ to, body, recipient: lead, companyProfile: d.companyProfile || null, nowMs });
+  const opts = { env: d.env || process.env, nowMs, FieldValue: d.FieldValue || FieldValue };
+  const reg = await Health.recordTextSend(db, Object.assign({ companyId: RA.NBD_OWNER_UID, sender: 'nbd', leadId: lead.id || null, jobId: lead.jobId || null, toHash: phoneKey(to), template }, opts));
+  let m;
+  try { m = await d.sendText({ to, body, recipient: lead, companyProfile: d.companyProfile || null, nowMs, statusCallback: reg.statusCallback }); }
+  catch (e) { await Health.abandonTextSend(db, reg.id, RA.NBD_OWNER_UID, opts).catch(() => {}); throw e; }
+  await Health.confirmTextSend(db, reg.id, RA.NBD_OWNER_UID, m && m.sid, nowMs, opts)
+    .catch((e) => (d.logger || fnLogger).warn('review_ask_health_confirm_failed', { err: e && e.message }));
 }
 
 /**
@@ -165,7 +180,7 @@ async function askOneV2(db, entry, uid, deps) {
       try {
         if (!(await claimPhone(db, tr.to, entry.id, nowMs))) throw new Error('phone_recently_asked');
         if (!(await MessagingControls.claimSendOnce(db, tr.to, 'review_ask_text', entry.jobId || entry.id))) throw new Error('duplicate');
-        await sendCheckedText(d, entry, tr.to, V2.textBody(entry, url), url, nowMs);
+        await sendCheckedText(db, d, entry, tr.to, V2.textBody(entry, url), url, nowMs, 'review_ask_text');
       } catch (e) {
         log.warn('review_auto_text_failed', { leadId: entry.id, err: e && e.message });
         await A().settle(db, entry.id, entry.jobId, 'text', 'failed', { atMs: nowMs, error: String((e && e.message) || e).slice(0, 200) });
@@ -287,7 +302,7 @@ async function runReminders(db, deps) {
         if (!(await claimReminder(db, lead.id, nowMs))) { out('claimed'); continue; }
         try {
           if (!(await MessagingControls.claimSendOnce(db, tr.to, V2.REMINDER_TEMPLATE, a.jobKey || lead.id))) throw new Error('duplicate');
-          await sendCheckedText(d, lead, tr.to, V2.reminderText(lead, url), url, nowMs);
+          await sendCheckedText(db, d, lead, tr.to, V2.reminderText(lead, url), url, nowMs, V2.REMINDER_TEMPLATE);
         } catch (e) {
           log.warn('review_reminder_text_failed', { leadId: lead.id, err: e && e.message });
           await closeReminder(db, lead.id, 'failed', { error: String((e && e.message) || e).slice(0, 200) }, nowMs);
@@ -311,6 +326,7 @@ async function runReminders(db, deps) {
         }
       }
       await closeReminder(db, lead.id, 'sent', { channel: plan.channel }, nowMs);
+      if (plan.channel === 'email') await Health.noteEmailSend(db, RA.NBD_OWNER_UID, { env, nowMs, FieldValue: FV });
       const said = plan.channel === 'text' ? 'Review reminder texted automatically' : 'Review reminder emailed automatically';
       const source = plan.channel === 'text' ? 'auto-text-reminder' : 'auto-email-reminder';
       await db.collection('review_requests').add({ leadId: lead.id, userId: lead.userId || null, method: plan.channel === 'text' ? 'sms' : 'email', source, jobId, sentAt: FV.serverTimestamp(), status: 'sent', triggeredBy: TRIGGERED_BY, v2: true }).catch(() => {});

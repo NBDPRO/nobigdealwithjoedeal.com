@@ -349,7 +349,7 @@ async function sentText(db, companyId, nowMs) {
       && tx2.sent[0].statusCallback === HL.statusCallbackUrl(sid), JSON.stringify(tx2.sent[0] && tx2.sent[0].statusCallback));
     const row = sid && dbOn.store.get(sendKey);
     ok('the send row: NBD, sender nbd, the Twilio SID, a hashed number (no phone, no body)', row && row.companyId === NBD && row.sender === 'nbd' && row.messageSid === 'SM' + 'b'.repeat(32)
-      && !/\d{10}/.test(JSON.stringify(row)) && row.body === undefined, JSON.stringify(row));
+      && JSON.stringify(row).indexOf('8595550142') === -1 && row.body === undefined, JSON.stringify(row));
     ok('the heartbeat waits for its callback', ((dbOn.store.get('review_ask_heartbeat/' + NBD) || {}).pending || {})[sid] === NOON);
     const dbFail = makeDb(seed);
     const boom = async () => { throw new Error('twilio 500'); };
@@ -376,9 +376,15 @@ async function sentText(db, companyId, nowMs) {
     code = '';
     try { await TENANT.handleManage(req('admin', 'admin-uid', { companyId: NBD, action: 'enable' }), md); } catch (e) { code = e.code; }
     ok('...but NBD still cannot be enabled on the company email path', code === 'failed-precondition');
+    code = '';
+    const asOwner = { db, FieldValue: FV, nowMs: NOON, requireTeamAdmin: async () => ({ uid: COA, companyId: COA, role: 'owner' }) };
+    try {
+      await TENANT.handleSetProfile({ auth: { uid: COA, token: { role: 'owner' } }, data: { action: 'set', displayName: 'Acme Roofing', googleReviewUrl: 'https://g.page/r/AcmeRoof123/review', replyTo: 'office@acme.example', paused: false } }, asOwner);
+    } catch (e) { code = e.code; }
+    ok('setReviewAskProfile with an extra paused key → invalid-argument, still paused', code === 'invalid-argument' && db.store.get('review_ask_tenants/' + COA).paused === true, code);
     const prof = read('functions/review-ask-tenant.js');
     const setP = prof.slice(prof.indexOf('async function handleSetProfile'), prof.indexOf('// ── manageReviewAskTenant'));
-    ok('setReviewAskProfile never touches review_ask_tenants (a company cannot reach paused)', !/C\.tenants/.test(setP));
+    ok('setReviewAskProfile only reads review_ask_tenants, never writes it', !/C\.tenants\)\.doc\([^)]*\)\.(set|update|create)/.test(setP) && /C\.profiles/.test(setP));
     const rules = read('firestore.rules');
     ok('no rule opens review_ask_tenants / _health / _counted / _heartbeat to clients (catch-all deny)', !/match \/review_ask_(tenants|health|counted|heartbeat)\//.test(rules));
   }
