@@ -293,7 +293,7 @@ function mapPublicLeadToLead(args) {
     publicLeadCollection: collection,
     publicLeadId: String(args.sourceId || ''),
     // Attribution (2026-09-13). Every public form posts a page-level `source`
-    // ('/inspect', '/storm-check', 'page-form:/areas/mason-oh', 'tenant-site:…')
+    // ('/inspect', '/roof-check', 'page-form:/areas/mason-oh', 'tenant-site:…')
     // that `source` above collapses into one kind label. Kept verbatim so a
     // lead-source count is one query, not a join back to the public
     // collection. `source` is unchanged (lead-alert and the scorecard key on

@@ -172,14 +172,13 @@ async function alert(exportName, lead, docs) {
     ['docs/assets/js/inline/4053149b2f.js', "getElementById('tcpaConsent')"],
     ['docs/assets/js/inline/72f02d79d0.js', "getElementById('fieldConsent')"],
     ['docs/assets/js/quick-lead-form.js', "getElementById(uid + '-consent')"],
-    ['docs/assets/js/storm-check.js', "$('sc-consent')"],
-    ['docs/assets/js/roof-score.js', "$('rs-consent')"],
-    ['docs/assets/js/storm-report-page.js', "$('sr-consent')"],
+    // /storm-check, /roof-score and /storm-report merged into /roof-check (2026-11-25).
+    ['docs/assets/js/roof-check.js', "$('rc-consent')"],
   ];
   for (const [file, getter] of OPTIONAL) {
     const js = strip(read(file));
     ok(file + ': still reads the box', js.includes(getter));
-    ok(file + ': never refuses a submit over it', !/if\s*\(\s*!\s*(consent|\$\('s[rc]-consent'\)\.checked|cb\.checked)\s*\)/.test(js) && !/check the (consent )?box/i.test(js));
+    ok(file + ': never refuses a submit over it', !/if\s*\(\s*!\s*(consent|\$\('(s[rc]|rc)-consent'\)\.checked|cb\.checked)\s*\)/.test(js) && !/check the (consent )?box/i.test(js));
     ok(file + ': posts its real value as tcpaConsent', /tcpaConsent\s*[:=]\s*(consent === true|consent\b|\$\('sr-consent'\)\.checked === true|document\.getElementById\('tcpaConsent'\)\.checked === true)/.test(js));
   }
   {

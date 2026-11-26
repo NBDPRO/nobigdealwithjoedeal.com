@@ -363,7 +363,7 @@ const PUBLIC_LEAD_KINDS = {
     // would be invisible to every alert send.
     optional: [...PUBLIC_LEAD_OPTIONAL_DEFAULTS, 'concern'],
     // TCPA consent (2026-10-03): /storm-alerts now gates signup on the same
-    // express-written-consent checkbox as /storm-check and posts its value.
+    // express-written-consent checkbox as /roof-check (then /storm-check) and posts its value.
     boolOptional: ['tcpaConsent'],
     serverDefaults: { active: true }
   },
@@ -393,14 +393,15 @@ const PUBLIC_LEAD_KINDS = {
     },
     optional: [...PUBLIC_LEAD_OPTIONAL_DEFAULTS, 'email', 'story', 'photoCount', 'photoNames'],
     // TCPA consent (2026-09-04, handoff item 6). Three of the four forms that
-    // post this kind — /storm-check, /roof-score, /storm-report — gate their
+    // post this kind — /storm-check, /roof-score, /storm-report, merged into
+    // /roof-check on 2026-11-25 — gate their
     // submit on an express-written-consent checkbox and now POST its value;
     // /inspect has no checkbox and posts nothing, so its documents carry no
     // field and the send-time gate refuses to text them (no_stored_consent).
     // Declared as a boolean here for the same reason as `estimate`: the
     // string-only optional loop dropped it silently.
     boolOptional: ['tcpaConsent'],
-    // Coordinates (2026-10-06). /storm-report already geocodes the address to
+    // Coordinates (2026-10-06). /storm-report (now /roof-check) already geocodes the address to
     // build the report; it now posts that point so stormReportEmail can find
     // the SAME server-built report (public_cache/storm_*) for the measured-
     // gust line, and lead-bridge carries it onto the CRM lead (lat/lng) like
