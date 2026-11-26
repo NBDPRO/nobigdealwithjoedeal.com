@@ -50,6 +50,24 @@ section('2. the live tree agrees');
   };
   for (const d of ['docs/pro', 'docs/sites']) walk(path.join(K.ROOT, d));
   ok('no contractor surface carries the seasonal slide', leaked.length === 0, leaked.slice(0, 5).join(', '));
+
+  // Phones hide the bar except for the seasonal slide (Jo, 2026-11-26); that rule lives in nbd-nav.css.
+  const noNavCss = [];
+  const walkDocs = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) { if (!['pro', 'sites', 'admin', 'assets'].includes(e.name)) walkDocs(p); continue; }
+      if (!e.name.endsWith('.html')) continue;
+      const html = fs.readFileSync(p, 'utf8');
+      if (html.includes(S.ATTR) && !/href="\/assets\/css\/nbd-nav\.css/.test(html)) noNavCss.push(path.relative(K.ROOT, p));
+    }
+  };
+  walkDocs(path.join(K.ROOT, 'docs'));
+  ok('every page with the seasonal slide loads nbd-nav.css (where the phone rule lives)', noNavCss.length === 0, noNavCss.slice(0, 5).join(', '));
+  const nav = K.read('docs/assets/css/nbd-nav.css');
+  ok('nbd-nav.css shows the bar on phones only when it holds a seasonal slide, standing slides hidden',
+    /\.ann-bar:has\(> \[data-nbd-season-ann\]\)\s*\{\s*display:\s*flex !important/.test(nav)
+    && /\.ann-bar:has\(> \[data-nbd-season-ann\]\) > \.ann-slide:not\(\[data-nbd-season-ann\]\)\s*\{\s*display:\s*none !important/.test(nav));
 }
 
 section('3. wording rules');
