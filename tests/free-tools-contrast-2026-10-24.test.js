@@ -30,7 +30,9 @@ const cards = [...html.matchAll(/class="tool-card" style="([^"]+)"/g)].map((m) =
 });
 
 console.log('/free-tools card contrast');
-ok('control: the page has the eight tool cards, each with an accent', cards.length === 8 && cards.every((c) => c.text), String(cards.length));
+// 8 -> 6 (2026-11-25): the Roof Score, Storm Damage Check and 5-Year Storm Report
+// cards became one Roof Check card (/roof-check).
+ok('control: the page has the six tool cards, each with an accent', cards.length === 6 && cards.every((c) => c.text), String(cards.length));
 ok('control: .tool-cta reads --card-accent-text (otherwise the token is decoration)', /\.tool-cta\{[^}]*var\(--card-accent-text/.test(html));
 cards.forEach((c, i) => {
   const cta = ratio(hex(c.text), WHITE);
