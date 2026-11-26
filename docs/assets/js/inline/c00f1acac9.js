@@ -67,7 +67,7 @@ const POSTS = [
     url: "/blog/roof-financing-cincinnati-explained",
     tag: "Financing",
     title: "Roof Financing in Cincinnati: What I Tell Homeowners at the Kitchen Table",
-    meta: "By Joe Deal · August 2026 · 9 min read",
+    meta: "By Joe Deal · August 2026 · 10 min read",
     excerpt: "When financing a roof makes sense, when it doesn't, and the deductible-plus-financing combo most homeowners have never heard of — explained the way Joe explains it in person, with zero lender boilerplate.",
     published: "2026-08-17",
   },

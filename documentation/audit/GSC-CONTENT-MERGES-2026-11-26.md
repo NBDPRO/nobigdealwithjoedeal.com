@@ -101,23 +101,20 @@ visible text only). After the merge, every remaining one falls into these groups
 ### 2. Financing
 
 `how-roof-financing-actually-works` → `roof-financing-cincinnati-explained`.
-Moved in verbatim, Joe's voice, no new claims: "The Soft Pull vs. Hard Pull
+Moved in verbatim, Joe's voice, no new claims: "First, What I Am and What I'm
+Not" (with its "one-sentence version" callout), "The Soft Pull vs. Hard Pull
 Thing, In Plain English" and "Why the Rate on the Ad Is Never 'Your' Rate"
-(after the monthly-payment section), "When I'll Tell You Not to Finance" and
+(after the monthly-payment section), "When Financing Makes Sense" (after the
+deductible combo), "When I'll Tell You Not to Finance" and
 "What Actually Happens, Step by Step" (before the FAQ), and the Acorn Finance
 marketplace disclaimer (above the author box). The survivor's "I broke down the
 mechanics ... in How Roof Financing Actually Works" sentence now points down
 the page (`#soft-vs-hard`). Its related card to the merged post now goes to the
 free guide `/guides/roof-financing-explained` ("Paying for a Roof,
-Explained"). dateModified 2026-11-26, 7 → 9 min read.
-
-**Not moved** (they say what the survivor already says): "First, What I Am and
-What I'm Not" (I'm not a lender; Acorn is a marketplace; the "one-sentence
-version" callout) and "When Financing Makes Sense" (deductible gap, the roof
-that won't wait, keeping the emergency fund). The survivor covers the marketplace,
-the soft pull, the deductible combo and the can't-wait roof. The only lines with
-no twin are "I am not a lender ... nobody's contractor does" and the
-emergency-fund paragraph. **Open for Jo:** say the word and they go in too.
+Explained"). dateModified 2026-11-26, 7 → 10 min read. So every section of
+the merged post is now on the survivor (Jo, 2026-11-26: "Add the two financing
+sections too"); some points now appear twice in different words (the deductible
+gap, the roof that won't wait).
 
 ### 3. Class 4
 
