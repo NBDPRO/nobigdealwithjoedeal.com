@@ -82,9 +82,8 @@ const CORE_PAGES = [
   ['visualizer',   'visualizer.html',       '0.7',  'monthly'],
   ['estimate',     'estimate.html',         '0.9',  'weekly'],
   ['inspect',      'inspect.html',          '0.9',  'weekly'],
-  ['storm-check',  'storm-check.html',      '0.9',  'weekly'],
-  ['roof-score',   'roof-score.html',       '0.9',  'weekly'],
-  ['storm-report', 'storm-report.html',     '0.9',  'weekly'],
+  // 2026-11-25: /storm-check, /roof-score and /storm-report merged into /roof-check (301s in firebase.json).
+  ['roof-check',   'roof-check.html',       '0.9',  'weekly'],
   ['free-roof',    'free-roof/index.html',  '0.85', 'monthly'],
   ['free-tools',   'free-tools/index.html', '0.85', 'monthly'],
   ['privacy',      'privacy.html',          '0.6',  'monthly'],

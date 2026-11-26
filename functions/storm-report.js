@@ -1,5 +1,5 @@
 /**
- * stormReport — public storm-history proxy for the /storm-report page.
+ * stormReport — public storm-history proxy for the /roof-check page (was /storm-report).
  *
  * The frontend can't pull this directly: IEM's Local Storm Reports feed
  * has no bounding-box filter and caps at 10k features, so a 5-year query

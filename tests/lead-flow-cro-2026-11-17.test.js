@@ -30,7 +30,7 @@ const css = (doc) => doc.$$('style').map((s) => s.html).join('\n');
 const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
 
 const ins = page('docs/inspect.html');
-const sc = page('docs/storm-check.html');
+const sc = page('docs/roof-check.html');
 const est = page('docs/estimate.html');
 const insMain = ins.byId('main');
 const insCss = css(ins);
@@ -56,18 +56,23 @@ ok('Pick My Time opens in a new tab (so Add details stays reachable) and says so
 ok('the glow dot on .hero-badge is gone', !/\.hero-badge::before/.test(insCss));
 ok('subhead uses the homepage wording', /7\+ years on Cincinnati roofs, now under my own name/.test(ins.$('.subhead').text));
 
-console.log('/storm-check');
-const step5 = sc.byId('sc-step5');
-ok('contact step asks name, phone, scheduling choice and consent only (no email)',
-  !!step5 && !!step5.$('#sc-firstName') && !!step5.$('#sc-phone') && !!step5.$('#sc-intake') && !!step5.$('#sc-consent') && !step5.$('#sc-email'));
-const details = sc.byId('sc-details');
-ok('the result screen carries the optional details block (hidden until a grant), with email and a save action',
-  !!details && details.attrs.hidden !== undefined && !!details.$('#sc-email') && details.$('#sc-details-save').attrs['data-action'] === 'saveDetails');
-const book = sc.byId('sc-book');
+// 2026-11-25: /storm-check merged into /roof-check. Its contact step also asks
+// an OPTIONAL email up front: the storm-report copy is emailed by an onCreate
+// trigger (stormReportEmail), so an email added later on the result screen
+// would never get it. It is labelled optional; nothing else was added.
+console.log('/roof-check');
+const step5 = sc.byId('rc-step4');
+ok('contact step asks name, phone, scheduling choice, consent and an email marked optional, nothing more',
+  !!step5 && !!step5.$('#rc-firstName') && !!step5.$('#rc-phone') && !!step5.$('#rc-intake') && !!step5.$('#rc-consent') && !!step5.$('#rc-email')
+  && /optional/i.test(step5.text) && step5.$$('input').length === 4, step5 && step5.$$('input').map((i) => i.attrs.id).join(','));
+const details = sc.byId('rc-details');
+ok('the result screen carries the optional details block (hidden until a grant) with a save action',
+  !!details && details.attrs.hidden !== undefined && details.$('#rc-details-save').attrs['data-action'] === 'saveDetails');
+const book = sc.byId('rc-book');
 ok('result booking link exists and tells the visitor it opens in a new tab', !!book && book.attrs.target === '_blank' && /new tab/.test(book.text));
-ok('no emoji in the page text', !EMOJI.test(sc.byId('sc-result').text + step5.text));
-const scjs = K.read('docs/assets/js/storm-check.js');
-ok('storm-check.js: extras off the contact step, grant requested, extras saved via updatePublicLeadIntake, booking link prefilled, no emoji',
+ok('no emoji in the page text', !EMOJI.test(sc.byId('rc-result').text + step5.text + sc.byId('rc-teaser').text));
+const scjs = K.read('docs/assets/js/roof-check.js');
+ok('roof-check.js: extras off the contact step, grant requested, extras saved via updatePublicLeadIntake, booking link prefilled, no emoji',
   /NBDIntake\.html\(IP, \{ extras: false \}\)/.test(scjs) && /payload\.wantsFollowUp = true/.test(scjs) &&
   /updatePublicLeadIntake/.test(scjs) && /NBDIntake\.calendarUrl\(calInfo\(\)\)/.test(scjs) && !EMOJI.test(scjs));
 

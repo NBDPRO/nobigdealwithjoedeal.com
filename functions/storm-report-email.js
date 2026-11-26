@@ -1,9 +1,10 @@
 /**
- * NBD — Storm Report follow-up email  (Stage 2 of the /storm-report tool)
+ * NBD — Storm Report follow-up email  (the /roof-check tool; was /storm-report)
  * ═══════════════════════════════════════════════════════════════
  *
  * Firestore onCreate trigger on `inspect_leads`. When a lead arrives from the
- * public /storm-report tool (source === '/storm-report') AND the homeowner
+ * public /roof-check tool (source === '/roof-check'; '/storm-report' is still
+ * accepted for leads created before the 2026-11-25 merge) AND the homeowner
  * left an email, it sends them a branded copy of their 5-year storm-history
  * summary plus a free-inspection CTA.
  *
@@ -74,8 +75,20 @@ const STORY_RE = /^\s*STORM\s*REPORT\s*\|\s*(\d{1,4}) events\/(\d{1,2})yr \((\d{
 // The line storm-report-page.js writes when the storm-data lookup failed
 // (2026-10-26). There is no storm history to email, so no email goes out.
 const LOOKUP_FAILED_STORY_RE = /^\s*STORM\s*REPORT\s*\|\s*storm records unavailable\s*$/;
+// /roof-check (2026-11-25) writes the same storm segment under its own prefix,
+// followed by the roof answers (" | roof age: … | signs: …"). Only the numbers
+// are read; the trailing segments are never echoed into the email.
+const ROOF_CHECK_STORY_RE = /^\s*ROOF\s*CHECK\s*\|\s*(\d{1,4}) events\/(\d{1,2})yr \((\d{1,4}) hail, (\d{1,4}) wind, (\d{1,4}) tornado, max (\d{1,2}(?:\.\d{1,2})?)″\)\s*(?:\|.*)?$/;
+const ROOF_CHECK_LOOKUP_FAILED_RE = /^\s*ROOF\s*CHECK\s*\|\s*storm records unavailable\s*(?:\|.*)?$/;
+function lookupFailed(story) {
+  const s = String(story || '');
+  return LOOKUP_FAILED_STORY_RE.test(s) || ROOF_CHECK_LOOKUP_FAILED_RE.test(s);
+}
+// The sources this email answers: the merged tool, plus the retired page's tag
+// for any lead still in flight when it was redirected.
+const STORM_REPORT_SOURCES = ['/roof-check', '/storm-report'];
 function summaryLine(story) {
-  const m = STORY_RE.exec(String(story || ''));
+  const m = STORY_RE.exec(String(story || '')) || ROOF_CHECK_STORY_RE.exec(String(story || ''));
   if (!m) return GENERIC_SUMMARY;
   const [, total, years, hail, wind, tornado, maxHail] = m;
   return `${Number(total)} events/${Number(years)}yr (${Number(hail)} hail, ${Number(wind)} wind, ${Number(tornado)} tornado, max ${Number(maxHail)}″)`;
@@ -150,7 +163,7 @@ const EMAIL_HTML = ({ firstName, address, summary, gust, postalAddress }) => {
       <p style="margin-top:22px;">&mdash; Joe<br><span class="muted">No Big Deal Home Solutions</span></p>
       <p class="muted" style="margin-top:22px; border-top:1px solid #eee; padding-top:14px;">
         Want the full interactive version with the map and an event-by-event breakdown?
-        <a href="${SITE}/storm-report" style="color:#BD5728; font-weight:600;">See your full storm report &rarr;</a>
+        <a href="${SITE}/roof-check" style="color:#BD5728; font-weight:600;">See your full storm report &rarr;</a>
       </p>
     </div>
     <div class="footer">
@@ -199,8 +212,8 @@ exports.stormReportEmail = onDocumentCreated(
     const d = snap.data() || {};
     const leadId = event.params && event.params.leadId;
 
-    // Only the /storm-report tool's leads.
-    if (d.source !== '/storm-report') return;
+    // Only the storm-history tool's leads (/roof-check, or a pre-merge /storm-report one).
+    if (STORM_REPORT_SOURCES.indexOf(d.source) === -1) return;
 
     // Need a homeowner email to send to.
     if (!isValidEmail(d.email)) {
@@ -217,7 +230,7 @@ exports.stormReportEmail = onDocumentCreated(
 
     // The page could not look up this address's storm records: no "verified
     // storm history" email. Before the claim below, so nothing is marked sent.
-    if (LOOKUP_FAILED_STORY_RE.test(String(d.story || ''))) {
+    if (lookupFailed(d.story)) {
       logger.info('stormReportEmail: skip — storm lookup failed', { leadId });
       await snap.ref.update({ reportEmailHeld: 'storm_lookup_failed' }).catch(() => {});
       return;
@@ -325,4 +338,4 @@ exports.stormReportEmail = onDocumentCreated(
 );
 
 // Pure renderers, exposed for tests only (not Cloud Functions).
-exports._test = { EMAIL_HTML, gustForLead, summaryLine, zipLabel, STORM_REPORT_RECIPIENT_DAILY_CAP };
+exports._test = { EMAIL_HTML, gustForLead, summaryLine, zipLabel, STORM_REPORT_RECIPIENT_DAILY_CAP, lookupFailed, STORM_REPORT_SOURCES };

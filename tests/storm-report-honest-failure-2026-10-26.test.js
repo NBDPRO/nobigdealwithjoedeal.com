@@ -1,5 +1,7 @@
 /**
  * tests/storm-report-honest-failure-2026-10-26.test.js — /storm-report says so
+ * (2026-11-25: the page half now drives /roof-check, the merged tool that
+ * shows the same storm history; roof-check.js replaced storm-report-page.js)
  * when the storm-data lookup failed, and a failure is never cached as "no
  * storms" (overnight pass, 2026-10-26, funnel-3).
  *
@@ -102,8 +104,8 @@ async function callServer(h) {
 }
 const CACHE_PATH = 'public_cache/' + require(F('asos-gust-logic')).stormReportCacheKey(LAT, LON);
 
-// ── PAGE: storm-report-page.js in a vm with a fake DOM ──────────────────────
-const HTML = read('docs/storm-report.html');
+// ── PAGE: roof-check.js in a vm with a fake DOM ─────────────────────────────
+const HTML = read('docs/roof-check.html');
 const textOf = (id) => {
   const m = HTML.match(new RegExp('id="' + id + '"[^>]*>([^<]*)<'));
   return m ? m[1].replace(/&amp;/g, '&').trim() : null;
@@ -119,21 +121,19 @@ function loadPage(fetchImpl, extra) {
         classList: { add(c) { if (c === 'active') active = id; }, remove() {} },
         get textContent() { return text; }, set textContent(v) { text = String(v); },
         get innerHTML() { return html; }, set innerHTML(v) { html = String(v); },
-        appendChild() {}, addEventListener() {},
+        appendChild() {}, addEventListener() {}, setAttribute() {}, querySelector() { return null; }, querySelectorAll() { return []; }, focus() {},
         get childElementCount() { return 0; },
       };
     }
     return els[id];
   }
-  // the gate copy as the real page ships it
-  el('sr-gate-lead').textContent = textOf('sr-gate-lead') || '';
-  el('sr-gate-sub').textContent = textOf('sr-gate-sub') || '';
-  el('sr-unlock').textContent = textOf('sr-unlock') || '';
-  if (/id="sr-retry"[^>]*\bhidden\b/.test(HTML)) el('sr-retry').hidden = true;
+  el('rc-submit').textContent = textOf('rc-submit') || '';
+  if (/id="rc-retry"[^>]*\bhidden\b/.test(HTML)) el('rc-retry').hidden = true;
   const doc = {
     readyState: 'complete',
-    getElementById: (id) => (/^(lf-css|lf-js|sr-map)$/.test(id) ? null : el(id)),
+    getElementById: (id) => (/^(lf-css|lf-js|rc-map)$/.test(id) ? null : el(id)),
     querySelectorAll: () => [],
+    querySelector: () => null,
     addEventListener(t, fn) { if (t === 'click') clickHandler = fn; },
     createElement() { return { style: {} }; },
     head: { appendChild() {} },
@@ -149,18 +149,21 @@ function loadPage(fetchImpl, extra) {
     setTimeout, clearTimeout, setInterval: () => 0, clearInterval() {},
   };
   Object.assign(sandbox, extra || {});
-  vm.runInNewContext(read('docs/assets/js/storm-report-page.js'), sandbox, { filename: 'storm-report-page.js' });
+  vm.runInNewContext(read('docs/assets/js/roof-check.js'), sandbox, { filename: 'roof-check.js' });
   const click = (action) => clickHandler({ target: { closest: (sel) => (sel === '[data-action]' ? { dataset: { action } } : null) } });
-  win._srAc = [{ display_name: '123 Main St, Cincinnati, OH', lat: String(LAT), lon: String(LON) }];
-  clickHandler({ target: { closest: (sel) => (sel.indexOf('sr-ac-item') >= 0 ? { dataset: { idx: '0' } } : null) } });
+  win._rcAc = [{ display_name: '123 Main St, Cincinnati, OH', lat: String(LAT), lon: String(LON) }];
+  clickHandler({ target: { closest: (sel) => (sel.indexOf('rc-ac-item') >= 0 ? { dataset: { idx: '0' } } : null) } });
   return {
     el, click, fetches, fetchOpts,
     get active() { return active; },
     get posted() { return posted; },
     async generate() { click('generate'); await settle(); },
+    // The roof answers (a 5-10 year roof, no signs) keep the verdict on the
+    // storm data alone, then the contact step saves the lead.
     async unlock() {
-      el('sr-firstName').value = 'Pat'; el('sr-phone').value = '(513) 555-0101'; el('sr-email').value = 'pat@example.com';
-      click('unlock'); await settle();
+      win.__nbdRoofCheck.state.roofAge = '5-10';
+      el('rc-firstName').value = 'Pat'; el('rc-phone').value = '(513) 555-0101'; el('rc-email').value = 'pat@example.com';
+      click('submit'); await settle();
     },
   };
 }
@@ -266,13 +269,16 @@ let failedStory = null;   // the line the page really posts for a failed lookup
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  console.log('\nPAGE — the markup carries the retry and the gate copy');
+  console.log('\nPAGE — the markup carries the retry, and the free history promises nothing a failed lookup can\'t give');
   {
-    ok('a Retry button exists in the teaser panel, wired to data-action="retry", shipped hidden', /<button[^>]*id="sr-retry"[^>]*data-action="retry"[^>]*hidden|<button[^>]*data-action="retry"[^>]*id="sr-retry"[^>]*hidden/.test(HTML));
-    const teaser = HTML.slice(HTML.indexOf('id="sr-teaser"'), HTML.indexOf('id="sr-report"'));
-    ok('…inside the teaser panel', /id="sr-retry"/.test(teaser));
-    ok('the gate heading, sub-line and button have ids the script can swap', !!textOf('sr-gate-lead') && !!textOf('sr-gate-sub') && !!textOf('sr-unlock'));
-    ok('the script is cache-busted past v=7', Number((HTML.match(/storm-report-page\.js\?v=(\d+)"/) || [])[1]) >= 8);
+    ok('a Retry button exists in the teaser panel, wired to data-action="retry", shipped hidden', /<button[^>]*id="rc-retry"[^>]*data-action="retry"[^>]*hidden|<button[^>]*data-action="retry"[^>]*id="rc-retry"[^>]*hidden/.test(HTML));
+    const teaserEl = require('./lib/src-kit').parseTags(HTML).byId('rc-teaser');
+    ok('…inside the teaser panel', !!teaserEl && !!teaserEl.$('#rc-retry'));
+    // The old gate promised "every event, a map" and an emailed copy, and had to
+    // swap that copy out when the lookup failed. The merged teaser's only ask is
+    // Joe's take, which a failed lookup can still give.
+    ok('the teaser asks for nothing it cannot deliver after a failed lookup (no "every event" / "emails you a copy")', !!teaserEl && teaserEl.text.length > 0 && !/every event|emails you a copy/i.test(teaserEl.text), teaserEl && teaserEl.text.slice(0, 200));
+    ok('the script is cache-busted (roof-check.js?v=N)', Number((HTML.match(/roof-check\.js\?v=(\d+)"/) || [])[1]) >= 1);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -288,30 +294,29 @@ let failedStory = null;   // the line the page really posts for a failed lookup
   for (const [label, impl] of FAILURES) {
     const p = loadPage(impl);
     await p.generate();
-    const headline = p.el('sr-teaser-headline').textContent, sub = p.el('sr-teaser-sub').textContent;
-    ok(label + ': the teaser opens', p.active === 'sr-teaser');
+    const headline = p.el('rc-teaser-headline').textContent, sub = p.el('rc-teaser-sub').textContent;
+    ok(label + ': the teaser opens', p.active === 'rc-teaser');
     ok(label + ': headline says the records could not be checked', /couldn.t check storm records/i.test(headline), headline);
     ok(label + ': no "no major storm reports" / "doesn\'t rule out damage" line', !FALSE_ALL_CLEAR.test(headline + ' ' + sub), headline + ' | ' + sub);
     ok(label + ': the sub-line says it is not a "no storms" result and offers a retry or a free look', /not a .no storms. result/i.test(sub) && /try again/i.test(sub) && /free/i.test(sub), sub);
-    ok(label + ': no zero-count chips (0 hail / 0 wind / 0 storm days)', p.el('sr-teaser-chips').innerHTML === '', p.el('sr-teaser-chips').innerHTML);
-    ok(label + ': Retry is shown', p.el('sr-retry').hidden === false);
-    ok(label + ': the gate stops promising "every event, a map"', !/every event|emails you a copy/i.test(p.el('sr-gate-lead').textContent + ' ' + p.el('sr-gate-sub').textContent) && /Send my request/.test(p.el('sr-unlock').textContent), p.el('sr-gate-lead').textContent + ' | ' + p.el('sr-gate-sub').textContent);
+    ok(label + ': no zero-count chips (0 hail / 0 wind / 0 storm days)', p.el('rc-teaser-chips').innerHTML === '', p.el('rc-teaser-chips').innerHTML);
+    ok(label + ': Retry is shown', p.el('rc-retry').hidden === false);
   }
 
   console.log('\nPAGE — a real zero stays a real zero; a normal result is unchanged');
   {
     const p = loadPage(respond(200, ZERO));
     await p.generate();
-    ok('a clean zero-event lookup still says no major storm reports (that IS the verified answer)', p.el('sr-teaser-headline').textContent === 'No major storm reports logged near this address', p.el('sr-teaser-headline').textContent);
-    ok('…with Retry hidden and the original gate copy', p.el('sr-retry').hidden === true && p.el('sr-gate-lead').textContent === textOf('sr-gate-lead') && p.el('sr-unlock').textContent === textOf('sr-unlock'));
+    ok('a clean zero-event lookup still says no major storm reports (that IS the verified answer)', p.el('rc-teaser-headline').textContent === 'No major storm reports logged near this address', p.el('rc-teaser-headline').textContent);
+    ok('…with Retry hidden', p.el('rc-retry').hidden === true);
     const g = loadPage(respond(200, GOOD));
     await g.generate();
-    ok('a normal result: "We found 3 storm events", chips, no retry', g.el('sr-teaser-headline').textContent === 'We found 3 storm events near this address' && /2 hail/.test(g.el('sr-teaser-chips').innerHTML) && g.el('sr-retry').hidden === true);
-    ok('…and the sub-line carries no partial caveat', !/couldn.t be checked/.test(g.el('sr-teaser-sub').textContent), g.el('sr-teaser-sub').textContent);
+    ok('a normal result: "We found 3 storm events", chips, no retry', g.el('rc-teaser-headline').textContent === 'We found 3 storm events near this address' && /2 hail/.test(g.el('rc-teaser-chips').innerHTML) && g.el('rc-retry').hidden === true);
+    ok('…and the sub-line carries no partial caveat', !/couldn.t be checked/.test(g.el('rc-teaser-sub').textContent), g.el('rc-teaser-sub').textContent);
     await g.unlock();
-    ok('…the full report and the lead story are exactly what they were', g.active === 'sr-report'
-      && g.posted && g.posted.payload.story === 'STORM REPORT | 3 events/5yr (2 hail, 1 wind, 0 tornado, max 1.5″)'
-      && /Report range: 5 years within 30 miles\.$/.test(g.el('sr-rep-source').textContent), g.posted && g.posted.payload.story);
+    ok('…the result, its storm table source line and the lead story carry the real numbers', g.active === 'rc-result'
+      && g.posted && g.posted.payload.story === 'ROOF CHECK | 3 events/5yr (2 hail, 1 wind, 0 tornado, max 1.5″) | roof age: 5-10 (asphalt) | signs: none'
+      && /Report range: 5 years within 30 miles\.$/.test(g.el('rc-rep-source').textContent), g.posted && g.posted.payload.story);
   }
 
   console.log('\nPAGE — Retry runs the lookup again and restores the normal teaser when it works');
@@ -319,11 +324,10 @@ let failedStory = null;   // the line the page really posts for a failed lookup
     let calls = 0;
     const p = loadPage(() => (calls++ === 0 ? respond(500, {})() : respond(200, GOOD)()));
     await p.generate();
-    ok('first lookup fails: failed teaser + Retry', /couldn.t check/i.test(p.el('sr-teaser-headline').textContent) && p.el('sr-retry').hidden === false);
+    ok('first lookup fails: failed teaser + Retry', /couldn.t check/i.test(p.el('rc-teaser-headline').textContent) && p.el('rc-retry').hidden === false);
     p.click('retry'); await settle();
     ok('Retry fetched the same point again', p.fetches.length === 2 && p.fetches[0] === p.fetches[1] && /lat=39\.087&lon=-84\.39/.test(p.fetches[1]), p.fetches);
-    ok('…and the teaser now shows the real result, Retry hidden, gate copy back', p.el('sr-teaser-headline').textContent === 'We found 3 storm events near this address' && p.el('sr-retry').hidden === true
-      && p.el('sr-gate-lead').textContent === textOf('sr-gate-lead') && p.el('sr-gate-sub').textContent === textOf('sr-gate-sub') && p.el('sr-unlock').textContent === textOf('sr-unlock'));
+    ok('…and the teaser now shows the real result, Retry hidden', p.el('rc-teaser-headline').textContent === 'We found 3 storm events near this address' && p.el('rc-retry').hidden === true);
   }
 
   console.log('\nPAGE — a hung lookup times out into the "couldn\'t check" state instead of spinning forever');
@@ -348,10 +352,10 @@ let failedStory = null;   // the line the page really posts for a failed lookup
     p.click('generate'); await settle();
     const lookupTimers = t.timers.filter((x) => x.ms === 60000);
     ok('the lookup carries an abort signal and arms one 60 s timer', !!(p.fetchOpts[0] && p.fetchOpts[0].signal) && lookupTimers.length === 1, { opts: !!p.fetchOpts[0], timers: t.timers.map((x) => x.ms) });
-    ok('…while it is pending the page is on the loading panel', p.active === 'sr-loading', p.active);
+    ok('…while it is pending the page is on the loading panel', p.active === 'rc-loading', p.active);
     lookupTimers[0].fn(); await settle();
-    ok('the timer firing aborts the request and opens the failed teaser with Retry', p.active === 'sr-teaser' && /couldn.t check storm records/i.test(p.el('sr-teaser-headline').textContent) && p.el('sr-retry').hidden === false, p.active);
-    ok('…never the false all-clear', !FALSE_ALL_CLEAR.test(p.el('sr-teaser-headline').textContent + ' ' + p.el('sr-teaser-sub').textContent));
+    ok('the timer firing aborts the request and opens the failed teaser with Retry', p.active === 'rc-teaser' && /couldn.t check storm records/i.test(p.el('rc-teaser-headline').textContent) && p.el('rc-retry').hidden === false, p.active);
+    ok('…never the false all-clear', !FALSE_ALL_CLEAR.test(p.el('rc-teaser-headline').textContent + ' ' + p.el('rc-teaser-sub').textContent));
 
     // a lookup that answers in time clears the timer, so a late abort cannot hit a finished request
     const t2 = mk();
@@ -359,7 +363,7 @@ let failedStory = null;   // the line the page really posts for a failed lookup
     await q.generate();
     const armed = t2.timers.filter((x) => x.ms === 60000);
     ok('an answered lookup clears its timer', armed.length === 1 && armed[0].cleared === true, armed);
-    ok('…and shows the real result', q.el('sr-teaser-headline').textContent === 'We found 3 storm events near this address');
+    ok('…and shows the real result', q.el('rc-teaser-headline').textContent === 'We found 3 storm events near this address');
     // a failed one clears it too
     const t3 = mk();
     const r = loadPage(respond(500, {}), t3.extra);
@@ -369,7 +373,7 @@ let failedStory = null;   // the line the page really posts for a failed lookup
     // no AbortController (old browser): the plain fetch still runs, no timer
     const u = loadPage(respond(200, GOOD));
     await u.generate();
-    ok('without AbortController the lookup still works (no signal passed)', u.fetchOpts[0] === undefined && u.el('sr-teaser-headline').textContent === 'We found 3 storm events near this address', u.fetchOpts[0]);
+    ok('without AbortController the lookup still works (no signal passed)', u.fetchOpts[0] === undefined && u.el('rc-teaser-headline').textContent === 'We found 3 storm events near this address', u.fetchOpts[0]);
   }
 
   console.log('\nPAGE — a partial lookup that did find storms keeps them and says it may be incomplete');
@@ -377,16 +381,16 @@ let failedStory = null;   // the line the page really posts for a failed lookup
     const PART = Object.assign({}, GOOD, { partial: true, failedYears: 2 });
     const p = loadPage(respond(200, PART));
     await p.generate();
-    ok('teaser still leads with the events found', p.el('sr-teaser-headline').textContent === 'We found 3 storm events near this address');
-    ok('…and says some records could not be checked, so there may be more', /couldn.t be checked just now, so there may be more/.test(p.el('sr-teaser-sub').textContent), p.el('sr-teaser-sub').textContent);
-    ok('…with Retry offered', p.el('sr-retry').hidden === false);
+    ok('teaser still leads with the events found', p.el('rc-teaser-headline').textContent === 'We found 3 storm events near this address');
+    ok('…and says some records could not be checked, so there may be more', /couldn.t be checked just now, so there may be more/.test(p.el('rc-teaser-sub').textContent), p.el('rc-teaser-sub').textContent);
+    ok('…with Retry offered', p.el('rc-retry').hidden === false);
     await p.unlock();
-    ok('full report: the table and stats are the real ones', /storm events/.test(p.el('sr-rep-summary').innerHTML) && /sr-tag sr-hail/.test(p.el('sr-rep-rows').innerHTML));
-    ok('full report: the source line no longer claims a clean five-year range', /may be incomplete/.test(p.el('sr-rep-source').textContent) && /Source: /.test(p.el('sr-rep-source').textContent), p.el('sr-rep-source').textContent);
-    ok('lead story: counts the years actually checked (3, not 5)', p.posted && p.posted.payload.story === 'STORM REPORT | 3 events/3yr (2 hail, 1 wind, 0 tornado, max 1.5″)', p.posted && p.posted.payload.story);
+    ok('full report: the table and stats are the real ones', /storm events/.test(p.el('rc-rep-summary').innerHTML) && /rc-tag rc-hail/.test(p.el('rc-rep-rows').innerHTML));
+    ok('full report: the source line no longer claims a clean five-year range', /may be incomplete/.test(p.el('rc-rep-source').textContent) && /Source: /.test(p.el('rc-rep-source').textContent), p.el('rc-rep-source').textContent);
+    ok('lead story: counts the years actually checked (3, not 5)', p.posted && p.posted.payload.story === 'ROOF CHECK | 3 events/3yr (2 hail, 1 wind, 0 tornado, max 1.5″) | roof age: 5-10 (asphalt) | signs: none', p.posted && p.posted.payload.story);
     const light = loadPage(respond(200, { counts: { total: 2, hail: 0, wind: 2, tornado: 0, stormDays: 1 }, maxHail: null, years: 5, radiusMi: 30, partial: true, failedYears: 1, events: [{ date: '2026-05-17T00:25:00Z', type: 'wind', magnitude: 50, unit: 'mph', distanceMi: 4, severity: 'minor' }] }));
     await light.generate(); await light.unlock();
-    ok('a partial result never gets the "Light storm history on record" verdict', !/Light storm history/.test(light.el('sr-rep-detail').textContent) && /couldn.t be checked/.test(light.el('sr-rep-detail').textContent), light.el('sr-rep-detail').textContent);
+    ok('a partial result never gets the "Light storm history on record" verdict', !/Light storm history/.test(light.el('rc-result-detail').textContent) && /couldn.t be checked/.test(light.el('rc-result-detail').textContent), light.el('rc-result-detail').textContent);
   }
 
   console.log('\nPAGE — the full report after a failed lookup is honest in the verdict, table and source line');
@@ -394,22 +398,22 @@ let failedStory = null;   // the line the page really posts for a failed lookup
     const p = loadPage(respond(500, {}));
     await p.generate();
     await p.unlock();
-    const head = p.el('sr-rep-headline').textContent, detail = p.el('sr-rep-detail').textContent;
-    ok('the full report opens', p.active === 'sr-report');
+    const head = p.el('rc-result-headline').textContent, detail = p.el('rc-result-detail').textContent;
+    ok('the result opens', p.active === 'rc-result');
     ok('verdict headline says the records could not be checked', /couldn.t check storm records/i.test(head), head);
     ok('verdict body: not a "no storms" result; free inspection is the way to be sure', /not a .no storms. result/i.test(detail) && /free inspection/i.test(detail) && !/Light storm history/.test(detail), detail);
-    ok('no zero stat tiles (0 storm events / 0 hail / 0″ max hail)', p.el('sr-rep-summary').innerHTML === '', p.el('sr-rep-summary').innerHTML);
-    ok('table: one honest row, not "No individual reports on file near this address"', /could(n.t| not) be checked/i.test(p.el('sr-rep-rows').innerHTML) && !/No individual reports/.test(p.el('sr-rep-rows').innerHTML), p.el('sr-rep-rows').innerHTML);
-    ok('source line: says the lookup failed, no "Report range: 5 years within 30 miles"', /could not be checked/i.test(p.el('sr-rep-source').textContent) && !/Report range|NWS Local Storm Reports/.test(p.el('sr-rep-source').textContent), p.el('sr-rep-source').textContent);
-    ok('nothing on the report reads as a verified all-clear', !FALSE_ALL_CLEAR.test([head, detail, p.el('sr-rep-rows').innerHTML, p.el('sr-rep-source').textContent].join(' ')));
-    ok('the wind-gust block stays hidden', p.el('sr-rep-gusts').hidden === true);
+    ok('no zero stat tiles (0 storm events / 0 hail / 0″ max hail)', p.el('rc-rep-summary').innerHTML === '', p.el('rc-rep-summary').innerHTML);
+    ok('table: one honest row, not "No individual reports on file near this address"', /could(n.t| not) be checked/i.test(p.el('rc-rep-rows').innerHTML) && !/No individual reports/.test(p.el('rc-rep-rows').innerHTML), p.el('rc-rep-rows').innerHTML);
+    ok('source line: says the lookup failed, no "Report range: 5 years within 30 miles"', /could not be checked/i.test(p.el('rc-rep-source').textContent) && !/Report range|NWS Local Storm Reports/.test(p.el('rc-rep-source').textContent), p.el('rc-rep-source').textContent);
+    ok('nothing on the report reads as a verified all-clear', !FALSE_ALL_CLEAR.test([head, detail, p.el('rc-rep-rows').innerHTML, p.el('rc-rep-source').textContent].join(' ')));
+    ok('the wind-gust block stays hidden', p.el('rc-rep-gusts').hidden === true);
     // The lead path itself is untouched: same call, same fields, the report point still rides along.
     const pl = p.posted && p.posted.payload;
-    ok('lead capture: still submitPublicLead("inspect") with name, phone, email, source, consent, point', p.posted && p.posted.kind === 'inspect' && pl.name === 'Pat' && pl.phone === '(513) 555-0101' && pl.email === 'pat@example.com' && pl.source === '/storm-report' && pl.tcpaConsent === true && pl.lat === LAT && pl.lon === LON, pl);
-    ok('the button does not say "Building your report…" for a report that has no data', p.el('sr-unlock').textContent === 'Sending…', p.el('sr-unlock').textContent);
+    ok('lead capture: still submitPublicLead("inspect") with name, phone, email, source, consent, point', p.posted && p.posted.kind === 'inspect' && pl.name === 'Pat' && pl.phone === '(513) 555-0101' && pl.email === 'pat@example.com' && pl.source === '/roof-check' && pl.tcpaConsent === true && pl.lat === LAT && pl.lon === LON, pl);
+    ok('the button does not say "Building your report…" for a report that has no data', p.el('rc-submit').textContent === 'Saving…', p.el('rc-submit').textContent);
     failedStory = pl.story;
-    ok('lead story says the lookup was unavailable, never "0 events/5yr"', pl.story === 'STORM REPORT | storm records unavailable', pl.story);
-    ok('no "report could not be auto-saved" warning when the lead saved', p.el('sr-rep-warn').style.display !== 'block');
+    ok('lead story says the lookup was unavailable, never "0 events/5yr"', pl.story === 'ROOF CHECK | storm records unavailable | roof age: 5-10 (asphalt) | signs: none', pl.story);
+    ok('no "could not auto-save" warning when the lead saved', p.el('rc-result-warn').style.display !== 'block');
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -436,7 +440,7 @@ let failedStory = null;   // the line the page really posts for a failed lookup
     const SR = fresh(F('storm-report-email.js'));
     stubs = null;
     const fire = (doc, id) => SR.stormReportEmail.__handler({ data: { data: () => doc, ref: { update: async (u) => { updates.push(u); } } }, params: { leadId: id } });
-    const base = { source: '/storm-report', email: 'pat@example.com', name: 'Pat Q', address: '12 Oak St, Fort Thomas, KY 41075' };
+    const base = { source: '/roof-check', email: 'pat@example.com', name: 'Pat Q', address: '12 Oak St, Fort Thomas, KY 41075' };
 
     await fire(Object.assign({}, base, { story: failedStory }), 'f1');   // the exact line the page posted above
     ok('a lead whose storm lookup failed: no email is sent', sent.length === 0, sent.length);
@@ -449,6 +453,13 @@ let failedStory = null;   // the line the page really posts for a failed lookup
     ok('a partial lookup\'s story (fewer years) still matches the email\'s shape', sent.length === 2 && /3 events\/3yr \(2 hail, 1 wind, 0 tornado, max 1\.5″\)/.test(sent[1].html));
     await fire(Object.assign({}, base, { email: 'junk@example.com', story: 'STORM REPORT | storm records unavailable http://evil.example' }), 'f4');
     ok('only the exact failed-lookup line suppresses the email (anything else is the old generic summary)', sent.length === 3 && /a multi-year history of hail and wind storms/.test(sent[2].html) && !/evil\.example/.test(sent[2].html));
+    await fire(Object.assign({}, base, { email: 'rc@example.com', story: 'ROOF CHECK | 4 events/5yr (2 hail, 2 wind, 0 tornado, max 1.25″) | roof age: 20+ (asphalt) | signs: leak http://evil.example' }), 'f5');
+    ok('a /roof-check story: numbers rebuilt, the roof-answer segments never echoed', sent.length === 4 && /4 events\/5yr \(2 hail, 2 wind, 0 tornado, max 1\.25″\)/.test(sent[3].html) && !/evil\.example|roof age/.test(sent[3].html), sent[3] && sent[3].html.slice(0, 80));
+    await fire(Object.assign({}, base, { source: '/storm-report', email: 'old@example.com', story: 'STORM REPORT | 1 events/5yr (1 hail, 0 wind, 0 tornado, max 1″)' }), 'f6');
+    ok('a pre-merge /storm-report lead still gets its email', sent.length === 5);
+    await fire(Object.assign({}, base, { source: '/inspect', email: 'insp@example.com', story: 'ROOF CHECK | 1 events/5yr (1 hail, 0 wind, 0 tornado, max 1″)' }), 'f7');
+    ok('a lead from any other page gets none', sent.length === 5);
+    ok('the email links the merged tool', /\/roof-check"/.test(sent[0].html) && !/\/storm-report"/.test(sent[0].html));
 
     ok('the story under test is the one the page posts (not a literal the test made up)', typeof failedStory === 'string' && failedStory.length > 0);
   }
