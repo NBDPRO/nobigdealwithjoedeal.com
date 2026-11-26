@@ -36,7 +36,7 @@ console.log('\n1. Reg Z 1026.24(d): no financed $/month figure without its APR')
 // Any public paragraph that pairs financing words with a $/month figure
 // must say "APR" in the same paragraph or point to a footnote (*).
 const PUB = ['docs/index.html', 'docs/estimate.html', 'docs/services/financing.html', 'docs/services/roof-replacement.html',
-  'docs/guides/roof-financing-explained.html', 'docs/blog/how-roof-financing-actually-works.html', 'docs/blog/roof-financing-cincinnati-explained.html'];
+  'docs/guides/roof-financing-explained.html', 'docs/blog/roof-financing-cincinnati-explained.html'];
 for (const f of PUB) {
   if (!fs.existsSync(path.join(ROOT, f))) continue;
   const paras = read(f).match(/<(p|li|div)[^>]*>[^<]*(?:<(?!\/?(?:p|li|div)\b)[^>]*>[^<]*)*<\/\1>/g) || [];

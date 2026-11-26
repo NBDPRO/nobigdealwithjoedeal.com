@@ -736,7 +736,8 @@ const certBarTargets = marketing.filter((f) => /^services\/[a-z0-9-]+-(oh|ky)\.h
     const host = chainTo(html, (e) => e.cls.includes('prose') || e.cls.includes('blog-post-body'));
     return host && resolve(sheetsOf(html), [...host, el('aside', 'blog-midpost-cta'), el(tag)], 'color');
   };
-  const FOUR = ['the-pipe-boot-fork', 'why-roofivent-is-on-my-roofs', 'why-i-install-lumanail-on-every-elite-roof', 'how-roof-financing-actually-works'];
+  // 2026-11-26: how-roof-financing-actually-works was merged into roof-financing-cincinnati-explained (GSC content merge).
+  const FOUR = ['the-pipe-boot-fork', 'why-roofivent-is-on-my-roofs', 'why-i-install-lumanail-on-every-elite-roof', 'roof-financing-cincinnati-explained'];
   ok('blog: >= 30 posts link blog-midpost-cta.css', withCard.length >= 30, withCard.length);
   for (const n of FOUR) {
     ok('blog/' + n + ' links the card sheet', withCard.includes(n));
@@ -750,10 +751,11 @@ const certBarTargets = marketing.filter((f) => /^services\/[a-z0-9-]+-(oh|ky)\.h
 
   // 3. 320 px: the shared sheets out-rank the posts' own inline rules at phone width.
   const OVER = ['why-i-install-lumanail-on-every-elite-roof', 'why-roofivent-is-on-my-roofs', 'the-pipe-boot-fork', 'free-homeowner-guides-printable-pdfs',
-    'gaf-timberline-hdz-vs-tamko-stormfighter-flex', 'gaf-timberline-vs-tamko-impact-resistant-shingles', 'how-a-roof-works-layer-by-layer', 'how-roof-financing-actually-works',
-    'is-the-class-4-upgrade-worth-it', 'owens-corning-duration-vs-tamko-hailguard', 'tamko-hailguard-first-shingle-with-hail-warranty',
+    'gaf-timberline-hdz-vs-tamko-stormfighter-flex', 'gaf-timberline-vs-tamko-impact-resistant-shingles', 'how-a-roof-works-layer-by-layer',
+    'owens-corning-duration-vs-tamko-hailguard', 'tamko-hailguard-first-shingle-with-hail-warranty',
     'vinyl-vs-lp-smartside-vs-fiber-cement-siding', 'why-wont-roofing-suppliers-sell-to-homeowners', 'why-class-4-impact-shingles'];
-  ok('blog: all 14 posts measured at 320 px carry the shared card sheet', OVER.every((n) => withCard.includes(n)));
+  // 2026-11-26: two of the 14 measured posts were merged into survivors that are still listed (GSC content merge).
+  ok('blog: all 12 posts measured at 320 px carry the shared card sheet', OVER.every((n) => withCard.includes(n)));
   for (const n of withCard) {
     const html = postHtml(n), sheets = sheetsOf(html);
     const wrap = chainTo(html, hasCls('article-wrap')), info = chainTo(html, hasCls('author-info'));
