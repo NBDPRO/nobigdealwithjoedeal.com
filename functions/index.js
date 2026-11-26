@@ -291,6 +291,10 @@ Object.assign(exports, leadAlertFns);
 // Every 10 min: a new NBD lead that no channel confirmed reaching Joe is
 // re-sent by email + push (2026-10-07). LEAD_ALERT_WATCHDOG_DISABLED=true → dry run.
 exports.leadAlertWatchdog = require('./lead-alert-watchdog').leadAlertWatchdog;
+// Daily 09:00 ET: probe the live submitPublicLead for every lead kind (stores
+// nothing) and text Joe if a homeowner submit would fail; bell-only notice
+// after 14 days with no stored website lead (2026-11-26, outage follow-up 5).
+exports.leadGatewayProbe = require('./lead-gateway-probe').leadGatewayProbe;
 // Every 30 min: judge each cron on its own heartbeat ledger doc (a shared
 // Healthchecks check hides a dead member) and tell Joe, daytime only except
 // call/text ingest (2026-11-22). CRON_DEADMAN_DISABLED=true → dry run.
