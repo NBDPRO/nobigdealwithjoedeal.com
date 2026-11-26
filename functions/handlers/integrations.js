@@ -433,7 +433,9 @@ for (const k of SERVICE_KINDS) {
   spec.numOptional = Object.assign({}, spec.numOptional || {}, { photoCount: { min: 0, max: 10 } });
 }
 
-const { verifyTurnstile } = require('../integrations/turnstile');
+const { verifyTurnstile, turnstilePosture } = require('../integrations/turnstile');
+// Daily lead-gateway probe (2026-11-26): who may use probe mode.
+const LeadProbe = require('../lead-probe-auth');
 const { SECRETS: INT_SECRETS } = require('../integrations/_shared');
 
 // Collapse an IPv6 address to its /64 prefix for rate-limiting, so a single
@@ -539,10 +541,31 @@ exports.submitPublicLead = onRequest(
       if (!(await httpRateLimit(req, res, 'publicLead:ip', 20, 60_000))) return;
     }
 
+    // Probe mode (2026-11-26, web-leads outage follow-up 5; lead-probe-auth.js,
+    // lead-gateway-probe.js). The daily leadGatewayProbe cron proves a real
+    // submit would succeed: every gate below runs as usual (per-IP limit,
+    // Turnstile posture, kind + field + phone validation) and the probe is
+    // answered just before anything is stored, read or counted. Only this
+    // project's own runtime service account may use it; a request that merely
+    // claims to be the probe is refused here, after the per-IP limit (so a
+    // flood of forged probes is capped like any other caller).
+    let probe = false;
+    if (LeadProbe.isProbeRequest(req)) {
+      const pv = await LeadProbe.verifyProbeCaller(req);
+      if (!pv.ok) {
+        logger.warn('submitPublicLead: probe refused', { reason: pv.reason });
+        res.status(403).json({ error: 'Verification failed', reason: 'probe-auth' });
+        return;
+      }
+      probe = true;
+    }
+
     // Turnstile verification (if configured). Fail closed on verifier
     // error. No-op passthrough when TURNSTILE_SECRET is unset so dev
     // environments still work.
-    const turnstile = await verifyTurnstile(
+    // A server cannot solve a challenge, so the probe checks Turnstile's
+    // POSTURE (the 2026-10-13 stub-secret failure; a wrong secret) instead.
+    const turnstile = probe ? await turnstilePosture() : await verifyTurnstile(
       (req.body && req.body.turnstileToken) || '',
       clientIp(req)
     );
@@ -572,8 +595,12 @@ exports.submitPublicLead = onRequest(
     // longer render an input by that name (autofill can't populate what isn't
     // there), so any request still carrying a non-empty `website` is a stale
     // cached page (HTML max-age≤300, decaying) or a bot replaying the old shape.
+    // The probe body carries a honeypot sentinel, so a gateway WITHOUT probe
+    // mode (deploy skew) pretends success and stores nothing; a verified probe
+    // has it removed here and the honeypot check still runs on the rest.
     const hpKey = ['nbd_hp', 'website'].find(
-      (k) => body[k] != null && String(body[k]).length > 0
+      (k) => body[k] != null && String(body[k]).length > 0 &&
+        !(probe && k === 'nbd_hp' && body[k] === LeadProbe.PROBE_SENTINEL)
     );
     if (hpKey) {
       // No raw IP in logs (PII, security batch 2026-10-03): the network
@@ -662,7 +689,7 @@ exports.submitPublicLead = onRequest(
     //   - 3 requests per IP (/64) per day. Over it the doc is still stored, so
     //     the lead is never lost, but marked so the email is not sent. A
     //     limiter error fails open, like the per-IP gate above.
-    if (spec.emailEstimate && data.type === 'email_estimate_request') {
+    if (!probe && spec.emailEstimate && data.type === 'email_estimate_request') {
       const ee = EstimateEmailLogic.sanitizeEmailEstimate(body.emailEstimate);
       if (ee) data.emailEstimate = ee;
       if (turnstile.configured === true && turnstile.ok === true) data.turnstileVerified = true;
@@ -705,6 +732,15 @@ exports.submitPublicLead = onRequest(
         return;
       }
       if (!GC.isGuideSlug(data.guide)) { res.status(400).json({ error: 'Invalid submission' }); return; }
+    }
+
+    // Probe answer: every gate passed. Nothing below runs for it (no started-
+    // estimate update, no tenant registry read, no flood/duplicate bucket, no
+    // Firestore add, so no lead, CRM bridge, text or email).
+    if (probe) {
+      logger.info('submitPublicLead: probe ok', { kind, turnstileConfigured: turnstile.configured === true });
+      res.status(200).json({ success: true, probe: true, kind, turnstile: turnstile.configured === true ? 'configured' : 'passthrough' });
+      return;
     }
 
     // /estimate step-1 save (2026-11-14, Joe). A create may say it is a

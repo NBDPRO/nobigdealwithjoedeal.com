@@ -525,7 +525,7 @@ const docsIn = (db, col) => [...db.store.keys()].filter((k) => k.startsWith(col 
     ok('handleSms: the signature gate comes before the first Firestore handle', iGate > 0 && iDb > iGate);
     ok('Jo\'s cell is not hard-coded in the line code (config only)', !/4207382|420-7382/.test(code));
     const env = fs.readFileSync(path.join(FN, '.env.nobigdeal-pro'), 'utf8');
-    ok('.env.nobigdeal-pro ships DARK (TWILIO_INBOUND_ENABLED=false)', /^TWILIO_INBOUND_ENABLED=false\s*$/m.test(env) && !/^TWILIO_INBOUND_ENABLED=true/m.test(env));
+    ok('.env.nobigdeal-pro turns the line on (TWILIO_INBOUND_ENABLED=true, Joe 2026-11-26; still gated by automations.twilioInbound)', /^TWILIO_INBOUND_ENABLED=true\s*$/m.test(env) && !/^TWILIO_INBOUND_ENABLED=false/m.test(env));
     ok('.env.nobigdeal-pro (tracked, public repo) no longer carries the forward number: it is config (2026-10-19)', (env.match(/^TWILIO_VOICE_FORWARD_TO=/gm) || []).length === 0 && /messaging_controls\/internal\.ownerPhone/.test(env));
     ok('spoken + display forms of the forward number', L.spokenPhone('+18594207382') === '8 5 9, 4 2 0, 7 3 8 2' && L.displayPhone('+18594207382') === '(859) 420-7382');
 

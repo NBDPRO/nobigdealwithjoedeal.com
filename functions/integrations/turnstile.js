@@ -83,4 +83,43 @@ async function verifyTurnstile(token, remoteip) {
   }
 }
 
-module.exports = { verifyTurnstile };
+/**
+ * Turnstile POSTURE for the daily lead-gateway probe (2026-11-26). A server
+ * cannot solve a Turnstile challenge, so the probe checks what broke on
+ * 2026-10-13 instead: the flag on with no real secret fails exactly as a
+ * visitor's submit would; with a secret set, Cloudflare is asked about a
+ * dummy token. A valid secret answers only `invalid-input-response` (the
+ * token is bad); a wrong or deleted secret answers `invalid-input-secret`;
+ * Cloudflare unreachable fails like verifyTurnstile's verify-error.
+ * @returns {Promise<{ok:boolean, configured:boolean, reason?:string}>}
+ */
+const PROBE_DUMMY_TOKEN = 'nbd-lead-probe-dummy-token';
+async function turnstilePosture() {
+  if (!hasSecret('TURNSTILE_SECRET')) {
+    if (String(process.env.TURNSTILE_REQUIRED).toLowerCase() === 'true') {
+      return { ok: false, configured: false, reason: 'turnstile-required' };
+    }
+    return { ok: true, configured: false };
+  }
+  try {
+    const body = new URLSearchParams();
+    body.set('secret', getSecret('TURNSTILE_SECRET'));
+    body.set('response', PROBE_DUMMY_TOKEN);
+    const res = await fetch(VERIFY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+      signal: AbortSignal.timeout(5000)
+    });
+    const data = await res.json();
+    const codes = (data && Array.isArray(data['error-codes'])) ? data['error-codes'] : [];
+    if (data && data.success === false && codes.length === 1 && codes[0] === 'invalid-input-response') {
+      return { ok: true, configured: true };
+    }
+    return { ok: false, configured: true, reason: 'posture:' + (codes.join(',') || 'unexpected-answer') };
+  } catch (e) {
+    return { ok: false, configured: true, reason: 'verify-error' };
+  }
+}
+
+module.exports = { verifyTurnstile, turnstilePosture };
