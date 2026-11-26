@@ -289,6 +289,17 @@ with it.
 
 ## Emergency
 
+**Update 2026-11-25: enforcement is OFF (`TURNSTILE_REQUIRED=false`).** The
+2026-10-13 change below assumed a real secret was stored. It was not: the only
+`TURNSTILE_SECRET` version is the `__unset__` stub, so every lead submit got
+`403 turnstile-required` from 2026-10-13 until this fix deployed. To turn
+enforcement back on: in Cloudflare, open the widget whose site key is in
+`docs/assets/js/inline/7cd8e505ab.js`, copy its secret key, add it as a new
+version of `TURNSTILE_SECRET` in Secret Manager, redeploy, confirm a real
+submit returns 200, then set the flag back to `true` (and flip the pin in
+`tests/turnstile-contract.test.js`). See
+[WEB-LEADS-TURNSTILE-OUTAGE-2026-11-25](../audit/WEB-LEADS-TURNSTILE-OUTAGE-2026-11-25.md).
+
 **Update 2026-10-13:** `TURNSTILE_REQUIRED=true` is now set in
 `functions/.env.nobigdeal-pro` (the tracked, project-scoped env file the deploy
 reads; not a secret). An *unset or blank* `TURNSTILE_SECRET` therefore fails

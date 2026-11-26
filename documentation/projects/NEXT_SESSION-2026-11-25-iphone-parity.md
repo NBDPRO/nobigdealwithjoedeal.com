@@ -37,13 +37,13 @@ resumes and updates, plus Safari-only bugs:
 | [#3241](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3241) | Flags retry + re-read on resume; new build offered on resume; theme-color; `?&body=` sms links; memo type; share/camera taps; map voice loop; 16px inputs; sheets clear the status bar; Record a Visit / New Estimate in + Create | **merged** |
 | [#3244](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3244) | 21 centred dialogs + Edit Customer modal clear the status bar and home bar | **merged** |
 | [#3245](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3245) | `-webkit-user-select` everywhere; kanban cards hold a long-press for their menu (no callout) | **merged** |
-| [#3248](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3248) | Hold-then-drag cards between Board columns on touch (`kanban-touch-drag.js`, lazy, touch only) | open, auto-merge on |
-| [#3249](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3249) | iPad (Mac UA + touch) gets the estimate share sheet and the portal Share hint | open, auto-merge on; **one failing check at writing: "Pro demo zero-network walk (Chromium)"** (not yet looked at; Auto-fix is watching) |
-| [#3250](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3250) | `.mfield select` drawn the same in Safari and Chrome (native skin off, drawn arrow) | open, auto-merge on |
-| [#3251](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3251) | Empty date field on iOS shows "mm/dd/yyyy" + calendar icon (`ios-date-hint.js`, iOS only) | open, auto-merge on |
-| [#3252](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3252) | `-webkit-text-size-adjust` at every width (landscape) | open, auto-merge on |
+| [#3248](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3248) | Hold-then-drag cards between Board columns on touch (`kanban-touch-drag.js`, lazy, touch only) | **merged, live** |
+| [#3249](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3249) | iPad (Mac UA + touch) gets the estimate share sheet and the portal Share hint | **merged, live** |
+| [#3250](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3250) | `.mfield select` drawn the same in Safari and Chrome (native skin off, drawn arrow) | **merged, live** |
+| [#3251](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3251) | Empty date field on iOS shows "mm/dd/yyyy" + calendar icon (`ios-date-hint.js`, iOS only) | **merged, live** |
+| [#3252](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/3252) | `-webkit-text-size-adjust` at every width (landscape) | **merged, live** |
 
-**First thing next session:** check those five. Each adds its suite to `tests/ci-manifest.json`. I put the entries in different spots to avoid collisions, but a rebase may still be needed. Version bumps on shared HTML lines can also collide. Re-run `bump3`-style versioning against the new main (each changed asset = its version on main + 1) and re-run `tests/asset-version-consistency-2026-11-14.test.js`.
+**Update (2026-11-25, end of session):** all eight PRs are merged and deployed; #3252 (landscape text size) was the last, after a merge of main to clear a version-number conflict on `dashboard.html`. Nothing from this lane is left in flight. One CI pattern to know: the PR-level **"Pro demo zero-network walk (Chromium)"** job was cancelled part-way on #3249 and after every test passed on #3252 ("The operation was canceled", no test failure). The merge queue runs its own checks, so it did not block either merge; re-run the job if it ever does.
 
 ## Decisions Joe made (do not relitigate)
 
