@@ -121,7 +121,9 @@ const PORTAL_NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQ
  * (W134: never a javascript: URL), else NBD's for an NBD job, else null.
  */
 function portalReviewUrl(raw, isNbd) {
-  if (typeof raw === 'string' && /^https?:\/\//i.test(raw.trim())) return raw.trim().slice(0, 500);
+  // Only Google's own review / Maps pages (google-review-url.js; R12, 2026-11-26: any http(s) link used to pass).
+  const clean = require('./google-review-url').cleanReviewUrl(raw);
+  if (clean) return clean;
   return isNbd ? require('./review-ask-auto-logic').NBD_REVIEW_URL : null;
 }
 const YMD = /^\d{4}-\d{2}-\d{2}$/;

@@ -49,7 +49,6 @@ const TEXT_SOURCE = 'auto-text';
 const flagOn = (env, name) => !!env && env[name] === 'true';
 const truthy = (v) => v === true || v === 1 || (typeof v === 'string' && /^(true|yes|y|1|on)$/i.test(v.trim()));
 const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e || '').trim());
-const safeUrl = (u) => (typeof u === 'string' && /^https:\/\/[^\s"'<>]+$/i.test(u.trim()) ? u.trim().slice(0, 500) : '');
 
 function ms(t) {
   if (!t) return 0;
@@ -163,9 +162,13 @@ function willHandle(args) {
   return planEmail(args).send || planText(Object.assign({}, args, { ignoreHours: true })).send;
 }
 
-/** The review link: the rep's own (https) → NBD's. '' = nothing to link. */
+/**
+ * The review link: the rep's own when it is a Google review / Maps page
+ * (google-review-url.js; R12, 2026-11-26: any https link used to pass), else
+ * NBD's for NBD. '' = nothing to link.
+ */
 function reviewUrlFor(lead, repUrl) {
-  return safeUrl(repUrl) || (isNbd(lead) ? NBD_REVIEW_URL : '');
+  return require('./google-review-url').cleanReviewUrl(repUrl) || (isNbd(lead) ? NBD_REVIEW_URL : '');
 }
 
 function esc(s) {
