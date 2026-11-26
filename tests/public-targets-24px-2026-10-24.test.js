@@ -14,7 +14,8 @@ const PAGES = [];
 (function walk(d) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) { if (!(d === path.join(ROOT, 'docs') && ['pro', 'sites', 'admin', 'dev', 'assets'].includes(e.name))) walk(p); } else if (e.name.endsWith('.html')) PAGES.push(p); } })(path.join(ROOT, 'docs'));
 const read = (f) => fs.readFileSync(f, 'utf8');
 const tool = PAGES.filter((f) => /\.tool-nav-home\{/.test(read(f)));
-ok('every page with the tool nav floors its home link at 24px (' + tool.length + ' pages)', tool.length >= 16 && tool.every((f) => /\.tool-nav-home\{[^}]*min-height:24px/.test(read(f))), tool.filter((f) => !/\.tool-nav-home\{[^}]*min-height:24px/.test(read(f))).map((f) => path.relative(ROOT, f)).join(', '));
+// Positive-control floor: 16 until 2026-11-25, when /book (a tool-nav page) was folded into /inspect and deleted.
+ok('every page with the tool nav floors its home link at 24px (' + tool.length + ' pages)', tool.length >= 15 && tool.every((f) => /\.tool-nav-home\{[^}]*min-height:24px/.test(read(f))), tool.filter((f) => !/\.tool-nav-home\{[^}]*min-height:24px/.test(read(f))).map((f) => path.relative(ROOT, f)).join(', '));
 const compact = PAGES.filter((f) => /\.nav-links > li > a\{font-size:\.7rem!important/.test(read(f)));
 ok('no page keeps the 22px compact nav link (padding:4px)', compact.every((f) => !/\.nav-links > li > a\{font-size:\.7rem!important;letter-spacing:\.05em!important;padding:4px 0!important\}/.test(read(f))));
 ok('nbd-nav-responsive.css: compact nav links padded to 24px', /nav \.nav-links > li > a\{font-size:\.7rem!important;letter-spacing:\.05em!important;padding:5px 0!important\}/.test(read(path.join(ROOT, 'docs/assets/css/nbd-nav-responsive.css'))));
