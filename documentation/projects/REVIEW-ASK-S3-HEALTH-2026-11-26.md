@@ -44,6 +44,26 @@ Tests: `tests/review-ask-health-2026-11-26.test.js`, plus rules section 65 (thre
   - `resendWebhook` calls `noteEmailEvent`, after the suppression record;
   - the v1/v2 email send and S2's company send call `noteEmailSend`.
 
+## Review round (2026-11-26: `nbd-security-reviewer` + `silent-failure-hunter`), all fixed
+
+- **A lost callback locked texting for 7 days with no alert.** Twilio does not retry status callbacks by default, so one lost callback could have done this silently. A heartbeat miss is now a real pause (`health_callbacks_missing`, one alert). A platform admin's `unpause` also clears the heartbeat.
+- **Unpause and old signals.** The unpause also stores a counter baseline (`healthClearedAtMs`, `healthBaseline`). Signals from before it no longer count, so the 7-day window does not re-pause the company at once.
+- **A pause lost to an error.** The counter could commit and the pause write then fail. Now a replayed callback, a replayed STOP or Resend event, the text pre-flight itself (it re-evaluates the counters) and the company sweep each re-check, and pause when over a limit.
+- **The one ask could be burned by bookkeeping.** Registering the send now happens **before** any claim (v2 ask, v2 reminder, v1). A failed registration leaves the ask owed (`health_unregistered`).
+- **v1's text path bypassed the gate.** It now has the same health pre-flight, registration and `statusCallback` (v1 text is still dark).
+- **STOP scope.**
+  - At most one STOP counts per asked phone per ask, so one homeowner texting STOP twice counts once.
+  - A STOP counts against NBD only when it was sent to NBD's own number (`toNbdLine`). A shared customer's STOP to another company's number never counts against NBD.
+- **The STOP hook has a 3-second limit**, so the STOP confirmation is never held up.
+- **Unsigned posts** to the callback are refused before any Firestore read.
+- **The send counter** (`textSends`) is incremented before the row update, so a failed update never undercounts it.
+- **Accepted, not changed:** every company's pause alert shares the one `review_ask` bucket (4 texts a day). The bell row and push are always written, and the pause always happens.
+
+Proof:
+- 39 mutants of the guards, each caught by `tests/review-ask-health-2026-11-26.test.js` (95 checks).
+- The suite fails if any promise hangs.
+- Source-text pins: 4 (the ratchet allows 5).
+
 ## Flag off (today)
 
 - `reviewAskTextStatus` answers 200 and writes nothing.

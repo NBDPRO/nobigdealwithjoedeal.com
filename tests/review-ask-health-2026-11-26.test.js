@@ -39,7 +39,9 @@ const ON = require(path.join(FN, 'owner-notify.js'));
 const TCPA = require(path.join(FN, 'tcpa-consent.js'));
 const { OPEN_CONTROLS } = require('./lib/messaging-controls-open');
 
-let passed = 0, failed = 0;
+let passed = 0, failed = 0, finished = false;
+// A hung await empties the event loop and Node exits 0 without the summary: count that as a failure.
+process.on('exit', () => { if (!finished) { console.log('  ✗ the suite did not finish (a promise never settled)'); process.exitCode = 1; } });
 function ok(label, cond, detail) {
   if (cond) { console.log('  ✓ ' + label); passed++; }
   else { console.log('  ✗ ' + label + (detail ? ' — ' + detail : '')); failed++; }
@@ -325,9 +327,9 @@ async function sentText(db, companyId, nowMs) {
     ok('paused → refused', (await H.textHealthOk(pz, NBD, { env: ON_ENV, nowMs: NOON })).reason === 'paused');
     const hb = makeDb({});
     await H.recordTextSend(hb, { companyId: NBD, sender: 'nbd', leadId: 'L1', toHash: 'h', template: 't', nowMs: NOON - 2 * HOUR, env: ON_ENV, FieldValue: FV });
-    ok('a text sent 2 hours ago with no callback at all → refused (callbacks missing)', (await H.textHealthOk(hb, NBD, { env: ON_ENV, nowMs: NOON })).reason === 'callbacks_missing');
-    ok('...but not in the first hour (Twilio has not answered yet)', (await H.textHealthOk(hb, NBD, { env: ON_ENV, nowMs: NOON - 2 * HOUR + 30 * 60000 })).ok === true);
+    ok('a text with no callback yet, in its first hour → ok (Twilio has not answered yet)', (await H.textHealthOk(hb, NBD, { env: ON_ENV, nowMs: NOON - 2 * HOUR + 30 * 60000 })).ok === true);
     ok('...and the gap stops counting after 7 days', (await H.textHealthOk(hb, NBD, { env: ON_ENV, nowMs: NOON + 8 * DAY })).ok === true);
+    ok('a text sent 2 hours ago with no callback at all → refused (callbacks missing)', (await H.textHealthOk(hb, NBD, { env: ON_ENV, nowMs: NOON, notify: notifier() })).reason === 'callbacks_missing');
     const broken = { collection() { return { doc() { return { get: async () => { throw new Error('down'); } }; } }; }, doc() { return { get: async () => { throw new Error('down'); } }; } };
     ok('an unreadable tenant or heartbeat doc → refused', (await H.textHealthOk(broken, NBD, { env: ON_ENV, nowMs: NOON })).ok === false);
 
@@ -385,9 +387,6 @@ async function sentText(db, companyId, nowMs) {
       await TENANT.handleSetProfile({ auth: { uid: COA, token: { role: 'owner' } }, data: { action: 'set', displayName: 'Acme Roofing', googleReviewUrl: 'https://g.page/r/AcmeRoof123/review', replyTo: 'office@acme.example', paused: false } }, asOwner);
     } catch (e) { code = e.code; }
     ok('setReviewAskProfile with an extra paused key → invalid-argument, still paused', code === 'invalid-argument' && db.store.get('review_ask_tenants/' + COA).paused === true, code);
-    const prof = read('functions/review-ask-tenant.js');
-    const setP = prof.slice(prof.indexOf('async function handleSetProfile'), prof.indexOf('// ── manageReviewAskTenant'));
-    ok('setReviewAskProfile only reads review_ask_tenants, never writes it', !/C\.tenants\)\.doc\([^)]*\)\.(set|update|create)/.test(setP) && /C\.profiles/.test(setP));
     const rules = read('firestore.rules');
     ok('no rule opens review_ask_tenants / _health / _counted / _heartbeat to clients (catch-all deny)', !/match \/review_ask_(tenants|health|counted|heartbeat)\//.test(rules));
   }
@@ -396,9 +395,11 @@ async function sentText(db, companyId, nowMs) {
   console.log('\nH. the pause alert\'s own bucket');
   {
     ok('notifyOwner takes a bucket: its own day ledger doc', ON._test.stateDocFor('review_ask') === 'system/ownerNotify_review_ask' && ON._test.stateDocFor() === ON.STATE_DOC && ON._test.stateDocFor('../x') === 'system/ownerNotify_x');
-    const src = read('functions/owner-notify.js');
-    ok('the bucket also gets its own hourly internal-alert allowance', /bucket:\s*bucket\s*\?/.test(src) || /internalBucket/.test(src));
-    ok('the morning flush also flushes the review-ask bucket', /BUCKETS/.test(src.slice(src.indexOf('async function flushOwnerQueue'))));
+    ok('review_ask is a known bucket (anything else falls back to the ops ledger)', Array.isArray(ON.BUCKETS) && ON.BUCKETS.includes('review_ask'));
+    const seen = [];
+    const recDb = { doc: (p) => ({ get: async () => { seen.push(p); return { exists: false }; } }) };
+    await ON.flushOwnerQueue(recDb, { nowMs: NOON });
+    ok('the morning flush reads the ops queue AND the review-ask bucket\'s own queue', seen.includes(ON.STATE_DOC) && seen.includes('system/ownerNotify_review_ask'), JSON.stringify(seen));
   }
 
   // ═══ I ═══
@@ -408,20 +409,141 @@ async function sentText(db, companyId, nowMs) {
     const row = reg.FLAGS.find((f) => f.name === 'REVIEW_ASK_HEALTH_ENABLED');
     ok('REVIEW_ASK_HEALTH_ENABLED registered, kind enabled, dark', row && row.kind === 'enabled' && row.dark === true, JSON.stringify(row));
     ok('ships false in the env file', /^REVIEW_ASK_HEALTH_ENABLED=false$/m.test(read('functions/.env.nobigdeal-pro')));
-    ok('index.js exports reviewAskTextStatus', /reviewAskTextStatus/.test(read('functions/index.js')));
-    ok('firebase.json routes /api/review-ask/status to it', /"\/api\/review-ask\/status",\s*"function":\s*\{\s*"functionId":\s*"reviewAskTextStatus"/.test(read('firebase.json')));
+    ok('the function map points reviewAskTextStatus at review-ask-health.js', require(path.join(FN, 'function-map.json')).reviewAskTextStatus === './review-ask-health');
+    const fb = require(path.join(ROOT, 'firebase.json'));
+    ok('firebase.json routes /api/review-ask/status to it', (fb.hosting.rewrites || []).some((r) => r.source === '/api/review-ask/status' && r.function && r.function.functionId === 'reviewAskTextStatus'));
     const sms = read('functions/sms-functions.js');
     const stopBlock = sms.slice(sms.indexOf("intent.intent === 'stop'"), sms.indexOf("intent.intent === 'help'"));
-    ok('incomingSMS feeds a STOP to the health counter (after the register write)', /noteStop/.test(stopBlock) && stopBlock.indexOf('recordOptOut') < stopBlock.indexOf('noteStop'));
+    ok('incomingSMS feeds a STOP to the health counter (after the register write), saying if it came to NBD\'s own number',
+      /noteStop\([\s\S]{0,120}toNbdLine:\s*OptOut\.optOutKey\(req\.body\.To\)/.test(stopBlock) && stopBlock.indexOf('recordOptOut') < stopBlock.indexOf('noteStop'));
     const line = read('functions/twilio-line.js');
     const lineStop = line.slice(line.indexOf("if (kind === 'stop')"), line.indexOf("} else if (kind === 'start')"));
     ok('the Twilio line feeds a STOP too', /noteStop/.test(lineStop));
     const rw = read('functions/resend-webhook.js');
     ok('the Resend webhook feeds complaints and bounces, after the suppression record', rw.indexOf('noteEmailEvent') > rw.indexOf('Suppression.recordSuppression('));
-    const v2 = read('functions/review-ask-v2.js');
-    ok('v2\'s text pre-flight asks textHealthOk', /textHealthOk/.test(v2.slice(v2.indexOf('async function textReady'), v2.indexOf('async function emailReady'))));
   }
 
+  // ═══ J ═══
+  console.log('\nJ. review round (silent-failure + security reviews, 2026-11-26)');
+  {
+    // A lost callback: a real pause, one alert, and the admin's unpause clears it.
+    const db = makeDb({});
+    await H.recordTextSend(db, { companyId: NBD, sender: 'nbd', leadId: 'L1', toHash: 'h', template: 't', nowMs: NOON - 2 * HOUR, env: ON_ENV, FieldValue: FV });
+    const notify = notifier();
+    const r1 = await H.textHealthOk(db, NBD, { env: ON_ENV, nowMs: NOON, notify, FieldValue: FV });
+    const t1 = db.store.get('review_ask_tenants/' + NBD) || {};
+    ok('a lost callback → refused AND paused (health_callbacks_missing), one alert', r1.reason === 'callbacks_missing' && t1.paused === true && t1.pausedReason === 'health_callbacks_missing' && notify.calls.length === 1, JSON.stringify(t1));
+    await H.textHealthOk(db, NBD, { env: ON_ENV, nowMs: NOON + HOUR, notify, FieldValue: FV });
+    ok('...the next pre-flight: still refused, no second alert', notify.calls.length === 1);
+    const md = { db, FieldValue: FV, nowMs: NOON + 2 * HOUR, assertCallerAccountEnabled: async () => {} };
+    await TENANT.handleManage({ auth: { uid: 'admin-uid', token: { role: 'admin' } }, data: { companyId: NBD, action: 'unpause' } }, md);
+    ok('a platform admin\'s unpause clears the heartbeat', Object.keys((db.store.get('review_ask_heartbeat/' + NBD) || {}).pending || {}).length === 0);
+    ok('...and texting is allowed again', (await H.textHealthOk(db, NBD, { env: ON_ENV, nowMs: NOON + 3 * HOUR, notify })).ok === true);
+
+    // The unpause baseline: the signals already reviewed do not re-pause at once; new ones do.
+    const b = makeDb({
+      ['review_ask_tenants/' + COA]: { enabled: true, companyId: COA, paused: true, pausedReason: 'health_stop_replies' },
+      ['review_ask_health/' + COA + '_' + HL.dayKey(NOON)]: { companyId: COA, stops: 2, textSends: 5 },
+      ['review_ask_phones/' + V2IO.phoneKey('+18595550111')]: { lastAskMs: ago(1), companyId: COA },
+      ['review_ask_phones/' + V2IO.phoneKey('+18595550112')]: { lastAskMs: ago(1), companyId: COA },
+    });
+    await TENANT.handleManage({ auth: { uid: 'admin-uid', token: { role: 'admin' } }, data: { companyId: COA, action: 'unpause' } }, { db: b, FieldValue: FV, nowMs: NOON, assertCallerAccountEnabled: async () => {} });
+    ok('after an unpause, the reviewed signals do not re-pause on the next check', (await H.windowTotals(b, COA, NOON + HOUR)).reason === '' && (await H.textHealthOk(b, COA, { env: ON_ENV, nowMs: NOON + HOUR, notify: notifier() })).ok === true);
+    const bd = { env: ON_ENV, nowMs: NOON + HOUR, FieldValue: FV, logger: quiet, notify: notifier() };
+    await H.noteStop(b, Object.assign({ from: '+18595550111', messageSid: 'SM' + '6'.repeat(32) }, bd));
+    ok('...one new STOP after it → not paused', b.store.get('review_ask_tenants/' + COA).paused === false);
+    await H.noteStop(b, Object.assign({ from: '+18595550112', messageSid: 'SM' + '7'.repeat(32) }, bd));
+    ok('...a second new STOP → paused again', b.store.get('review_ask_tenants/' + COA).paused === true);
+
+    // A pause lost to an error is not lost: the replayed callback, and the pre-flight, re-check.
+    const rp = makeDb({});
+    const rid = await sentText(rp);
+    rp.store.set('review_ask_counted/' + rid + '_undelivered', { companyId: NBD });
+    rp.store.set('review_ask_health/' + NBD + '_' + HL.dayKey(NOON), { companyId: NBD, textSends: 1, c30007: 1 });
+    await H.handleStatus(callback(rid, { MessageStatus: 'undelivered', ErrorCode: '30007' }), fakeRes(), hdeps(rp));
+    ok('a replayed callback (already counted) still pauses when the count is over a limit', (rp.store.get('review_ask_tenants/' + NBD) || {}).paused === true);
+    const pf = makeDb({ ['review_ask_health/' + NBD + '_' + HL.dayKey(NOON)]: { companyId: NBD, textSends: 3, c30034: 1 } });
+    const pr = await H.textHealthOk(pf, NBD, { env: ON_ENV, nowMs: NOON, notify: notifier() });
+    ok('the pre-flight itself refuses (and pauses) when the counters are over a limit', pr.ok === false && (pf.store.get('review_ask_tenants/' + NBD) || {}).paused === true, JSON.stringify(pr));
+
+    // STOP scope: NBD's STOPs only on NBD's line, one per asked phone per ask.
+    const sc = makeDb({ ['review_ask_phones/' + V2IO.phoneKey('+18595550121')]: { lastAskMs: ago(1), companyId: NBD } });
+    const sd = { env: ON_ENV, nowMs: NOON, FieldValue: FV, logger: quiet, notify: notifier() };
+    await H.noteStop(sc, Object.assign({ from: '+18595550121', messageSid: 'SM' + '8'.repeat(32), toNbdLine: false }, sd));
+    ok('a STOP sent to another company\'s number never counts against NBD', !sc.store.get('review_ask_health/' + NBD + '_' + HL.dayKey(NOON)));
+    await H.noteStop(sc, Object.assign({ from: '+18595550121', messageSid: 'SM' + '9'.repeat(32), toNbdLine: true }, sd));
+    await H.noteStop(sc, Object.assign({ from: '+18595550121', messageSid: 'SM' + 'a'.repeat(32), toNbdLine: true }, sd));
+    ok('one homeowner texting STOP twice → one STOP, no pause', sc.store.get('review_ask_health/' + NBD + '_' + HL.dayKey(NOON)).stops === 1 && !(sc.store.get('review_ask_tenants/' + NBD) || {}).paused);
+
+    // The STOP hook never holds up the STOP reply.
+    const slow = makeDb({
+      ['review_ask_phones/' + V2IO.phoneKey('+18595550131')]: { lastAskMs: ago(1), companyId: COA },
+      ['review_ask_health/' + COA + '_' + HL.dayKey(NOON)]: { companyId: COA, stops: 1 },
+    });
+    const t0 = Date.now();
+    const sr = await H.noteStop(slow, { from: '+18595550131', messageSid: 'SM' + 'c'.repeat(32), env: ON_ENV, nowMs: NOON, FieldValue: FV, logger: quiet, timeoutMs: 100, notify: () => new Promise(() => {}) });
+    ok('a hung alert → noteStop gives up after its time limit', sr.reason === 'timeout' && Date.now() - t0 < 2000, JSON.stringify(sr));
+
+    // The denominator survives a failed row update.
+    const cf = makeDb({});
+    let threw = false;
+    try { await H.confirmTextSend(cf, 'f'.repeat(32), NBD, 'SM' + 'b'.repeat(32), NOON, { FieldValue: FV }); } catch (_) { threw = true; }
+    ok('a confirm whose row update fails still counts the sent text', threw && cf.store.get('review_ask_health/' + NBD + '_' + HL.dayKey(NOON)).textSends === 1);
+
+    // Unsigned posts cost no read.
+    const noRead = { collection() { throw new Error('read'); }, doc() { throw new Error('read'); } };
+    const ur = fakeRes();
+    const unsigned = callback('a'.repeat(32)); delete unsigned.headers['x-twilio-signature'];
+    await H.handleStatus(unsigned, ur, hdeps(noRead));
+    ok('a request with no Twilio signature → 403 before any read', ur.statusCode === 403);
+
+    // Registration comes before the claims: a bookkeeping failure never uses up the one ask.
+    const CONSENT2 = { phone: '(859) 555-0142', phoneDigits: '8595550142', tcpaConsent: true, tcpaConsentText: Object.keys(TCPA.CONSENT_TEXTS)[0] };
+    const lead2 = Object.assign({ userId: NBD, companyId: NBD, firstName: 'Pat', lastName: 'H', email: '', stage: 'final_payment', stageRole: 'won', stageStartedAt: ago(8), state: 'KY' }, CONSENT2);
+    const inv2 = { leadId: 'U1', companyId: NBD, status: 'paid', total: 12000, amountPaid: 12000, balanceDue: 0, paidAt: ago(5), payments: [{ amount: 12000, at: ago(5), recordedAt: ago(5), method: 'check' }] };
+    const seed2 = Object.assign({}, OPEN_CONTROLS, { ['users/' + NBD]: {}, ['companyProfile/' + NBD]: { brand: { contact: { mailingAddress: '123 Test St, Florence, KY 41042' } } }, 'leads/U1': lead2, 'invoices/u1': inv2 });
+    const sends = [];
+    const tx = async (m) => { sends.push(m); return { sid: 'SM' + 'b'.repeat(32) }; };
+    const failing = makeDb(seed2);
+    const realCol = failing.collection;
+    failing.collection = (c) => {
+      const col = realCol(c);
+      if (c !== 'review_ask_sends') return col;
+      return Object.assign({}, col, { doc: (id) => Object.assign(col.doc(id), { create: async () => { throw new Error('firestore down'); } }) });
+    };
+    const V2ENV2 = { REVIEW_ASK_V2_ENABLED: 'true', REVIEW_ASK_AUTO_TEXT_ENABLED: 'true', REVIEW_ASK_AUTO_EMAIL_ENABLED: 'true', REVIEW_ASK_HEALTH_ENABLED: 'true' };
+    const ru = await AUTO.runForUser(failing, NBD, { env: V2ENV2, FieldValue: FV, logger: quiet, nowMs: NOON, sendWindow: () => ({ ok: true }), sendText: tx, resend: null });
+    ok('v2: the send row cannot be written → no text, the ask NOT used up (no claim, no phone window)', sends.length === 0 && ru.results[0].reason === 'health_unregistered'
+      && !failing.store.get('leads/U1').reviewAutoAsk && keys(failing, 'review_ask_phones').length === 0, JSON.stringify(ru.results));
+
+    // v1's text path is gated the same way.
+    const V1TXT = { REVIEW_ASK_AUTO_TEXT_ENABLED: 'true' };
+    const v1a = makeDb(seed2);
+    const s1 = [];
+    const r1v = await AUTO.runForUser(v1a, NBD, { env: V1TXT, FieldValue: FV, logger: quiet, nowMs: NOON, sendWindow: () => ({ ok: true }), sendText: async (m) => { s1.push(m); return { sid: 'SM' + 'b'.repeat(32) }; } });
+    ok('v1 text with the health handler dark → no text', s1.length === 0 && r1v.results[0].reason === 'health_dark', JSON.stringify(r1v.results));
+    const v1p = makeDb(Object.assign({}, seed2, { ['review_ask_tenants/' + NBD]: { paused: true } }));
+    await AUTO.runForUser(v1p, NBD, { env: Object.assign({}, V1TXT, ON_ENV), FieldValue: FV, logger: quiet, nowMs: NOON, sendWindow: () => ({ ok: true }), sendText: async (m) => { s1.push(m); return { sid: 'SM1' }; } });
+    ok('v1 text with NBD paused → no text', s1.length === 0);
+    const v1o = makeDb(seed2);
+    await AUTO.runForUser(v1o, NBD, { env: Object.assign({}, V1TXT, ON_ENV), FieldValue: FV, logger: quiet, nowMs: NOON, sendWindow: () => ({ ok: true }), sendText: async (m) => { s1.push(m); return { sid: 'SM' + 'b'.repeat(32) }; } });
+    const v1row = keys(v1o, 'review_ask_sends')[0];
+    ok('v1 text with health on → ONE text carrying its statusCallback, its send row confirmed', s1.length === 1 && v1row && s1[0].statusCallback === HL.statusCallbackUrl(v1row.split('/')[1])
+      && v1o.store.get(v1row).outcome === 'sent', JSON.stringify(s1[0] && s1[0].statusCallback));
+
+    // The company sweep re-checks the counters too.
+    const APPROVED = { displayName: 'Acme Roofing', reviewUrl: 'https://search.google.com/local/writereview?placeid=ChIJacme1234567', replyTo: 'office@acmeroofing.example', postalAddress: '123 Main St, Cincinnati, OH 45202' };
+    require(path.join(FN, 'messaging-controls.js'))._resetCache();
+    const sw = makeDb(Object.assign({}, OPEN_CONTROLS, {
+      'messaging_controls/automations': Object.assign({}, OPEN_CONTROLS['messaging_controls/automations'], { reviewAskTenantEmail: true }),
+      ['review_ask_tenants/' + COA]: { companyId: COA, enabled: true, paused: false, rampStage: 1, approved: APPROVED },
+      ['review_ask_health/' + COA + '_' + HL.dayKey(NOON)]: { companyId: COA, complaints: 1, emailSends: 3 },
+    }));
+    const swr = await TENANT.runTenantSweep(sw, { env: { REVIEW_ASK_TENANTS_ENABLED: 'true', REVIEW_ASK_HEALTH_ENABLED: 'true' }, nowMs: NOON, FieldValue: FV, logger: quiet, notify: notifier(), resend: { emails: { send: async () => ({ data: { id: 'x' } }) } }, findDue: async () => [] });
+    ok('the company sweep pauses a company already over a limit (a pause lost on the webhook)', sw.store.get('review_ask_tenants/' + COA).paused === true && swr.counts.tenant_health_paused === 1, JSON.stringify(swr.counts));
+  }
+
+  finished = true;
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

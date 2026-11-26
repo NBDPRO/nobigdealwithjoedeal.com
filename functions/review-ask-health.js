@@ -50,7 +50,7 @@ const TWILIO_ACCOUNT_SID = defineSecret('TWILIO_ACCOUNT_SID');
 const TWILIO_PHONE_NUMBER = defineSecret('TWILIO_PHONE_NUMBER');
 const C = HL.C;
 const NBD = () => RA.NBD_OWNER_UID;
-const sv = (s) => require('./integrations/_shared').secretValue(s);
+const { secretValue: sv } = require('./integrations/_shared');
 
 const fv = (o) => (o && o.FieldValue) || FieldValue;
 const envOf = (o) => (o && o.env) || process.env;
@@ -88,8 +88,9 @@ async function recordTextSend(db, a) {
 /** Twilio took the text: its SID on the row, one more text in today's denominator. */
 async function confirmTextSend(db, id, companyId, messageSid, nowMs, o) {
   const FV = fv(o);
-  await db.collection(C.sends).doc(id).update({ outcome: 'sent', messageSid: TL.isSid(messageSid, ['SM', 'MM']) ? messageSid : null });
+  // The denominator first: a failed row update never drops a sent text from the rates.
   await healthRef(db, companyId, nowMs).set({ companyId, ymd: HL.dayKey(nowMs), textSends: FV.increment(1), updatedAtMs: nowMs }, { merge: true });
+  await db.collection(C.sends).doc(id).update({ outcome: 'sent', messageSid: TL.isSid(messageSid, ['SM', 'MM']) ? messageSid : null });
 }
 
 /** Twilio refused it (nothing went out): the heartbeat stops waiting for it. */
@@ -112,7 +113,19 @@ async function textHealthOk(db, companyId, o) {
     hb = hs.exists ? (hs.data() || {}) : {};
   } catch (e) { return { ok: false, reason: 'health_unverified' }; }
   if (t.paused === true) return { ok: false, reason: 'paused' };
-  if (HL.heartbeatMissing(hb.pending, nowMs) >= HL.HEARTBEAT.MAX_MISSING) return { ok: false, reason: 'callbacks_missing' };
+  // A text with no callback for an hour: the callback path is broken. Pause (one alert, a
+  // platform admin clears it with unpause, which also clears the heartbeat) and refuse.
+  if (HL.heartbeatMissing(hb.pending, nowMs) >= HL.HEARTBEAT.MAX_MISSING) {
+    await pauseFor(db, companyId, 'callbacks_missing', null, o).catch((e) => logOf(o).error('review_ask_health_pause_failed', { companyId, err: e && e.message }));
+    return { ok: false, reason: 'callbacks_missing' };
+  }
+  // The counters themselves, so a threshold crossed while the pause write failed still stops the text.
+  let w;
+  try { w = await windowTotals(db, companyId, nowMs, t); } catch (e) { return { ok: false, reason: 'health_unverified' }; }
+  if (w.reason) {
+    await pauseFor(db, companyId, w.reason, w.totals, o).catch((e) => logOf(o).error('review_ask_health_pause_failed', { companyId, err: e && e.message }));
+    return { ok: false, reason: 'paused' };
+  }
   return { ok: true };
 }
 
@@ -133,13 +146,31 @@ async function count(db, companyId, markId, field, nowMs, o) {
 }
 
 /** Read the company's window; pause it when a threshold is passed. → { paused, reason? } */
+/**
+ * The company's rolling-window totals and the pause reason ('' = healthy). Signals from before a
+ * platform admin's last unpause do not count (days before it are skipped; that day's counts at the
+ * unpause are subtracted), so an unpause is not undone by the very signals already reviewed.
+ */
+async function windowTotals(db, companyId, nowMs, tenant) {
+  let t = tenant;
+  if (t === undefined) { const s = await db.collection(C.tenants).doc(companyId).get(); t = s.exists ? (s.data() || {}) : {}; }
+  const days = HL.windowDays(nowMs);
+  const docs = await Promise.all(days.map((k) => db.collection(C.health).doc(HL.healthId(companyId, k)).get()));
+  const totals = HL.sumWindow(HL.sinceClear(days, docs.map((s) => (s.exists ? s.data() : null)), t || {}));
+  return { totals, reason: HL.evaluate(totals) };
+}
+
+/** Read the company's window; pause it when a threshold is passed. → { paused, reason? } */
 async function maybePause(db, companyId, o) {
+  const w = await windowTotals(db, companyId, nowOf(o));
+  if (!w.reason) return { paused: false };
+  return pauseFor(db, companyId, w.reason, w.totals, o);
+}
+
+/** Pause one company (once): the flag, the audit row, one owner alert. → { paused, already?, reason } */
+async function pauseFor(db, companyId, reason, totals, o) {
   const FV = fv(o);
   const nowMs = nowOf(o);
-  const docs = await Promise.all(HL.windowDays(nowMs).map((k) => db.collection(C.health).doc(HL.healthId(companyId, k)).get()));
-  const totals = HL.sumWindow(docs.map((s) => (s.exists ? s.data() : null)));
-  const reason = HL.evaluate(totals);
-  if (!reason) return { paused: false };
   const tRef = db.collection(C.tenants).doc(companyId);
   const did = await db.runTransaction(async (tx) => {
     const s = await tx.get(tRef);
@@ -148,7 +179,7 @@ async function maybePause(db, companyId, o) {
     return true;
   });
   if (!did) return { paused: false, already: true, reason };
-  await db.collection(C.audit).add({ companyId, by: HL.PAUSED_BY, action: 'auto_pause', reason, totals, at: FV.serverTimestamp() })
+  await db.collection(C.audit).add({ companyId, by: HL.PAUSED_BY, action: 'auto_pause', reason, totals: totals || null, at: FV.serverTimestamp() })
     .catch((e) => logOf(o).warn('review_ask_health_audit_failed', { companyId, err: e && e.message }));
   const al = HL.pauseAlert(companyId, reason);
   const notify = (o && o.notify) || require('./owner-notify').notifyOwner;
@@ -159,9 +190,19 @@ async function maybePause(db, companyId, o) {
   return { paused: true, reason };
 }
 
-/** A STOP from a number this company review-texted in the last 14 days. Never throws. */
+/**
+ * A STOP from a number this company review-texted in the last 14 days, sent TO the line that asked
+ * (NBD: o.toNbdLine === true). One STOP per asked phone per ask, however many times it is sent.
+ * Never throws, and gives up after STOP_HOOK_MS so the caller's STOP reply is never held up.
+ */
+const STOP_HOOK_MS = 3000;
 async function noteStop(db, a) {
   const o = a || {};
+  let timer;
+  const limit = new Promise((resolve) => { timer = setTimeout(() => resolve({ counted: false, reason: 'timeout' }), Number(o.timeoutMs) || STOP_HOOK_MS); });
+  try { return await Promise.race([noteStopNow(db, o), limit]); } finally { clearTimeout(timer); }
+}
+async function noteStopNow(db, o) {
   try {
     if (!HL.flagOn(envOf(o))) return { counted: false, reason: 'dark' };
     const sid = String(o.messageSid || '');
@@ -172,8 +213,10 @@ async function noteStop(db, a) {
     const p = s.exists ? (s.data() || {}) : null;
     const last = p ? Number(p.lastAskMs) || 0 : 0;
     if (!p || !p.companyId || !last || nowMs - last > HL.STOP_ATTRIBUTION_DAYS * HL.DAY_MS) return { counted: false, reason: 'not_review_asked' };
-    const counted = await count(db, String(p.companyId), 'stop_' + sid, 'stops', nowMs, o);
-    if (counted) await maybePause(db, String(p.companyId), o);
+    // NBD's review texts go out on NBD's own line: a STOP to any other number (a company's) is not NBD's.
+    if (String(p.companyId) === NBD() && o.toNbdLine !== true) return { counted: false, reason: 'other_line' };
+    const counted = await count(db, String(p.companyId), 'stop_' + key + '_' + last, 'stops', nowMs, o);
+    await maybePause(db, String(p.companyId), o);   // a replay re-checks too (a pause lost to an error)
     return { counted };
   } catch (e) {
     logOf(o).error('review_ask_health_stop_failed', { err: e && e.message });
@@ -194,7 +237,7 @@ async function noteEmailEvent(db, a) {
     const nowMs = nowOf(o);
     const companyId = String(tok.companyId);
     const counted = await count(db, companyId, 'resend_' + eventId, field, nowMs, o);
-    if (counted) await maybePause(db, companyId, o);
+    await maybePause(db, companyId, o);   // a replay re-checks too (a pause lost to an error)
     return { counted };
   } catch (e) {
     logOf(o).error('review_ask_health_email_event_failed', { err: e && e.message });
@@ -236,6 +279,8 @@ async function handleStatus(req, res, deps) {
   if (!HL.flagOn(envOf(d))) { sendXml(res, 200); return; }
   const id = String((req.query && req.query.s) || '');
   if (!HL.isSendId(id)) { res.status(400).json({ error: 'bad id' }); return; }
+  // No signature at all: refused before any read (a flood of unsigned posts costs no Firestore read).
+  if (!(req.headers || {})['x-twilio-signature']) { res.status(403).json({ error: 'signature verification failed' }); return; }
   const db = d.db || getFirestore();
   // 1. The send first: the company and the sender come from the stored row.
   const sendRef = db.collection(C.sends).doc(id);
@@ -272,7 +317,9 @@ async function handleStatus(req, res, deps) {
     if (field) tx.set(hRef, { companyId, ymd: HL.dayKey(nowMs), [field]: FV.increment(1), updatedAtMs: nowMs }, { merge: true });
     return true;
   });
-  if (fresh && field) await maybePause(db, companyId, d);
+  // A replay (Twilio retried after a 500) re-checks too, so a pause lost to an error is not lost for good.
+  if (field) await maybePause(db, companyId, d);
+  if (!fresh) logOf(d).info('review_ask_status_replay', { status });
   sendXml(res, 200);
 }
 
@@ -281,11 +328,26 @@ const OPTS = { cors: false, secrets: [TWILIO_AUTH_TOKEN, TWILIO_ACCOUNT_SID, TWI
 exports.reviewAskTextStatus = onRequest(OPTS, async (req, res) => {
   try { await handleStatus(req, res); } catch (e) {
     fnLogger.error('review_ask_status_failed', { err: e && e.message });
-    if (!res.headersSent) res.status(500).json({ error: 'webhook failed' });   // Twilio retries; every write is idempotent
+    // Every write is idempotent. Twilio may not retry a status callback; a lost one leaves the
+    // heartbeat waiting, which pauses the company and alerts (textHealthOk).
+    if (!res.headersSent) res.status(500).json({ error: 'webhook failed' });
   }
 });
 
+/**
+ * What a platform admin's unpause also clears (review-ask-tenant.js handleManage): the heartbeat's
+ * pending texts, and a baseline so the signals already reviewed do not re-pause at once.
+ * → the patch to merge into review_ask_tenants/{companyId}.
+ */
+async function clearForUnpause(db, companyId, nowMs, o) {
+  const hbRef = db.collection(C.heartbeat).doc(companyId);
+  const hb = await hbRef.get();
+  if (hb.exists) await hbRef.update({ pending: {}, clearedAtMs: nowMs, clearedBy: (o && o.by) || null });
+  const today = await db.collection(C.health).doc(HL.healthId(companyId, HL.dayKey(nowMs))).get();
+  return { healthClearedAtMs: nowMs, healthBaseline: HL.sumWindow([today.exists ? today.data() : null]) };
+}
+
 module.exports = Object.assign(exports, {
-  recordTextSend, confirmTextSend, abandonTextSend, textHealthOk, count, maybePause,
+  recordTextSend, confirmTextSend, abandonTextSend, textHealthOk, count, maybePause, pauseFor, windowTotals, clearForUnpause, STOP_HOOK_MS,
   noteStop, noteEmailEvent, noteEmailSend, handleStatus, signerFor,
 });

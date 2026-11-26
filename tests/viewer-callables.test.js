@@ -455,6 +455,8 @@ const VERDICTS = {
   carePlanAdmin: 'role-gated', carePlanPublic: 'public', carePlanWebhook: 'public',
   // NBD's Twilio line (twilio-line.js, 2026-10-06): Twilio webhooks — no user
   // auth, X-Twilio-Signature verified instead (like incomingSMS).
+  // reviewAskTextStatus (S3, 2026-11-26): Twilio's signed status callback for review texts, no user auth.
+  reviewAskTextStatus: 'public',
   twilioSmsWebhook: 'public', twilioSmsStatus: 'public', twilioVoiceWebhook: 'public', twilioVoiceDialStatus: 'public',
   // Google Calendar sync (2026-09-29): owner / owner's company_admin / platform admin only.
   setupGoogleCalendar: 'role-gated', getGoogleCalendarStatus: 'role-gated', getBusyTimes: 'role-gated',

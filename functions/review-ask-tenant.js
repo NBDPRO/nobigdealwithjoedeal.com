@@ -180,6 +180,8 @@ async function handleManage(request, deps) {
     patch = { paused: true, pausedReason: reason, pausedAtMs: nowMs, pausedBy: auth.uid, rampStage: 1 };
   } else if (data.action === 'unpause') {
     patch = { paused: false, pausedReason: null, pausedAtMs: null, pausedBy: null };
+    // S3: the heartbeat's waiting texts are cleared and the signals already reviewed stop counting.
+    Object.assign(patch, await require('./review-ask-health').clearForUnpause(db, companyId, nowMs, { by: auth.uid }));
   } else {
     const stage = Number(data.stage);
     if (!T.RAMP[stage]) throw new HttpsError('invalid-argument', 'stage must be 1, 2 or 3');
@@ -419,6 +421,15 @@ async function runTenantSweep(db, deps) {
     const companyId = cleanCompanyId(tDoc.id);
     const ready = T.tenantReady(tDoc.data(), companyId, NBD());
     if (!ready.ok) { bump('tenant_' + ready.reason); continue; }
+    if (require('./review-ask-health-logic').flagOn(env)) {
+      const Health = require('./review-ask-health');
+      let w;
+      try { w = await Health.windowTotals(db, companyId, Number(d.nowMs) || Date.now(), tDoc.data() || {}); } catch (e) { bump('tenant_health_unverified'); continue; }
+      if (w.reason) {
+        await Health.pauseFor(db, companyId, w.reason, w.totals, { env, nowMs: d.nowMs, notify: d.notify, logger: d.logger, FieldValue: d.FieldValue }).catch(() => {});
+        bump('tenant_health_paused'); continue;
+      }
+    }
     readyList.push({ companyId, ready });
   }
   // Each company gets a fair share of the run's cap, so the first companies never starve the rest.

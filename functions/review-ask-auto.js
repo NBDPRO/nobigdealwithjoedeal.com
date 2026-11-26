@@ -219,18 +219,32 @@ async function askOne(db, entry, uid, deps) {
     const swText = await MessagingControls.channelStatus(db, 'sms');
     if (!swText.allowed) return { sent: false, reason: 'messaging_paused' };
     if (swText.canary) return { sent: false, reason: 'canary' };
-    if (!(await claim(db, entry.id, entry.jobId, 'text', nowMs))) return { sent: false, reason: 'claimed' };
+    // S3 (2026-11-26): the same carrier-health pre-flight as v2 (dark, paused or callbacks missing = no
+    // text), and the send row + statusCallback registered before the claim.
+    const Health = require('./review-ask-health');
+    let hh;
+    try { hh = await Health.textHealthOk(db, tenantKey, { env: d.env || process.env, nowMs }); } catch (_) { hh = { ok: false, reason: 'health_unverified' }; }
+    if (!hh.ok) return { sent: false, reason: /^health_/.test(hh.reason) ? hh.reason : 'health_' + hh.reason };
+    const V2IO = require('./review-ask-v2');
+    const reg = await V2IO.registerText(db, d, entry, pt.to, nowMs, 'review_ask_text');
+    if (!reg) return { sent: false, reason: 'health_unregistered' };
+    if (!(await claim(db, entry.id, entry.jobId, 'text', nowMs))) { await V2IO.dropText(db, d, reg, nowMs); return { sent: false, reason: 'claimed' }; }
+    let m;
     try {
       if (!(await MessagingControls.claimSendOnce(db, pt.to, 'review_ask_text', entry.jobId || entry.id))) {
+        await V2IO.dropText(db, d, reg, nowMs);
         return { sent: false, reason: 'duplicate' };
       }
       // The pre-claim window answer's own inputs, so guardTwilio agrees with it.
-      await d.sendText({ to: pt.to, body: RA.textBody(entry, reviewUrl), recipient: entry, companyProfile: d.companyProfile || null, nowMs });
+      m = await d.sendText({ to: pt.to, body: RA.textBody(entry, reviewUrl), recipient: entry, companyProfile: d.companyProfile || null, nowMs, statusCallback: reg.statusCallback });
     } catch (e) {
+      await V2IO.dropText(db, d, reg, nowMs);
       log.warn('review_auto_text_failed', { leadId: entry.id, err: e && e.message });
       await settle(db, entry.id, entry.jobId, 'text', 'failed', { atMs: nowMs, error: String((e && e.message) || e).slice(0, 200) });
       return { sent: false, reason: 'send_failed' };
     }
+    await Health.confirmTextSend(db, reg.id, RA.NBD_OWNER_UID, m && m.sid, nowMs, { FieldValue: FV })
+      .catch((e) => log.warn('review_ask_health_confirm_failed', { err: e && e.message }));
     await recordSent(db, entry, uid, 'text', nowMs, FV);
     return { sent: true, channel: 'text', reason: 'sent' };
   } catch (e) {

@@ -99,6 +99,25 @@ function sumWindow(docs) {
   return t;
 }
 
+/**
+ * The window's day docs with an admin unpause applied (tenant.healthClearedAtMs, healthBaseline):
+ * days before the unpause day are dropped, the unpause day keeps only what came after it.
+ */
+function sinceClear(days, docs, tenant) {
+  const t = tenant || {};
+  const at = Number(t.healthClearedAtMs) || 0;
+  if (!at) return docs;
+  const cut = dayKey(at);
+  const base = t.healthBaseline || {};
+  return docs.map((d, i) => {
+    if (!d || days[i] < cut) return null;
+    if (days[i] > cut) return d;
+    const out = {};
+    for (const f of FIELDS) out[f] = Math.max(0, (Number(d[f]) || 0) - (Number(base[f]) || 0));
+    return out;
+  });
+}
+
 /** The pause reason for a window's totals, or '' when healthy. Floor-free checks first. */
 function evaluate(totals) {
   const T = THRESHOLDS;
@@ -142,6 +161,7 @@ const REASON_TEXT = Object.freeze({
   opt_out_rate: 'the opt-out rate passed 3%',
   unreachable_rate: 'the unreachable rate passed 10%',
   bounce_rate: 'the review email bounce rate passed 5%',
+  callbacks_missing: 'a review text has had no delivery callback for an hour (the callback path may be broken)',
 });
 
 /** The owner alert. Never a company-written name: the company id and a fixed reason only. */
@@ -157,5 +177,5 @@ module.exports = {
   FLAG, flagOn, C, THRESHOLDS, HEARTBEAT, STOP_ATTRIBUTION_DAYS, DAY_MS, CODE_FIELDS, FIELDS, FINAL, REVIEW_EMAIL_SOURCES,
   PUBLIC_BASE, STATUS_PATH, PAUSED_BY, REASON_TEXT,
   dayKey, windowDays, healthId, newSendId, isSendId, statusCallbackUrl, cleanStatus, countField,
-  emptyTotals, sumWindow, evaluate, heartbeatMissing, stalePending, pauseAlert,
+  emptyTotals, sumWindow, sinceClear, evaluate, heartbeatMissing, stalePending, pauseAlert,
 };

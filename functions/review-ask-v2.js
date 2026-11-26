@@ -135,21 +135,33 @@ async function sendEmail(db, d, ready, content, campaign, attachments) {
   if (resendRejected(r)) throw new Error(resendErrorMessage(r));
 }
 
+const healthOpts = (d, nowMs) => ({ env: d.env || process.env, nowMs, FieldValue: d.FieldValue || FieldValue });
+
+/**
+ * S3: the text's review_ask_sends row (an opaque id) and heartbeat entry, written BEFORE any claim,
+ * so a bookkeeping failure never uses up the job's one ask. → reg, or null (no text).
+ */
+async function registerText(db, d, lead, to, nowMs, template) {
+  try {
+    return await Health.recordTextSend(db, Object.assign({ companyId: RA.NBD_OWNER_UID, sender: 'nbd', leadId: lead.id || null, jobId: lead.jobId || null, toHash: phoneKey(to), template }, healthOpts(d, nowMs)));
+  } catch (e) {
+    (d.logger || fnLogger).warn('review_ask_health_register_failed', { leadId: lead && lead.id, err: e && e.message });
+    return null;
+  }
+}
+/** Nothing went out: the heartbeat stops waiting for it. Never throws. */
+const dropText = (db, d, reg, nowMs) => Health.abandonTextSend(db, reg.id, RA.NBD_OWNER_UID, healthOpts(d, nowMs)).catch(() => {});
+
 /**
  * The text, checked once more: NBD's customer by companyId, a fixed template that passes smsContentOk.
- * S3: its review_ask_sends row (an opaque id) is written first and the text carries a statusCallback
- * to it; no row = no text.
+ * It carries a statusCallback to its registered send id (S3). A throw = nothing sent (the caller drops reg).
  */
-async function sendCheckedText(db, d, lead, to, body, url, nowMs, template) {
+async function sendCheckedText(db, d, lead, to, body, url, nowMs, reg) {
   if (!RA.isNbd(lead)) throw new Error('not_nbd');
   const bad = V2.smsContentOk(body, url);
   if (bad) throw new Error('sms_content_' + bad);
-  const opts = { env: d.env || process.env, nowMs, FieldValue: d.FieldValue || FieldValue };
-  const reg = await Health.recordTextSend(db, Object.assign({ companyId: RA.NBD_OWNER_UID, sender: 'nbd', leadId: lead.id || null, jobId: lead.jobId || null, toHash: phoneKey(to), template }, opts));
-  let m;
-  try { m = await d.sendText({ to, body, recipient: lead, companyProfile: d.companyProfile || null, nowMs, statusCallback: reg.statusCallback }); }
-  catch (e) { await Health.abandonTextSend(db, reg.id, RA.NBD_OWNER_UID, opts).catch(() => {}); throw e; }
-  await Health.confirmTextSend(db, reg.id, RA.NBD_OWNER_UID, m && m.sid, nowMs, opts)
+  const m = await d.sendText({ to, body, recipient: lead, companyProfile: d.companyProfile || null, nowMs, statusCallback: reg.statusCallback });
+  await Health.confirmTextSend(db, reg.id, RA.NBD_OWNER_UID, m && m.sid, nowMs, healthOpts(d, nowMs))
     .catch((e) => (d.logger || fnLogger).warn('review_ask_health_confirm_failed', { err: e && e.message }));
 }
 
@@ -176,12 +188,15 @@ async function askOneV2(db, entry, uid, deps) {
     // 1. The text, when every check passes.
     const tr = await textReady(db, entry, d, nowMs, log);
     if (tr.ok) {
-      if (!(await A().claim(db, entry.id, entry.jobId, 'text', nowMs))) return { sent: false, reason: 'claimed' };
+      const reg = await registerText(db, d, entry, tr.to, nowMs, 'review_ask_text');
+      if (!reg) return { sent: false, reason: 'health_unregistered' };   // no claim used: still owed
+      if (!(await A().claim(db, entry.id, entry.jobId, 'text', nowMs))) { await dropText(db, d, reg, nowMs); return { sent: false, reason: 'claimed' }; }
       try {
         if (!(await claimPhone(db, tr.to, entry.id, nowMs))) throw new Error('phone_recently_asked');
         if (!(await MessagingControls.claimSendOnce(db, tr.to, 'review_ask_text', entry.jobId || entry.id))) throw new Error('duplicate');
-        await sendCheckedText(db, d, entry, tr.to, V2.textBody(entry, url), url, nowMs, 'review_ask_text');
+        await sendCheckedText(db, d, entry, tr.to, V2.textBody(entry, url), url, nowMs, reg);
       } catch (e) {
+        await dropText(db, d, reg, nowMs);
         log.warn('review_auto_text_failed', { leadId: entry.id, err: e && e.message });
         await A().settle(db, entry.id, entry.jobId, 'text', 'failed', { atMs: nowMs, error: String((e && e.message) || e).slice(0, 200) });
         return { sent: false, reason: 'send_failed' };
@@ -299,11 +314,14 @@ async function runReminders(db, deps) {
       if (plan.channel === 'text') {
         const tr = await textReady(db, lead, d, nowMs, log, { reminder: true });
         if (!tr.ok) { if (tr.final) await closeReminder(db, lead.id, 'skipped', { reason: tr.reason }, nowMs); out(tr.reason); continue; }
-        if (!(await claimReminder(db, lead.id, nowMs))) { out('claimed'); continue; }
+        const reg = await registerText(db, d, lead, tr.to, nowMs, V2.REMINDER_TEMPLATE);
+        if (!reg) { out('health_unregistered'); continue; }   // the reminder is still owed
+        if (!(await claimReminder(db, lead.id, nowMs))) { await dropText(db, d, reg, nowMs); out('claimed'); continue; }
         try {
           if (!(await MessagingControls.claimSendOnce(db, tr.to, V2.REMINDER_TEMPLATE, a.jobKey || lead.id))) throw new Error('duplicate');
-          await sendCheckedText(db, d, lead, tr.to, V2.reminderText(lead, url), url, nowMs, V2.REMINDER_TEMPLATE);
+          await sendCheckedText(db, d, lead, tr.to, V2.reminderText(lead, url), url, nowMs, reg);
         } catch (e) {
+          await dropText(db, d, reg, nowMs);
           log.warn('review_reminder_text_failed', { leadId: lead.id, err: e && e.message });
           await closeReminder(db, lead.id, 'failed', { error: String((e && e.message) || e).slice(0, 200) }, nowMs);
           out('send_failed'); continue;
@@ -341,4 +359,4 @@ async function runReminders(db, deps) {
   return { reminded, results };
 }
 
-module.exports = { askOneV2, runReminders, textReady, emailReady, phoneKey, PHONE_COLLECTION, TRIGGERED_BY };
+module.exports = { askOneV2, runReminders, textReady, emailReady, phoneKey, registerText, dropText, PHONE_COLLECTION, TRIGGERED_BY };
