@@ -308,6 +308,33 @@ Refuted: "the Monday checks overlap and run in the wrong order".
   - **17C:** one call record, on branch `claude/one-call-record-2026-11-25`.
   - The bot briefs are now versioned in the local Agent Hub. Each amendment is drafted and not sent.
 
+**Progress (updated 2026-11-26): every step is merged or in the merge queue.** The handoff is [NEXT_SESSION-2026-11-26-bots-roadmap](../projects/NEXT_SESSION-2026-11-26-bots-roadmap.md).
+- **Merged:**
+  - step 8: #3246
+  - steps 9b + 10: #3264
+  - step 12: #3242
+  - step 15: #3265
+  - 17A: #3254
+  - 17C: #3268
+  - the breaker-alert relay: #3266
+- **17B (#3267), the office planner, is in the merge queue.** It ships dark.
+- **Before opening, each stacked branch had its parent merged in and got a separate review.** That review found 8 real bugs, all fixed with a test written first:
+  - **Three in 9b + 10:**
+    - The widget switch held every call. The server off switch is now only `thursdayDisabled`.
+    - The caller lookup read the off switch before the lead queries. It now reads it alongside them.
+    - `rules_reference` redacted the company's own Zelle line.
+  - **Five in 17C:**
+    - Bland's recording link came back on reprocess after audio retention.
+    - A redial merge was overwritten.
+    - An inbox un-review didn't clear Handled.
+    - Handled on a kept Cube card didn't sync.
+    - The promises deck offered File and Make-lead on a Thursday copy, which the server refuses.
+  - A second review of those fixes found the reverse Handled sync, inbox review to kept Cube card. That is fixed too.
+- **The breaker-alert relay (#3266) was reviewed separately.** One company's cap is bell and push only, so the owner's daily texts stay for outages. The claim is marked as relayed before the notify.
+- **Still open:**
+  - A pre-existing race makes the demo walk's "New knock" focus check flaky: the D2D view initialises twice, and the second render replaces the opener. The fix is running in its own session.
+  - The `@stranger` sign-up E2E also times out now and then, across unrelated PRs.
+
 | # | Step | Area | Effort | Joe's call |
 |---|---|---|---|---|
 | 1 | **Fix the unattended permission stall.** Scoped `.claude/settings.json` allowlist in `nbd-ops/office-team` (and the other task folders); lock, state and logs via Read/Write; a "started" first line; one attended Run now per task | Desktop / office | S | Approve the allowlist |
