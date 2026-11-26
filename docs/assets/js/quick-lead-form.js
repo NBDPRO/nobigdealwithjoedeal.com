@@ -14,6 +14,20 @@
 (function () {
   'use strict';
 
+  // Form-funnel events (2026-11-26): the same names as /inspect, /storm-check
+  // and /estimate, with form:'quick' (GA4 adds the page path itself).
+  // documentation/projects/FORM-FUNNEL-EVENTS-2026-11-26.md. No PII: field
+  // names, never a value. GA4, plus Clarity when clarity-loader.js loaded it.
+  function track(name, params) {
+    try { if (typeof window.gtag === 'function') window.gtag('event', name, params || {}); } catch (e) {}
+    try { if (typeof window.clarity === 'function') window.clarity('event', name); } catch (e) {}
+  }
+  function trackStep(name, extra) {
+    var p = { form: 'quick', step: 1, step_name: 'contact' };
+    for (var k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) p[k] = extra[k];
+    track(name, p);
+  }
+
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -129,6 +143,24 @@
     var err = document.getElementById(uid + '-err');
     var ok = document.getElementById(uid + '-ok');
     var btn = document.getElementById(uid + '-btn');
+    // Seen = scrolled onto the screen (the homepage form sits far down the
+    // page, so "rendered" would count every visit). Started = first focus.
+    if (form && typeof window.IntersectionObserver === 'function') {
+      var seen = new window.IntersectionObserver(function (entries) {
+        if (!entries.some(function (en) { return en.isIntersecting; })) return;
+        seen.disconnect();
+        trackStep('form_step_view');
+      });
+      seen.observe(form);
+    } else {
+      trackStep('form_step_view');
+    }
+    var started = false;
+    if (form) form.addEventListener('focusin', function () {
+      if (started) return;
+      started = true;
+      track('form_start', { form: 'quick' });
+    });
     ensureIntake().then(function () {
       if (!window.NBDIntake) return;
       // Fill both blocks here too: when intake-extras.js was already loaded by
@@ -178,13 +210,14 @@
       var phoneOk = phone.replace(/\D/g, '').replace(/^1/, '').length === 10;
       var addressOk = address.length >= 6 && /\d/.test(address) && /[a-z]/i.test(address);
       var bad = [];
-      [[fnEl, !!firstName, 'your first name'], [phEl, phoneOk, 'a 10-digit phone number'], [adEl, addressOk, 'your street address']].forEach(function (c) {
+      [[fnEl, !!firstName, 'your first name', 'first_name'], [phEl, phoneOk, 'a 10-digit phone number', 'phone'], [adEl, addressOk, 'your street address', 'address']].forEach(function (c) {
         if (c[1]) c[0].removeAttribute('aria-invalid');
         else { c[0].setAttribute('aria-invalid', 'true'); bad.push(c); }
       });
       if (bad.length) {
         err.textContent = 'Please add ' + list(bad.map(function (c) { return c[2]; })) + '.';
         reveal(err, bad[0][0]);
+        trackStep('form_error', { fields: bad.map(function (c) { return c[3]; }).join(',') });
         return;
       }
       var consentEl = document.getElementById(uid + '-consent');
@@ -203,6 +236,7 @@
         if (intake.error) {
           if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid');
           err.textContent = intake.error;
+          trackStep('form_error', { fields: 'scheduling' });
           // The thing to fix is the choice, not the message: the form is tall,
           // so on a phone the message and the options are ~400px apart. Scroll
           // the fieldset (red border, legend) into view and focus its first
@@ -233,6 +267,7 @@
         }, intake.fields));
       }).then(function (out) {
         if (!out || !out.ok) { var fail = new Error((out && out.reason) || 'failed'); fail.friendly = !!(out && out.friendly); throw fail; }
+        trackStep('form_step_complete');
         ok.textContent = okMsg;
         btn.textContent = 'Sent ✓';
         reveal(ok);
@@ -252,6 +287,7 @@
         // The gateway's plain-language reason already says what to do; any
         // other failure gets the generic line. The raw text is console-only.
         console.warn('[quick-lead-form] send failed:', e2 && e2.message);
+        trackStep('form_error', { fields: 'submit' });
         err.textContent = e2 && e2.friendly ? e2.message : 'Could not send — please call or text (859) 420-7382.';
         btn.disabled = false; btn.textContent = btnLabel;
         reveal(err);
