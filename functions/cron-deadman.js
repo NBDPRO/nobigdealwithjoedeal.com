@@ -425,8 +425,9 @@ exports.cronDeadman = onSchedule(
     });
     logger.info('[cronDeadman]', r);
     // A tripped AI spend breaker texts the owner from here: the AI entry points
-    // that trip it hold no Twilio secrets (ai-gate.js relayBreakerAlerts). Runs
-    // before the flush so an overnight trip joins the 07:00 summary. Never throws.
+    // that trip it hold no Twilio secrets (ai-gate.js relayBreakerAlerts). An
+    // overnight trip is queued by notifyOwner and goes out in the 07:00 flush
+    // below. Never throws.
     const relay = await require('./ai-gate').relayBreakerAlerts(db, { nowMs: Date.now(), notify: (m) => ON.notifyOwner(db, m) });
     if (relay.relayed || relay.failed || relay.error) logger.info('[cronDeadman] ai spend alerts', relay);
     // Every owner alert queued overnight (owner-notify.js) goes out as ONE

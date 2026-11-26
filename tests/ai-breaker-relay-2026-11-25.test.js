@@ -79,7 +79,7 @@ const claim = (day, extra) => Object.assign({ day, cap: 'company', companyId: 'c
     const sent = [];
     const r = await AG.relayBreakerAlerts(db, { nowMs: NOW, notify: async (m) => { sent.push(m); return { pushed: true }; } });
     ok('one unrelayed claim -> exactly one notify', sent.length === 1 && r.relayed === 1, { r, n: sent.length });
-    ok("it is an 'alert' (bell + push + one daytime text), keyed per claim", sent[0] && sent[0].severity === 'alert' && sent[0].key === 'ai-spend:' + TODAY + '__co__co_secret_123', sent[0]);
+    ok("a company cap is 'info' (bell + push, no text: one tenant's cap never spends the owner's outage texts), keyed per claim", sent[0] && sent[0].severity === 'info' && sent[0].key === 'ai-spend:' + TODAY + '__co__co_secret_123', sent[0]);
     ok('the claim is marked relayed', db.docs.get('ai_spend_alerts/' + TODAY + '__co__co_secret_123').relayedAtMs === NOW);
     const again = [];
     await AG.relayBreakerAlerts(db, { nowMs: NOW + 1800000, notify: async (m) => { again.push(m); } });
@@ -99,6 +99,20 @@ const claim = (day, extra) => Object.assign({ day, cap: 'company', companyId: 'c
     await AG.relayBreakerAlerts(db, { nowMs: NOW, notify: async (m) => { sent.push(m); } });
     ok("yesterday's claim is relayed", sent.length === 1 && sent[0].key === 'ai-spend:' + YDAY + '__public', sent.map((m) => m.key));
     ok("the public cap reads as 'the public website AI'", sent[0] && /public website AI/.test(sent[0].title));
+    ok("the public cap is an 'alert' (texted)", sent[0] && sent[0].severity === 'alert', sent[0]);
+  }
+
+  console.log('\n3b. the platform cap texts; a failed relayed-mark never re-rings the bell');
+  {
+    const id = 'ai_spend_alerts/' + TODAY + '__platform';
+    const db = makeDb({ [id]: claim(TODAY, { cap: 'platform', companyId: null, capKey: null }) });
+    const sent = [];
+    await AG.relayBreakerAlerts(db, { nowMs: NOW, notify: async (m) => { sent.push(m); } });
+    ok("the platform cap is an 'alert' (texted)", sent[0] && sent[0].severity === 'alert', sent[0]);
+    const dbU = makeDb({ [id]: claim(TODAY, { cap: 'platform', companyId: null, capKey: null }) }, { failUpdate: true });
+    const rung = [];
+    for (let i = 0; i < 3; i++) await AG.relayBreakerAlerts(dbU, { nowMs: NOW + i * 1800000, notify: async (m) => { rung.push(m); } });
+    ok('the relayed mark cannot be written: no notify at all (the email already went), never one per run', rung.length === 0, rung.length);
   }
 
   console.log('\n4. failed notify retries next run');

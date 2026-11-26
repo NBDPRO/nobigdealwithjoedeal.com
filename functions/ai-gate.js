@@ -336,8 +336,10 @@ async function alertOnce(db, a, deps) {
  * write the claim doc and queue the email above. cronDeadman (every 30 min,
  * owns the SMS secrets and the daytime / overnight-summary rule) calls this:
  * each claim of today or yesterday (ET) not yet relayed goes through
- * notifyOwner once, as an 'alert' (bell + push + one text). A failed notify
- * leaves the claim unrelayed, so the next run retries. Never throws.
+ * notifyOwner once: the platform and public caps as an 'alert' (bell + push +
+ * one text), one company's cap as 'info' (bell + push). A failed bell write
+ * leaves the claim unrelayed, so the next run retries; a text notifyOwner
+ * could not send is not retried (its own ledger books the key). Never throws.
  * deps: { notify(msg) -> Promise, nowMs, limit? }.
  * Returns { relayed, failed, error? }.
  */
@@ -354,15 +356,26 @@ async function relayBreakerAlerts(db, deps) {
       const msg = {
         title: 'AI spend cap hit: ' + who + ' paused',
         body: 'The AI spend breaker paused ' + who + ' for ' + v.day + ' (cap ' + fmtUsd(v.capMicros) + ', spent ' + fmtUsd(v.spentMicros) + '). It resets at midnight ET. The email has how to raise it.',
-        severity: 'alert', key: 'ai-spend:' + id, type: 'ai_spend_breaker', clickUrl: '/pro/dashboard.html', idPrefix: 'ai-spend-',
+        // One company's cap is bell + push only: the owner's few texts a day
+        // stay for outages (a critical alert shares that daily budget).
+        severity: v.cap === 'company' ? 'info' : 'alert',
+        key: 'ai-spend:' + id, type: 'ai_spend_breaker', clickUrl: '/pro/dashboard.html', idPrefix: 'ai-spend-',
       };
+      // Mark first, so a mark that cannot be written never re-rings the bell
+      // every run (the email already went); a failed bell write un-marks it
+      // for the next run.
+      try { await ref.update({ relayedAtMs: nowMs }); } catch (e) {
+        out.failed++;
+        try { console.warn('ai_spend_alert_relay_mark_failed', { id, err: e && e.message }); } catch (_) { /* ignore */ }
+        continue;
+      }
       try {
         await deps.notify(msg);
         out.relayed++;
-        try { await ref.update({ relayedAtMs: nowMs }); } catch (_) { /* notifyOwner's own key dedupe stops a second text today */ }
       } catch (e) {
         out.failed++;
         try { console.warn('ai_spend_alert_relay_failed', { id, err: e && e.message }); } catch (_) { /* ignore */ }
+        try { await ref.update({ relayedAtMs: null }); } catch (_) { /* stays marked: the email still went */ }
       }
     }
   } catch (e) {
