@@ -181,6 +181,7 @@
   "monthlyOverheadAlertCron": "./monthly-overhead-alert",
   "morningBrief": "./morning-brief",
   "notifyNewLead": "./verify-functions",
+  "officePlanner": "./office-planner",
   "onAfterInstallDay": "./push-functions",
   "onAiDraftApproved": "./sms-functions",
   "onAppointmentReminder": "./push-functions",
