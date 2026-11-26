@@ -85,6 +85,27 @@ async function d2d(token, docs, knock) {
       r.res.statusCode + ' ' + JSON.stringify(r.res.body));
   }
 
+  console.log('C1. an approved AI draft for a registered other company never reaches Twilio');
+  {
+    const w = W.makeWorld({ clockMs: NOON, docs: Object.assign({ 'leads/lead-1': { userId: 'rep-1', companyId: 'co-1', phone: PHONE, phoneDigits: KEY, address: '12 Main St, Goshen, OH 45122' } }, REGISTERED_CO1) });
+    const mod = W.load(w, 'sms-functions.js');
+    const after = { status: 'approved', draftText: 'Sure, Tuesday works.', customerPhone: PHONE, userId: 'rep-1', companyId: 'co-1' };
+    w.store.set('leads/lead-1/ai_drafts/d1', Object.assign({}, after));
+    await mod.onAiDraftApproved.__handler({ params: { leadId: 'lead-1', draftId: 'd1' }, data: { before: { data: () => ({ status: 'pending' }) }, after: { data: () => after } } });
+    const d = w.store.get('leads/lead-1/ai_drafts/d1') || {};
+    ok('co-1 registered, draft approved → failed texting_disabled, Twilio called 0 times', d.status === 'failed' && d.failureReason === 'texting_disabled' && w.twilioCalls.length === 0, JSON.stringify(d));
+  }
+
+  console.log('C2. a platform admin on another company\'s knock, and the NBD control');
+  {
+    const ADMIN = { uid: 'joe', companyId: NBD, role: 'admin', email_verified: true };
+    const r = await d2d(ADMIN, {}, { userId: 'rep-1', companyId: 'co-1', phone: PHONE, smsConsent: true, repName: 'Al' });
+    ok('platform admin + a co-1 knock → refused no_own_sender, Twilio called 0 times',
+      r.res.statusCode === 403 && r.res.body && r.res.body.reason === 'no_own_sender' && r.w.twilioCalls.length === 0, r.res.statusCode + ' ' + JSON.stringify(r.res.body));
+    const c = await d2d(NBD_TOKEN, {}, { userId: 'joe', companyId: NBD, phone: PHONE, smsConsent: true, repName: 'Joe' });
+    ok('control: an NBD knock by NBD → 200, Twilio called once', c.res.statusCode === 200 && c.w.twilioCalls.length === 1, c.res.statusCode + ' ' + JSON.stringify(c.res.body));
+  }
+
   console.log('D. the Texting settings screen tells the truth (manageSmsCompliance)');
   {
     async function call(token, data, docs) {
@@ -104,6 +125,19 @@ async function d2d(token, docs, knock) {
     ok('...switching OFF is always allowed', off.out && off.out.ok === true && (off.w.store.get('sms_settings/co-1') || {}).enabled === false, JSON.stringify(off.out || (off.err && off.err.message)));
     const n = await call(Object.assign({ role: 'company_admin' }, NBD_TOKEN), { action: 'getSettings' });
     ok('control: NBD getSettings → allowed, needsRegistration false', n.out && n.out.allowed === true && n.out.needsRegistration === false, JSON.stringify(n.out || n.err));
+  }
+
+  console.log('E. NBD\'s storm list never texts another company\'s subscriber (storm-sms-guard loadActiveSubscribers)');
+  {
+    const w = W.makeWorld({ docs: {
+      'storm_alert_subscribers/s-nbd': { active: true, companyId: NBD, phone: '+15135550101' },
+      'storm_alert_subscribers/s-none': { active: true, phone: '+15135550102' },
+      'storm_alert_subscribers/s-other': { active: true, companyId: 'co-1', phone: '+15135550103' },
+      'storm_alert_subscribers/s-off': { active: false, companyId: NBD, phone: '+15135550104' },
+    } });
+    const G = W.load(w, 'storm-sms-guard.js');
+    const ids = (await G.loadActiveSubscribers(w.db, { documentId: '__name__' })).map((d) => d.id).sort();
+    ok('NBD\'s own and untagged subscribers stay; one tagged to another company is left out', JSON.stringify(ids) === JSON.stringify(['s-nbd', 's-none']), JSON.stringify(ids));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

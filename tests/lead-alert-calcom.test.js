@@ -379,8 +379,10 @@ const NO_PHONE_SMS = 'NO PHONE — reply to the confirmation email';
     ok('ceiling is a sane, finite number', Number.isInteger(CAP) && CAP >= 20 && CAP <= 200, CAP);
     rl.counts = {}; rl.calls = []; rl.fail = false;
     let sent = 0;
-    for (let i = 1; i <= CAP; i++) { await fire(exp, lead(i), 'calcom__bk_cap_' + i); sent += rec.emails.length + rec.sms.length; }
-    ok('(control) the first ' + CAP + ' alerts of the day all go out (email + SMS each)', sent === 2 * CAP, sent);
+    let texted = 0;
+    for (let i = 1; i <= CAP; i++) { await fire(exp, lead(i), 'calcom__bk_cap_' + i); sent += rec.emails.length; texted += rec.sms.length; }
+    // S0 (2026-11-26): a tenant owner's alert never goes out as a text on NBD's number; email only.
+    ok('(control) the first ' + CAP + ' alerts of the day all go out (one email each, no text on the NBD number)', sent === CAP && texted === 0, { sent, texted });
     await fire(exp, lead(CAP + 1), 'calcom__bk_cap_' + (CAP + 1));
     ok('alert number ' + (CAP + 1) + ' sends no email and no SMS', rec.emails.length === 0 && rec.sms.length === 0, { emails: rec.emails.length, sms: rec.sms.length });
     ok('...but the lead still gets its push and its ledger row', rec.pushes.length === 1 && rec.outbox.length === 1
@@ -395,7 +397,7 @@ const NO_PHONE_SMS = 'NO PHONE — reply to the confirmation email';
     ok('an NBD lead never touches the tenant limiter and still alerts', rl.calls.length === 0 && rec.emails.length === 1 && rec.sms.length === 1, rl.calls);
     rl.fail = true;
     await fire(exp, lead(9999), 'calcom__bk_cap_9999');
-    ok('a limiter outage fails OPEN (alert still sent)', rec.emails.length === 1 && rec.sms.length === 1, { emails: rec.emails.length, sms: rec.sms.length });
+    ok('a limiter outage fails OPEN (alert still sent; a tenant gets the email, never a text on the NBD number)', rec.emails.length === 1 && rec.sms.length === 0, { emails: rec.emails.length, sms: rec.sms.length });
     rl.fail = false;
   }
 

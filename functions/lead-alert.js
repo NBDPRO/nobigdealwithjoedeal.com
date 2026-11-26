@@ -570,6 +570,9 @@ async function alertJoe(collection, d, leadId, opts = {}) {
     const ia = await MessagingControls.internalAlertStatus(getFirestore(), 'sms', { key: collection + '/' + leadId, bucket: 'lead', source: leadSrc });
     if (!ia.allowed) smsHeld = ia.reason;
   }
+  // S0 (2026-11-26): another company's owner alert would go out on NBD's number and A2P
+  // campaign. Until a company has its own Twilio number it gets the email and push only.
+  if (toSms && !opts.skipSms && !capped && !target.isNbd) smsHeld = 'no_own_sender';
   if (smsHeld) {
     outcomes.sms = 'skipped:' + smsHeld;
     logger.warn('leadAlert: internal alert text held', { collection, leadId, reason: smsHeld });
