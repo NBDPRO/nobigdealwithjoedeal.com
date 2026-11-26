@@ -61,6 +61,7 @@ const TOLL_FREE = new Set(['800', '833', '844', '855', '866', '877', '888']);
 const ALLOWED_EMAIL_DOMAINS = [
   /(^|\.)example\.(com|org|net)$/, /\.(test|invalid|example|localhost)$/,
   /^nobigdealwithjoedeal\.com$/, /^nobigdeal\.pro$/, /^nobigdeals\.com$/, /^nbdpro\.com$/,
+  /^mail\.nobigdealwithjoedeal\.com$/, // the review-ask sending subdomain for other companies (reviews@, 2026-11-26)
   /^oaksrfc\.com$/, /^oaksroofingandconstruction\.com$/, /^oaksroofing\.com$/, /^oaks\.com$/, // the Oaks tenant's business addresses
   /^resend\.dev$/, /(^|\.)gserviceaccount\.com$/, /\.ingest\.us\.sentry\.io$/, /^lexingtonky\.gov$/,
   // throwaway fixture domains used in unit tests
