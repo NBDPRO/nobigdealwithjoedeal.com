@@ -64,7 +64,7 @@
 
 /* ── rain-day sheet ────────────────────────────────────────────────────── */
 .pr-overlay { position: fixed; inset: 0; z-index: 10040; background: rgba(0, 0, 0, .6); display: flex; align-items: flex-end; justify-content: center; padding: 12px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
-.pr-sheet-card { width: 100%; max-width: 560px; max-height: 88vh; overflow: auto; background: var(--s); color: var(--t); border-radius: 12px; padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+.pr-sheet-card { width: 100%; max-width: 560px; max-height: 88vh; max-height: min(88vh, calc(100dvh - 2 * env(safe-area-inset-top, 0px) - 16px)); overflow: auto; background: var(--s); color: var(--t); border-radius: 12px; padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 8px; }
 .pr-rain-list { flex: 1 1 100%; margin: 0; padding-left: 18px; font-size: 13px; }
 .pr-rain-row { padding: 6px 0; border-bottom: 1px solid var(--br); overflow-wrap: anywhere; }
 .pr-sheet-card .btn { min-height: 44px; font-size: 14px; padding: 10px 16px; }

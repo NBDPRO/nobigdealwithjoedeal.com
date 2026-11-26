@@ -293,6 +293,10 @@ exports.leadAlertWatchdog = require('./lead-alert-watchdog').leadAlertWatchdog;
 // Healthchecks check hides a dead member) and tell Joe, daytime only except
 // call/text ingest (2026-11-22). CRON_DEADMAN_DISABLED=true → dry run.
 exports.cronDeadman = require('./cron-deadman').cronDeadman;
+// Every 15 min: a READ-ONLY copy of new iCloud (jd@ + info@) and Gmail inbox
+// mail, redacted, for the office planner (2026-11-25, roadmap step 17 part A).
+// DARK: MAIL_FEED_ENABLED=true and the mail secrets set, else a logged no-op.
+exports.mailFeed = require('./mail-feed').mailFeed;
 // /estimate saves at step 1 and later UPDATES that lead (2026-11-14): tell Joe
 // when it is finished, and re-apply the CRM-card patch if the inline one failed.
 const estimateFunnelTriggers = require('./estimate-funnel-triggers');

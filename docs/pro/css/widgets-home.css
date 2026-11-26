@@ -48,7 +48,7 @@
 .wg-red-bold { font-weight: 700; color: var(--red); }
 .wg-name { font-weight: 600; font-size: 11px; color: var(--t); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wg-kicker { font-size: 9px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--orange); }
-.wg-edit-link { font-size: 9px; color: var(--m); text-align: right; margin-top: 3px; cursor: pointer; user-select: none; }
+.wg-edit-link { font-size: 9px; color: var(--m); text-align: right; margin-top: 3px; cursor: pointer; -webkit-user-select: none; user-select: none; }
 .wg-foot { font-size: 9px; color: var(--m); margin-top: 4px; }
 .wg-tiny { font-size: 9px; color: var(--m); }
 .wg-big { font-size: 42px; line-height: 1; }

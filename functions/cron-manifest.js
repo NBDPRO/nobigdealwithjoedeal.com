@@ -75,7 +75,7 @@ const ENTRIES = Object.freeze({
   googleCalendarReconcile: none(['env:GOOGLE_CALENDAR_SYNC_DISABLED']),
   dailyFirestoreBackup: none(),
   firestoreBackupRetention: none(),
-  backupFreshnessCron: none(),            // email_queue to the owner
+  backupFreshnessCron: none([], 'owner only: email_queue to the owner + owner-notify.js text to the owner phone (step 13); never a customer'),
   weeklyVendorConfigExport: none(),
   migrationsTick: none(),
   dailyLeadDigest: none([], 'the digest to DIGEST_EMAILS (the owner)'),
@@ -106,8 +106,9 @@ const ENTRIES = Object.freeze({
   syncGbpReviews: none(),
   socialPublisher: none(['env:SOCIAL_PUBLISHER_DISABLED', 'env:SOCIAL_GBP_ENABLED']), // public posts, not messages
   reelCleanup: none(['flag:global.reelStudioDisabled'], 'deletes old reels; reaches call-center.js only through voice-intelligence.js / visit-capture.js'),
-  healthDigestCron: none(['env:HEALTH_DIGEST_ENABLED']),
+  healthDigestCron: none(['env:HEALTH_DIGEST_ENABLED'], 'owner only: the daily health digest to the owner + owner-notify.js alerts (step 13); never a customer'),
   monthlyOverheadAlertCron: none(['env:MONTHLY_OVERHEAD_ALERT_DISABLED']),
+  mailFeed: none(['env:MAIL_FEED_ENABLED']), // reads mail (IMAP read-only, Gmail GET), sends nothing
 });
 
 const REQUIRE_RE = /require\(\s*['"]([^'"]+)['"]\s*\)/g;

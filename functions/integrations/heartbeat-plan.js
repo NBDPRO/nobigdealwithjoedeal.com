@@ -46,6 +46,7 @@ const CHECKS = {
   'lead-follow-up-sweep':    { period: '3 hours',   grace: '4 hours',    why: 'follow-up to untouched new leads' },
   'storm-poller':            { period: '30 minutes', grace: '1 hour',    why: 'the one storm poller (#2148) — storm alert texts + NWS watch' },
   'social-publisher':        { period: '5 minutes', grace: '30 minutes', why: 'scheduled Social Studio posts go out (#2162); removed-member storage-move resume (#2271)' },
+  'mail-feed':               { period: '15 minutes', grace: '1 hour',    why: 'read-only iCloud + Gmail inbox copy (2026-11-25); its own check so a mailbox that stays broken cannot flap a shared one' },
   // ── shared: same cadence, failures still surface via /fail
   'calls-texts-ingest':      { period: '30 minutes', grace: '1 hour',    why: 'call recordings, transcripts, texts in' },
   'hourly-crons':            { period: '1 hour',    grace: '2 hours',    why: 'abandoned-estimate recovery + text notes' },
@@ -76,6 +77,7 @@ const PLAN = {
   callCenterTranscribe:      { slug: 'calls-texts-ingest' },
   textInboxIngest:           { slug: 'calls-texts-ingest' },
   leadAlertWatchdog:         { slug: 'calls-texts-ingest' }, // 2026-10-07: every 10 min; a /fail = a lead reached nobody even on the re-send
+  mailFeed:                  { slug: 'mail-feed' }, // 2026-11-25: every 15 min, read-only iCloud + Gmail inbox copy; a /fail = a mailbox sign-in or read failed. Own check: a revoked password fails every run, which would flap calls-texts-ingest against its 10-min siblings
   cronDeadman:               { slug: 'calls-texts-ingest' }, // 2026-11-22: every 30 min, per-job ledger watcher; a /fail = it alerted Joe; pipeline-deadman watches it
 
   runAbandonRecovery:        { slug: 'hourly-crons' },

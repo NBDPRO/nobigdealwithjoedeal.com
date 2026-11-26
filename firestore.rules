@@ -2955,6 +2955,16 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── MAIL FEED (2026-11-25, functions/mail-feed.js) ───────────
+    // Read-only server copy of inbox mail (masked) + its cursor. Admin SDK
+    // only: no client reads or writes either, ever.
+    match /mail_feed/{companyId}/{rest=**} {
+      allow read, write: if false;
+    }
+    match /mail_feed_state/{companyId} {
+      allow read, write: if false;
+    }
+
     // ── LEADERBOARD ───────────────────────────────────
     // Readable within the same company (or admin/owner). Writes are
     // admin-SDK only — counters must come from a Cloud Function that

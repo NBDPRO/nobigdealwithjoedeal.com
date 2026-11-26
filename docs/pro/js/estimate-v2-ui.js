@@ -617,7 +617,7 @@
         font-weight:700; text-transform:uppercase; letter-spacing:.15em;
         color:var(--orange,#BD5728); margin:16px 0 8px; padding:6px 8px 6px 4px;
         border-bottom:1px solid var(--br,#2a2f35);
-        cursor:pointer; user-select:none;
+        cursor:pointer; -webkit-user-select:none;user-select:none;
         display:flex; align-items:center; justify-content:space-between;
         -webkit-tap-highlight-color:transparent; touch-action:manipulation;
         min-height:32px;

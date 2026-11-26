@@ -161,6 +161,7 @@
   "listStormOutreach": "./agent-mcp",
   "listTeamMembers": "./handlers/admin",
   "lookupParcel": "./integrations/parcel",
+  "mailFeed": "./mail-feed",
   "manageAway": "./away-mode",
   "manageMessagingControls": "./messaging-controls-fns",
   "manageSmsCompliance": "./sms-dnc",

@@ -199,11 +199,11 @@
   // Quinn gate (roadmap step 8): a draft Quinn has not passed (the server's
   // check says why) asks once more before it goes, and the send says so.
   // No answer from the check yet (or it failed) counts as not checked.
-  const qWhy = (id) => { const c = _checks[id]; return c && 'quinn' in c ? c.quinn : Q0; };
+  const qWhy = (id) => { const c = _checks[id]; return c ? c.quinn : Q0; };
   const qOk = async (id) => {
-    const c = _checks[id] = _checks[id] || {};
-    if (!qWhy(id) || c.qy) return true;
-    return (c.qy = await askYes(qWhy(id) + '. Send?'));
+    const w = qWhy(id), c = _checks[id] = _checks[id] || { quinn: w };
+    if (!w || c.qy) return true;
+    return (c.qy = await askYes(w + '. Send?'));
   };
   // The owner tapped send (text) or "Mark sent" (email): the server marks it
   // and writes the Communication Log row + a note. The Messages / Mail app
