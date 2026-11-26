@@ -323,7 +323,8 @@ group('Desktop dropdown and mobile drawer stay in sync', () => {
     const menu = html.match(/<ul class="dropdown-menu">[\s\S]*?<\/ul>/);
     if (!menu) return false;
     // Only menus that carry the tools group — nav-blog's is a services-only list.
-    if (menu[0].indexOf('/roof-score') === -1) return false;
+    // (/roof-score merged into /roof-check on 2026-11-25: the tools group now carries /roof-check.)
+    if (menu[0].indexOf('/roof-check') === -1) return false;
     return menu[0].indexOf('/visualizer') === -1;
   });
   assert('every desktop tools dropdown offers the Roof Visualizer', offenders.length === 0,

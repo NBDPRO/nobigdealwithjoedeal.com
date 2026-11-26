@@ -133,13 +133,13 @@ console.log('R4-6-1 / R4-6-8 — storm date of loss in Eastern (storm-time.js)')
   const age = safe(() => d.NBDD2DStorms.ageDays('2026-06-15T02:10:00', Date.parse('2026-06-16T02:10:00Z')));
   ok('D2D storm age reads the IEM time as UTC (exactly 1 day later = 1.0 day)', Math.abs(age - 1) < 1e-9, String(age));
 
-  // Public storm-history page.
-  const f = bodyAfter(src('docs/assets/js/storm-report-page.js'), 'function fmtDate(');
+  // Public storm-history page (/roof-check since 2026-11-25; was /storm-report).
+  const f = bodyAfter(src('docs/assets/js/roof-check.js'), 'function fmtDate(');
   const fmt = f && ST ? safe(() => new Function('window', 's', f.slice(1, -1))({ NBDStormTime: ST }, '2026-06-15T02:10:00')) : null;
   ok('public storm page dates a 10:10pm ET report Jun 14, 2026', fmt === 'Jun 14, 2026', String(fmt));
-  const sr = read('docs/storm-report.html');
-  ok('storm-report.html loads /pro/js/storm-time.js before storm-report-page.js',
-    sr.indexOf('/pro/js/storm-time.js?v=') > 0 && sr.indexOf('/pro/js/storm-time.js?v=') < sr.indexOf('/assets/js/storm-report-page.js?v='));
+  const sr = read('docs/roof-check.html');
+  ok('roof-check.html loads /pro/js/storm-time.js before roof-check.js',
+    sr.indexOf('/pro/js/storm-time.js?v=') > 0 && sr.indexOf('/pro/js/storm-time.js?v=') < sr.indexOf('/assets/js/roof-check.js?v='));
 
   // Storm Watch text + email to Joe.
   ok('Storm Watch prints IEM times in Eastern ("Jun 14, 5:30 PM ET")', !!ST && ST.whenTextEt('2026-06-14T21:30:00') === 'Jun 14, 5:30 PM ET', ST && ST.whenTextEt('2026-06-14T21:30:00'));
