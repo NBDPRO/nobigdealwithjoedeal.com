@@ -223,7 +223,7 @@ function loadEmail(opts) {
     const scripts = tail.split('<script defer src="').slice(1).map((x) => x.split('"')[0]);
     ok(slug + ': exactly the injected (hidden) box right after the generated body, with its scripts',
       parts.length === 2 && tail.slice(0, want.length) === want && page.split('data-guide-copy=').length === 2 &&
-      scripts.indexOf('/assets/js/public-lead-submit.js') !== -1 && scripts.indexOf('/assets/js/guide-email-copy.js?v=1') !== -1,
+      scripts.indexOf('/assets/js/public-lead-submit.js') !== -1 && scripts.indexOf('/assets/js/guide-email-copy.js?v=2') !== -1,
       { parts: parts.length, scripts });
   }
   ok('how-a-roof-works (no PDF) has no box', fs.readFileSync(path.join(ROOT, 'docs/guides/how-a-roof-works.html'), 'utf8').split('data-guide-copy').length === 1);

@@ -4379,6 +4379,11 @@ service cloud.firestore {
       allow read: if isAdmin();
     }
 
+    // Storm-tips email state (2026-11-26): server-only (stormTipsAdmin / stormTipsSweep).
+    match /storm_tips_state/{id} { allow read, write: if false; }
+    match /storm_tips_settings/{id} { allow read, write: if false; }
+    match /storm_tips_sends/{id} { allow read, write: if false; }
+
     match /contact_leads/{leadId} {
       allow create, update, delete: if false;
       allow read: if isAdmin();

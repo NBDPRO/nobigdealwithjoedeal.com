@@ -288,12 +288,14 @@ const PUBLIC_LEAD_KINDS = {
   // phone. `guide` must be a slug from guide-copy-logic.js GUIDES (checked
   // below, with the email shape); guideCopyEmail sends the one copy and
   // lead-bridge files a cold CRM lead. emailConsent = the optional "also email
-  // me storm tips" box, recorded only (no storm-tips program sends yet).
+  // me storm tips" box (storm-tips-email.js reads it, dark until Joe turns it
+  // on). zip is optional (2026-11-26): it lets a storm-tips send target the
+  // people near a real storm; a bad one is refused below.
   guide_copy: {
     collection: 'guide_copy_requests',
     required: ['email', 'guide', 'source'],
-    maxLen:   { email: 200, guide: 80, source: 200 },
-    optional: [...PUBLIC_LEAD_OPTIONAL_DEFAULTS],
+    maxLen:   { email: 200, guide: 80, source: 200, zip: 10 },
+    optional: [...PUBLIC_LEAD_OPTIONAL_DEFAULTS, 'zip'],
     boolOptional: ['emailConsent']
   },
   contact: {
@@ -732,6 +734,13 @@ exports.submitPublicLead = onRequest(
         return;
       }
       if (!GC.isGuideSlug(data.guide)) { res.status(400).json({ error: 'Invalid submission' }); return; }
+      if (data.zip != null && data.zip !== '') {
+        const zip = require('../storm-tips-logic').cleanZip(data.zip);
+        if (!zip) { res.status(400).json({ error: 'Please enter a 5-digit ZIP code, or leave it blank.', field: 'zip' }); return; }
+        data.zip = zip;
+      } else {
+        delete data.zip;
+      }
     }
 
     // Probe answer: every gate passed. Nothing below runs for it (no started-

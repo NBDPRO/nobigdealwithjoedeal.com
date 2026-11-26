@@ -122,6 +122,18 @@ for (const page of PAGES) {
             s.classList.toggle('active', i === 0);
             s.classList.remove('exit');
           });
+          // WHY (2026-11-26): the homepage hero's background loop (hero-video.js) starts on load + an idle slot,
+          // which clearing timers does not stop, so every capture caught a different frame. On PR #3287 the three
+          // CI captures of one commit differed by ~5% of pixels, over the 2% ratio. Pause every hero loop and
+          // drop `is-playing`: the video goes back to opacity 0 and the hero shows its still photo, which is
+          // exactly what reduced-motion and Save-Data visitors get. Transitions are off (style tag above), so the
+          // fade-out is instant. play() is stubbed first because hero-video.js may still be waiting on its idle
+          // callback (not a timer, so the loop above does not cancel it) and would start the loop after this.
+          HTMLMediaElement.prototype.play = function () { return Promise.resolve(); };
+          document.querySelectorAll('video[data-hero-video]').forEach((v) => {
+            v.pause();
+            v.classList.remove('is-playing');
+          });
         });
         await expect(pw).toHaveScreenshot(page.name + '--' + vp.name + '.png', {
           fullPage:        true,

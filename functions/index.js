@@ -284,6 +284,9 @@ Object.assign(exports, stormReportFn);
 exports.stormReportEmail = require('./storm-report-email').stormReportEmail;
 // "Email me this guide" (2026-11-26): one copy with the guide's PDF attached.
 exports.guideCopyEmail = require('./guide-copy-email').guideCopyEmail;
+// Storm-season tips email for guide subscribers who opted in (2026-11-26, DARK).
+exports.stormTipsAdmin = require('./storm-tips-email').stormTipsAdmin;
+exports.stormTipsSweep = require('./storm-tips-email').stormTipsSweep;
 
 // Text + email Joe the moment any public marketing lead lands (additive triggers).
 const leadAlertFns = require('./lead-alert');
