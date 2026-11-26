@@ -482,7 +482,7 @@ exports.publicVisualizerAI = onRequest(
 );
 
 // ═══════════════════════════════════════════════════════════════════════════
-// publicFunnelAI — Public marketing-funnel text AI (estimate + storm-check).
+// publicFunnelAI — Public marketing-funnel text AI (estimate + roof-check).
 //
 // The estimate.html instant-estimator and the storm-alerts self-check call this
 // for short, text-only Claude completions (a roof-size JSON estimate and a
