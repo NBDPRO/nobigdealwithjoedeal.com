@@ -44,6 +44,8 @@ const TEMPLATE_FILES = Object.freeze([
   'functions/review-ask-auto-logic.js',
   'functions/review-ask-v2.js',       // v2 sends: text first + one reminder (dark, 2026-11-26)
   'functions/review-ask-v2-logic.js', // v2 words: the reminder text + email
+  'functions/review-ask-tenant.js',       // the review ask for other companies (2026-11-26, dark)
+  'functions/review-ask-tenant-logic.js', // its fixed email words
   'functions/missed-call-reply-logic.js',
   'functions/missed-call-autotext.js',
   'functions/storm-watch.js',

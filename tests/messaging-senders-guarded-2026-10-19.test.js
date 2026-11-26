@@ -103,6 +103,8 @@ const CUSTOMER_EMAIL_RULES = {
   'functions/review-ask-auto.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   // v2 sends (2026-11-26): every email through guardEmail + the email switch; the automation status is the sweep's (review-ask-auto.js).
   'functions/review-ask-v2.js': ['MessagingControls.guardEmail(', "MessagingControls.channelStatus(db, 'email')"],
+  // The review ask for OTHER companies, email only (2026-11-26, dark): guardEmail at the send + the automation status for the run.
+  'functions/review-ask-tenant.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/portal-moments.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/lead-alert.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/estimate-email.js': ['MessagingControls.guardEmail('],
