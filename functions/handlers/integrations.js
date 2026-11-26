@@ -284,6 +284,18 @@ const PUBLIC_LEAD_KINDS = {
     // with the wording version below (pro-prospects-logic.js).
     boolOptional: ['emailConsent']
   },
+  // "Email me this guide" on the homeowner guides (2026-11-26). Email only, no
+  // phone. `guide` must be a slug from guide-copy-logic.js GUIDES (checked
+  // below, with the email shape); guideCopyEmail sends the one copy and
+  // lead-bridge files a cold CRM lead. emailConsent = the optional "also email
+  // me storm tips" box, recorded only (no storm-tips program sends yet).
+  guide_copy: {
+    collection: 'guide_copy_requests',
+    required: ['email', 'guide', 'source'],
+    maxLen:   { email: 200, guide: 80, source: 200 },
+    optional: [...PUBLIC_LEAD_OPTIONAL_DEFAULTS],
+    boolOptional: ['emailConsent']
+  },
   contact: {
     collection: 'contact_leads',
     required: ['firstName', 'phone', 'source'],
@@ -682,6 +694,18 @@ exports.submitPublicLead = onRequest(
       return;
     }
 
+    // Guide copy (2026-11-26): the only thing this kind does is email a
+    // published PDF, so a bad address or an unknown guide is refused here
+    // rather than stored as a request that can never be sent.
+    if (kind === 'guide_copy') {
+      const GC = require('../guide-copy-logic');
+      if (!GC.isValidEmail(data.email)) {
+        res.status(400).json({ error: 'Please enter a valid email address.', field: 'email' });
+        return;
+      }
+      if (!GC.isGuideSlug(data.guide)) { res.status(400).json({ error: 'Invalid submission' }); return; }
+    }
+
     // /estimate step-1 save (2026-11-14, Joe). A create may say it is a
     // STARTED estimate and nothing else: 'completed' is only ever reached by
     // updating a started lead below, so a client cannot mint a "finished" lead.
@@ -733,6 +757,10 @@ exports.submitPublicLead = onRequest(
     if (kind === 'guide' && data.emailConsent === true) {
       data.emailConsentAt = FieldValue.serverTimestamp();
       data.emailConsentVersion = require('../pro-prospects-logic').EMAIL_CONSENT_VERSION;
+    }
+    if (kind === 'guide_copy' && data.emailConsent === true) {
+      data.emailConsentAt = FieldValue.serverTimestamp();
+      data.emailConsentVersion = require('../guide-copy-logic').STORM_TIPS_CONSENT_VERSION;
     }
     // Per-kind server-set defaults (never trusted from the client). storm sets
     // active:true so the storm-alert cron's .where('active','==',true) actually

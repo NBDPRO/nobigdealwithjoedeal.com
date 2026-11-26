@@ -41,6 +41,9 @@ const BRIDGE_KINDS = {
   inspect_leads:           { kind: 'inspect',   label: 'Inspection / Storm tool' },
   free_roof_entries:       { kind: 'free_roof', label: 'Free Roof entry' },
   storm_alert_subscribers: { kind: 'storm',     label: 'Storm Alert' },
+  // "Email me this guide" (2026-11-26): email only, a cold lead. It has no
+  // lead-alert trigger, so nothing pages Joe; the card is for seeing who reads what.
+  guide_copy_requests:     { kind: 'guide_copy', label: 'Guide copy' },
   // Thumbtack webhook pushes (integrations/thumbtack.js). NOT a website form —
   // see EXTERNAL_SOURCE_LABEL below for why its `source` is spelled differently.
   thumbtack_leads:         { kind: 'thumbtack', label: 'Thumbtack' },
@@ -248,6 +251,7 @@ function mapPublicLeadToLead(args) {
     const c = String(data.concern || '').toLowerCase();
     notesParts.push('Storm Alert signup — concern: ' + (STORM_CONCERN_LABEL[c] || c || 'unspecified'));
   }
+  if (collection === 'guide_copy_requests') notesParts.push(...require('./guide-copy-logic').crmNoteLines(data));
   if (data.photoCount) notesParts.push('Homeowner attached ' + data.photoCount + ' photo(s) — see Photos');
   // Intake answers (2026-09-30).
   notesParts.push(...intakeNoteLines(data));

@@ -105,6 +105,7 @@ const CUSTOMER_EMAIL_RULES = {
   'functions/lead-alert.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/estimate-email.js': ['MessagingControls.guardEmail('],
   'functions/storm-report-email.js': ['MessagingControls.guardEmail('],
+  'functions/guide-copy-email.js': ['MessagingControls.guardEmail('],
   'functions/esign-io.js': ['MessagingControls.guardResend('],
   'functions/remote-signing.js': ['MessagingControls.guardResend('],
   'functions/report-sharing.js': ['MessagingControls.guardResend('],
@@ -137,7 +138,7 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
 
 // E3. One-shot triggers check the pause BEFORE they take their claim (a pause must not burn the claim).
 {
-  for (const [rel, claimToken] of [['functions/estimate-email.js', 'runTransaction('], ['functions/storm-report-email.js', 'runTransaction('], ['functions/pro-prospects.js', 'runTransaction(']]) {
+  for (const [rel, claimToken] of [['functions/estimate-email.js', 'runTransaction('], ['functions/storm-report-email.js', 'runTransaction('], ['functions/guide-copy-email.js', 'runTransaction('], ['functions/pro-prospects.js', 'runTransaction(']]) {
     const code = byRel(rel);
     const iCheck = code.indexOf('channelStatus(');
     const iClaim = code.indexOf(claimToken, iCheck > 0 ? 0 : 0);
@@ -239,7 +240,7 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
 // H. One-shot triggers (Cloud Function bodies, no test hook): a pause OR a canary redirect that lands AFTER the
 //    pre-check (a flip between the pre-check and guardEmail) must release the claim, never leave it stamped emailed.
 {
-  for (const [rel, field] of [['estimate-email.js', 'estimateEmailedAt'], ['storm-report-email.js', 'reportEmailedAt']]) {
+  for (const [rel, field] of [['estimate-email.js', 'estimateEmailedAt'], ['storm-report-email.js', 'reportEmailedAt'], ['guide-copy-email.js', 'guideEmailedAt']]) {
     const src = stripJsComments(fs.readFileSync(path.join(FN, rel), 'utf8'));
     const afterGuard = src.slice(src.indexOf('guardEmail('));
     const release = new RegExp(field + ': FieldValue\\.delete\\(\\)', 'g');
