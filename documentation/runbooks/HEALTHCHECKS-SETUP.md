@@ -74,12 +74,13 @@ be checked from the repo:
    - `email-queue-worker` (1 min / 10 min) - every outbound email, including the
      reminder emails, rides this queue.
    - `health-digest-cron` (1 day / 6 h) - the daily health email.
-3. **The 19 slugs.** All of: `email-queue-worker`, `on-appointment-reminder`,
+3. **The 20 slugs.** All of: `email-queue-worker`, `on-appointment-reminder`,
    `daily-firestore-backup`, `backup-freshness-cron`, `migrations-tick`,
    `stripe-ledger-reconcile`, `enforce-lapsed-seats`, `health-digest-cron`,
    `lead-follow-up-sweep`, `storm-poller`, `social-publisher`,
    `calls-texts-ingest`, `hourly-crons`, `call-followups`, `daily-retention`,
-   `daily-customer-touches`, `daily-syncs`, `weekly-crons`, `monthly-crons`.
+   `daily-customer-touches`, `daily-syncs`, `weekly-crons`, `monthly-crons`,
+   `mail-feed` (only once the mail feed is on).
    A slug with no check behind it is simply ignored (404), so a missing one is
    invisible until you look.
 4. **Where the alert goes.** Project > Integrations: your own email is on by
@@ -90,7 +91,7 @@ be checked from the repo:
    and confirm the notice reaches you, then resume it. A watcher nobody has
    heard from is not a watcher.
 
-## The 19 checks to create (40 crons)
+## The 20 checks to create
 
 **Updated 2026-10-05.** There are now 40 scheduled functions and the free tier
 holds 20 checks, so the slug each cron pings comes from an explicit plan,
@@ -119,6 +120,7 @@ table drifts from it.
 | `lead-follow-up-sweep` | leadFollowUpSweep | 3 hours | 4 hours | follow-up to untouched new leads |
 | `storm-poller` | stormPoller | 30 minutes | 1 hour | the one storm poller (#2148) — storm alert texts + NWS watch |
 | `social-publisher` | socialPublisher, resumeMemberStorageMoves | 5 minutes | 30 minutes | scheduled Social Studio posts go out (#2162); removed-member storage-move resume (#2271) |
+| `mail-feed` | mailFeed | 15 minutes | 1 hour | read-only iCloud + Gmail inbox copy (2026-11-25; a /fail means a mailbox sign-in or read failed). Its own check: a revoked password or expired token fails every run, which would flap a shared check against its siblings. Only matters once the feed is on ([MAIL-FEED-SETUP](MAIL-FEED-SETUP.md)) |
 | `calls-texts-ingest` | callCenterIngest, callCenterTranscribe, visitCaptureSweep, textInboxIngest, leadAlertWatchdog, cronDeadman | 30 minutes | 1 hour | call recordings, transcripts, texts in; the missed-lead-alert re-send (every 10 min — a /fail means a lead reached Jo by no channel, even on the re-send); cronDeadman (2026-11-22, every 30 min — a /fail means it just alerted about a dead or failing cron) |
 | `hourly-crons` | runAbandonRecovery, textInboxNotes, messagingWatch, docLinkFollowupSweep, leaderboardAggregate | 1 hour | 2 hours | abandoned-estimate recovery + text notes; the secure-document-link reminder to the owner (:17, Agent inbox only); the team leaderboard rows (every 30 min, counts only) |
 | `call-followups` | callWatch, callCenterSweep, awayModeTick | 12 hours | 1 hour | call watch (2h, 08-20 ET) + promise sweep (07:15/15:15 ET) + away-mode backup tick (15 min) |
@@ -128,7 +130,8 @@ table drifts from it.
 | `weekly-crons` | weeklyDigest, dormantLeadNudge, weeklyVendorConfigExport, ownerWeeklyDigest | 1 week | 12 hours | weekly digest (Mon) + dormant-lead nudge (Wed) + vendor-config export (Sun) + owner digest into the Agent inbox (Mon 07:30 ET) |
 | `monthly-crons` | monthlyMarketingReport, monthlyOverheadAlertCron | cron 0 7 1 * * (America/New_York) | 12 hours | marketing report + overhead alert, 1st of month |
 
-That is 19 of 20 — one spare for the next high-stakes cron.
+That is 20 of 20 (2026-11-25: `mail-feed` took the spare). The next cron
+that needs its own check means upgrading the plan or merging two groups.
 
 **2026-10-05:** `storm-crons` (checkStormAlerts + stormWatch) is gone — #2148
 replaced both with one `stormPoller`, which pings `storm-poller`. If you
