@@ -387,7 +387,8 @@ const sends = (db) => [...db.store.entries()].filter(([p]) => p.startsWith('revi
     ok('the same address: company A and company B both ask; company C is refused (2 others in 30 days)',
       r.resend.sent.length === 2 && r.out.counts.recipient_global_cap === 1, JSON.stringify(r.out.counts));
     const C1 = w.store.get('leads/C1') || {};
-    ok('company C\'s lead carries nothing that reveals why (no reviewAutoAsk, no reason)', !C1.reviewAutoAsk && !JSON.stringify(C1).includes('recipient'));
+    ok('company C\'s lead carries only the generic "done" (so its rep takes the job back), never the reason',
+      C1.reviewAutoAsk && C1.reviewAutoAsk.status === 'done' && !C1.reviewRequested && !JSON.stringify(C1).includes('recipient') && !JSON.stringify(C1).includes('global'));
     ok('the reason lives only in the server-only send log', sends(w).some((x) => x.companyId === 'co-c' && x.reason === 'recipient_global_cap'));
 
     // A definite failure gives everything back; an unknown one keeps it
@@ -464,7 +465,7 @@ const sends = (db) => [...db.store.entries()].filter(([p]) => p.startsWith('revi
       w = world({ 'invoices/I1': invoiceOf('L1', { paidAt: NOW - 5 * DAY }) });
       MC._resetCache();
       const ta = await H2.tenantAutoSet(w, { REVIEW_ASK_TENANTS_ENABLED: 'true' });
-      ok('tenantAutoSet: the enabled, approved company is in; NBD never', ta.has('co-a') && !ta.has('nbd-owner'), JSON.stringify([...ta]));
+      ok('tenantAutoSet: the enabled, approved company is in with the reps the sweep visits; NBD never', ta.has('co-a') && ta.get('co-a').has('rep-a') && !ta.has('nbd-owner'), JSON.stringify([...ta.keys()]));
       const nudgeOff = await RN.findReviewDueLeads(w, 'rep-a', { nowMs: NOW });
       ok('control: without the set, the nudge would take the job', nudgeOff.some((x) => x.id === 'L1'));
       const nudgeOn = await RN.findReviewDueLeads(w, 'rep-a', { nowMs: NOW, tenantAuto: ta });
@@ -474,6 +475,16 @@ const sends = (db) => [...db.store.entries()].filter(([p]) => p.startsWith('revi
       ok('...and the sweep with the REAL finder asks it once', rr.asked === 1, JSON.stringify(rr.counts));
       const off = await H2.tenantAutoSet(w, {});
       ok('flag off → the set is empty (the nudge behaves exactly as before)', off.size === 0);
+      // A rep the sweep never visits (no users/{uid}.companyId mirror) keeps the nudge.
+      w = world({ 'users/rep-a': {}, 'invoices/I1': invoiceOf('L1', { paidAt: NOW - 5 * DAY }) });
+      MC._resetCache();
+      const taNoMirror = await H2.tenantAutoSet(w, { REVIEW_ASK_TENANTS_ENABLED: 'true' });
+      ok('a rep without the company mirror keeps the nudge (the sweep would never visit them)', (await RN.findReviewDueLeads(w, 'rep-a', { nowMs: NOW, tenantAuto: taNoMirror })).some((x) => x.id === 'L1'));
+      // Past the sweep's 7-day limit the job goes back to the rep.
+      w = world({ 'invoices/I1': invoiceOf('L1', { paidAt: NOW - 9 * DAY, payments: [{ amount: 12000, at: NOW - 9 * DAY, method: 'stripe' }] }) });
+      MC._resetCache();
+      const taOld = await H2.tenantAutoSet(w, { REVIEW_ASK_TENANTS_ENABLED: 'true' });
+      ok('paid 9 days ago (past the 7-day automation age) → the nudge takes it back', (await RN.findReviewDueLeads(w, 'rep-a', { nowMs: NOW, tenantAuto: taOld })).some((x) => x.id === 'L1'));
       w = world({ 'leads/L1': leadOf('L1', { webLead: undefined }), 'invoices/I1': invoiceOf('L1', { paidAt: NOW - 5 * DAY }) });
       MC._resetCache();
       const ta2 = await H2.tenantAutoSet(w, { REVIEW_ASK_TENANTS_ENABLED: 'true' });
@@ -487,6 +498,21 @@ const sends = (db) => [...db.store.entries()].filter(([p]) => p.startsWith('revi
     pausing.emails.send = async (m, o) => { const out = await realSend(m, o); w.store.set('review_ask_tenants/co-a', tenantDoc({ paused: true })); return out; };
     r = await sweep(w, { resend: pausing });
     ok('paused after the first email of a run → the second job is not sent', pausing.sent.length === 1 && r.out.counts.tenant_paused === 1, JSON.stringify(r.out.counts));
+
+    // A crash after the claim and before the hand-off gives the ask back (silent-failure review #4)
+    {
+      const TL = require(path.join(FN, 'review-ask-tenant-logic.js'));
+      const realContent = TL.emailContent;
+      TL.emailContent = () => { throw new Error('template blew up'); };
+      w = world();
+      try { r = await sweep(w); } finally { TL.emailContent = realContent; }
+      const L1c = w.store.get('leads/L1') || {};
+      ok('an error between the claim and the send → claim released (no window, count or job claim kept), nothing sent',
+        r.resend.sent.length === 0 && !L1c.reviewAutoAsk && ![...w.store.keys()].some((k) => k.startsWith('review_ask_jobs/') || k.startsWith('review_ask_emails/')),
+        JSON.stringify({ a: L1c.reviewAutoAsk, keys: [...w.store.keys()].filter((k) => /review_ask_(jobs|emails)/.test(k)) }));
+      r = await sweep(w);
+      ok('...and the next run asks', r.resend.sent.length === 1);
+    }
 
     // Hand-typed lead / too-new lead / $1 cash are skipped end to end
     w = world({ 'leads/L1': leadOf('L1', { webLead: undefined }) });

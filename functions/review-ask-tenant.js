@@ -286,6 +286,9 @@ async function askOneTenant(db, companyId, ready, entry, deps) {
   const nowMs = Number(d.nowMs) || Date.now();
   const base = { companyId, leadId: entry.id, jobId: entry.jobId || null };
   const skip = async (reason, extra) => { await logAttempt(db, Object.assign({}, base, { outcome: 'skipped', reason }, extra || {}), FV); return { sent: false, reason }; };
+  let claim = null;      // set once this run owns the ask
+  let handedOff = false; // set the moment the message is given to Resend
+  let sentOk = false;    // Resend accepted it
   try {
     const ls = await db.collection('leads').doc(entry.id).get();
     if (!ls.exists) return skip('lead_gone');
@@ -320,8 +323,13 @@ async function askOneTenant(db, companyId, ready, entry, deps) {
       }
     } catch (e) { return skip('suppression_unverified'); }
 
-    const claim = await claimAsk(db, { companyId, entry, to: el.to, caps: ready.caps, nowMs });
-    if (!claim.ok) return skip(claim.reason);
+    claim = await claimAsk(db, { companyId, entry, to: el.to, caps: ready.caps, nowMs });
+    if (!claim.ok) {
+      // This address cannot be asked by this company inside the window: final, so the rep nudge takes the job back.
+      if (claim.reason === 'recipient_recently_asked' || claim.reason === 'recipient_global_cap') await settle(db, entry, nowMs);
+      const why = claim.reason; claim = null;
+      return skip(why);
+    }
 
     // The gate mints this send's unsubscribe token: only after the claim, so a capped job writes nothing.
     let gate;
@@ -343,6 +351,7 @@ async function askOneTenant(db, companyId, ready, entry, deps) {
     // One key per job: a retry Resend already took is not sent twice.
     const idempotencyKey = 'review-ask-tenant/' + companyId + '/' + entry.id + '/' + RA.jobKey(entry.jobId);
     let r;
+    handedOff = true;
     try { r = await d.resend.emails.send(gated.msg, { idempotencyKey }); }
     catch (e) {
       // Unknown whether it went: keep every claim (never a second email), stamp the job done.
@@ -361,20 +370,27 @@ async function askOneTenant(db, companyId, ready, entry, deps) {
       await settle(db, entry, nowMs);
       return skip('send_error_unknown', { error });
     }
+    sentOk = true;
     await claim.refs.jobRef.set({ status: 'sent', sentAtMs: nowMs }, { merge: true }).catch(() => {});
     await recordSent(db, companyId, entry, nowMs, FV);
     await logAttempt(db, Object.assign({}, base, { outcome: 'sent', toHash: T.emailHash(el.to), from: T.FROM_ADDRESS, resendId: (r && r.data && r.data.id) || null }), FV);
     return { sent: true, reason: 'sent' };
   } catch (e) {
     log.warn('review_ask_tenant_skipped', { companyId, leadId: entry && entry.id, err: e && e.message });
+    if (sentOk) return { sent: true, reason: 'sent' };                    // it went; only the bookkeeping failed
+    if (claim && claim.ok && !handedOff) { await releaseAsk(db, claim, FV); return skip('error_released'); }
+    if (claim && claim.ok) { await settle(db, entry, nowMs); return skip('error_after_send_unknown'); }
     return skip('error');
   }
 }
 
 /** Everyone whose book belongs to this company: its members (companyId claim mirror on users/) and the solo owner (uid = companyId). */
+// The members the sweep reads per company. The rep nudge leaves a job only for these same uids,
+// so a rep the sweep never visits keeps the nudge (silent-failure review, 2026-11-26).
+const MEMBER_LIMIT = 2000;
 async function companyUids(db, companyId) {
   const out = new Set([companyId]);
-  const snap = await db.collection('users').where('companyId', '==', companyId).limit(500).get();
+  const snap = await db.collection('users').where('companyId', '==', companyId).limit(MEMBER_LIMIT).get();
   for (const u of snap.docs) if (!(u.data() || {}).e2eTestAccount) out.add(u.id);
   return [...out];
 }
@@ -436,14 +452,14 @@ async function runTenantSweep(db, deps) {
  * Fails closed to an empty set: the nudge then behaves exactly as before.
  */
 async function tenantAutoSet(db, env) {
-  const out = new Set();
+  const out = new Map();   // companyId -> Set of the uids the sweep visits for it (companyUids)
   if (!T.flagOn(env || process.env)) return out;
   const st = await MessagingControls.automationStatus(db, T.AUTOMATION_KEY, 'email', true);
   if (!st.enabled || st.canary) return out;
   const snap = await db.collection(C.tenants).where('enabled', '==', true).limit(500).get();
   for (const d of snap.docs) {
     const id = cleanCompanyId(d.id);
-    if (T.tenantReady(d.data(), id, NBD()).ok) out.add(id);
+    if (T.tenantReady(d.data(), id, NBD()).ok) out.set(id, new Set(await companyUids(db, id)));
   }
   return out;
 }
