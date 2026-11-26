@@ -4,8 +4,10 @@
  * documentation/audit/BOTS-AGENTS-SCHEDULES-REVIEW-2026-11-22.md §3.3 med):
  * thursday_config/{companyId}.enabled was read but never enforced.
  *
- * Off = thursday_config enabled:false or thursdayDisabled:true, or
- * feature_flags/global.thursdayDisabled. Then:
+ * Off = thursday_config thursdayDisabled:true, or
+ * feature_flags/global.thursdayDisabled. thursday_config enabled:false is only
+ * the CRM inbox WIDGET switch (docs/pro/js/widgets.js), so hiding the widget
+ * must never hold a call. Then:
  *   - the webhook still answers Bland 200 and stores the call, as status
  *     'held' (never 'pending', so the processor never picks it up);
  *   - a call that reaches the processor anyway (a reprocess, a backfill doc)
@@ -30,10 +32,13 @@ function ok(label, cond, detail) {
 }
 
 const docs = new Map();
+const reads = [];      // every doc path read, in order
+const GATES = {};      // path -> promise a doc read waits on (a slow Firestore read)
+const events = [];     // 'leads-query' when the lookup's lead queries run
 function mk(p) {
   return {
     id: p.split('/').pop(), path: p,
-    get: async () => ({ id: p.split('/').pop(), exists: docs.has(p), data: () => docs.get(p) }),
+    get: async () => { reads.push(p); if (GATES[p]) await GATES[p]; return { id: p.split('/').pop(), exists: docs.has(p), data: () => docs.get(p) }; },
     create: async (v) => { if (docs.has(p)) { const e = new Error('6 ALREADY_EXISTS: Document already exists'); e.code = 6; throw e; } docs.set(p, Object.assign({}, v)); },
     set: async (v, o) => { docs.set(p, o && o.merge ? Object.assign({}, docs.get(p) || {}, v) : Object.assign({}, v)); },
     update: async (v) => { if (!docs.has(p)) throw new Error('NOT_FOUND'); docs.set(p, Object.assign({}, docs.get(p), v)); },
@@ -43,7 +48,7 @@ function mk(p) {
 let LOOKUP_LEADS = [];
 function query(name) {
   const rows = () => (name === 'leads' ? LOOKUP_LEADS : []).map((l) => ({ id: l.id, data: () => l }));
-  const q = { where: () => q, select: () => q, limit: () => q, orderBy: () => q, get: async () => { const d = rows(); return { docs: d, size: d.length, empty: !d.length, forEach: (fn) => d.forEach(fn) }; } };
+  const q = { where: () => q, select: () => q, limit: () => q, orderBy: () => q, get: async () => { if (name === 'leads') events.push('leads-query'); const d = rows(); return { docs: d, size: d.length, empty: !d.length, forEach: (fn) => d.forEach(fn) }; } };
   return q;
 }
 const DB = { doc: mk, collection: (name) => Object.assign(query(name), { doc: (id) => mk('x/' + id) }), runTransaction: async (fn) => fn({ get: (r) => r.get(), update: (r, v) => r.update(v), set: (r, v) => r.set(v) }) };
@@ -91,13 +96,17 @@ const callDoc = (id) => docs.get('thursday_calls/' + T.callDocId(id));
 (async () => {
   console.log('A. the rule');
   const H = T.thursdayHoldReason;
-  ok('off: enabled:false, thursdayDisabled:true, or the global flag; on: anything else',
-    typeof H === 'function' && !!H({ enabled: false }, {}) && !!H({ enabled: true, thursdayDisabled: true }, {}) && !!H({ enabled: true }, { thursdayDisabled: true })
+  ok('off: thursdayDisabled:true or the global flag; on: anything else',
+    typeof H === 'function' && !!H({ enabled: true, thursdayDisabled: true }, {}) && !!H({ thursdayDisabled: true }, {}) && !!H({ enabled: true }, { thursdayDisabled: true })
     && H({ enabled: true }, {}) === null && H({}, {}) === null && H({ enabled: true }, { thursdayExtractDisabled: true }) === null);
+  ok('enabled:false alone (the CRM widget switch) is NOT a hold', typeof H === 'function' && H({ enabled: false }, {}) === null && H({ enabled: false, thursdayDisabled: false }, {}) === null);
 
   console.log('B. the webhook');
   docs.set(CFG, { enabled: false });
-  let r = await webhook(payload('call-held-1'));
+  let r = await webhook(payload('call-widget-off'));
+  ok('widget hidden (enabled:false only): the call is still queued pending, never held', r.code === 200 && callDoc('call-widget-off') && callDoc('call-widget-off').status === 'pending', JSON.stringify(callDoc('call-widget-off') && callDoc('call-widget-off').status));
+  docs.set(CFG, { thursdayDisabled: true });
+  r = await webhook(payload('call-held-1'));
   let d = callDoc('call-held-1');
   ok('switched off: Bland still gets 200', r.code === 200, r.code + ' ' + JSON.stringify(r.body));
   ok('…and the call is stored as held, never pending (the processor never claims it)', !!d && d.status === 'held' && !!d.heldReason && d.callId === 'call-held-1', JSON.stringify(d && { status: d.status, heldReason: d.heldReason }));
@@ -124,7 +133,7 @@ const callDoc = (id) => docs.get('thursday_calls/' + T.callDocId(id));
     if (proc) await proc(mk(p), Object.assign({}, docs.get(p), { status: 'reprocess' }));
     return docs.get(p);
   };
-  docs.set(CFG, { enabled: false });
+  docs.set(CFG, { thursdayDisabled: true });
   d = await run('call-proc-held');
   ok('switched off: a reprocessed call is parked as held', d.status === 'held' && !!d.heldReason, d.status);
   ok('…with no Bland fetch, no extraction, no match, no route, no alert', fetched.length === 0 && d.extraction === undefined && d.route === undefined && d.notifyState === undefined, fetched);
@@ -147,12 +156,37 @@ const callDoc = (id) => docs.get('thursday_calls/' + T.callDocId(id));
   ok('control: switched on, the lookup knows the caller', lk.code === 200 && lk.body && lk.body.known === true, JSON.stringify(lk.body));
   docs.set(CFG, { enabled: false });
   lk = await lookup();
+  ok('widget hidden (enabled:false only): the lookup still knows the caller', lk.code === 200 && lk.body && lk.body.known === true, JSON.stringify(lk.body));
+  docs.set(CFG, { thursdayDisabled: true });
+  lk = await lookup();
   ok('switched off (thursday_config): the lookup gives the plain unknown reply, no CRM context', lk.code === 200 && lk.body && lk.body.known === false && !lk.body.first_name && !lk.body.job_hint, JSON.stringify(lk.body));
   docs.set(CFG, { enabled: true });
   FLAGS = { thursdayDisabled: true };
   lk = await lookup();
   ok('switched off (feature_flags/global.thursdayDisabled): the same', lk.code === 200 && lk.body && lk.body.known === false && !lk.body.first_name, JSON.stringify(lk.body));
   FLAGS = {};
+
+  console.log('E. the lookup never waits on the switch read (the Bland snippet aborts at 2.5 s)');
+  docs.set(CFG, { enabled: true });
+  let release;
+  GATES[CFG] = new Promise((r2) => { release = r2; });
+  reads.length = 0; events.length = 0;
+  const pending = lookup();
+  for (let i = 0; i < 20; i++) await new Promise((r2) => setImmediate(r2));
+  ok('the lead queries start while the thursday_config read is still in flight', events.indexOf('leads-query') !== -1 && reads.indexOf(CFG) !== -1, JSON.stringify({ events, reads }));
+  release();
+  delete GATES[CFG];
+  lk = await pending;
+  ok('…and the answer still waits for it (known caller, switch on)', lk.code === 200 && lk.body && lk.body.known === true, JSON.stringify(lk.body));
+  docs.set(CFG, { thursdayDisabled: true });
+  GATES[CFG] = new Promise((r2) => { release = r2; });
+  const pending2 = lookup();
+  for (let i = 0; i < 20; i++) await new Promise((r2) => setImmediate(r2));
+  release();
+  delete GATES[CFG];
+  lk = await pending2;
+  ok('switched off with a slow switch read: still the plain unknown reply, no CRM context', lk.code === 200 && lk.body && lk.body.known === false && !lk.body.first_name && !lk.body.job_hint, JSON.stringify(lk.body));
+  docs.set(CFG, { enabled: true });
   LOOKUP_LEADS = [];
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

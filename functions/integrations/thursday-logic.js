@@ -222,12 +222,14 @@ function buildPendingCallDoc(call, source, extra) {
 }
 
 // Thursday's own off switch (audit 2026-11-22 §3.3): thursday_config/{companyId}
-// enabled:false or thursdayDisabled:true (loadConfig folds both into cfg.enabled),
-// or feature_flags/global.thursdayDisabled. Off = the call is stored as 'held'
-// and nothing runs on it (no extraction, routing or alerts). null = on.
+// thursdayDisabled:true, or feature_flags/global.thursdayDisabled. Off = the
+// call is stored as 'held' and nothing runs on it (no extraction, routing or
+// alerts). null = on. thursday_config enabled:false is NOT a hold: it is only
+// the CRM inbox widget switch (docs/pro/js/widgets.js), so hiding the widget
+// must never hold calls.
 function thursdayHoldReason(cfg, flags) {
   if (flags && flags.thursdayDisabled === true) return 'thursday-disabled-global';
-  if (cfg && (cfg.enabled === false || cfg.thursdayDisabled === true)) return 'thursday-disabled';
+  if (cfg && cfg.thursdayDisabled === true) return 'thursday-disabled';
   return null;
 }
 

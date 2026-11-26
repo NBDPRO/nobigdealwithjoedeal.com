@@ -89,7 +89,8 @@ async function loadConfig(companyId) {
     const c = snap.exists ? snap.data() || {} : {};
     const owner = await MessagingControls.readOwnerContact(db());
     return {
-      enabled: c.enabled !== false && c.thursdayDisabled !== true,
+      enabled: c.enabled !== false,               // the CRM inbox widget switch only
+      thursdayDisabled: c.thursdayDisabled === true,   // the server off switch (T.thursdayHoldReason)
       agentNumber: T.toE164(c.agentNumber) || DEFAULT_CONFIG.agentNumber,
       smsEnabled: c.smsEnabled === true,
       smsTo: T.toE164(c.smsTo) || owner.phone || DEFAULT_CONFIG.smsTo,
@@ -714,25 +715,34 @@ exports.thursdayCallerLookup = onRequest(
     const from = T.str(body.from || body.phone_number || body.caller || '', 32);
     const digits = String(from).replace(/\D/g, '').replace(/^1/, '').slice(-10);
     if (digits.length !== 10) { res.status(200).json(unknown); return; }
-    // Switched off (thursday_config / feature_flags/global, audit §3.3): the
-    // live agent gets the plain unknown reply, no CRM context or playbook.
-    // loadConfig falls back to defaults and getFlags to its last value on a
-    // read error, so a Firestore blip never blocks the greeting.
-    const [lookupCfg, lookupFlags] = await Promise.all([loadConfig(T.NBD_OWNER_UID), require('./killswitch').getFlags().catch(() => ({}))]);
-    const lookupHeld = T.thursdayHoldReason(lookupCfg, lookupFlags);
-    if (lookupHeld) {
-      logger.info('thursdayCallerLookup: Thursday is switched off — plain reply', { last4: digits.slice(-4), reason: lookupHeld });
-      res.status(200).json(unknown);
-      return;
-    }
+    // Switched off (thursday_config.thursdayDisabled / feature_flags/global,
+    // audit §3.3): the live agent gets the plain unknown reply, no CRM context
+    // or playbook. The switch reads (the config doc only, not loadConfig's
+    // owner-contact read) run BESIDE the lead queries, since the Bland snippet
+    // aborts the whole lookup at 2.5 s; the hold is decided once they are all
+    // in, before any CRM context goes back. A failed config read counts as on
+    // (as loadConfig's defaults do) and getFlags falls back to its last value,
+    // so a Firestore blip never blocks the greeting.
+    const switchCfgP = db().doc('thursday_config/' + T.NBD_OWNER_UID).get()
+      .then((s) => (s.exists ? s.data() || {} : {}))
+      .catch((e) => { logger.warn('thursdayCallerLookup: config read failed, treating Thursday as on', { err: e && e.message }); return {}; });
+    const switchFlagsP = require('./killswitch').getFlags().catch(() => ({}));
     // Flag on: the playbook reads start now and run beside the lead queries.
     const inputsP = playbooksEnabled() ? loadPlaybookInputs(T.NBD_OWNER_UID, digits) : null;
     try {
       const col = db().collection('leads').where('companyId', '==', T.NBD_OWNER_UID);
-      const [byMain, byAlt] = await Promise.all([
+      const [byMain, byAlt, lookupCfg, lookupFlags] = await Promise.all([
         col.where('phoneDigits', '==', digits).select(...LEAD_MATCH_FIELDS).limit(5).get(),
         col.where('altPhoneDigits', '==', digits).select(...LEAD_MATCH_FIELDS).limit(5).get(),
+        switchCfgP,
+        switchFlagsP,
       ]);
+      const lookupHeld = T.thursdayHoldReason(lookupCfg, lookupFlags);
+      if (lookupHeld) {
+        logger.info('thursdayCallerLookup: Thursday is switched off — plain reply', { last4: digits.slice(-4), reason: lookupHeld });
+        res.status(200).json(unknown);
+        return;
+      }
       const leads = byMain.docs.concat(byAlt.docs).map((d) => Object.assign({ id: d.id }, d.data()));
       const base = T.buildLookupResponse({ companyId: T.NBD_OWNER_UID, from: digits, leads });
       let out = base;

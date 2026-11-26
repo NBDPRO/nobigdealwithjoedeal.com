@@ -1901,12 +1901,22 @@ function initializeResult(params, botOrId) {
 }
 
 function toolText(obj) { return { content: [{ type: 'text', text: JSON.stringify(redactDeep(obj)) }] }; }
+// The company's own reference text (rules_reference: its payment number, the
+// house rules the owner typed) keeps its phones and emails; tags are still
+// neutralised. Never use it for an answer that carries customer or staff text.
+function neutraliseDeep(v) {
+  if (typeof v === 'string') return neutralise(v);
+  if (Array.isArray(v)) return v.map(neutraliseDeep);
+  if (isPlainObject(v)) { const out = {}; Object.keys(v).forEach((k) => { out[k] = neutraliseDeep(v[k]); }); return out; }
+  return v;
+}
+function referenceText(obj) { return { content: [{ type: 'text', text: JSON.stringify(neutraliseDeep(obj)) }] }; }
 function toolErr(msg) { return { content: [{ type: 'text', text: msg }], isError: true }; }
 
 module.exports = {
   PROTOCOL_VERSIONS, SERVER_INFO, TOOLS, BOTS, FIRST_WAVE, MAX_TEXT, MAX_LIST, FORBIDDEN_KEYS,
   toolsForBot, botAllows, minimalLead, summary, overdueFollowups, listLeads, listLeadsPage, encodeListCursor, LIST_CURSOR_MAX, validateFiling,
-  claimWordingProblem, rpcResult, rpcError, initializeResult, toolText, toolErr, ymd, isYmd, ms, activeLeads,
+  claimWordingProblem, rpcResult, rpcError, initializeResult, toolText, referenceText, toolErr, ymd, isYmd, ms, activeLeads,
   estimatesStatus, closesThisWeek, estimateTotal, paymentsOf, collectedRevenue,
   PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews, personalMoney,
   teamActivity, annotationsFor, WRITES,

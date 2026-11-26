@@ -16,7 +16,14 @@
  *   --email-to=a@x.com,b@y.com call emails
  *   --push-enabled=true|false  push to the installed NBD Pro app
  *   --push-uid=<uid>           whose devices get the push (default: owner)
- *   --enabled=true|false       master switch for the CRM inbox widget
+ *   --enabled=true|false       master switch for the CRM inbox widget ONLY
+ *                              (enabled:false never holds calls)
+ *
+ * Thursday's server off switch is the thursdayDisabled key on the same doc
+ * (true = every call is stored 'held' and the caller lookup answers plain
+ * unknown; integrations/thursday-logic.js thursdayHoldReason). This script
+ * has no flag for it; set it in the console. feature_flags/global
+ * .thursdayDisabled is the all-company switch.
  *   --owner-numbers=+1...,+1...  Jo's extra phones — calls from them are tests
  *                              (added to the built-in cell, never replacing it)
  *   --company=<companyId>      default NBD 1phDvAVXHSg82wDLegAbQFq14Ci1

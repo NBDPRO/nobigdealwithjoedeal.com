@@ -48,8 +48,9 @@
  *                              as a failed extraction with Bland's summary.
  *   thursdayDisabled: true   → Thursday is off: the webhook stores each call as
  *                              'held' and nothing runs on it (2026-11-25;
- *                              thursday_config enabled:false does the same for
- *                              one company). Read via getFlags().
+ *                              thursday_config thursdayDisabled:true does the
+ *                              same for one company; its enabled:false only
+ *                              hides the CRM widget). Read via getFlags().
  *   agentMcpDisabled: true   → every bot tool call through crmMcp is refused
  *                              (agent-mcp.js, its own ~30 s cache, 2026-11-25);
  *                              agent_settings/{companyId} paused / pausedPlatforms /
