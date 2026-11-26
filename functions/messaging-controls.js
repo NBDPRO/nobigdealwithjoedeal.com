@@ -263,6 +263,8 @@ const AUTOMATION_KEYS = Object.freeze([
   'a2pServerTexts', 'stormConfirmText',
   // Key-moment emails with the portal link (portal-moments.js, 2026-11-04).
   'portalMomentEmail',
+  // The review ask for OTHER companies, email only (review-ask-tenant.js, 2026-11-26, dark).
+  'reviewAskTenantEmail',
 ]);
 const DEFAULT_MAX_PER_RUN = 5;
 /** A backlog item older than this is never sent by an automation (the first sweep after enabling cannot reach back). */

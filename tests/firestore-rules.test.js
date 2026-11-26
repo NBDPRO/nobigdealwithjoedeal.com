@@ -166,6 +166,11 @@ async function run() {
       { email: 'm1@x.com', role: 'sales_rep', status: 'invited' });
     await setDoc(doc(db, 'subscriptions/co-a'),
       { plan: 'growth', status: 'active' });
+    // Section 65 (2026-11-26): every review_ask_* doc exists, so update / delete / get are tested on real docs.
+    for (const pth of ['review_ask_tenants/co-65', 'review_ask_profile/co-65', 'review_ask_sends/s1', 'review_ask_audit/a1',
+      'review_ask_emails/co-65_h1', 'review_ask_recipient/h1', 'review_ask_counters/co-65_d20261126', 'review_ask_jobs/co-65_L1__lead']) {
+      await setDoc(doc(db, pth), { companyId: 'co-65', enabled: true, paused: false, rampStage: 1 });
+    }
   });
 
   // 1. user cannot self-promote to admin via users/{uid}.role
@@ -4105,6 +4110,38 @@ async function run() {
   console.log('  64: ' + s64Pass + ' confirmed-alert-recipient checks passed, ' + s64Fail.length + ' failed');
   if (s64Fail.length) {
     throw new Error('64 confirmed alert recipients: ' + s64Fail.length + ' check(s) went the wrong way:\n    ' + s64Fail.join('\n    '));
+  }
+
+  // ─── 65. review ask for other companies (2026-11-26, review-ask-tenant.js): every
+  // review_ask_* collection is admin-SDK only (the catch-all deny). A company that
+  // could write review_ask_tenants could approve itself, lift its pause or caps,
+  // or swap the approved name / link / Reply-To; one that could read the send log,
+  // windows or recipient cap would learn who other companies asked.
+  let s65Pass = 0; const s65Fail = [];
+  const x65 = async (label, want, p) => {
+    let got;
+    try { await (want === 'allow' ? assertSucceeds(p) : assertFails(p)); got = want; } catch (_) { got = want === 'allow' ? 'deny' : 'allow'; }
+    if (got === want) s65Pass++; else s65Fail.push(label + ' (wanted ' + want + ')');
+  };
+  const own65 = env.authenticatedContext('co-65', {}).firestore();
+  const adm65 = env.authenticatedContext('t65adm', { role: 'company_admin', companyId: 'co-65' }).firestore();
+  await x65('control: the same tenant can still create a plain lead (harness wired)', 'allow',
+    setDoc(doc(adm65, 'leads/s65-ok'), { userId: 't65adm', companyId: 'co-65', name: 'ZZ_QA review ask', meter: 'manual' }));
+  const docs65 = ['review_ask_tenants/co-65', 'review_ask_profile/co-65', 'review_ask_sends/s1', 'review_ask_audit/a1',
+    'review_ask_emails/co-65_h1', 'review_ask_recipient/h1', 'review_ask_counters/co-65_d20261126', 'review_ask_jobs/co-65_L1__lead'];
+  const adm66 = env.authenticatedContext('t66adm', { role: 'company_admin', companyId: 'co-66' }).firestore();
+  const mgr65 = env.authenticatedContext('t65mgr', { role: 'manager', companyId: 'co-65' }).firestore();
+  for (const [label, db65] of [['solo owner', own65], ['company_admin', adm65], ['another company admin', adm66], ['manager', mgr65]]) {
+    for (const p of docs65) {
+      await x65(label + ' cannot update ' + p, 'deny', updateDoc(doc(db65, p), { enabled: true, paused: false, rampStage: 3 }));
+      await x65(label + ' cannot delete ' + p, 'deny', deleteDoc(doc(db65, p)));
+      await x65(label + ' cannot create ' + p, 'deny', setDoc(doc(db65, p), { enabled: true, paused: false, rampStage: 3, companyId: 'co-65' }));
+      await x65(label + ' cannot read ' + p, 'deny', getDoc(doc(db65, p)));
+    }
+  }
+  console.log('  65: ' + s65Pass + ' review-ask-for-companies checks passed, ' + s65Fail.length + ' failed');
+  if (s65Fail.length) {
+    throw new Error('65 review ask for companies: ' + s65Fail.length + ' check(s) went the wrong way:\n    ' + s65Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');

@@ -51,6 +51,8 @@ const ENTRIES = Object.freeze({
   runAbandonRecovery: { sendsToCustomers: 'email', usesSendWindow: true, gate: ['env:FUNNEL_RECOVERY_ENABLED', 'automation:funnelRecoveryEmail'] },
   leadFollowUpSweep: { sendsToCustomers: 'email', usesSendWindow: true, gate: ['env:LEAD_FOLLOWUP_ENABLED', 'automation:leadFollowupEmail'] },
   reviewAskAutoSweep: { sendsToCustomers: 'email+text', usesSendWindow: true, gate: ['env:REVIEW_ASK_AUTO_EMAIL_ENABLED', 'env:REVIEW_ASK_AUTO_TEXT_ENABLED', 'automation:reviewAskAutoEmail', 'automation:reviewAskAutoText'] },
+  // the review ask for OTHER companies, email only (review-ask-tenant.js, dark)
+  reviewAskTenantSweep: { sendsToCustomers: 'email', usesSendWindow: true, gate: ['env:REVIEW_ASK_TENANTS_ENABLED', 'automation:reviewAskTenantEmail'] },
   // storm-watch subscriber texts, NWS storm texts, the subscriber confirm text
   stormPoller: { sendsToCustomers: 'text', usesSendWindow: true, gate: ['env:STORM_TEXT_ENABLED', 'env:STORM_NWS_TEXT_ENABLED', 'env:STORM_CONFIRM_TEXT_ENABLED', 'automation:stormText', 'automation:stormNwsText', 'automation:stormConfirmText'] },
   // the missed-call auto-text (missed-call-autotext.js)

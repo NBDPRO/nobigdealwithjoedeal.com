@@ -42,6 +42,8 @@ const TEMPLATE_FILES = Object.freeze([
   'functions/portal-moments.js',     // key-moment emails with the portal link (2026-11-04)
   'functions/review-ask-auto.js',
   'functions/review-ask-auto-logic.js',
+  'functions/review-ask-tenant.js',       // the review ask for other companies (2026-11-26, dark)
+  'functions/review-ask-tenant-logic.js', // its fixed email words
   'functions/missed-call-reply-logic.js',
   'functions/missed-call-autotext.js',
   'functions/storm-watch.js',
