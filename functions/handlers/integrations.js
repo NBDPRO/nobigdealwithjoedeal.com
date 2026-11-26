@@ -509,24 +509,6 @@ exports.submitPublicLead = onRequest(
   async (req, res) => {
     if (req.method !== 'POST') { res.status(405).json({ error: 'POST only' }); return; }
 
-    // Probe mode (2026-11-26, web-leads outage follow-up 5; lead-probe-auth.js,
-    // lead-gateway-probe.js). The daily leadGatewayProbe cron proves a real
-    // submit would succeed: every gate below runs as usual (per-IP limit,
-    // Turnstile posture, kind + field + phone validation) and the probe is
-    // answered just before anything is stored, read or counted. Only this
-    // project's own runtime service account may use it; a request that merely
-    // claims to be the probe is refused here and spends nothing.
-    let probe = false;
-    if (LeadProbe.isProbeRequest(req)) {
-      const pv = await LeadProbe.verifyProbeCaller(req);
-      if (!pv.ok) {
-        logger.warn('submitPublicLead: probe refused', { reason: pv.reason });
-        res.status(403).json({ error: 'Verification failed', reason: 'probe-auth' });
-        return;
-      }
-      probe = true;
-    }
-
     // Per-IP rate limit — the single most important gate. 20/min/IP.
     // A human filling a form takes >10s; a spam script fires faster.
     // Key on the IPv6 /64 prefix (IPv4 unchanged) so one IPv6 allocation can't
@@ -544,6 +526,25 @@ exports.submitPublicLead = onRequest(
       // Limiter backend error → fall back to the original helper, which fails
       // open to the Firestore limiter rather than dropping a legitimate lead.
       if (!(await httpRateLimit(req, res, 'publicLead:ip', 20, 60_000))) return;
+    }
+
+    // Probe mode (2026-11-26, web-leads outage follow-up 5; lead-probe-auth.js,
+    // lead-gateway-probe.js). The daily leadGatewayProbe cron proves a real
+    // submit would succeed: every gate below runs as usual (per-IP limit,
+    // Turnstile posture, kind + field + phone validation) and the probe is
+    // answered just before anything is stored, read or counted. Only this
+    // project's own runtime service account may use it; a request that merely
+    // claims to be the probe is refused here, after the per-IP limit (so a
+    // flood of forged probes is capped like any other caller).
+    let probe = false;
+    if (LeadProbe.isProbeRequest(req)) {
+      const pv = await LeadProbe.verifyProbeCaller(req);
+      if (!pv.ok) {
+        logger.warn('submitPublicLead: probe refused', { reason: pv.reason });
+        res.status(403).json({ error: 'Verification failed', reason: 'probe-auth' });
+        return;
+      }
+      probe = true;
     }
 
     // Turnstile verification (if configured). Fail closed on verifier

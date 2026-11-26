@@ -157,7 +157,7 @@ function mkRes() {
     Auth._overrides.verifyIdToken = async () => ({ email: 'someone-else@other-project.iam.gserviceaccount.com', email_verified: true });
     const other = await g.submit('contact', body, PROBE_HEADERS);
     ok('a valid Google token from ANOTHER account → 403, nothing stored', other.res.code === 403 && !other.stored);
-    ok('no limiter or Turnstile call was spent on a forged probe', g.limiterCalls.length === 0 && g.tsCalls.length === 0, { l: g.limiterCalls, t: g.tsCalls });
+    ok('a forged probe is still counted by the per-IP limiter (one call each) and never reaches Turnstile', g.limiterCalls.length === 3 && g.limiterCalls.every((n) => n === 'publicLead:ip') && g.tsCalls.length === 0, { l: g.limiterCalls, t: g.tsCalls });
     const sentinelOnly = await g.submit('contact', body, {});
     ok('the probe body WITHOUT the probe header trips the honeypot: 200, nothing stored', sentinelOnly.res.code === 200 && !sentinelOnly.stored && sentinelOnly.res.body.probe === undefined);
   } catch (e) { ok('B harness ran', false, String(e && e.stack || e)); }
@@ -253,7 +253,13 @@ function mkRes() {
     ok('…only once for the same silence', P.quietDecision({ newestMs: now - 16 * DAY, nowMs: now, state: { quietNotifiedNewestMs: now - 16 * DAY } }).notify === false);
     ok('…and again after a new lead and a new 14-day silence', P.quietDecision({ newestMs: now - 20 * DAY, nowMs: now, state: { quietNotifiedNewestMs: now - 60 * DAY } }).notify === true);
     ok('no lead at all → one notice', P.quietDecision({ newestMs: 0, nowMs: now, state: {} }).notify === true && P.quietDecision({ newestMs: 0, nowMs: now, state: { quietNotifiedNewestMs: 0 } }).notify === false);
-    ok('unreadable (null) newest → no notice from a failed read', P.quietDecision({ newestMs: null, nowMs: now, state: {} }).notify === false);
+    const fakeDb = (rows) => ({ collection: (c) => ({ orderBy: () => ({ limit: () => ({ get: async () => ({ forEach: (fn) => (rows[c] || []).forEach((r) => fn({ data: () => r })) }) }) }) }) });
+    const nb = await P.newestLeadMs(fakeDb({
+      contact_leads: [{ createdAt: now - 1 * DAY, companyId: 'tenantX' }, { createdAt: now - 20 * DAY }],
+      inspect_leads: [{ createdAt: now - 30 * DAY }],
+    }), ['contact_leads', 'inspect_leads', 'guide_leads']);
+    ok('the quiet clock counts NBD\'s own leads only: a newer tenant lead does not reset it', nb === now - 20 * DAY, nb);
+    ok('unreadable (null) newest → no notice from a failed read',P.quietDecision({ newestMs: null, nowMs: now, state: {} }).notify === false);
   } catch (e) { ok('F ran', false, String(e && e.stack || e)); }
 
   // ════════════════════════════════════════════════════════════════════

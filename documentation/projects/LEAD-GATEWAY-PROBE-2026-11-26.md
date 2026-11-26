@@ -39,8 +39,9 @@ morning, so a broken gateway shows up even with no traffic.
   `https://nobigdealwithjoedeal.com`. On any failure, Joe gets the alert text,
   the run throws (a heartbeat `/fail` on the shared `daily-syncs` check), and the
   failed 4xx/5xx also trips the 2026-11-25 email policy.
-- After the probes, the cron reads the newest `createdAt` in every public lead
-  collection. If the newest is more than 14 days old, it sends one bell notice.
+- After the probes, the cron reads the newest `createdAt` of NBD's own leads
+  (no `companyId`, so a tenant microsite lead never resets the clock) in every
+  public lead collection. If the newest is more than 14 days old, it sends one bell notice.
   `system/leadGatewayProbe.quietNotifiedNewestMs` keeps that notice from
   repeating. A read error skips the notice rather than inventing one.
 
@@ -55,6 +56,16 @@ morning, so a broken gateway shows up even with no traffic.
   report "not a probe answer". The suite proves both sides of this.
 - The data is fictional: phone 513-555-0100, email `lead-probe@example.com`.
 - Nothing was run against production for this change.
+
+## Security review (2026-11-26)
+
+An independent read found nothing critical, high or medium. Two lows were fixed
+before the PR: a forged probe header is now counted by the per-IP limiter like
+any other caller, and the quiet clock ignores tenant leads. One low is by
+design: "self" is the default compute service account, which every function in
+the project runs as, so any of them could pass the probe check. That gains
+nothing, because probe mode stores, reads and sends nothing. A dedicated
+service account for `submitPublicLead` and `leadGatewayProbe` would narrow it.
 
 ## What it cannot see
 

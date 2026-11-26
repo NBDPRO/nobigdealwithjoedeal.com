@@ -139,11 +139,24 @@ function tsMs(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * Newest NBD-own public lead (no companyId: NBD's forms send none; a tenant
+ * microsite lead carries one and must not reset NBD's quiet clock). Reads the
+ * newest QUIET_SCAN docs per collection and keeps the first untagged one.
+ */
+const QUIET_SCAN = 25;
+function isNbdOwn(d) { return !d || !d.companyId; }
 async function newestLeadMs(db, collections) {
   let newest = 0;
   for (const c of collections) {
-    const snap = await db.collection(c).orderBy('createdAt', 'desc').limit(1).get();
-    snap.forEach((d) => { newest = Math.max(newest, tsMs((d.data() || {}).createdAt)); });
+    const snap = await db.collection(c).orderBy('createdAt', 'desc').limit(QUIET_SCAN).get();
+    let found = false;
+    snap.forEach((doc) => {
+      const d = doc.data() || {};
+      if (found || !isNbdOwn(d)) return;
+      found = true;
+      newest = Math.max(newest, tsMs(d.createdAt));
+    });
   }
   return newest;
 }
@@ -217,4 +230,4 @@ exports.leadGatewayProbe = onSchedule(
   }
 );
 
-exports._internal = { probeKinds, buildProbeBody, runProbes, quietDecision, QUIET_DAYS, SITE_ORIGIN, PROBE_SENTINEL, PROBE_PHONE, STATE_DOC };
+exports._internal = { probeKinds, buildProbeBody, runProbes, quietDecision, newestLeadMs, QUIET_DAYS, SITE_ORIGIN, PROBE_SENTINEL, PROBE_PHONE, STATE_DOC };
