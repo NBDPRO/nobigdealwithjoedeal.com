@@ -366,6 +366,10 @@ function isShowing(arg) {
     await page.waitForSelector('#nbd-picker-modal.open', { timeout: 10000 });
     await page.click('#nbd-picker-modal [data-fn="nbdHowtoOpen"]');
     await page.waitForSelector('#nbd-howto-modal.open', { timeout: 5000 });
+    // attach() re-pulls focus into a new dialog 60 ms after opening
+    // (overlay-a11y.js); focusing Appearance inside that window gets stolen back.
+    await page.waitForFunction(() => !!(document.activeElement && document.activeElement.closest('#nbd-howto-modal')), null, { timeout: 5000 });
+    await page.waitForTimeout(150);
     await page.evaluate(() => { const b = [...document.querySelectorAll('#nbd-picker-modal button')].find((x) => !x.closest('#nbd-howto-modal')); if (b) b.focus(); });
     ok('harness check: focus is on a control of Appearance, behind the Theme guide', await page.evaluate(() => { const a = document.activeElement; return !!a && !!a.closest('#nbd-picker-modal') && !a.closest('#nbd-howto-modal'); }));
     await page.keyboard.press('Tab');
