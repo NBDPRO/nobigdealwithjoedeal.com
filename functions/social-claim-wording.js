@@ -192,6 +192,9 @@
       re: /\bclaimable loss(es)?\b|\b(strong|good|high|great|real|significant) (insurance )?claim potential\b|\binsurers? (act|acts|will act) on\b/i },
     { id: 'covers-regardless', why: '(1)(a)1 promising the claim outcome (coverage "regardless")',
       re: /\b(insurance|insurer|carrier|policy|polic(y|ies)|coverage)\b[^.;!?]{0,40}\b(should|will|must|is going to)( still)? (cover|pay)\b[^.;!?]{0,40}\bregardless\b|\b(get|gets|pays?|paid) the full amount regardless\b/i },
+    // 2026-11-26: a verdict on the claim (mirrors docs/pro/js/claim-wording-filter.js).
+    { id: 'claim-verdict', why: '(1)(a)1 advising the insured whether to claim',
+      re: /\b(tell|walk|advise|determine|confirm|assess)\w*\b[^.;!?]{0,60}\bwhether\b[^.;!?]{0,50}\b(claims?|filing|insurance)\b[^.;!?]{0,50}\b(makes? sense|is (appropriate|warranted|worth\w*))\b/i },
   ];
 
   // ── Report-only phrasings (2026-10-04) ────────────────────────────────
