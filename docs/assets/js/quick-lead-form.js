@@ -117,6 +117,12 @@
         '<p class="qlf-trust"><span data-nbd-gr-rating-wrap hidden><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating></span> on Google &middot; </span>Fully insured &middot; Joe on every roof</p>' +
         '<button class="qlf-btn" type="submit" id="' + uid + '-btn">' + esc(btnLabel) + '</button>' +
         '<div class="qlf-alt">Rather talk now? <a href="tel:+18594207382">Call or text (859) 420-7382</a></div>' +
+        // Service pages (CRO open item 4, 2026-11-26): the newest real Google
+        // review, with its date, right under Send. google-reviews-widget.js
+        // fills it from the live payload (compact = one card, no pills).
+        (/^\/services\//.test((window.location && window.location.pathname) || '')
+          ? '<div class="qlf-review" data-nbd-google-reviews data-nbd-gr-limit="1" data-nbd-gr-compact></div>'
+          : '') +
       '</form>';
 
     var form = host.querySelector('form');
