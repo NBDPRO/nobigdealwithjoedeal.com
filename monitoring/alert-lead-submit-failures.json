@@ -1,0 +1,34 @@
+{
+  "displayName": "NBD Pro — website lead submit rejected (any 400/403/5xx on submitPublicLead in 1 h)",
+  "documentation": {
+    "content": "submitPublicLead answered 400, 403 or 5xx at least once in the last hour. Every one of those is a homeowner whose lead was NOT saved (the form shows the call/text fallback). Volume is low (a few real submits a month), so a single rejection is worth a look. 429 (rate limit) is excluded; alert-rate-limit-spike covers it.\n\nWhy this exists: from 2026-10-13 to 2026-11-25 every submit got 403 turnstile-required (TURNSTILE_REQUIRED=true with TURNSTILE_SECRET still the `__unset__` stub) and nothing alerted, because alert-functions-error-rate needs > 50 ERROR entries in 5 min. Replayed over the previous 30 days this policy fires on 2026-10-29, 11-05, 11-12 and 11-13: every rejected visit, nothing else. documentation/audit/WEB-LEADS-TURNSTILE-OUTAGE-2026-11-25.md.\n\nInvestigate:\n  gcloud logging read 'resource.labels.service_name=\"submitpubliclead\" AND (httpRequest.status>=400 OR severity>=WARNING)' --project nobigdeal-pro --freshness 2h --limit 50 --format 'value(timestamp,httpRequest.status,severity,textPayload,jsonPayload.message)'\nThe 403 body's reason (turnstile-required = secret missing with the flag on; missing-token = the visitor's browser sent no Turnstile token; anything else = Cloudflare error codes) is also in GA4 as the lead_submit_failed event's server_reason. Fix and rollback: documentation/runbooks/TURNSTILE-SETUP.md \"Emergency\".",
+    "mimeType": "text/markdown"
+  },
+  "combiner": "OR",
+  "enabled": true,
+  "conditions": [
+    {
+      "displayName": "submitpubliclead 400/403/5xx responses > 0 in 1 h",
+      "conditionThreshold": {
+        "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"submitpubliclead\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=monitoring.regex.full_match(\"400|403|5[0-9][0-9]\")",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "0s",
+        "aggregations": [
+          {
+            "alignmentPeriod": "3600s",
+            "perSeriesAligner": "ALIGN_DELTA",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ]
+      }
+    }
+  ],
+  "alertStrategy": {
+    "autoClose": "7200s"
+  },
+  "notificationChannels": [
+    "projects/nobigdeal-pro/notificationChannels/11974029248665804510",
+    "projects/nobigdeal-pro/notificationChannels/7729093229259591605"
+  ]
+}

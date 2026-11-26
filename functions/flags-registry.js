@@ -70,6 +70,8 @@ const ROWS = {
     meaning: 'Auto-texts a missed caller who gave texting consent on a web form (8am-9pm, once a day). Off = Jo gets the one-tap reply draft only. Waits on A2P.' },
   LEAD_ACK_SMS_ENABLED: { group: 'Calls & texts', doc: ENV_DOC,
     meaning: 'Texts the homeowner a quick acknowledgement when a new lead arrives. Off = no acknowledgement text.' },
+  MAIL_FEED_ENABLED: { group: 'Calls & texts', dark: true, doc: 'documentation/runbooks/MAIL-FEED-SETUP.md',
+    meaning: 'Every 15 minutes: a read-only, masked copy of new iCloud (jd@, info@) and Gmail inbox mail for the office team. Never marks, moves or answers mail. Also needs the mail secrets. Off = nothing is read.' },
   STORM_TEXT_ENABLED: { group: 'Calls & texts', doc: 'documentation/projects/AI-AUTOMATIONS-2026-10-04.md',
     meaning: 'Storm-watch texts to Storm Alert subscribers after hail. Also needs messaging_controls/automations stormText and a confirmed (replied YES) subscriber. Off = the watch runs but sends nothing.' },
   STORM_NWS_TEXT_ENABLED: { group: 'Calls & texts', doc: 'documentation/audit/MESSAGING-HARDENING-2026-10-19.md',

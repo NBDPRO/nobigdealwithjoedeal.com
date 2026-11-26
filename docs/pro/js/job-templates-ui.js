@@ -850,7 +850,7 @@
       '.jt-seg button.on{background:var(--orange,#BD5728);color:#fff;}',
       '.jt-ctl-lbl{font-size:10.5px;color:var(--m,#9aa3ad);font-weight:700;text-transform:uppercase;letter-spacing:.1em;display:block;margin-bottom:4px;}',
       '.jt-sec{border:1px solid var(--br,#2a2f35);border-radius:10px;margin-bottom:12px;overflow:hidden;background:var(--s,#111418);}',
-      '.jt-sec-hdr{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;user-select:none;background:var(--s2,#181c22);-webkit-tap-highlight-color:transparent;}',
+      '.jt-sec-hdr{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;-webkit-user-select:none;user-select:none;background:var(--s2,#181c22);-webkit-tap-highlight-color:transparent;}',
       '.jt-sec-hdr .nm{font-weight:700;font-size:14px;color:var(--t,#e8eaf0);flex:1;min-width:0;}',
       '.jt-sec-hdr .meta{font-size:11px;color:var(--m,#9aa3ad);white-space:nowrap;}',
       '.jt-sec-hdr .chev{color:var(--ui-accent-text,var(--orange,#BD5728));font-size:15px;font-weight:800;width:14px;text-align:center;}',
@@ -3017,7 +3017,8 @@
       } catch (e) { toast('Could not share the estimate — try again', 'error'); return; }
 
       var shared = false;
-      if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent || '')) {
+      // iPadOS reports itself as a Mac: a Mac with touch points is an iPad (2026-11-25).
+      if (navigator.share && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent || '') || (/Macintosh/.test(navigator.userAgent || '') && navigator.maxTouchPoints > 1))) {
         try { await navigator.share({ title: 'Your estimate', text: 'Here’s your estimate:', url: url }); shared = true; }
         catch (e) {
           // iPhone Safari refuses the sheet once the link mint + save outlived
