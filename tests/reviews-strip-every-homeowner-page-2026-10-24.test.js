@@ -57,7 +57,10 @@ const PAGES = [];
   }
 })(path.join(ROOT, 'docs'));
 
-const CONTAINER = /data-nbd-google-reviews\b/g;
+// Full strips only: a compact one-card container beside a lead form
+// (data-nbd-gr-compact, /inspect, 2026-11-26) is filled too since the widget
+// fills every container, and does not count as a second strip.
+const CONTAINER = /data-nbd-google-reviews\b(?![^>]*data-nbd-gr-compact)/g;
 const SCRIPT = /<script[^>]*src="\/assets\/js\/google-reviews-widget\.js"[^>]*><\/script>/g;
 const MARKER = /<!-- nbd:partial reviews-strip -->/g;
 const count = (s, re) => (s.match(re) || []).length;
