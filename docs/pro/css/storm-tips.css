@@ -10,6 +10,8 @@ html, body {
   overflow-x: hidden;
 }
 button, input, select, textarea { font-family: inherit; }
+/* The page shows and hides parts with the hidden attribute; the display rules below must not override it. */
+[hidden] { display: none !important; }
 a { color: var(--orange); text-decoration: none; }
 
 .st-header {
@@ -30,7 +32,8 @@ a { color: var(--orange); text-decoration: none; }
 }
 .st-title h1 { margin: 0; font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 800; }
 
-.st-main { max-width: 760px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+/* minmax(0, 1fr): a long option text (an email subject) must not widen the cards past a phone screen. */
+.st-main { max-width: 760px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 .st-loading { color: var(--m); }
 .st-card {
   background: var(--s); border: 1px solid var(--br); border-radius: 10px; padding: 16px;
@@ -44,10 +47,10 @@ a { color: var(--orange); text-decoration: none; }
 .st-gates b[data-on="true"] { color: var(--green); }
 .st-gates b[data-on="false"] { color: var(--m); }
 
-.st-row { display: grid; gap: 4px; margin-bottom: 12px; }
+.st-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; margin-bottom: 12px; }
 .st-row label { font-size: 13px; font-weight: 600; color: var(--m); }
 .st-row select, .st-row input {
-  min-height: 44px; padding: 8px 10px; font-size: 15px;
+  min-height: 44px; padding: 8px 10px; font-size: 15px; width: 100%; min-width: 0;
   background: var(--bg); color: var(--t);
   border: 1px solid var(--br); border-radius: 7px;
 }
