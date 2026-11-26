@@ -1241,7 +1241,8 @@
     "atproto-did-2026-11-16.test.js",
     "call-center-reupload-dedupe-2026-11-18.test.js",
     "send-window-2026-11-22.test.js",
-    "cron-manifest-2026-11-22.test.js"
+    "cron-manifest-2026-11-22.test.js",
+    "website-page-revenue-2026-11-26.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
