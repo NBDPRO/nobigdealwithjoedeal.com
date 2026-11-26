@@ -753,6 +753,11 @@ async function complianceGate(db, decoded, a) {
   if (a.knockId) {
     const refusal = knockConsentRefusal(a.knock, decoded, a.to);
     if (refusal) return { respond: { status: 403, body: refusal } };
+    // The knock's own company must be NBD too: a platform admin can open any company's knock,
+    // and that homeowner must never get a text on NBD's number (S0, 2026-11-26).
+    if (TextingGate.tenantKeyOfRecord(a.knock) !== TextingGate.NBD_OWNER_UID) {
+      return { respond: { status: 403, body: TextingGate.refusalBody({ reason: 'no_own_sender' }) } };
+    }
     company = await knockCompanyName(db, a.knock, status.isNbd);
     if (!company) {
       return { respond: { status: 403, body: {

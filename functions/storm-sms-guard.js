@@ -166,7 +166,10 @@ async function loadActiveSubscribers(db, opts) {
     let q = db.collection(SUBSCRIBERS).where('active', '==', true).orderBy(docIdField);
     if (last) q = q.startAfter(last);
     const snap = await q.limit(pageSize).get();
-    out.push(...snap.docs);
+    // NBD's storm list texts on NBD's number: a subscriber a public form tagged to ANOTHER company is not
+    // NBD's to text (S0, 2026-11-26). Untagged and NBD-tagged subscribers stay. (The page cursor still moves on every doc.)
+    const nbd = require('./sms-texting-gate').NBD_OWNER_UID;
+    out.push(...snap.docs.filter((d) => { const c = (d.data() || {}).companyId; return !c || String(c) === nbd; }));
     if (snap.docs.length < pageSize) return out;
     last = snap.docs[snap.docs.length - 1];
   }

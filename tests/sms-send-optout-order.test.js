@@ -42,6 +42,9 @@
  *   node tests/sms-send-optout-order.test.js
  */
 'use strict';
+// Only NBD texts on NBD's Twilio sender (review-ask guardrail plan S0, 2026-11-26): this suite's
+// fixture tenant stands in for NBD. sms-texting-gate.js refuses every other company (no_own_sender).
+process.env.NBD_OWNER_UID = 'co-1';
 
 const path = require('path');
 const Module = require('module');

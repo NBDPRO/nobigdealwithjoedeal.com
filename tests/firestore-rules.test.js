@@ -69,6 +69,9 @@ async function run() {
   // withSecurityRulesDisabled again.
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
+    // Section 63 (S0, 2026-11-26): a website lead and a teammate's lead, for the provenance-on-update checks.
+    await setDoc(doc(db, 'leads/s63-web'), { userId: 't63', companyId: 'co-63', name: 'ZZ_QA web', meter: 'manual', webLead: true, publicLeadKind: 'inspect' });
+    await setDoc(doc(db, 'leads/s63-mate'), { userId: 't63mate', companyId: 'co-63', name: 'ZZ_QA mate', meter: 'manual' });
     // Credits (flag costCredits): a co-a cost whose id is 129 chars, so the relatedExpenseId
     // LENGTH rule is tested on its own (the row exists and is in-tenant; only the length is wrong).
     await setDoc(doc(db, 'expenses/' + 'L'.repeat(129)), { userId: 'alice', companyId: 'co-a', leadId: 'leadA', category: 'materials', costType: 'direct', supplier: 'Sample Supply', amountCents: 100, source: 'manual' });
@@ -4072,6 +4075,27 @@ async function run() {
   // carry the claim: the provenance FIELDS are refused on their own.
   await x63('forged booking shape at a newline-suffixed calcom__ id', 'deny', setDoc(doc(t63, 'leads/' + 'calcom__bk63nl' + String.fromCharCode(10)),
     Object.assign({}, base63, { webLead: true, publicLeadKind: 'calcom_booking', calcomBookingId: 'bk63nl' + String.fromCharCode(10) })));
+  // Provenance is frozen on UPDATE too (review-ask guardrail plan S0, 2026-11-26): a rep who
+  // owns a hand-typed lead must not stamp it as a website / Cal.com / bridge intake afterwards
+  // (lead-alert reads these, and the review ask for other companies will).
+  const s63Rep = env.authenticatedContext('t63rep', { role: 'sales_rep', companyId: 'co-63' }).firestore();
+  await x63('control: a sales_rep creates its own plain lead', 'allow', setDoc(doc(s63Rep, 'leads/s63-rep'), Object.assign({}, base63, { userId: 't63rep' })));
+  await x63('control: company_admin edits an ordinary field on its own lead', 'allow', updateDoc(doc(t63, 'leads/s63-plain'), { name: 'ZZ_QA relay renamed' }));
+  await x63('control: sales_rep edits an ordinary field on its own lead', 'allow', updateDoc(doc(s63Rep, 'leads/s63-rep'), { name: 'ZZ_QA rep renamed' }));
+  for (const [k, v] of [['webLead', true], ['publicLeadKind', 'inspect'], ['publicLeadCollection', 'thumbtack_leads'], ['publicLeadId', 'r1'], ['calcomBookingId', 'bk9'], ['backfilledBy', 'x']]) {
+    await x63('update adds ' + k + ' (company_admin)', 'deny', updateDoc(doc(t63, 'leads/s63-plain'), { [k]: v }));
+    await x63('update adds ' + k + ' (sales_rep, own lead)', 'deny', updateDoc(doc(s63Rep, 'leads/s63-rep'), { [k]: v }));
+  }
+  const s63Own = env.authenticatedContext('t63', { role: 'sales_rep', companyId: 'co-63' }).firestore();
+  const s63Mgr = env.authenticatedContext('t63mgr', { role: 'manager', companyId: 'co-63' }).firestore();
+  const s63Plat = env.authenticatedContext('t63plat', { role: 'admin' }).firestore();
+  await x63('control: the owner of a website lead edits its name', 'allow', updateDoc(doc(s63Own, 'leads/s63-web'), { name: 'ZZ_QA web renamed' }));
+  await x63('control: re-saving webLead unchanged is not a change', 'allow', updateDoc(doc(s63Own, 'leads/s63-web'), { webLead: true, name: 'ZZ_QA web again' }));
+  await x63('owner flips webLead to false', 'deny', updateDoc(doc(s63Own, 'leads/s63-web'), { webLead: false }));
+  await x63('owner deletes publicLeadKind', 'deny', updateDoc(doc(s63Own, 'leads/s63-web'), { publicLeadKind: deleteField() }));
+  await x63('control: a same-company manager edits a teammate lead', 'allow', updateDoc(doc(s63Mgr, 'leads/s63-mate'), { name: 'ZZ_QA mate renamed' }));
+  await x63('a same-company manager adds calcomBookingId to a teammate lead', 'deny', updateDoc(doc(s63Mgr, 'leads/s63-mate'), { calcomBookingId: 'bk63m' }));
+  await x63('the platform admin may still set provenance (exempt by design)', 'allow', updateDoc(doc(s63Plat, 'leads/s63-mate'), { webLead: true }));
   console.log('  63: ' + s63Pass + ' lead-alert provenance checks passed, ' + s63Fail.length + ' failed');
   if (s63Fail.length) {
     throw new Error('63 lead-alert provenance: ' + s63Fail.length + ' check(s) went the wrong way:\n    ' + s63Fail.join('\n    '));

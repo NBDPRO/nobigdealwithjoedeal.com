@@ -1013,6 +1013,9 @@ service cloud.firestore {
           // bridge, admin SDK). A rep must not be able to write it onto a lead to unlock texting a cold
           // number (messaging hardening 2026-10-19; sms-consent-declined.js consentBasis reads these).
           && didNotChange(['tcpaConsent', 'tcpaConsentAt', 'tcpaConsentText', 'tcpaConsentSource', 'tcpaConsentIp', 'tcpaConsentVersion'])
+          // Intake provenance is server-only on create (the lead create denylist); frozen on update too, so a
+          // rep cannot stamp a hand-typed lead as a website / Cal.com / bridge intake afterwards (S0, 2026-11-26).
+          && didNotChange(['webLead', 'publicLeadKind', 'publicLeadCollection', 'publicLeadId', 'calcomBookingId', 'backfilledBy'])
           // customerId is the key the PUBLIC referral resolver matches on, so
           // a lead whose customerId can be repointed can be aimed at another
           // tenant's customer. Write-once rather than frozen because the
