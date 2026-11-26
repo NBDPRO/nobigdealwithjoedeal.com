@@ -46,7 +46,7 @@ ok('financing post: hero .article-tag uses orange-light', /\.article-tag\{[^}]*c
 ok('financing post: .fact-box title (was h4, now .fact-title) uses orange-dark', /\.fact-box \.fact-title\{[^}]*color:var\(--orange-dark/.test(fin));
 ok('financing post: related .rtag uses orange-dark', /\.rtag\{[^}]*color:var\(--orange-dark/.test(fin));
 ok('pipe-boot post: the dark compare head row uses orange-light', /\.compare-row\.head \.ours\{color:var\(--orange-light/.test(read('docs/blog/the-pipe-boot-fork.html')));
-ok('/book: the phone link in the note is underlined, not colour-only', /\.book-note-inner p a\{[^}]*text-decoration:underline/.test(read('docs/book/index.html')));
+ok('/inspect #other-visits (was /book): the phone link in the note is underlined, not colour-only', /\.ins-visits-note a\{[^}]*text-decoration:underline/.test(read('docs/inspect.html')));
 ok('/free-roof: links on the navy rules section use orange-light', /\.rules a\{color:var\(--orange-light/.test(read('docs/free-roof/index.html')));
 ok('offline page: tip titles use orange-light', /\.tip-title\{[^}]*color:var\(--orange-light/.test(read('docs/offline.html')));
 ok('financing service page: phone link on navy uses orange-light (inline)', /href="tel:\+18594207382" style="color:var\(--orange-light/.test(read('docs/services/financing.html')));

@@ -272,11 +272,11 @@ Refuted: "the Monday checks overlap and run in the wrong order".
   - It works only in its own detached `nbd-wt-mq-<pr>` worktrees, never in a session's, and it never force-pushes. A rejected push parks the PR.
   - Self-tests pass, with 33 deliberate breaks caught. The `hold` label was created on the repo.
 - **Step 5 is done.** #3235 merged: a customer is asked for a review once. On the local office-prompt side, Tucker no longer drafts review asks, and Frank's daily balance step is retired for a weekly summary.
-- **Step 6, local half, is done.** The local storm agent no longer files (the server stormWatch plus storm-deploy own storms). The office sweep no longer files storms or quiet proposals, and Tucker drafts only for radar-flagged leads. The server `dedupe_key` is in its own PR.
+- **Step 6, local half, is done.** The local storm agent no longer files (the server stormWatch plus storm-deploy own storms). The office sweep no longer files storms or quiet proposals, and Tucker drafts only for radar-flagged leads. The server `dedupe_key` merged in #3240 (a contended filing retries up to four times).
 - **Step 9a is done.** #3236 merged: server AI prompts fence customer and caller text as data; Thursday honours `test` only from owner numbers and drops spam only at high confidence with no lead match; a matched call's audio is never auto-deleted as "personal". The bot-server half (9b) follows in the bot-server chain.
-- **Step 11 is in its own PR:** a per-job heartbeat ledger plus `cronDeadman`, with daytime alerts.
+- **Step 11 is done.** #3237 merged: a per-job heartbeat ledger plus `cronDeadman`, with daytime alerts (7am-9pm ET, overnight misses roll into a 7am summary; a dead call or text pipeline alerts at any hour). `esignReminderSweep` now runs hourly but is still filed under the daily check in `heartbeat-plan.js`. That is harmless: a liveness check only needs one ping a day.
 - **Step 14 is done, with one part deferred.** Nine finished or retired desktop tasks were archived (scrubbed) and deleted. No job qualified for a cloud routine yet: they write the local vault or need the PC. That moves with step 17.
-- **Step 16 is built (2026-11-25, branch `claude/send-window-2026-11-22`).** Joe's rule: one customer send window, 8:00-20:00 in the recipient's time.
+- **Step 16 is done (#3243 merged).** Joe's rule: one customer send window, 8:00-20:00 in the recipient's time.
   - `functions/send-window.js` holds the window. The zone comes from the lead's tz, ZIP, state or address (reusing `sms-send-window.js`), then the company's timezone, then America/New_York. A state with two zones must be inside the window in both. `messaging_controls` held no quiet hours, so there is no tenant override yet.
   - `guardTwilio` refuses an automated text outside the window even when the caller passes no recipient. Only an explicit `exempt:internal` / `exempt:transactional` / `exempt:manual` marker skips it. The callers' TCPA 8am-9pm checks are unchanged.
   - Lead follow-up, funnel recovery, e-sign reminders (now hourly), review asks, storm texts, storm confirm and the missed-call auto-text check the window before their one-time claim. A deferred item stays owed and goes on the next run inside the window. Storm and missed-call texts were already skipped, not queued, in quiet hours, and that is unchanged.
@@ -285,6 +285,28 @@ Refuted: "the Monday checks overlap and run in the wrong order".
   - The manifest is tied to the code: `usesSendWindow: true` must reach `send-window.js` in the require graph, and a `none` cron that reaches Resend or Twilio needs a `why`.
   - Handoff: `heartbeat-plan.js` (another open PR) still files `esignReminderSweep` under the daily check. It should move to an hourly slug.
   - Open: the portal key-moment emails (`portal-moments.js`, still dark) fire on a trigger with no retry, so they are not windowed. Review asks run once a day at 10:00 ET, so a customer on Pacific time or further west would never be asked (10:00 ET is 7:00 PT).
+
+**Progress (updated 2026-11-25, night):**
+- **Step 8 is in the merge queue (#3246).** It adds `withdraw_item`, a verify check before filing, and a wider wording gate for social posts, and Grok posts go through Quinn. Joe's call: an unverified draft is not blocked. It shows a warning and needs one extra tap. The demo stays one tap, because a check with no Quinn label means not gated. The dashboard script budget went up 1 KB for this (Joe OK in chat).
+- **Step 10: the keys are done, and the code follows #3246.**
+  - The six Grok office-twin keys were revoked on 2026-11-25, with Joe's approval.
+  - The six Claude bot keys are untouched, and a live call through one still works.
+  - Runtime kill switches and key provenance are on branch `claude/bot-door-hardening-2026-11-25`, together with the bot-server fences (step 9b).
+- **Step 12 is in the merge queue (#3242).**
+  - One AI gate covers every server entry point.
+  - Spend is counted per company per day.
+  - A breaker trips at $1.38/day, Joe's 3x rule on real spend.
+  - Follow-up: send the breaker alert through `notifyOwner`, now that step 13 has merged.
+- **Step 13 is done (#3247 merged).**
+  - One owner-notify path texts Joe through Twilio on real alerts.
+  - A "Scheduled checks failing" issue tracks cron misses.
+  - The copycat watch no longer matches our own site.
+- **Step 15 is built and follows #3242.** It is on branch `claude/ai-client-registry-2026-11-25`: the official Anthropic SDK, lowest-risk routes first.
+- **Step 17: part A is done, and parts B and C are built.**
+  - **17A (#3254 merged):** a dark, read-only server mail feed. iCloud comes in over IMAP, Gmail over OAuth. Joe sets the secrets per [MAIL-FEED-SETUP](../runbooks/MAIL-FEED-SETUP.md).
+  - **17B:** the office planner, dark behind `officePlanner`, on branch `claude/office-planner-2026-11-25`.
+  - **17C:** one call record, on branch `claude/one-call-record-2026-11-25`.
+  - The bot briefs are now versioned in the local Agent Hub. Each amendment is drafted and not sent.
 
 | # | Step | Area | Effort | Joe's call |
 |---|---|---|---|---|
