@@ -393,6 +393,7 @@ const SEND_PATHS = Object.freeze({
   'portal-moments.js': 'commercial',          // key-moment emails with the homeowner's portal link (dark, 2026-11-04)
   'lead-followup.js': 'commercial',           // leadFollowUpSweep → homeowner
   'review-ask-auto.js': 'commercial',         // reviewAskAutoSweep → paid-in-full homeowner's review ask
+  'review-ask-v2.js': 'commercial',           // the same sweep's v2 ask + its one reminder (dark, 2026-11-26)
   'pro-prospects.js': 'commercial',          // onGuideLeadCreated → the contractor's one playbook welcome email (2026-10-16)
   'estimate-email.js': 'transactional',       // homeowner explicitly asked "Email My Estimate"
   'storm-report-email.js': 'transactional',   // homeowner asked for their storm report copy
