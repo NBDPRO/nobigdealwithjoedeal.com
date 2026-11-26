@@ -160,6 +160,10 @@ function planText(args) {
  * the nudge goes back to normal for it.
  */
 function willHandle(args) {
+  // v2 (review-ask-v2-logic.js, 2026-11-26) skips a job with an open warranty
+  // claim: that job stays with the rep nudge. Flag off: unchanged.
+  const a = args || {};
+  if (a.env && a.env.REVIEW_ASK_V2_ENABLED === 'true' && require('./review-ask-v2-logic').eligibility(a).reason === 'open_claim') return false;
   return planEmail(args).send || planText(Object.assign({}, args, { ignoreHours: true })).send;
 }
 

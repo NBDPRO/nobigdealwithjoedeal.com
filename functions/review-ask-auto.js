@@ -51,6 +51,7 @@ const OptOut = require('./sms-optout');
 const TextingGate = require('./sms-texting-gate');
 const ConsentDeclined = require('./sms-consent-declined');
 const SendWindow = require('./send-window');
+const V2 = require('./review-ask-v2-logic');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const TWILIO_ACCOUNT_SID = defineSecret('TWILIO_ACCOUNT_SID');
@@ -85,8 +86,11 @@ async function settle(db, leadId, jobId, channel, status, extra) {
   await db.collection('leads').doc(leadId).update(patch).catch(() => {});
 }
 
-/** Everything that says "asked" after a real send. */
-async function recordSent(db, entry, uid, channel, nowMs, FV) {
+/**
+ * Everything that says "asked" after a real send. `askExtra` joins reviewAutoAsk
+ * (v2: reminderDueMs); `auditExtra` joins the review_requests row (v2: triggeredBy).
+ */
+async function recordSent(db, entry, uid, channel, nowMs, FV, askExtra, auditExtra) {
   const source = channel === 'text' ? RA.TEXT_SOURCE : RA.SOURCE;
   const leadRef = db.collection('leads').doc(entry.id);
   const patch = {
@@ -95,7 +99,7 @@ async function recordSent(db, entry, uid, channel, nowMs, FV) {
     reviewRequestSource: source,
     // The rep nudge's own latch, so it never also asks Joe to ask by hand.
     reviewNudgedAt: FV.serverTimestamp(),
-    reviewAutoAsk: { jobKey: RA.jobKey(entry.jobId), jobId: entry.jobId || null, channel, status: 'sent', sentAtMs: nowMs },
+    reviewAutoAsk: Object.assign({ jobKey: RA.jobKey(entry.jobId), jobId: entry.jobId || null, channel, status: 'sent', sentAtMs: nowMs }, askExtra || {}),
   };
   if (entry.jobId) patch.reviewJobCount = FV.increment(1);
   await leadRef.update(patch).catch((e) => fnLogger.warn('review_auto_mark_failed', { leadId: entry.id, err: e && e.message }));
@@ -103,7 +107,7 @@ async function recordSent(db, entry, uid, channel, nowMs, FV) {
     await leadRef.collection('jobs').doc(entry.jobId).update({ reviewRequestedAt: FV.serverTimestamp(), reviewNudgedAt: FV.serverTimestamp(), reviewRequestSource: source }).catch(() => {});
   }
   const said = channel === 'text' ? 'Review ask texted automatically' : 'Review ask emailed automatically';
-  await db.collection('review_requests').add({ leadId: entry.id, userId: uid, method: channel === 'text' ? 'sms' : 'email', source, jobId: entry.jobId || null, sentAt: FV.serverTimestamp(), status: 'sent' }).catch(() => {});
+  await db.collection('review_requests').add(Object.assign({ leadId: entry.id, userId: uid, method: channel === 'text' ? 'sms' : 'email', source, jobId: entry.jobId || null, sentAt: FV.serverTimestamp(), status: 'sent' }, auditExtra || {})).catch(() => {});
   await leadRef.collection('activity').add({ userId: uid, type: 'review_request_sent', label: said, message: said + ' (paid in full).', source, createdAt: FV.serverTimestamp() }).catch(() => {});
   const name = ((entry.firstName || '') + ' ' + (entry.lastName || '')).trim() || 'Customer';
   const note = { userId: uid, leadId: entry.id, type: 'review_request', title: '⭐ ' + said, message: said + ' to ' + name + '.', source, read: false, dismissed: false, createdAt: FV.serverTimestamp() };
@@ -239,12 +243,13 @@ async function runForUser(db, uid, deps) {
   const RN = require('./review-request-nudge')._test;
   const due = await RN.findReviewDueLeads(db, uid, { mode: 'auto', env: d.env || process.env, nowMs: d.nowMs });
   if (!due.length) return { asked: 0, results: [] };
+  const v2 = V2.v2On(d.env || process.env);
   d.repUrl = d.repUrl != null ? d.repUrl : await repReviewUrl(db, uid);
   const results = [];
   let asked = 0;
   for (const entry of due) {
     if (d.maxAsks != null && asked >= d.maxAsks) { results.push({ leadId: entry.id, jobId: entry.jobId || null, sent: false, reason: 'per_run_cap' }); break; }
-    const r = await askOne(db, entry, uid, d);
+    const r = v2 ? await require('./review-ask-v2').askOneV2(db, entry, uid, d) : await askOne(db, entry, uid, d);
     results.push(Object.assign({ leadId: entry.id, jobId: entry.jobId || null }, r));
     if (r.sent) asked++;
   }
@@ -310,8 +315,14 @@ exports.reviewAskAutoSweep = onSchedule(
       if (snap.size < 500) break;
       cursor = snap.docs[snap.docs.length - 1];
     }
+    // The one reminder per v2 ask (same switches, the run's cap is shared).
+    if (V2.v2On(runEnv)) {
+      const rem = await require('./review-ask-v2').runReminders(db, { env: runEnv, resend, sendText: textOn ? sendTextTwilio : null, companyProfile: nbdProfile, logger: fnLogger, maxAsks: Math.max(0, runCap - asked) });
+      for (const r of rem.results) counts['reminder_' + r.reason] = (counts['reminder_' + r.reason] || 0) + 1;
+    }
     fnLogger.info('review_auto_complete', { asked, counts });
   }
 );
 
-exports._test = { askOne, runForUser, claim, recordSent };
+// FROM / REPLY_TO / settle: shared with review-ask-v2.js (NBD's own sender, the claim's settle).
+exports._test = { askOne, runForUser, claim, settle, recordSent, FROM, REPLY_TO };

@@ -302,6 +302,10 @@ function fillContact(d) {
     await tick(20);
     const ev2 = W2.events.find((e) => e.name === 'funnel_address_unmatched');
     ok('a lookup ERROR also offers "as typed" (reason:"lookup_error")', !!ev2 && ev2.params.reason === 'lookup_error' && !!W2.document.getElementById('addressHint').querySelector('[data-action="useTypedAddress"]'));
+    // form-funnel events (2026-11-26): the shared names ride next to funnel_step.
+    ok('form_step_view {form:"estimate", step:1, step_name:"address"} fires with funnel_step', W2.events.some((e) => e.name === 'form_step_view' && e.params.form === 'estimate' && e.params.step === 1 && e.params.step_name === 'address'), W2.events);
+    const fe = W2.events.find((e) => e.name === 'form_error');
+    ok('a Continue held on step 1 by the map lookup sends form_error {step:1, fields:"address_lookup"}', !!fe && fe.params.step === 1 && fe.params.fields === 'address_lookup', fe);
 
     const W3 = loadWizard({ fetch: async () => ({ ok: true, json: async () => ([{ display_name: '5 Real St, Mason, OH', lat: '39.36', lon: '-84.31' }]) }) });
     W3.document.getElementById('addressInput').value = '5 Real St Mason';
@@ -310,6 +314,8 @@ function fillContact(d) {
     await tick(150);
     ok('a match still goes to the satellite step, with coordinates', W3.t.currentStep === 2 && W3.t.funnelData.lat === 39.36, W3.t.currentStep);
     ok('...emitting funnel_step {step:2, step_name:"confirm_home"}', W3.events.some((e) => e.name === 'funnel_step' && e.params.step === 2 && e.params.step_name === 'confirm_home'));
+    ok('...and form_step_complete {step:1} then form_step_view {step:2}', (() => { const n = W3.events.map((e) => e.name + ':' + (e.params && e.params.step)); const c = n.indexOf('form_step_complete:1'); return c !== -1 && n.indexOf('form_step_view:2') > c; })(), W3.events);
+    ok('no /estimate event carries the name, phone or address', !/Pat|555|Real St/.test(JSON.stringify(W3.events.concat(W2.events))), JSON.stringify(W3.events));
   }
 
   // ═══════════════════════════════════════════════════════════════════════
