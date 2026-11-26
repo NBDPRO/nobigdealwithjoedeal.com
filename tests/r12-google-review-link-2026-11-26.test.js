@@ -49,6 +49,9 @@ console.log('A. the allowlist');
   const bad = [
     'https://evil.example/review', 'https://bit.ly/abc123', 'javascript:alert(1)', 'https://maps.app.goo.gl/AbCd1234?u=https://evil.example',
     'https://search.google.com/local/writereview?placeid=ChIJacme1234567&next=//evil.example', 'http://evil.example/g.page/r/x',
+    // Dot segments a browser would resolve onto another google.com path (security review): never.
+    'https://www.google.com/maps/place/../../amp/s/evil.example/x', 'https://www.google.com/maps/place/%2e%2e/%2E%2E/amp/s/evil.example',
+    'https://www.google.com/maps/place/x/./../../url', 'https://google.com/maps/place/..',
     'https://g.page.evil.example/r/x/review', 'https://evil.example/?u=https://g.page/r/x/review', 'https://g.page/r/x/review"><script>',
     'https://search.google.com/local/writereview?placeid=ChIJacme1234567&redirect=https://evil.example', 'https://google.com.evil.example/maps/place/x',
     'https://www.google.com/url?q=https://evil.example', ' ', '', null, 42,

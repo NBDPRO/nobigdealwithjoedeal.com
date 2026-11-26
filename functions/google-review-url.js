@@ -30,7 +30,13 @@ const SHAPES = Object.freeze([
 function cleanReviewUrl(raw) {
   if (typeof raw !== 'string') return '';
   const s = raw.trim().replace(/^http:\/\//i, 'https://');
-  return s.length <= 500 && SHAPES.some((re) => re.test(s)) ? s : '';
+  if (s.length > 500 || !SHAPES.some((re) => re.test(s))) return '';
+  // What a browser will actually open must be exactly this string: dot segments
+  // (../, %2e%2e/) would resolve onto another google.com path (security review, R12).
+  if (/(^|\/)(\.|%2e){1,2}(\/|$|\?)/i.test(s.replace(/^https:\/\/[^/]+/, ''))) return '';
+  let href = '';
+  try { href = new URL(s).href; } catch (_) { return ''; }
+  return href === s ? s : '';
 }
 
 const isGoogleReviewUrl = (raw) => cleanReviewUrl(raw) !== '';
