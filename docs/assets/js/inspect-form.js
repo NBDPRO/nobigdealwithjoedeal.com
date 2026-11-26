@@ -38,6 +38,13 @@
 (function () {
   'use strict';
 
+  // Form-funnel events (2026-11-26; inspect-analytics.js sends the step-1
+  // view, start and errors). No PII: names, step numbers and counts only.
+  function track(name, params) {
+    try { if (typeof window.gtag === 'function') window.gtag('event', name, params || {}); } catch (e) {}
+    try { if (typeof window.clarity === 'function') window.clarity('event', name); } catch (e) {}
+  }
+
   function readUtms() {
     var params;
     try { params = new URLSearchParams(window.location.search); }
@@ -203,6 +210,7 @@
       btn.addEventListener('click', function () { saveDetails(btn); });
     }
     wrap.hidden = false;
+    track('form_step_view', { form: 'inspect', step: 2, step_name: 'details' });
   }
 
   function val(id) { var el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; }
@@ -268,8 +276,10 @@
         btn.disabled = false;
         btn.textContent = 'Send to Joe';
         detailsStatus('Couldn’t save that. Call or text Joe at (859) 420-7382.', true);
+        track('form_error', { form: 'inspect', step: 2, step_name: 'details', fields: 'save' });
         return;
       }
+      track('form_step_complete', { form: 'inspect', step: 2, step_name: 'details', answers: Object.keys(answers).length, photos: files.length });
       btn.textContent = 'Sent ✓';
       detailsStatus(!hasAnswers ? '' : saved === 'pending'
         ? 'Saved. It may take a bit to show up on your request. If it’s urgent, call or text Joe at (859) 420-7382.'
@@ -372,6 +382,7 @@
 
       window.submitPublicLead('inspect', data).then(function (res) {
         if (res && res.ok) {
+          track('form_step_complete', { form: 'inspect', step: 1, step_name: 'contact' });
           showSuccess(intake, res, data);
         } else {
           // The gateway client returns the server's message as `res.reason`

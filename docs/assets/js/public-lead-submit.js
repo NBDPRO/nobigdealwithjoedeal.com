@@ -296,6 +296,20 @@
     if (!kind || typeof kind !== 'string') {
       return { ok: false, reason: 'Missing kind' };
     }
+    // Submit attempt (2026-11-26, form drop-off events): one `lead_submit` per
+    // new-lead attempt, so GA4 shows submits next to generate_lead (saved)
+    // and lead_submit_failed (not saved). Follow-up saves and step-1 updates
+    // (the same rule generate_lead uses) are not new attempts. No PII.
+    try {
+      const isFollowUp = FOLLOW_UP_TYPES.indexOf(String((fields && fields.type) || '')) !== -1 ||
+        !!(fields && fields.leadToken);
+      if (!isFollowUp && typeof window.gtag === 'function') {
+        window.gtag('event', 'lead_submit', {
+          lead_kind: kind,
+          lead_source: String((fields && fields.source) || '').slice(0, 100)
+        });
+      }
+    } catch (e) { /* analytics must never break a submit */ }
     // Pull a Turnstile token if we can. Pages that don't wire it
     // get an empty string — the server falls through to App Check
     // + rate limit + honeypot. Only attach the field when we actually
