@@ -62,6 +62,7 @@ const ENTRIES = Object.freeze({
   onYardSignPickupDue: none(),            // push to the rep
   onAfterInstallDay: none(),              // push to the rep
   cronDeadman: none(['env:CRON_DEADMAN_DISABLED'], 'owner-notify.js: bell + push to the owner about stopped crons (step 11, #3237); never a customer'),
+  leadGatewayProbe: none([], 'owner-notify.js: text + bell + push to the owner when the website lead gateway probe fails; the probe stores no lead, so no homeowner is ever messaged'),
   leadAlertWatchdog: none(['env:LEAD_ALERT_WATCHDOG_DISABLED'], 'lead-alert.js alertJoe re-sent to the owner (ack: false, never the homeowner ack)'),
   hailMatchCron: none(),
   meshHailCron: none(['flag:global.meshHailEnabled']),

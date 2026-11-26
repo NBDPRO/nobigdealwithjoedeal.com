@@ -53,7 +53,7 @@ const CHECKS = {
   'call-followups':          { period: '12 hours',  grace: '1 hour',     why: 'call watch (2h, 08-20 ET) + promise sweep (07:15/15:15 ET)' },
   'daily-retention':         { period: '1 day',     grace: '6 hours',    why: 'cleanup / retention jobs (incl. promise cleanup, Reel cleanup)' },
   'daily-customer-touches':  { period: '1 day',     grace: '6 hours',    why: 'morning digests + nudges to Jo; e-sign reminders to signers (10:00 ET); invoice overdue sweep (08:15 ET)' },
-  'daily-syncs':             { period: '1 day',     grace: '6 hours',    why: 'GBP reviews, Google Calendar reconcile, hail match' },
+  'daily-syncs':             { period: '1 day',     grace: '6 hours',    why: 'GBP reviews, Google Calendar reconcile, hail match, website lead-gateway probe' },
   'weekly-crons':            { period: '1 week',    grace: '12 hours',   why: 'weekly digest (Mon) + dormant-lead nudge (Wed) + vendor-config export (Sun)' },
   'monthly-crons':           { period: 'cron 0 7 1 * * (America/New_York)', grace: '12 hours', why: 'marketing report + overhead alert, 1st of month' },
 };
@@ -118,6 +118,7 @@ const PLAN = {
   googleCalendarReconcile:   { slug: 'daily-syncs' },
   hailMatchCron:             { slug: 'daily-syncs' },
   meshHailCron:              { slug: 'daily-syncs' },
+  leadGatewayProbe:          { slug: 'daily-syncs' },   // 2026-11-26: daily 09:00 ET; a /fail = a website lead submit would fail right now (Joe is also texted)
 
   weeklyDigest:              { slug: 'weekly-crons' },
   dormantLeadNudge:          { slug: 'weekly-crons' },

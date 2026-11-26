@@ -168,7 +168,7 @@ const addDays = (ymd, n) => { const p = C.parseYmd(ymd); const d = new Date(Date
   ok('one bell per company, to the company doc\'s ownerId (else the company id)', live.sets.get('notifications/docexp_co-a_2026-11-10').userId === 'owner-uid' && live.sets.get('notifications/docexp_co-b_2026-11-10').userId === 'co-b');
   const r4 = await W.runWatch({ db: live, nowMs: Date.parse('2026-11-18T14:00:00Z'), live: true });
   ok('the day after the GL cert expires, a new "expired" report is filed (once)', r4.filed >= 1 && [...live.created.keys()].some((k) => /abc123_2026-11-17_expired$/.test(k)), JSON.stringify(r4));
-  ok('the dry-run flag is read from COMPANY_DOC_EXPIRY_ENABLED, default off', /COMPANY_DOC_EXPIRY_ENABLED === 'true'/.test(read('functions/company-doc-expiry.js')) && /COMPANY_DOC_EXPIRY_ENABLED=false/.test(read('functions/.env.nobigdeal-pro')));
+  ok('the dry-run flag is read from COMPANY_DOC_EXPIRY_ENABLED, on in the committed env (Joe 2026-11-26)', /COMPANY_DOC_EXPIRY_ENABLED === 'true'/.test(read('functions/company-doc-expiry.js')) && /COMPANY_DOC_EXPIRY_ENABLED=true/.test(read('functions/.env.nobigdeal-pro')));
   ok('exported from index.js and listed in FUNCTIONS_INDEX.md', /exports\.companyDocExpiryWatch = require\('\.\/company-doc-expiry'\)\.companyDocExpiryWatch;/.test(read('functions/index.js')) && /\| `companyDocExpiryWatch` \|/.test(read('functions/FUNCTIONS_INDEX.md')));
   const src = read('functions/company-doc-expiry.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   ok('the sweep file never touches SMS, email, Resend or Twilio', !/twilio|resend|sendEmail|sms_log|mail\//i.test(src));
