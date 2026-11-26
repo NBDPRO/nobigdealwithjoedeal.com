@@ -145,7 +145,7 @@ console.log('MARKETING POLISH CONTRACT — batch 1 invariants');
 
 // 4. funnel pages load nbd-mobile.css
 {
-  const bad = ['inspect.html', 'roof-score.html', 'storm-check.html', 'storm-report.html']
+  const bad = ['inspect.html', 'roof-check.html']
     .filter((p) => !read(path.join(DOCS, p)).includes('nbd-mobile.css'));
   ok('lead-tool pages load nbd-mobile.css', bad.length === 0, bad.join(', '));
 }

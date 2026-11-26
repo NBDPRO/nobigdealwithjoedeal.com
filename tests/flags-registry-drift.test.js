@@ -206,7 +206,7 @@ ok('no registry name looks like a secret (KEY/SECRET/TOKEN/PASSWORD)', FLAGS.eve
 ok('every group in GROUPS is used by at least one flag', GROUPS.every((g) => FLAGS.some((f) => f.group === g)));
 ok('the ships-dark hints are exactly the flags that shipped dark awaiting Jo\'s go',
   JSON.stringify(FLAGS.filter((f) => f.dark).map((f) => f.name).sort()) === JSON.stringify([
-    'AWAY_MODE_ENABLED', 'CALL_RETENTION_ENABLED', 'CALL_RETENTION_THURSDAY_ENABLED', 'CARE_PLAN_MODE', 'DOC_LINK_FOLLOWUP_ENABLED', 'MAIL_FEED_ENABLED', 'OFFICE_PLANNER_ENABLED', 'REVIEW_ASK_AUTO_TEXT_ENABLED', 'SOCIAL_GBP_ENABLED', 'SUB_PAPERWORK_WATCH_ENABLED', 'TEXT_INBOX_ENABLED', 'TEXT_NOTES_ENABLED',
+    'AWAY_MODE_ENABLED', 'CALL_RETENTION_ENABLED', 'CALL_RETENTION_THURSDAY_ENABLED', 'CARE_PLAN_MODE', 'DOC_LINK_FOLLOWUP_ENABLED', 'MAIL_FEED_ENABLED', 'REVIEW_ASK_AUTO_TEXT_ENABLED', 'SOCIAL_GBP_ENABLED', 'SUB_PAPERWORK_WATCH_ENABLED', 'TEXT_INBOX_ENABLED', 'TEXT_NOTES_ENABLED',
     ]),
   JSON.stringify(FLAGS.filter((f) => f.dark).map((f) => f.name).sort()));
 

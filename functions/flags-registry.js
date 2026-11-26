@@ -100,7 +100,7 @@ const ROWS = {
     meaning: 'Daily 9:15 AM: a note in your Agent inbox when a sub insurance certificate or license is 30, 14 or 7 days from ending, or has ended. Never goes to a sub or customer. Off = dry run, logs only.' },
   OWNER_WEEKLY_DIGEST_ENABLED: { group: 'Alerts & away', doc: 'documentation/projects/WAVE3-ADDONS-RECON-2026-10-22.md',
     meaning: 'Monday 7:30 AM: one note in your Agent inbox with last week collected money, estimates awaiting signature (projected), calls to return and the jobs this week. Never goes to a customer or a rep. Off = dry run, logs only.' },
-  OFFICE_PLANNER_ENABLED: { group: 'Alerts & away', dark: true, doc: 'documentation/audit/BOTS-AGENTS-SCHEDULES-REVIEW-2026-11-22.md',
+  OFFICE_PLANNER_ENABLED: { group: 'Alerts & away', doc: 'documentation/audit/BOTS-AGENTS-SCHEDULES-REVIEW-2026-11-22.md',
     meaning: '8 AM, noon, 5 PM: new-lead, quiet-proposal and overdue reminders plus 30-day / one-year check-in drafts in your Agent inbox, for companies that turned it on. Nothing is sent. Off = does nothing.' },
   LEADERBOARD_AGGREGATE_ENABLED: { group: 'Alerts & away', doc: 'documentation/projects/NBD-OS-HOME-DESIGN-2026-11-09.md',
     meaning: 'Every 30 minutes: each member\'s counted doors, appointments, estimates sent and deals, today and this week, for the Team widget and the Leaderboard page. Counts only. Off = dry run, logs only.' },
