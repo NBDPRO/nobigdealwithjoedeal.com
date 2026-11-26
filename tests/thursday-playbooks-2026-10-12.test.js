@@ -324,7 +324,7 @@ function finishC() {
   ok('thursday.js: a playbook failure never blocks the greeting (budget race + catch -> null)', /Promise\.race\(\[reads, budget\]\)/.test(thu) && /playbook context unavailable/.test(thu) && /over budget/.test(thu));
   ok('thursday.js: the budget is short enough to sit inside the 2.5 s snippet timeout', (function () { const m = /PLAYBOOK_READ_BUDGET_MS = (\d+)/.exec(thu); return !!m && Number(m[1]) <= 1200; })());
   const env = fs.readFileSync(path.join(ROOT, 'functions/.env.nobigdeal-pro'), 'utf8');
-  ok('the flag is NOT set in the committed env (dark)', !/THURSDAY_LABEL_PLAYBOOKS_ENABLED/.test(env));
+  ok('the flag is on in the committed env (Joe turned on 2026-11-26)', /^THURSDAY_LABEL_PLAYBOOKS_ENABLED=true\r?$/m.test(env));
   const loader = read('docs/pro/js/script-loader.js');
   ok('script-loader.js gains no thursday bundle (blocking bytes are at the ceiling)', !/thursday/i.test(loader));
   const cl = read('docs/pro/js/contact-labels.js');
