@@ -221,6 +221,18 @@ function buildPendingCallDoc(call, source, extra) {
   }, extra || {});
 }
 
+// Thursday's own off switch (audit 2026-11-22 §3.3): thursday_config/{companyId}
+// thursdayDisabled:true, or feature_flags/global.thursdayDisabled. Off = the
+// call is stored as 'held' and nothing runs on it (no extraction, routing or
+// alerts). null = on. thursday_config enabled:false is NOT a hold: it is only
+// the CRM inbox widget switch (docs/pro/js/widgets.js), so hiding the widget
+// must never hold calls.
+function thursdayHoldReason(cfg, flags) {
+  if (flags && flags.thursdayDisabled === true) return 'thursday-disabled-global';
+  if (cfg && cfg.thursdayDisabled === true) return 'thursday-disabled';
+  return null;
+}
+
 // Only Thursday's own inbound calls enter the pipeline. An outbound call or a
 // call to another Bland number on the same account must not create NBD leads.
 function isThursdayCall(call, agentNumber) {
@@ -1091,7 +1103,7 @@ module.exports = {
   str, bool, toE164, escapeHtml, etYmd,
   isValidCallId, callDocId, leadDocIdForCall, taskIdForCall, activityIdForCall, recordingPathFor,
   verifyBlandSignature, bearerMatches,
-  normalizeCall, buildPendingCallDoc, isThursdayCall, isEffectivelySilent, transcriptWordCount,
+  normalizeCall, buildPendingCallDoc, thursdayHoldReason, isThursdayCall, isEffectivelySilent, transcriptWordCount,
   buildExtractionRequest, extractionHeaders, parseExtractionResponse, ExtractionError,
   sanitizeExtraction, silentExtraction, applyCallOverrides, ownerNumbersFor, OWNER_NUMBERS_DEFAULT, mapHeardAboutToSource,
   isProxyLead, parseStreet, splitCallerName, matchLeads, displayName,

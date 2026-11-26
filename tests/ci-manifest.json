@@ -640,6 +640,9 @@
     "agent-mcp-2026-10-02.test.js",
     "agent-mcp-more-tools-2026-10-02.test.js",
     "agent-inbox-dedupe-2026-11-22.test.js",
+    "quinn-gate-2026-11-25.test.js",
+    "agent-door-hardening-2026-11-25.test.js",
+    "thursday-kill-switch-2026-11-25.test.js",
     "price-change-devices-2026-11.test.js",
     "agent-personal-keys-2026-10-02.test.js",
     "call-watch-2026-10-02.test.js",
@@ -944,6 +947,7 @@
     "favicon-contract.test.js",
     "lead-form-phone-contract.test.js",
     "public-form-fixes-2026-10-15.test.js",
+    "guides-quick-form-2026-11-25.test.js",
     "lead-submit-failure-signal-2026-11-25.test.js",
     "pro-claims-honesty-2026-09-13.test.js",
     "st-f40-2026-11-08.test.js",
@@ -1793,7 +1797,8 @@
     "rate-limit.test.js": "test:ratelimit",
     "thursday-pipeline.integration.test.js": "test:thursday",
     "thursday-label-playbooks.integration.test.js": "test:thursdaypb",
-    "agent-inbox-dedupe.integration.test.js": "test:inboxdedupe"
+    "agent-inbox-dedupe.integration.test.js": "test:inboxdedupe",
+    "quinn-gate.integration.test.js": "test:quinngate"
   },
   "wired-individually": [
     "communication-log-contract.test.js",

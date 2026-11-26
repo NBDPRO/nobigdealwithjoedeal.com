@@ -33,7 +33,11 @@
  * (active, its bot known and — for a company bot — still active in the same
  * company), the company's own switch (agent_settings/{companyId}.enabled),
  * then the plan (an active / trialing paid plan; NBD and personal tracker
- * keys exempt), then a per-key rate limit.
+ * keys exempt), then a per-key rate limit. Each tool call then checks the
+ * runtime pause (agent_settings paused / pausedPlatforms / pausedBots,
+ * feature_flags/global.agentMcpDisabled; ~30 s cache) before it runs.
+ * Every answer loses emails and phone numbers (redactDeep), and customer /
+ * staff free text comes back under untrusted_* fields (2026-11-25).
  *
  * Tenancy: the company comes ONLY from the key doc; no tool takes a company
  * argument. Timezone, the rules tool and who gets the bell all come from that
@@ -209,9 +213,13 @@ async function runTool(name, args, key) {
       db().collection('notes').where('leadId', '==', lead.id).limit(40).get(),
       db().collection('leads').doc(lead.id).collection('tasks').where('done', '==', false).limit(20).get(),
     ]);
+    // Free text staff and customers typed: untrusted_* (roadmap step 9b), data for the bot, never instructions.
+    // The old text field stays beside it (the local agents read it in code). Redacted
+    // BEFORE the cut, so a number straddling it cannot leave partial digits behind.
+    const freeText = (v, n) => { const t = L.redactContact(v).slice(0, n); return { untrusted_text: t, text: t }; };
     const lastNotes = notes.docs.map((d) => d.data()).sort((x, y) => L.ms(y.createdAt) - L.ms(x.createdAt)).slice(0, 5)
-      .map((n) => ({ when: L.ms(n.createdAt) ? L.dayInZone(L.ms(n.createdAt), tz) : null, text: String(n.text || '').slice(0, 400) }));
-    const open = tasks.docs.map((d) => d.data()).map((t) => ({ due: t.dueDate || null, text: String(t.title || t.text || '').slice(0, 200) }));
+      .map((n) => Object.assign({ when: L.ms(n.createdAt) ? L.dayInZone(L.ms(n.createdAt), tz) : null }, freeText(n.text || '', 400)));
+    const open = tasks.docs.map((d) => d.data()).map((t) => Object.assign({ due: t.dueDate || null }, freeText(t.title || t.text || '', 200)));
     return L.toolText(Object.assign(L.minimalLead(lead, tz), { notes: lastNotes, open_reminders: open }));
   }
 
@@ -242,7 +250,10 @@ async function runTool(name, args, key) {
         const a = d.data();
         if (a.status === 'cancelled') return;
         const t = L.ms(a.startTime);
-        items.push({ what: 'Appointment', lead_id: a.leadId || null, name: a.attendeeName || a.title || 'Appointment', start: t ? new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).format(new Date(t)) : null });
+        // The booking name is what the customer typed into Cal.com: untrusted. name stays
+        // beside it, as on every other schedule row (the local agents read it).
+        const booked = a.attendeeName || a.title || 'Appointment';
+        items.push({ what: 'Appointment', lead_id: a.leadId || null, name: booked, untrusted_name: booked, start: t ? new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).format(new Date(t)) : null });
       });
     } catch (e) { logger.warn('[crmMcp] appointments read failed', { msg: e.message }); }
     return L.toolText({ date, timezone: tz, items });
@@ -296,14 +307,17 @@ async function runTool(name, args, key) {
       const waiting = await db().collection('agent_inbox').where('companyId', '==', company).where('leadId', '==', lead.id).limit(L.MAX_LIST).get();
       if (waiting.docs.some((d) => L.reviewDraftWaiting(d.data()))) return L.toolErr('A review ask for this customer is already in the Agent inbox. Do not draft another.');
     }
+    // The Quinn gate (roadmap step 8): unchecked until verify_item passes or flags it.
+    item.quinn = { state: 'unchecked' };
     return fileItem(key, today, item, 'Draft is in the Agent inbox. Nothing was sent — only the owner can send it.', dk.key);
   }
 
   if (name === 'file_social_draft') {
     const d = L.buildSocialDraft(args);
     if (d.error) return L.toolErr(d.error);
-    const wording = L.claimWordingProblem(d.item.text);
+    const wording = L.socialWordingProblem(d.item.text, key.isNbd);
     if (wording) return L.toolErr(wording);
+    d.item.quinn = { state: 'unchecked' };
     return fileItem(key, today, d.item, 'Social draft is in the Agent inbox for the owner to send to Social Studio. Nothing was posted.'
       + (d.needsMedia ? ' This platform needs a photo or video before it can be approved.' : ''), dk.key);
   }
@@ -341,7 +355,7 @@ async function runTool(name, args, key) {
 
   // The company's own rules (NBD's for NBD; any other company its own
   // profile rules + house rules, else neutral guidance — never NBD's).
-  if (name === 'rules_reference') return L.toolText(L.rulesReferenceFor({ isNbd: key.isNbd, profile: key.profile, houseRules: (key.settings || {}).houseRules }));
+  if (name === 'rules_reference') return L.referenceText(L.rulesReferenceFor({ isNbd: key.isNbd, profile: key.profile, houseRules: (key.settings || {}).houseRules }));
 
   if (name === 'post_job') {
     const [leads, invoices] = await Promise.all([companyLeads(company), companyDocs('invoices', company, ['companyId', 'createdBy'])]);
@@ -440,20 +454,41 @@ async function runTool(name, args, key) {
 
   if (name === 'inbox_pending') {
     const snap = await db().collection('agent_inbox').where('companyId', '==', company).where('status', '==', 'pending').limit(L.MAX_LIST).get();
+    // Old names (title, text, quinn_note) kept beside untrusted_*: the local pre-check and HQ read them in code.
     const items = snap.docs.map((d) => Object.assign({ item_id: d.id }, d.data()))
       .sort((a, b) => L.ms(a.createdAt) - L.ms(b.createdAt)).slice(0, Math.min(Number(args.limit) || 20, L.MAX_LIST))
-      .map((i) => ({ item_id: i.item_id, bot: i.bot, kind: i.kind, lead_id: i.leadId || null, due_date: i.dueDate || null, title: i.title || '', text: i.text, verified: !!i.verified, quinn_note: i.quinnNote || '' }));
+      .map((i) => ({ item_id: i.item_id, bot: i.bot, kind: i.kind, lead_id: i.leadId || null, due_date: i.dueDate || null, title: i.title || '', untrusted_title: i.title || '', text: i.text, untrusted_text: i.text, verified: !!i.verified, quinn_note: i.quinnNote || '', untrusted_quinn_note: i.quinnNote || '', quinn: L.quinnState(i) }));
     return L.toolText({ items });
   }
 
-  if (name === 'verify_item') {
+  // verify_item / withdraw_item (roadmap step 8): read and write the item in
+  // one transaction, so the owner's decision and the bot's never cross.
+  if (name === 'verify_item' || name === 'withdraw_item') {
     const ref = db().doc('agent_inbox/' + String(args.item_id || '').replace(/[^A-Za-z0-9_-]/g, ''));
-    const snap = await ref.get();
-    const it = snap.exists ? snap.data() : null;
-    if (!it || it.companyId !== company) return L.toolErr('unknown item_id');
-    if (it.status !== 'pending') return L.toolErr('already decided by the owner');
-    await ref.update({ verified: !!args.ok, verifiedBy: key.bot.name, quinnNote: String(args.note || '').slice(0, 500), verifiedAt: FieldValue.serverTimestamp() });
-    return L.toolText({ ok: true, item_id: snap.id, verified: !!args.ok });
+    const verify = name === 'verify_item';
+    const out = await db().runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const it = snap.exists ? snap.data() : null;
+      const ts = FieldValue.serverTimestamp();
+      if (verify) {
+        const v = L.verifyDecision(it, company, key.botId, args.ok, args.note);
+        if (v.error) return v;
+        // The legacy fields stay: the inbox, the deck and team_activity read them.
+        // keyId on the item itself: which key checked it survives a lost audit row.
+        tx.update(ref, { quinn: { state: v.state, reason: v.reason, by: key.bot.name, botId: key.botId, keyId: key.id.slice(0, 12), at: ts },
+          verified: v.state === 'passed', verifiedBy: key.bot.name, quinnNote: v.reason, verifiedAt: ts });
+        return { verified: v.state === 'passed', quinn: v.state };
+      }
+      const w = L.withdrawDecision(it, company, key.botId, L.isHouseChecker(key.botId), args.reason);
+      if (w.error) return w;
+      tx.update(ref, { status: 'withdrawn', withdrawReason: w.reason, withdrawnBy: key.bot.name, withdrawnByBotId: key.botId, withdrawnByKeyId: key.id.slice(0, 12), withdrawnAt: ts, decidedAt: ts });
+      return { withdrawn: true };
+    });
+    if (out.error) return L.toolErr(out.error);
+    const res = L.toolText(Object.assign({ ok: true, item_id: ref.id }, out));
+    // Read by handleRpc's audit row only; not enumerable, so never sent to the bot.
+    Object.defineProperty(res, 'auditItemId', { value: ref.id, enumerable: false });
+    return res;
   }
   return L.toolErr('unknown tool');
 }
@@ -473,7 +508,7 @@ async function fileItem(key, day, item, note, dedupeKey) {
   if (!counted) return L.toolErr('Daily filing limit reached (' + FILINGS_PER_DAY + '). File the rest tomorrow.');
   const bot = key.bot;
   const ref = await db().collection('agent_inbox').add(Object.assign({
-    companyId: company, bot: bot.name, botId: key.botId, status: 'pending', verified: false, createdAt: FieldValue.serverTimestamp(), keyId: key.id.slice(0, 12),
+    companyId: company, bot: bot.name, botId: key.botId, status: 'pending', verified: false, createdAt: FieldValue.serverTimestamp(), keyId: key.id.slice(0, 12), keyPlatform: L.keyPlatform(key),
   }, item));
   await bellNotice(company, key.routeUid, key.botId, bot.name, day).catch((e) => logger.warn('[crmMcp] bell notice failed', { msg: e.message }));
   return L.toolText({ filed: true, item_id: ref.id, kind: item.kind, note });
@@ -509,7 +544,7 @@ async function fileItemOnce(key, day, item, note, dedupeKey) {
     if (n >= FILINGS_PER_DAY) return { capped: true };
     tx.update(keyRef, { ['filedByDay.' + day]: n + 1 });
     tx.set(itemRef, Object.assign({
-      companyId: company, bot: bot.name, botId: key.botId, status: 'pending', verified: false, createdAt: FieldValue.serverTimestamp(), keyId: key.id.slice(0, 12),
+      companyId: company, bot: bot.name, botId: key.botId, status: 'pending', verified: false, createdAt: FieldValue.serverTimestamp(), keyId: key.id.slice(0, 12), keyPlatform: L.keyPlatform(key),
     }, item, { dedupeKey }));
     tx.set(lockRef, { companyId: company, itemId: itemRef.id, updatedAt: FieldValue.serverTimestamp() });
     return { created: true };
@@ -553,6 +588,43 @@ async function bellNotice(company, toUid, botId, botName, day) {
   });
 }
 
+// One agent_audit row per tool call, with the key's platform (roadmap step 10).
+function auditRow(key, name, extra) {
+  db().collection('agent_audit').add(Object.assign({ keyId: key.id.slice(0, 12), botId: key.botId, companyId: key.companyId, platform: L.keyPlatform(key), tool: name, at: FieldValue.serverTimestamp() }, extra)).catch(() => {});
+}
+
+// The runtime kill switch (roadmap step 10; audit 2026-11-22 §3.1): the
+// company's agent_settings (paused / pausedPlatforms / pausedBots) and
+// feature_flags/global.agentMcpDisabled, each read at most once per
+// PAUSE_TTL_MS per warm instance. Fail-open on a read error, on the last
+// value seen (as integrations/killswitch.js does): a Firestore blip must not
+// stop every bot; the switch is for deliberate pauses. A failed read is retried
+// after PAUSE_RETRY_MS, not the full TTL, so a blip cannot hide a pause for 30 s.
+// The env switch AGENT_MCP_DISABLED still answers 503 before any of this (handleHttp).
+const PAUSE_TTL_MS = 30000;
+const PAUSE_RETRY_MS = 2000;
+const pauseCache = new Map();
+async function cachedDoc(path) {
+  const now = Date.now();
+  const hit = pauseCache.get(path);
+  if (hit && now - hit.at < PAUSE_TTL_MS) return hit.data;
+  let data = hit ? hit.data : null;
+  let at = now;
+  try {
+    const s = await db().doc(path).get();
+    data = s.exists ? (s.data() || {}) : null;
+  } catch (e) {
+    logger.warn('[crmMcp] pause read failed', { path: path.split('/')[0], msg: e.message });
+    at = now - PAUSE_TTL_MS + PAUSE_RETRY_MS;
+  }
+  pauseCache.set(path, { at, data });
+  return data;
+}
+async function pausedFor(key) {
+  const [settings, flags] = await Promise.all([cachedDoc('agent_settings/' + key.companyId), cachedDoc('feature_flags/global')]);
+  return L.pauseDecision({ settings, flags, platform: L.keyPlatform(key), botId: key.botId });
+}
+
 async function handleRpc(msg, keyIn) {
   if (!msg || msg.jsonrpc !== '2.0' || typeof msg.method !== 'string') return L.rpcError(msg && msg.id, -32600, 'Invalid request');
   const isNotification = msg.id === undefined || msg.id === null;
@@ -565,11 +637,17 @@ async function handleRpc(msg, keyIn) {
     case 'tools/list': return L.rpcResult(msg.id, { tools: L.toolsForBot(key.bot) });
     case 'tools/call': {
       const name = String(p.name || '');
+      // The runtime kill switch (roadmap step 10): checked before any read or filing.
+      const paused = await pausedFor(key);
+      if (paused) {
+        auditRow(key, name, { ok: false, paused: true });
+        return L.rpcResult(msg.id, L.toolErr(paused));
+      }
       if (!L.botAllows(key.bot, name)) return L.rpcResult(msg.id, L.toolErr('This tool is not part of your role.'));
       let out;
       try { out = await runTool(name, p.arguments || {}, key); }
       catch (e) { logger.error('[crmMcp] tool failed', { name, msg: e.message }); out = L.toolErr('The CRM could not answer right now.'); }
-      db().collection('agent_audit').add(Object.assign({ keyId: key.id.slice(0, 12), botId: key.botId, companyId: key.companyId, tool: name, ok: !out.isError, at: FieldValue.serverTimestamp() }, out.deduped ? { deduped: true } : {})).catch(() => {});
+      auditRow(key, name, Object.assign({ ok: !out.isError }, out.deduped ? { deduped: true } : {}, out.auditItemId ? { itemId: out.auditItemId } : {}));
       return L.rpcResult(msg.id, out);
     }
     default:
@@ -618,7 +696,7 @@ async function authenticate(raw) {
     bot = Object.assign({ id: k.botId, house: true }, L.BOTS[k.botId]);
   }
   const personal = k.scope === 'personal';
-  const key = await contextFor({ id, botId: k.botId, companyId: k.companyId, scope: personal ? 'personal' : 'crm', ownerUid: personal ? k.ownerUid : null, createdBy: k.createdBy || null, bot });
+  const key = await contextFor({ id, botId: k.botId, companyId: k.companyId, scope: personal ? 'personal' : 'crm', ownerUid: personal ? k.ownerUid : null, createdBy: k.createdBy || null, bot, platform: L.keyPlatform(k) });
   const sub = (key.isNbd || personal) ? null : await readDoc('subscriptions/' + k.companyId);
   const gate = L.accessDecision({ settings: key.settings, isNbd: key.isNbd, personal, sub });
   if (!gate.ok) return { status: gate.status, body: L.rpcError(null, gate.code, gate.message) };
@@ -684,6 +762,9 @@ function cleanId(v, re) { return String(v || '').replace(re, ''); }
 async function createKey(request) {
   const botId = String((request.data && request.data.botId) || '');
   const customId = L.customBotIdFromKey(botId);
+  // Which platform the key runs on, chosen by the owner (roadmap step 10): validated before anything is minted.
+  const prov = L.keyProvenanceInput(request.data);
+  if (prov.error) throw new HttpsError('invalid-argument', prov.error);
   const raw = 'nbdk_' + crypto.randomBytes(30).toString('base64url');
   const id = sha256(raw);
   if (customId) {
@@ -692,7 +773,7 @@ async function createKey(request) {
     if (!b || b.active !== true || b.companyId !== c.company) throw new HttpsError('not-found', 'No such bot.');
     await assertBotsAllowed(c);
     const view = L.customBotView(customId, b);
-    await db().collection('agent_keys').doc(id).set({ botId, customBotId: customId, botName: view.name, companyId: c.company, active: true, prefix: raw.slice(0, 9), createdAt: FieldValue.serverTimestamp(), createdBy: c.uid });
+    await db().collection('agent_keys').doc(id).set({ botId, customBotId: customId, botName: view.name, companyId: c.company, active: true, prefix: raw.slice(0, 9), createdAt: FieldValue.serverTimestamp(), createdBy: c.uid, platform: prov.platform, label: prov.label });
     return { key: raw, url: MCP_URL, botName: view.name, tools: view.tools, personal: false };
   }
   if (!hasOwn(L.BOTS, botId)) throw new HttpsError('invalid-argument', 'Unknown bot (Nova never gets an NBD key).');
@@ -710,7 +791,7 @@ async function createKey(request) {
     if (!c.isNbd && !c.platformAdmin) throw new HttpsError('permission-denied', 'That bot belongs to NBD\'s own team. Make your own bot in Settings → Bots & API.');
     ({ uid, company } = c);
   }
-  const doc = { botId, botName: L.BOTS[botId].name, companyId: company, active: true, prefix: raw.slice(0, 9), createdAt: FieldValue.serverTimestamp(), createdBy: uid };
+  const doc = { botId, botName: L.BOTS[botId].name, companyId: company, active: true, prefix: raw.slice(0, 9), createdAt: FieldValue.serverTimestamp(), createdBy: uid, platform: prov.platform, label: prov.label };
   if (personal) Object.assign(doc, { scope: 'personal', ownerUid: uid });
   await db().collection('agent_keys').doc(id).set(doc);
   return { key: raw, url: MCP_URL, botName: L.BOTS[botId].name, tools: L.BOTS[botId].tools, personal };
@@ -748,7 +829,7 @@ async function listKeys(request) {
     // An owner / admin sees every company key; anyone else only their own.
     // Someone else's personal keys are theirs alone — never listed to an admin.
     keys: snap.docs.filter((d) => { const k = d.data(); return (k.scope !== 'personal' || k.ownerUid === uid) && (c.isAdmin || k.createdBy === uid || k.ownerUid === uid); })
-      .map((d) => { const k = d.data(); return { id: d.id, botId: k.botId, botName: botNames[k.botId] || k.botName, active: !!k.active, prefix: k.prefix, personal: k.scope === 'personal', custom: !!k.customBotId, mine: k.createdBy === uid || k.ownerUid === uid, createdAt: L.ms(k.createdAt) || null, lastUsedAt: L.ms(k.lastUsedAt) || null }; }),
+      .map((d) => { const k = d.data(); return { id: d.id, botId: k.botId, botName: botNames[k.botId] || k.botName, active: !!k.active, prefix: k.prefix, personal: k.scope === 'personal', custom: !!k.customBotId, platform: L.keyPlatform(k), label: k.label || '', mine: k.createdBy === uid || k.ownerUid === uid, createdAt: L.ms(k.createdAt) || null, lastUsedAt: L.ms(k.lastUsedAt) || null }; }),
   };
 }
 
@@ -852,8 +933,10 @@ async function draftLead(c, it) {
   return Object.assign({ id: it.leadId }, lead);
 }
 async function draftCheck(c, it) {
-  if (!it || it.companyId !== c.company || (it.kind !== 'draft_text' && it.kind !== 'draft_email')) return { ok: false, reason: 'Not a draft in your inbox.' };
+  if (!it || it.companyId !== c.company || L.DRAFT_KINDS.indexOf(it.kind) === -1) return { ok: false, reason: 'Not a draft in your inbox.' };
   if (it.status !== 'pending') return { ok: false, reason: 'Already decided.' };
+  // A social draft has no recipient; it is checked for its Quinn label only (roadmap step 8).
+  if (it.kind === 'social_draft') return { ok: true };
   const lead = await draftLead(c, it);
   if (!lead) return { ok: false, reason: 'That customer is no longer on your board.' };
   const name = L.minimalLead(lead).name;
@@ -884,7 +967,13 @@ async function draftAction(request) {
   if (data.action === 'check') {
     const ids = (Array.isArray(data.ids) ? data.ids : []).slice(0, L.MAX_LIST).map((id) => cleanId(id, /[^A-Za-z0-9_-]/g)).filter(Boolean);
     const results = {};
-    for (const id of ids) results[id] = await draftCheck(c, await readDoc('agent_inbox/' + id));
+    for (const id of ids) {
+      const it = await readDoc('agent_inbox/' + id);
+      const r = await draftCheck(c, it);
+      // The Quinn gate (roadmap step 8): what the owner is warned about before sending, or null.
+      if (r.ok) r.quinn = L.quinnLabel(it);
+      results[id] = r;
+    }
     return { results };
   }
   if (data.action !== 'sent') throw new HttpsError('invalid-argument', 'Unknown action.');
@@ -912,6 +1001,13 @@ async function draftAction(request) {
     const chk = await textCheck(c, lead);
     if (!chk.ok) throw new HttpsError(chk.code === 'unverified' ? 'unavailable' : 'failed-precondition', chk.reason);
   }
+  // The Quinn gate (roadmap step 8; Joe: warn + one extra tap, never block): a
+  // house bot's draft Quinn has not passed goes only with confirmUnverified,
+  // which the inbox sends after the owner's one extra confirm. Checked again
+  // on the item as the transaction reads it.
+  const confirmed = data.confirmUnverified === true;
+  const unverified = L.sendGateProblem(it, confirmed);
+  if (unverified) throw new HttpsError('failed-precondition', unverified);
   // A review ask (the bot's marker, or a Google review link in what is sent)
   // stamps the lead asked in the same transaction, the fields every other
   // "already asked?" check reads (review-ask-auto.js, post_job, the nudge).
@@ -931,7 +1027,10 @@ async function draftAction(request) {
       if (!cur || cur.deleted === true) throw new HttpsError('not-found', 'That customer is no longer on your board.');
       if (L.sprintAsked(cur)) throw new HttpsError('failed-precondition', 'This customer was already asked for a review. Not sent.');
     }
-    tx.update(ref, { status: 'sent_by_owner', decidedAt: FieldValue.serverTimestamp(), decidedBy: c.uid, text: body, title: isText ? '' : subject });
+    const late = L.sendGateProblem(s.data(), confirmed);
+    if (late) throw new HttpsError('failed-precondition', late);
+    const gated = L.quinnGated(s.data()) ? { quinnAtSend: L.quinnState(s.data()) } : {};
+    tx.update(ref, Object.assign({ status: 'sent_by_owner', decidedAt: FieldValue.serverTimestamp(), decidedBy: c.uid, text: body, title: isText ? '' : subject }, gated));
     if (reviewAsk) tx.update(leadRef, { reviewRequested: true, reviewRequestedAt: FieldValue.serverTimestamp(), reviewRequestSource: isText ? 'agent-draft-text' : 'agent-draft-email' });
     return true;
   });
