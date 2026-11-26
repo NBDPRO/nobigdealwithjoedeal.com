@@ -168,6 +168,16 @@ function loadPage(opts) {
   ok('GA: generate -> history -> questions -> contact -> submit -> complete, in order',
     ['roof_check_generate', 'roof_check_history', 'roof_check_questions', 'roof_check_contact', 'roof_check_submit', 'roof_check_complete'].every((n, i, a) => names.indexOf(n) !== -1 && (i === 0 || names.indexOf(n) > names.indexOf(a[i - 1]))), names);
 
+  // Form-funnel events (2026-11-26): the shared names next to roof_check_*.
+  const seq = p.events.filter((e) => /^form_/.test(e.name)).map((e) => e.name.replace('form_step_', '') + ':' + e.params.step);
+  ok('form_step_view/complete walk 1 -> 6 in order (address, history, roof, contact, writing, result)',
+    ['view:1', 'complete:1', 'view:2', 'complete:2', 'view:3', 'complete:3', 'view:4', 'complete:4', 'view:5', 'view:6'].every((n, i, a) => seq.indexOf(n) !== -1 && (i === 0 || seq.indexOf(n) > seq.indexOf(a[i - 1]))), seq);
+  ok('every shared event says form "roof_check" and names its step', p.events.filter((e) => /^form_/.test(e.name)).every((e) => e.params.form === 'roof_check' && (e.name === 'form_start' || typeof e.params.step_name === 'string')), p.events);
+  ok('Continue without a roof age sends form_error {step:3, fields:"roofAge"}', p.events.some((e) => e.name === 'form_error' && e.params.step === 3 && e.params.fields === 'roofAge'), p.events);
+  ok('the short phone sends form_error {step:4, fields:"rc-phone"}, the bad email {fields:"rc-email"}', p.events.some((e) => e.name === 'form_error' && e.params.step === 4 && e.params.fields === 'rc-phone') && p.events.some((e) => e.name === 'form_error' && e.params.fields === 'rc-email'), p.events);
+  ok('the result view says the lead saved', p.events.some((e) => e.name === 'form_step_view' && e.params.step === 6 && e.params.lead_saved === true));
+  ok('no event carries the name, phone, email or address', !/Pat|555|example|Elm/.test(JSON.stringify(p.events)), JSON.stringify(p.events));
+
   console.log('\nFLOW — a lead that fails to save still shows the result, with the call/text warning');
   {
     const q = loadPage({ leadResult: { ok: false } });

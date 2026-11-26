@@ -38,6 +38,19 @@
     firstName: '', phone: '', email: '', intake: null, submitted: false
   };
   function gtagEvent(name, params) { try { if (typeof window.gtag === 'function') window.gtag('event', name, params || {}); } catch (e) { /* never break the funnel */ } }
+  /* Form-funnel events (2026-11-26): the same names as /inspect, the quick
+     form and /estimate, with form:'roof_check'
+     (documentation/projects/FORM-FUNNEL-EVENTS-2026-11-26.md). The roof_check_*
+     events above stay. No PII: step numbers, step names and the ids of what
+     was missing, never a value. GA4, plus Clarity when clarity-loader.js
+     loaded it (it keeps its own DNT/GPC gate). */
+  var STEP_NAMES = { 1: 'address', 2: 'history', 3: 'roof', 4: 'contact', 5: 'writing', 6: 'result', 7: 'details' };
+  function trackStep(name, n, extra) {
+    var p = { form: 'roof_check', step: n, step_name: STEP_NAMES[n] || String(n) };
+    for (var k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) p[k] = extra[k];
+    gtagEvent(name, p);
+    try { if (typeof window.clarity === 'function') window.clarity('event', name); } catch (e) { /* never break the funnel */ }
+  }
 
   // Tap-to-call in error and save messages: the text is set with textContent,
   // so the number is swapped for a tel: link here, built with DOM calls.
@@ -65,10 +78,16 @@
     if (t && typeof t.querySelector === 'function') focusEl(t.querySelector('h2') || $('rc-result-headline'));
   }
   function goToStep(n) {
-    if (n > S.step && !validate(S.step)) return;
+    var from = S.step;
+    if (n > S.step && !validate(S.step)) {
+      trackStep('form_error', from, { fields: missing(from).map(function (q) { return q[0]; }).join(',') || 'continue' });
+      return;
+    }
     if (!SCREENS[n]) return;
     S.step = n;
     show(SCREENS[n], PROGRESS[n]);
+    if (n > from) trackStep('form_step_complete', from);
+    trackStep('form_step_view', n);
     if (n === 3) gtagEvent('roof_check_questions');
     if (n === 4) gtagEvent('roof_check_contact');
   }
@@ -247,10 +266,10 @@
   function generate() {
     if (S.lat == null && !S.addressTyped) {
       var typed = ($('rc-address').value || '').trim();
-      if (typed.length < 5) { hint('Type your address and pick it from the dropdown.'); return; }
+      if (typed.length < 5) { hint('Type your address and pick it from the dropdown.'); trackStep('form_error', 1, { fields: 'address' }); return; }
       hint('Looking up that address…');
       geocodeOnce(typed).then(function (data) {
-        if (!data || !data.length) { offerTyped('We couldn’t find that address on the map. Check it, or continue with it as typed.'); return; }
+        if (!data || !data.length) { offerTyped('We couldn’t find that address on the map. Check it, or continue with it as typed.'); trackStep('form_error', 1, { fields: 'address_lookup' }); return; }
         window._rcAc = data; pickAddr(0); lookupStorms();
       }).catch(function () { offerTyped('The map lookup isn’t responding. You can continue with your address as typed.'); });
       return;
@@ -258,6 +277,8 @@
     lookupStorms();
   }
   function lookupStorms() {
+    // From the address screen this completes step 1; Try again on the history screen does not.
+    if (S.step === 1) trackStep('form_step_complete', 1);
     S.step = 2;
     show('rc-loading', PROGRESS[2]);
     gtagEvent('roof_check_generate');
@@ -307,6 +328,7 @@
     }
     S.step = 2;
     show('rc-teaser', PROGRESS[2]);
+    trackStep('form_step_view', 2, { lookup_failed: !!S.data._err });
     gtagEvent('roof_check_history', { events: S.data._err ? -1 : (c.total || 0), lookup_failed: !!S.data._err });
   }
   function chip(t) { return '<span class="rc-chip">' + t + '</span>'; }
@@ -444,6 +466,7 @@
     _grant = res.photoToken;
     if (!box.childElementCount) box.innerHTML = window.NBDIntake.html(XP, { sched: false });
     wrap.hidden = false;
+    trackStep('form_step_view', 7);
   }
   function detailsStatus(msg, isError) {
     var st = $('rc-details-status');
@@ -471,7 +494,8 @@
     }).then(function (r) { return r.ok; }, function () { return false; });
     return post.then(function (saved) {
       _busy = false;
-      if (!saved) { btn.disabled = false; btn.textContent = 'Send to Joe'; detailsStatus('Couldn’t save that. Call or text Joe at (859) 420-7382.', true); return; }
+      if (!saved) { btn.disabled = false; btn.textContent = 'Send to Joe'; detailsStatus('Couldn’t save that. Call or text Joe at (859) 420-7382.', true); trackStep('form_error', 7, { fields: 'save' }); return; }
+      trackStep('form_step_complete', 7, { answers: Object.keys(answers).length, photos: files.length });
       btn.textContent = 'Sent';
       detailsStatus(hasAnswers ? 'Thanks, that’s on your request now.' : '', false);
       // Photos: the same grant, uploaded and reported by intake-extras.js.
@@ -498,11 +522,16 @@
     var fn = $('rc-firstName').value.trim(), ph = $('rc-phone').value.trim(),
         em = ($('rc-email') ? $('rc-email').value : '').trim(), consent = $('rc-consent').checked;
     var err = $('rc-contact-err');
-    if (!fn || ph.replace(/\D/g, '').replace(/^1/, '').length !== 10) { err.textContent = 'Please add your name and a 10-digit phone.'; return; }
-    if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { err.textContent = 'That email doesn’t look right. Fix it, or leave it blank.'; return; }
+    var phoneOk = ph.replace(/\D/g, '').replace(/^1/, '').length === 10;
+    if (!fn || !phoneOk) {
+      err.textContent = 'Please add your name and a 10-digit phone.';
+      trackStep('form_error', 4, { fields: [!fn && 'rc-firstName', !phoneOk && 'rc-phone'].filter(Boolean).join(',') });
+      return;
+    }
+    if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { err.textContent = 'That email doesn’t look right. Fix it, or leave it blank.'; trackStep('form_error', 4, { fields: 'rc-email' }); return; }
     // Texting consent is optional (2026-10-15): the lead is saved either way; no automatic text without it.
     var intake = readIntake();
-    if (intake.error) { $('rc-contact-err').textContent = intake.error; if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid'); return; }
+    if (intake.error) { $('rc-contact-err').textContent = intake.error; if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid'); trackStep('form_error', 4, { fields: 'scheduling' }); return; }
     S.intake = intake;
     err.textContent = '';
     S.firstName = fn; S.phone = ph; S.email = em;
@@ -522,8 +551,10 @@
       ? window.submitPublicLead('inspect', payload)
       : Promise.resolve({ ok: false });
     gtagEvent('roof_check_submit');
+    trackStep('form_step_complete', 4);
     S.step = 5;
     show('rc-step5', PROGRESS[5]);
+    trackStep('form_step_view', 5);
     // The AI note runs only now, after the visitor gave their contact details.
     capture.then(function (lead) { return lead; }, function () { return { ok: false }; }).then(function (lead) {
       S.submitted = !!(lead && lead.ok);
@@ -547,6 +578,7 @@
     wireBookLink();
     S.step = 6;
     show('rc-result', 100);
+    trackStep('form_step_view', 6, { lead_saved: !!(lead && lead.ok) });
     if (!(S.data && S.data._err)) initMap();
     var c = (S.data && S.data.counts) || {};
     gtagEvent('roof_check_complete', { has_storm_data: !!v.dataLine, events: (S.data && S.data._err) ? -1 : (c.total || 0) });
@@ -641,6 +673,13 @@
   /* ── delegated clicks (CSP-safe, no inline handlers) ── */
   function wire() {
     wireAddress(); wirePhone(); mountNeedNotes();
+    trackStep('form_step_view', 1);
+    var started = false;
+    document.addEventListener('focusin', function (e) {
+      if (started || !e.target || typeof e.target.closest !== 'function' || !e.target.closest('.rc-step')) return;
+      started = true;
+      gtagEvent('form_start', { form: 'roof_check' });
+    });
     document.querySelectorAll('.rc-tile').forEach(function (t) { t.setAttribute('type', 'button'); t.setAttribute('aria-pressed', 'false'); });
     if (!mountIntake()) { var _it = 0, _iv = setInterval(function () { if (mountIntake() || ++_it > 40) clearInterval(_iv); }, 250); }
     document.addEventListener('click', function (e) {
