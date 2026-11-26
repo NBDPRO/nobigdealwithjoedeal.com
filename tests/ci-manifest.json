@@ -944,6 +944,7 @@
     "favicon-contract.test.js",
     "lead-form-phone-contract.test.js",
     "public-form-fixes-2026-10-15.test.js",
+    "guides-quick-form-2026-11-25.test.js",
     "lead-submit-failure-signal-2026-11-25.test.js",
     "pro-claims-honesty-2026-09-13.test.js",
     "st-f40-2026-11-08.test.js",
