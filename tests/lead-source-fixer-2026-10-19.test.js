@@ -143,6 +143,74 @@ console.log('report');
   ok('fmtMoney formats cents', P.fmtMoney(8470000) === '$84,700.00' && P.fmtMoney(5) === '$0.05' && P.fmtMoney(-250) === '-$2.50');
 }
 
+// ── 3b. Website pages (2026-11-26) ──────────────────────────────────────
+// The same cases as tests/website-page-revenue-2026-11-26.test.js (the
+// monthly email's rollup), run through the CRM tab's copy with the CRM's own
+// isSale (numbers-logic.js) and paymentsOf (collected-revenue.js).
+const NL = require(path.join(ROOT, 'docs/pro/js/numbers-logic.js'));
+const isSale = (l) => NL.isSale(l);
+const ts = (iso) => ({ toMillis: () => Date.parse(iso) });
+const WP_NOW = Date.parse('2026-12-01T12:00:00Z');
+const WP_LEADS = () => [
+  { id: 'A', webLead: true, sourcePage: '/inspect', createdAt: ts('2026-11-03T15:00:00Z'), stage: 'closed' },
+  { id: 'B', webLead: true, sourcePage: '/storm-check', createdAt: ts('2026-11-10T15:00:00Z'), stage: 'contacted' },
+  { id: 'C', webLead: true, sourcePage: '/roof-check', createdAt: ts('2026-03-05T15:00:00Z'), stage: 'install_complete' },
+  { id: 'D', webLead: true, sourcePage: '/book', createdAt: ts('2026-11-20T15:00:00Z'), stage: 'lost', stageHistory: [{ from: 'new', to: 'inspected' }, { from: 'inspected', to: 'lost' }] },
+  { id: 'E', webLead: false, sourcePage: '', createdAt: ts('2026-11-04T15:00:00Z'), stage: 'closed' },
+  { id: 'F', webLead: true, deleted: true, sourcePage: '/inspect', createdAt: ts('2026-11-04T15:00:00Z'), stage: 'closed' },
+  { id: 'G', webLead: true, sourcePage: 'page-form:/areas/mason-oh', createdAt: ts('2024-06-01T15:00:00Z'), stage: 'closed' },
+  { id: 'H', webLead: true, sourcePage: '/inspect', createdAt: ts('2026-11-01T03:30:00Z'), stage: 'new' },
+];
+const WP_INVOICES = () => [
+  { leadId: 'A', total: 1234.56, balanceDue: 0, payments: [{ amount: 1234.56, at: ts('2026-11-15T15:00:00Z') }], refunds: [{ amount: 34.56, at: ts('2026-11-20T15:00:00Z') }] },
+  { leadId: 'C', total: 5000, balanceDue: 0, payments: [{ amount: 4500, at: ts('2026-04-01T15:00:00Z') }, { amount: 500, at: ts('2026-11-02T15:00:00Z') }] },
+  { leadId: 'E', total: 9000, balanceDue: 0, paidAt: ts('2026-11-05T15:00:00Z') },
+  { leadId: 'F', total: 7000, balanceDue: 0, paidAt: ts('2026-11-05T15:00:00Z') },
+  { leadId: 'G', total: 8000, balanceDue: 0, paidAt: ts('2024-07-01T15:00:00Z') },
+  { leadId: 'B', total: 15000, balanceDue: 15000 },
+  { leadId: 'A', total: 999, balanceDue: 0, paidAt: ts('2026-11-05T15:00:00Z'), deleted: true },
+];
+console.log('website pages: grouping');
+{
+  const pk = (sourcePage, extra) => P.wpPageKey(Object.assign({ sourcePage }, extra || {}));
+  ok('page-form: prefix and trailing slash fold into the page path', pk('page-form:/areas/mason-oh/') === '/areas/mason-oh' && pk('/areas/mason-oh') === '/areas/mason-oh');
+  ok('old storm tools count as /roof-check', pk('/storm-check') === '/roof-check' && pk('/roof-score.html') === '/roof-check' && pk('/storm-report') === '/roof-check' && pk('/roof-check') === '/roof-check');
+  ok('/book counts as /inspect', pk('/book') === '/inspect' && pk('/book/') === '/inspect' && pk('https://example.test/book?x=1') === '/inspect');
+  ok('a guide page keeps its slug, query dropped; homepage folds to /', pk('/guides/hail-damage?utm_source=x') === '/guides/hail-damage' && pk('homepage') === '/' && pk('/index.html') === '/');
+  ok('Cal.com bookings group; no page falls back to the form', pk('calcom:roof-inspection') === 'Cal.com booking' && pk('', { publicLeadCollection: 'contact_leads' }) === '(page not recorded) · Contact form' && pk('') === '(page not recorded)');
+  ok('an unrelated path is not aliased (negative control)', pk('/roofing') === '/roofing');
+  const wj = P.wpWindows('2027-01-01');
+  ok('windows: last calendar month, and 12 months ending with it', wj.month.from === '2026-12-01' && wj.month.to === '2027-01-01' && wj.year.from === '2026-01-01');
+}
+console.log('website pages: inspected');
+{
+  const R = (l) => P.wpReachedInspection(l, WP_NOW, isSale);
+  ok('inspected now, or lost after an inspection, counts', R({ stage: 'inspected' }) && R({ stage: 'lost', stageHistory: [{ from: 'contacted', to: 'inspected' }, { from: 'inspected', to: 'lost' }] }));
+  ok('lost before any inspection, new and contacted do not', !R({ stage: 'lost', stageHistory: [{ from: 'new', to: 'lost' }] }) && !R({ stage: 'new' }) && !R({ stage: 'Contacted' }));
+  ok('a sale counts even on a custom stage; an unplaceable custom stage does not', R({ stage: 'my_custom', stageRole: 'won' }) && !R({ stage: 'my_custom', stageRole: 'active' }));
+  ok('a past inspection date counts, a future one does not', R({ stage: 'new', inspectionDate: ts('2026-11-30T12:00:00Z') }) && !R({ stage: 'new', inspectionDate: ts('2026-12-05T12:00:00Z') }));
+}
+console.log('website pages: rollup (collected = the real ledger, cents)');
+{
+  const pr = P.wpBuild({ leads: WP_LEADS(), invoices: WP_INVOICES(), paymentsOf, isSale, nowMs: WP_NOW, tz: 'America/New_York' });
+  const row = (p) => pr.rows.find((r) => r.page === p);
+  const insp = row('/inspect'), roof = row('/roof-check');
+  ok('/inspect month: 2 leads (A + /book D), 2 inspected, 1 sold', insp && insp.month.leads === 2 && insp.month.inspected === 2 && insp.month.sold === 1, JSON.stringify(insp && insp.month));
+  ok('/inspect collected = payment minus refund, in cents', insp && insp.month.collectedCents === 120000);
+  ok('a lead from Oct 31 Eastern is not in November', insp && insp.year.leads === 3);
+  ok('/roof-check: old /storm-check lead here, month money only from the Nov payment', roof && roof.month.leads === 1 && roof.month.sold === 0 && roof.month.collectedCents === 50000);
+  ok('/roof-check 12 months: both leads, one sale, both payments', roof && roof.year.leads === 2 && roof.year.sold === 1 && roof.year.collectedCents === 500000, JSON.stringify(roof && roof.year));
+  ok('no rows for redirected URLs or out-of-window pages', !row('/storm-check') && !row('/book') && !row('/areas/mason-oh'));
+  ok('non-website, deleted, unpaid and out-of-window money never counted', pr.total.month.collectedCents === 170000 && pr.total.year.collectedCents === 620000, JSON.stringify(pr.total));
+  ok('rows sort by 12-month money, biggest first; every figure whole cents', pr.rows[0].page === '/roof-check' && pr.rows[1].page === '/inspect' && pr.rows.every((r) => Number.isInteger(r.year.collectedCents)));
+  // Same answer as the monthly email's rollup once it is on this branch (PR #3275).
+  const SERVER = path.join(ROOT, 'functions/website-page-revenue.js');
+  if (fs.existsSync(SERVER)) {
+    const S = require(SERVER).buildPageRevenue({ leads: WP_LEADS(), invoices: WP_INVOICES(), todayYmd: '2026-12-01', tz: 'America/New_York', nowMs: WP_NOW });
+    ok('parity: the CRM tab and the monthly email give the same rows and totals', JSON.stringify(S.rows) === JSON.stringify(pr.rows) && JSON.stringify(S.total) === JSON.stringify(pr.total) && JSON.stringify(S.windows) === JSON.stringify(pr.windows));
+  } else console.log('  · parity with functions/website-page-revenue.js runs once PR #3275 is merged');
+}
+
 // ── 4-5. the real module in a sandbox ───────────────────────────────────
 function boot(opts) {
   opts = opts || {};
@@ -283,6 +351,28 @@ const QI = () => [inv('ZZ_QA_1', [[400, D(2026, 5, 5)]]), inv('ZZ_QA_2', [[15, D
       e.range('l3');
       ok('a shorter period recomputes (May-July payments leave the table)', !/\$415\.00/.test(e.overlay().innerHTML) && /Collected \$0\.00 from 0 paying/.test(e.overlay().innerHTML));
       ok('report writes nothing', e.writes.length === 0);
+    }
+
+    console.log('website pages tab');
+    {
+      Date.now = () => WP_NOW;
+      const evil = { id: 'Z', webLead: true, sourcePage: '/<img src=x>', createdAt: ts('2026-11-05T15:00:00Z'), stage: 'new' };
+      const e = boot({ flag: true, leads: WP_LEADS().concat([evil]), invoices: WP_INVOICES() });
+      e.win.NBDNumbers = NL;
+      e.win.NBDCompanyTimeZone = { current: () => 'America/New_York' };
+      e.clickBtn();
+      await until(() => !/Loading payments/.test(e.overlay().innerHTML) && e.reads.invoices === 1, 'loaded');
+      ok('the tab is offered beside Review and Report', /data-lsf-tab="pages"[^>]*>Website pages</.test(e.overlay().innerHTML));
+      e.tab('pages');
+      const h = e.overlay().innerHTML;
+      ok('both periods, labelled by month', /Last month \(2026-11\)/.test(h) && /Last 12 months \(2025-12 to 2026-11\)/.test(h));
+      ok('per page: leads, inspected, sold, collected dollars', /\/inspect<\/td><td data-label="Leads">2<\/td><td data-label="Inspected">2<\/td><td data-label="Sold">1<\/td><td data-label="Collected">\$1,200\.00/.test(h), h.slice(0, 600));
+      ok('a total row, and the money is labelled as collected only', /All website pages/.test(h) && /\$1,700\.00/.test(h) && /never counted as collected/.test(h));
+      ok('a page path from a form is escaped', !/<img/.test(h) && /&lt;img src=x&gt;/.test(h));
+      ok('the tab reads nothing more and writes nothing', e.reads.invoices === 1 && e.writes.length === 0);
+      e.win.NBDNumbers = null; e.tab('pages');
+      ok('no sale helper on the page: says so, never a table of zeros', /Sales data is not loaded/.test(e.overlay().innerHTML) && !/All website pages/.test(e.overlay().innerHTML));
+      Date.now = () => NOW;
     }
   } finally { Date.now = realNow; }
 
