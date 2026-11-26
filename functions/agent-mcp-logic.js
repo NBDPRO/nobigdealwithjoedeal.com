@@ -80,8 +80,12 @@ const TOOLS = {
     inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: MAX_LIST } }, additionalProperties: false },
   },
   verify_item: {
-    description: 'Fact & compliance check on one pending Agent inbox item: mark it checked (ok=true) or flag it with what is wrong (ok=false). Check it against rules_reference: insurance-claim wording (never "we handle/negotiate your claim"), prices and warranty wording.',
+    description: 'Fact & compliance check on one pending Agent inbox item: mark it checked (ok=true) or flag it with what is wrong (ok=false, note required). Check it against rules_reference: insurance-claim wording (never "we handle/negotiate your claim"), prices and warranty wording. A customer draft you have not passed is marked not checked for the owner and needs one extra tap before it can be sent. You cannot check an item you filed yourself.',
     inputSchema: { type: 'object', properties: { item_id: { type: 'string' }, ok: { type: 'boolean' }, note: { type: 'string', maxLength: 500 } }, required: ['item_id', 'ok'], additionalProperties: false },
+  },
+  withdraw_item: {
+    description: 'Take back one item that is still waiting in the Agent inbox (wrong, out of date or filed twice), with the reason. Only an item you filed yourself — or, for the house fact checker, any waiting item another bot filed. The owner no longer sees it; the reason is kept with it.',
+    inputSchema: { type: 'object', properties: { item_id: { type: 'string' }, reason: { type: 'string', maxLength: REASON_MAX } }, required: ['item_id', 'reason'], additionalProperties: false },
   },
   estimates_status: {
     description: 'Each customer\'s latest estimate: the customer-facing total (what the homeowner sees — never cost or margin), tier, when it was made, and the proposal link status (sent / viewed / accepted, view count, last viewed). Filter to one customer, or to proposals sent but not accepted for N+ days ("gone quiet").',
@@ -250,6 +254,68 @@ function dedupeDecision(prevId, prev, companyId, key, item) {
   return { dupId: prevId, kind: prev.kind };
 }
 
+// ── The Quinn gate (roadmap step 8, 2026-11-25; Joe: warn + one extra tap,
+// never block). A house bot's customer draft is filed quinn: { state:
+// 'unchecked' }; verify_item sets 'passed' or 'flagged' (with the reason).
+// The owner's send of a draft Quinn has not passed needs confirmUnverified.
+// Drafts the owner made himself (Storm Mode, Pixel) and a company's own bots
+// (which cannot draft) are not gated. Pre-gate drafts (no quinn field) read
+// the old verified / quinnNote fields.
+const QUINN_STATES = ['unchecked', 'passed', 'flagged'];
+function quinnState(item) {
+  const it = item || {};
+  const q = it.quinn;
+  if (q && typeof q === 'object') return QUINN_STATES.indexOf(q.state) !== -1 ? q.state : 'unchecked';
+  if (it.verified === true) return 'passed';
+  return it.quinnNote ? 'flagged' : 'unchecked';
+}
+/** Is this a draft Quinn is meant to check (a house bot's), so its send is gated? */
+function quinnGated(item) {
+  const it = item || {};
+  return !!(it.quinn && typeof it.quinn === 'object') || (Object.prototype.hasOwnProperty.call(BOTS, it.botId) && BOTS[it.botId].scope !== 'personal');
+}
+/** What the owner sees on a gated draft Quinn has not passed, else null. */
+function quinnLabel(item) {
+  if (!quinnGated(item)) return null;
+  const s = quinnState(item);
+  if (s === 'passed') return null;
+  if (s === 'flagged') return 'Quinn flagged: ' + clean((item.quinn && item.quinn.reason) || item.quinnNote || 'see the note', 500);
+  return 'Not checked by Quinn';
+}
+/** The owner's send: null when it may go, else the failed-precondition message. */
+function sendGateProblem(item, confirmUnverified) {
+  if (confirmUnverified === true) return null;
+  const why = quinnLabel(item);
+  return why ? why + ' — confirm to send anyway.' : null;
+}
+/** The house fact checker (a built-in bot with verify_item), not a company's own bot given the tool. */
+function isHouseChecker(botId) {
+  return Object.prototype.hasOwnProperty.call(BOTS, botId) && BOTS[botId].scope !== 'personal' && BOTS[botId].tools.indexOf('verify_item') !== -1;
+}
+/** verify_item on one item → { state, reason } or { error }. */
+function verifyDecision(item, companyId, botId, ok, note) {
+  const it = item;
+  if (!it || it.companyId !== companyId) return { error: 'unknown item_id' };
+  if (it.status !== 'pending') return { error: 'already decided by the owner' };
+  if (it.botId && it.botId === botId) return { error: 'You cannot check your own item: it needs another bot\'s check (audit 2026-11-22 §3.1).' };
+  // A customer draft's check lifts (or keeps) the owner's send warning, so only the house checker sets it.
+  if (DRAFT_KINDS.indexOf(it.kind) !== -1 && quinnGated(it) && !isHouseChecker(botId)) return { error: 'Only the house fact checker can check a customer draft.' };
+  const reason = clean(note, 500);
+  if (ok !== true && !reason) return { error: 'Say what is wrong: a flag needs the reason in note.' };
+  return { state: ok === true ? 'passed' : 'flagged', reason };
+}
+/** withdraw_item → { reason } or { error }. The filer, or the house checker for a bot-filed item; same company, pending only. */
+function withdrawDecision(item, companyId, botId, isChecker, reasonIn) {
+  const it = item;
+  if (!it || it.companyId !== companyId) return { error: 'unknown item_id' };
+  if (it.status !== 'pending') return { error: 'already decided (' + String(it.status || 'unknown') + '): only a waiting item can be withdrawn' };
+  // The checker reaches only what a bot key filed (keyId); never Storm Mode, a Storm report, Pixel or the owner's own items.
+  if (it.botId !== botId && !(isChecker && it.keyId)) return { error: 'You can only withdraw an item you filed yourself.' };
+  const reason = clean(reasonIn, REASON_MAX);
+  if (!reason) return { error: 'reason is required: say why it is withdrawn' };
+  return { reason };
+}
+
 const READ = ['crm_summary', 'schedule', 'overdue_followups', 'list_leads', 'lead_detail'];
 const FILE = ['file_note', 'file_reminder', 'file_report'];
 
@@ -274,11 +340,17 @@ const PERSONAL_TOOLS = ['my_today', 'my_week', 'my_reviews', 'my_money'];
 function isPersonalBot(botId) { return Object.prototype.hasOwnProperty.call(BOTS, botId) && BOTS[botId].scope === 'personal'; }
 function isPersonalTool(name) { return PERSONAL_TOOLS.indexOf(name) !== -1; }
 const FIRST_WAVE = ['cos', 'marcus', 'quinn'];
+// withdraw_item (roadmap step 8, 2026-11-25): every house bot that files can
+// take back its own waiting item, and the checker (verify_item) any of them.
+Object.keys(BOTS).forEach((id) => {
+  const t = BOTS[id].tools;
+  if (t.some((n) => FILING_TOOLS.indexOf(n) !== -1 || n === 'verify_item')) t.push('withdraw_item');
+});
 
 // MCP tool annotations: every tool is read-only except the three filings
 // and Quinn's check, which only add to / mark Jo's Agent inbox — none is
 // destructive, and none reaches anything outside the CRM.
-const WRITES = ['file_note', 'file_reminder', 'file_report', 'verify_item', 'draft_text', 'draft_email', 'file_social_draft'];
+const WRITES = ['file_note', 'file_reminder', 'file_report', 'verify_item', 'withdraw_item', 'draft_text', 'draft_email', 'file_social_draft'];
 function annotationsFor(name) {
   const w = WRITES.indexOf(name) !== -1;
   return { readOnlyHint: !w, destructiveHint: false, idempotentHint: !w, openWorldHint: false };
@@ -1092,7 +1164,7 @@ function teamActivity(audits, items, nowMs, days, roster) {
   const d = Math.min(Math.max(Math.floor(Number(days)) || 7, 1), 30);
   const cut = nowMs - d * 86400000;
   const rows = {};
-  const row = (id) => (rows[id] = rows[id] || { bot: R[id] ? R[id].name : id, calls: 0, failed_calls: 0, filed: 0, approved: 0, tossed: 0, waiting: 0, quinn_checked: 0, quinn_flagged: 0 });
+  const row = (id) => (rows[id] = rows[id] || { bot: R[id] ? R[id].name : id, calls: 0, failed_calls: 0, filed: 0, approved: 0, tossed: 0, withdrawn: 0, waiting: 0, quinn_checked: 0, quinn_flagged: 0 });
   (audits || []).forEach((a) => {
     if (!a || !has(a.botId) || ms(a.at) < cut) return;
     const r = row(a.botId); r.calls++; if (a.ok === false) r.failed_calls++;
@@ -1100,7 +1172,7 @@ function teamActivity(audits, items, nowMs, days, roster) {
   (items || []).forEach((i) => {
     if (!i || !has(i.botId) || ms(i.createdAt) < cut) return;
     const r = row(i.botId); r.filed++;
-    if (i.status === 'approved' || i.status === 'sent_by_owner') r.approved++; else if (i.status === 'dismissed') r.tossed++; else r.waiting++;
+    if (i.status === 'approved' || i.status === 'sent_by_owner') r.approved++; else if (i.status === 'dismissed') r.tossed++; else if (i.status === 'withdrawn') r.withdrawn++; else r.waiting++;
     if (i.verified === true) r.quinn_checked++; else if (i.quinnNote) r.quinn_flagged++;
   });
   const out = Object.keys(R).filter(has).map((id) => Object.assign({ bot_id: id }, row(id)));
@@ -1438,6 +1510,48 @@ function emailGate(lead, suppression) {
   return { ok: true };
 }
 
+// The social draft wording gate (roadmap step 8, 2026-11-25). Before it, a
+// bot's caption was checked for the two Kentucky claim rules only. Now also
+// Social Studio's own rules (social-logic.js SOCIAL_RULES: nothing about
+// deductibles, no claim talk) and the honesty rules the site gates hold
+// (tests/homeowner-claims-honesty-2026-10-05, tests/lib/outbound-template-scan;
+// those live in tests/, which a deployed function cannot load, so the
+// patterns are carried here). nbdOnly rules are NBD's own claims: another
+// company may truly be licensed, founded in a year or hold those credentials.
+const SOCIAL_RULE_WHY = {
+  'deductible-any': 'Social rule: nothing about deductibles in a post.',
+  'claim-talk': 'Social rule: a post never invites insurance-claim talk.',
+};
+// The rules run on gateText(caption), so look-alike spellings cannot slip
+// past them: fullwidth letters, invisible joiners and soft hyphens, Unicode
+// dashes, non-breaking spaces and emoji stars.
+const STAR = '(?:★|⭐|🌟)';
+const SOCIAL_HONESTY_RULES = [
+  { re: /(?:\$\s*0|\bzero|\bno|\bnothing)\b[^.\n]{0,20}\bout[- ]?of[- ]?pocket\b/i, why: 'Never promise "$0 out of pocket" or "no out-of-pocket cost": what a homeowner pays depends on their policy and deductible.' },
+  { re: new RegExp('\\b[1-5](?:\\.\\d)?\\s*-?\\s*(?:' + STAR + '|stars?\\b)|' + STAR + '\\s*[1-5](?:\\.\\d)?\\b|' + STAR + '{2,}|\\bfive[- ]?stars?\\b|\\brated\\s+[1-5](?:\\.\\d)?\\b|\\b[1-5]\\.\\d\\s*(?:\\/|out of)\\s*5\\b|\\b[1-5]\\.\\d\\s+(?:on\\s+google|(?:google\\s+|star\\s+)?(?:rating|average))\\b', 'iu'), why: 'No hard-coded Google rating or star count: it changes. Point to the reviews instead.' },
+  { nbdOnly: true, re: /\blicensed\b/i, why: 'Say "fully insured", never "licensed".' },
+  { nbdOnly: true, re: /\blife[\s-]*time[\s-]+(?:(?:limited|material|manufacturer|shingle|functionality|workmanship|labor|product|designer)[\s-]+)*(?:warrant\w*|coverage|guarantee\w*)|\blimited[\s-]+life[\s-]*time\b|\blife[\s-]*time[\s-]+(?:limited|functionality|workmanship)\b|\bwarrant(?:y|ies)\s*:?\s*life[\s-]*time\b|\b(?:warrant\w*|guarantee\w*|coverage|covered|protected)\b[^.\n]{0,24}\bfor\s+life\b/i, why: 'A warranty or workmanship is never "lifetime": the written labor warranty is by package, and product warranties use the maker\'s own words.' },
+  { nbdOnly: true, re: /\b(?:since|founded(?:\s+in)?|established(?:\s+in)?|est\.)\s*:?\s*(?:19|20)\d\d\b|\bsince\s+['‘’]\d\d\b/i, why: 'No founding year or "since <year>": say how many years of experience instead (rules_reference).' },
+  { nbdOnly: true, re: /\bmaster[\s-]*elite\b|\b(?:golden|silver)[\s-]*pledge\b|\bpresident['’]?s[\s-]*club\b|\bselect[\s-]*shingle[\s-]*master\b|\bowens[\s-]*corning[\s-]*(?:preferred|platinum|certified)\b|\bplatinum[\s-]*preferred\b/i, why: 'Only claim the credentials the company holds (rules_reference): never Master Elite, a Golden or Silver Pledge, Owens Corning Preferred / Platinum, President\'s Club or SELECT ShingleMaster.' },
+];
+/** The caption as the wording rules read it: NFKC, invisible characters dropped, dashes and spaces made plain. */
+function gateText(text) {
+  return String(text || '').normalize('NFKC')
+    .replace(/[­͏؜ᅟᅠ឴឵᠎​-‏‪-‮⁠-⁯ㅤ︀-️﻿ﾠ]/g, '')
+    .replace(/[‐-―−﹘﹣－]/g, '-')
+    .replace(/\s+/g, ' ');
+}
+/** A social caption's first wording problem, or null. isNbd: NBD's own claims apply too. */
+function socialWordingProblem(text, isNbd) {
+  const t = gateText(text);
+  const ky = claimWordingProblem(t);
+  if (ky) return ky;
+  const soc = ((SOCIAL && SOCIAL.SOCIAL_RULES) || []).find((r) => r.re.test(t));
+  if (soc) return SOCIAL_RULE_WHY[soc.id] || 'Social rule: reword it (' + soc.id + ').';
+  const hit = SOCIAL_HONESTY_RULES.find((r) => (isNbd || !r.nbdOnly) && r.re.test(t));
+  return hit ? hit.why : null;
+}
+
 /** file_social_draft args → the inbox item fields, or { error }. Never published from here. */
 function buildSocialDraft(args) {
   const a = args || {};
@@ -1647,6 +1761,7 @@ module.exports = {
   PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews, personalMoney,
   teamActivity, annotationsFor, WRITES,
   FILING_TOOLS, DEDUPE_KEY_MAX, dedupeKeyOf, dedupeLockId, dedupeOpen, dedupeDecision,
+  quinnState, quinnGated, quinnLabel, sendGateProblem, verifyDecision, withdrawDecision, isHouseChecker, socialWordingProblem, gateText, SOCIAL_HONESTY_RULES,
   TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, leadSources, expenseSignedCents, jobProfit, marginReview, stormNearCustomers, haversineMi, roleOf,
   reviewSprint, reviewSprintAsk, reviewDraftWaiting, isReviewAskDraft, sprintAsked, SPRINT_FROM_MS,
   PHOTO_MATCH, photoTimeMs, validatePhotoMatch, photoVisits, matchPhotoLocation, townOf, shortName,
