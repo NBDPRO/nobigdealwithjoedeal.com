@@ -139,6 +139,9 @@ try {
   for (const d of ['areas', 'services', 'our-work']) copyDir(path.join(ROOT, 'docs', d), path.join(tmp, 'docs', d));
   copyDir(path.join(ROOT, 'docs', 'assets', 'data'), path.join(tmp, 'docs', 'assets', 'data'));
   for (const f of ['index.html', 'our-work.html']) fs.copyFileSync(path.join(ROOT, 'docs', f), path.join(tmp, 'docs', f));
+  // The nearby-jobs fallback reads town coordinates from site-src/data/towns.json (2026-11-26).
+  fs.mkdirSync(path.join(tmp, 'site-src', 'data'), { recursive: true });
+  fs.copyFileSync(path.join(ROOT, 'site-src', 'data', 'towns.json'), path.join(tmp, 'site-src', 'data', 'towns.json'));
   for (const e of fs.readdirSync(path.join(ROOT, 'docs', 'assets'))) {
     const dst = path.join(tmp, 'docs', 'assets', e);
     if (!fs.existsSync(dst)) fs.symlinkSync(path.join(ROOT, 'docs', 'assets', e), dst);
