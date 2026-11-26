@@ -109,6 +109,5 @@ email off stops it at once.
   why they're getting it and has a one-click unsubscribe. CAN-SPAM does not
   require confirmed opt-in. A confirm-by-email step would be a separate small PR
   if you want it.
-- **The screen has no link from the dashboard yet** (the dashboard script
-  budget is nearly full). Bookmark `/pro/storm-tips` or say where you want the
-  link.
+- ~~No dashboard link~~ Done (Joe, 2026-11-26): a **Storm tips email** button
+  in the Messaging Center header, next to Twilio logs.

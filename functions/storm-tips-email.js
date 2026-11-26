@@ -304,61 +304,61 @@ Object.assign(module.exports, {
 });
 
 // ── Cloud Functions wiring (tests stub these modules at the loader) ──
-{
-  const { onCall, HttpsError } = require('firebase-functions/v2/https');
-  const { onSchedule } = require('./integrations/heartbeat');
-  const { defineSecret } = require('firebase-functions/params');
-  const { logger } = require('firebase-functions/v2');
-  const { getFirestore, FieldValue } = require('firebase-admin/firestore');
-  const { Resend } = require('resend');
-  const Suppression = require('./email-suppression');
-  const MessagingControls = require('./messaging-controls');
-  const TextingGate = require('./sms-texting-gate');
+// Top-level `exports.X = onCall(` / `onSchedule(` at column 0: the deploy
+// workflow builds its --only list by grepping for exactly that shape.
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onSchedule } = require('./integrations/heartbeat');
+const { defineSecret } = require('firebase-functions/params');
+const { logger } = require('firebase-functions/v2');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { Resend } = require('resend');
+const Suppression = require('./email-suppression');
+const MessagingControls = require('./messaging-controls');
+const TextingGate = require('./sms-texting-gate');
 
-  const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
+const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 
-  const zipCoords = (z) => require('./storm-watch')._test.zipCoords(z);
+const zipCoords = (z) => require('./storm-watch')._test.zipCoords(z);
 
-  const depsFor = (by) => ({
-    db: getFirestore(), nowMs: Date.now(), Suppression, MC: MessagingControls, FieldValue, logger,
-    companyId: TextingGate.NBD_OWNER_UID, by, zipCoords, env: process.env,
-    get resend() { return new Resend(RESEND_API_KEY.value()); },
-  });
+const depsFor = (by) => ({
+  db: getFirestore(), nowMs: Date.now(), Suppression, MC: MessagingControls, FieldValue, logger,
+  companyId: TextingGate.NBD_OWNER_UID, by, zipCoords, env: process.env,
+  get resend() { return new Resend(RESEND_API_KEY.value()); },
+});
 
-  module.exports.stormTipsAdmin = onCall(
-    { region: 'us-central1', enforceAppCheck: true, secrets: [RESEND_API_KEY], timeoutSeconds: 300, memory: '256MiB', maxInstances: 2 },
-    async (request) => {
-      const auth = request.auth;
-      if (!auth || !auth.uid) throw new HttpsError('unauthenticated', 'Sign in required');
-      if (auth.uid !== TextingGate.NBD_OWNER_UID) throw new HttpsError('permission-denied', 'Owner only');
-      const p = request.data || {};
-      const deps = depsFor(auth.uid);
-      switch (p.action) {
-        case 'list': return listView(deps);
-        case 'preview': {
-          if (!T.issueById(p.issueId)) throw new HttpsError('invalid-argument', 'Unknown issue');
-          const r = T.renderIssue(p.issueId);
-          return { subject: r.subject, html: r.html };
-        }
-        case 'send': {
-          const resend = deps.resend;
-          const out = await manualSend(Object.assign({}, deps, { resend }), p);
-          logger.info('stormTipsAdmin: send', { issueId: p.issueId, target: p.target, out });
-          return out;
-        }
-        case 'setSettings': return setSettings(deps, p);
-        case 'setSubscriber': return setSubscriber(deps, p);
-        default: throw new HttpsError('invalid-argument', 'Unknown action');
+exports.stormTipsAdmin = onCall(
+  { region: 'us-central1', enforceAppCheck: true, secrets: [RESEND_API_KEY], timeoutSeconds: 300, memory: '256MiB', maxInstances: 2 },
+  async (request) => {
+    const auth = request.auth;
+    if (!auth || !auth.uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    if (auth.uid !== TextingGate.NBD_OWNER_UID) throw new HttpsError('permission-denied', 'Owner only');
+    const p = request.data || {};
+    const deps = depsFor(auth.uid);
+    switch (p.action) {
+      case 'list': return listView(deps);
+      case 'preview': {
+        if (!T.issueById(p.issueId)) throw new HttpsError('invalid-argument', 'Unknown issue');
+        const r = T.renderIssue(p.issueId);
+        return { subject: r.subject, html: r.html };
       }
+      case 'send': {
+        const resend = deps.resend;
+        const out = await manualSend(Object.assign({}, deps, { resend }), p);
+        logger.info('stormTipsAdmin: send', { issueId: p.issueId, target: p.target, out });
+        return out;
+      }
+      case 'setSettings': return setSettings(deps, p);
+      case 'setSubscriber': return setSubscriber(deps, p);
+      default: throw new HttpsError('invalid-argument', 'Unknown action');
     }
-  );
+  }
+);
 
-  module.exports.stormTipsSweep = onSchedule(
-    { schedule: '0 11 * * *', timeZone: 'America/New_York', region: 'us-central1', maxInstances: 1, secrets: [RESEND_API_KEY], timeoutSeconds: 300, memory: '256MiB' },
-    async () => {
-      const deps = depsFor('schedule');
-      const out = await scheduledSweep(Object.assign({}, deps, { resend: deps.resend }));
-      logger.info('stormTipsSweep', out);
-    }
-  );
-}
+exports.stormTipsSweep = onSchedule(
+  { schedule: '0 11 * * *', timeZone: 'America/New_York', region: 'us-central1', maxInstances: 1, secrets: [RESEND_API_KEY], timeoutSeconds: 300, memory: '256MiB' },
+  async () => {
+    const deps = depsFor('schedule');
+    const out = await scheduledSweep(Object.assign({}, deps, { resend: deps.resend }));
+    logger.info('stormTipsSweep', out);
+  }
+);

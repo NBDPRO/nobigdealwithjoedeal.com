@@ -614,7 +614,7 @@
     // Messaging Control Center (2026-10-19): read-only owner/admin view, dark behind the messagingControlCenter flag.
     messaging: [
       'css/messaging-center.css?v=1',
-      'js/messaging-center.js?v=1'
+      'js/messaging-center.js?v=2'
     ],
     homestrips: [
       'css/home-strips.css?v=1',
