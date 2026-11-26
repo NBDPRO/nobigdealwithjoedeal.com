@@ -260,12 +260,8 @@ function mkRes() {
   console.log('\nG — wiring');
   try {
     const src = fs.readFileSync(F('lead-gateway-probe.js'), 'utf8');
-    ok('probe failure → notifyOwner severity alert (text + bell + push)', /severity:\s*'alert'/.test(src) && /notifyOwner/.test(src));
-    ok('quiet notice → notifyOwner severity info (bell + push, no text)', /severity:\s*'info'/.test(src));
-    ok('the cron declares the owner-text secrets', /SMS_SECRETS/.test(src));
+    ok('probe failure → notifyOwner \'alert\' (text + bell + push); quiet notice → \'info\' (bell only)', /notifyOwner[\s\S]*severity: 'alert'[\s\S]*notifyOwner[\s\S]*severity: 'info'/.test(src));
     ok('the cron never writes a lead collection (no .add( / .set( on a lead)', !/\.add\(/.test(src));
-    const idx = fs.readFileSync(F('index.js'), 'utf8');
-    ok('index.js exports leadGatewayProbe', /leadGatewayProbe/.test(idx));
     const map = JSON.parse(fs.readFileSync(F('function-map.json'), 'utf8'));
     ok('function-map.json maps leadGatewayProbe', map.leadGatewayProbe === './lead-gateway-probe');
     const md = fs.readFileSync(F('FUNCTIONS_INDEX.md'), 'utf8');

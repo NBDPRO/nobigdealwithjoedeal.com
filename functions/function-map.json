@@ -156,6 +156,7 @@
   "leadBridgeThumbtack": "./lead-bridge",
   "leadBrief": "./lead-brief",
   "leadFollowUpSweep": "./lead-followup",
+  "leadGatewayProbe": "./lead-gateway-probe",
   "leaderboardAggregate": "./leaderboard-aggregate",
   "listAgentKeys": "./agent-mcp",
   "listStormOutreach": "./agent-mcp",
