@@ -36,6 +36,7 @@ const L = require('./away-mode-logic');
 const { callableRateLimit } = require('./shared');
 const W = require('./call-watch-logic');
 const CL = require('./contact-labels');
+const TP = require('./thursday-projection-logic');
 const { requireTeamAdmin, CORS_ORIGINS } = require('./handlers/_shared');
 
 const COL_STATUS = 'away_mode';
@@ -75,7 +76,9 @@ async function loadOpenItems(db, companyId, nowMs) {
     CL.loadLabels(db, companyId),
   ]);
   const rows = (s) => s.docs.map((d) => Object.assign({ id: d.id }, d.data()));
-  const callRows = rows(calls), textRows = rows(texts);
+  // A Thursday call's phone_calls projection (source 'thursday', roadmap step
+  // 17C) is judged through thursday_calls (thu) here, never twice.
+  const callRows = rows(calls).filter((c) => !TP.isProjection(c)), textRows = rows(texts);
   const ctx = W.reachIndex(callRows);
   ctx.labels = labels;
   const tctx = { labels };

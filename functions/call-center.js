@@ -30,6 +30,7 @@ const MessagingControls = require('./messaging-controls');
 const { getStorage } = require('firebase-admin/storage');
 const L = require('./call-center-logic');
 const MG = require('./call-merge-logic');
+const TPL = require('./thursday-projection-logic'); // one call record (roadmap step 17C)
 const PR = require('./promise-logic');
 const TCT = require('./task-call-text'); // a call task's call text, off the viewer-readable task (Q11)
 const CL = require('./contact-labels');
@@ -252,6 +253,12 @@ async function runIngest({ db, bucket, live, nowMs, feed }) {
         await docRef.set(Object.assign({}, callDoc, { createdAt: FieldValue.serverTimestamp() }));
         counts.stored++;
         filed.add(f.name); if (key) filed.add(key); // its twin later in this run is a re-upload
+        // One call record (roadmap step 17C): a call Thursday also took is
+        // linked to its phone_calls/thursday_<id> projection, one card not two.
+        if (callDoc.phoneDigits) {
+          try { await require('./thursday-projection').linkCubeRow({ db, cube: Object.assign({ id: docRef.id }, callDoc), log: logger }); }
+          catch (e) { logger.warn('call_center_thursday_link_failed', { id: docRef.id, err: e && e.message }); }
+        }
         // Speed-to-lead auto-text (2026-10-15): dark unless
         // MISSED_CALL_AUTOTEXT_ENABLED === 'true'; consented customers only.
         // 2026-10-19: ALSO needs messaging_controls/automations
@@ -523,7 +530,6 @@ exports.callCenterIngest = onSchedule(
 const { defineSecret } = require('firebase-functions/params');
 const { SECRETS, secretValue } = require('./integrations/_shared');
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
-const NOTES_MODEL = 'claude-haiku-4-5-20251001';
 const TRANSCRIBE_PER_RUN = 12;
 const TRANSIENT_MAX = 6; // consecutive 5xx/overloaded failures of ONE call before it counts as the call's fault
 const transcribeEnabled = () => process.env.CALL_CENTER_TRANSCRIBE_ENABLED === 'true';
@@ -547,24 +553,19 @@ function deps() {
 }
 
 // Shared with text-inbox.js (textInboxNotes binds its own ANTHROPIC_API_KEY).
+// 2026-11-25 (roadmap step 15): through functions/ai-client.js (the Anthropic
+// SDK). The route is the feature (call-center-notes / -facts, text-notes,
+// visit-notes, promise-cleanup), so the model, timeout and retries come from
+// functions/ai-models.js; ai-client records the spend with the companyId.
+// Every caller runs the one AI gate before its pass (gate: 'caller'). Errors
+// keep their old shape ('anthropic 529: …', status, provider) for
+// L.classifyProviderError.
 async function claudeNotes({ system, prompt, feature, maxTokens, companyId }) {
-  const key = secretValue(ANTHROPIC_API_KEY);
-  if (!key) throw new Error('anthropic-not-configured');
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'x-api-key': key },
-    body: JSON.stringify({ model: NOTES_MODEL, max_tokens: Number(maxTokens) || 900, system, messages: [{ role: 'user', content: prompt }] }),
-    signal: AbortSignal.timeout(60_000),
+  const r = await require('./ai-client').createMessage({
+    route: feature || 'call-center-notes', system, messages: [{ role: 'user', content: prompt }],
+    maxTokens, companyId, gate: 'caller', apiKey: secretValue(ANTHROPIC_API_KEY), log: logger,
   });
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    const err = new Error('anthropic ' + res.status + ': ' + String((data && data.error && data.error.message) || '').slice(0, 200));
-    err.status = res.status; err.provider = 'anthropic'; // L.classifyProviderError
-    throw err;
-  }
-  // AI spend in one place (functions/ai-spend.js) — one counter row per call.
-  await require('./ai-spend').recordAiSpend(require('./ai-spend').rowFromAnthropic(feature || 'call-center-notes', NOTES_MODEL, data), { log: logger, companyId });
-  const text = ((data && data.content) || []).map((c) => (c && c.type === 'text' ? c.text : '')).join('').trim();
+  const text = r.text;
   const m = /\{[\s\S]*\}/.exec(text);
   if (!m) throw new Error('notes: no JSON');
   return JSON.parse(m[0]);
@@ -703,7 +704,9 @@ async function unfiledNoted(db, feed) {
   const fd = feed || NBD_FEED;
   const q = await db.collection(COLLECTION).where('userId', '==', fd.owner).where('status', '==', 'noted').where('leadId', '==', null).limit(500).get();
   const rows = [];
-  q.forEach((d) => { const r = Object.assign({}, d.data() || {}, { id: d.id }); if (fd.nbd || inFeed(fd, r)) rows.push(r); });
+  // A Thursday call's projection (roadmap step 17C) is filed from the Thursday
+  // inbox, so it gets no "Looks like X" suggestion here.
+  q.forEach((d) => { const r = Object.assign({}, d.data() || {}, { id: d.id }); if ((fd.nbd || inFeed(fd, r)) && !TPL.isProjection(r)) rows.push(r); });
   return rows;
 }
 async function backfillSuggestions({ db, nowMs, leads, rows, feed }) {
@@ -1198,10 +1201,16 @@ async function gatherSweep({ db, nowMs }) {
   const withLead = calls.filter((c) => c.leadId);
   const tasksByCallId = new Map();
   if (withLead.length) {
-    const snaps = await db.getAll(...withLead.map((c) => db.doc('leads/' + c.leadId + '/tasks/' + (c.channel === 'text' ? 'sms-' : 'cube-') + c.id)));
+    // A Thursday call's task is thursday-<blandId> (thursday-projection-logic followUpTaskId).
+    const snaps = await db.getAll(...withLead.map((c) => db.doc('leads/' + c.leadId + '/tasks/' + require('./thursday-projection-logic').followUpTaskId(c))));
     snaps.forEach((s, i) => { if (s.exists) tasksByCallId.set(withLead[i].id, s.data()); });
   }
-  const items = L.collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd: today });
+  const listed = L.collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd: today });
+  // A Thursday call and the Cube row of the same call (roadmap step 17C,
+  // linked with mergedInto): one row, the kept side's, when both are listed.
+  const listedIds = new Set(listed.map((i) => i.callId));
+  const hiddenLink = new Set(calls.filter((c) => c.mergedInto && listedIds.has(c.mergedInto) && (TPL.isProjection(c) || TPL.isProjectionId(c.mergedInto))).map((c) => c.id));
+  const items = listed.filter((i) => !hiddenLink.has(i.callId));
   // "No customer on file": suggest the one existing customer the call is
   // probably about (L.suggestLeadForCall — unique matches only).
   const nofile = items.filter((i) => i.kind === 'nofile' && i.channel === 'call');
@@ -1244,7 +1253,8 @@ async function gatherSweepWithPromises({ db, nowMs }) {
     const q = await db.collection(COLLECTION).where('userId', '==', OWNER).where('startedAtMs', '>=', nowMs - 36 * 3600000)
       .orderBy('startedAtMs', 'desc').limit(300).get();
     const rows = [];
-    q.forEach((d) => rows.push(Object.assign({}, d.data(), { id: d.id })));
+    // A Thursday call's projection is not a Cube call (callWatch skips it too).
+    q.forEach((d) => { const r = Object.assign({}, d.data(), { id: d.id }); if (!TPL.isProjection(r)) rows.push(r); });
     const ctx = Object.assign(W.reachIndex(rows), { labels });
     quietLines = PV.quietNumberLines(PV.quietNumbers(rows, nowMs, W.callNeedsYou, ctx), false);
   } catch (e) {
@@ -1406,10 +1416,13 @@ async function refileNumber({ db, call, leadId, uid, nowMs, noted }) {
   if (onLeads.size >= L.PROXY_MIN_LEADS) return Object.assign(out, { proxy: true });
   const mine = (v) => v && !v.leadId && v.userId === call.userId && (v.companyId || null) === (call.companyId || null);
   const extra = { refiledFrom: call.id };
+  // A Thursday call's projection (roadmap step 17C) is filed from the Thursday
+  // inbox only (thursdayCallAction): sweeping it on here would be undone by
+  // the next projection and leave a second timeline row and task behind.
   const cs = await db.collection(COLLECTION).where('userId', '==', call.userId).where('phoneDigits', '==', digits).get();
   for (const s of cs.docs) {
     const c = Object.assign({}, s.data(), { id: s.id });
-    if (s.id === call.id || !mine(c)) continue;
+    if (s.id === call.id || !mine(c) || TPL.isProjection(c)) continue;
     await fileCallOnLead({ db, call: c, leadId, uid, nowMs, extra });
     if (Array.isArray(noted) && c.status === 'noted') noted.push(c);
     out.calls++;
@@ -1540,7 +1553,8 @@ async function mergeAction({ db, auth, call, action, data, nowMs }) {
       if (!me) throw new HttpsError('not-found', 'Call not found.');
       const otherId = me.mergedInto || me.mergedFrom;
       if (!otherId) return { ok: true, unmerged: false };
-      const other = MG.isCallId(otherId) ? await load(tx, String(otherId)) : null;
+      // A Thursday link (roadmap step 17C) pairs a cube_ row with a thursday_ projection.
+      const other = MG.isCallId(otherId) || TPL.isProjectionId(otherId) ? await load(tx, String(otherId)) : null;
       const p = me.mergedFrom ? me : other;
       const s = me.mergedFrom ? other : me;
       if (!other || !MG.mergedTogether(p, s)) {
@@ -1586,12 +1600,28 @@ async function settleAway(db, call, auth, nowMs) {
   } catch (_) { /* the clearing action already succeeded */ }
 }
 
+const THURSDAY_ROW_ACTIONS = ['handled', 'unhandled', 'rescueDismiss', 'rescueUndismiss', 'taskDone', 'taskUndone', 'snooze', 'unsnooze', 'unmerge'];
+// Handled on a Thursday call's projection is the Thursday inbox's "reviewed"
+// too (review 2026-11-25): callWatch and away mode judge the call by
+// thursday_calls.reviewed, and the projection carries reviewed back as
+// handledAtMs. Same tenant only; a missing doc is skipped.
+async function syncThursdayReviewed(db, call, auth, handled, nowMs) {
+  const docId = String(call.thursdayDocId || '');
+  if (!docId || docId.includes('/')) return;
+  const ref = db.collection('thursday_calls').doc(docId);
+  const s = await ref.get();
+  const t = s.exists ? (s.data() || {}) : null;
+  if (!t || (t.companyId || t.userId) !== (call.companyId || call.userId)) return;
+  await ref.set({ reviewed: handled, reviewedBy: { uid: auth.uid, at: new Date(nowMs) } }, { merge: true });
+}
 async function callAction({ db, auth, data, nowMs }) {
   if (!auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   const id = String((data && data.id) || '');
   // cube_… = a phone call; txt_… = a day of texts (phone_text_days, 2026-10-02).
   const isText = /^txt_[0-9_]{10,40}$/.test(id);
-  if (!isText && !/^cube_[A-Za-z0-9_-]{5,120}$/.test(id)) throw new HttpsError('invalid-argument', 'Bad call id.');
+  // thursday_… = a Thursday call's phone_calls projection (roadmap step 17C).
+  const isThursday = /^thursday_[A-Za-z0-9_-]{6,128}$/.test(id);
+  if (!isText && !isThursday && !/^cube_[A-Za-z0-9_-]{5,120}$/.test(id)) throw new HttpsError('invalid-argument', 'Bad call id.');
   const ref = db.collection(isText ? 'phone_text_days' : COLLECTION).doc(id);
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError('not-found', 'Call not found.');
@@ -1604,8 +1634,19 @@ async function callAction({ db, auth, data, nowMs }) {
     throw new HttpsError('permission-denied', 'Not your call.');
   }
   const action = String((data && data.action) || '');
+  // A Thursday call is filed, moved and reprocessed from the Thursday inbox
+  // (thursdayCallAction); here it takes only what touches the row itself or
+  // its follow-up task, so its projection never drifts from thursday_calls.
+  if (isThursday && !THURSDAY_ROW_ACTIONS.includes(action)) throw new HttpsError('failed-precondition', 'File or change a Thursday call from the Thursday inbox.');
   if (action === 'handled' || action === 'unhandled') {
     await ref.set({ handledAtMs: action === 'handled' ? nowMs : null, handledBy: auth.uid }, { merge: true });
+    if (isThursday) await syncThursdayReviewed(db, call, auth, action === 'handled', nowMs);
+    else if (!isText && TPL.isProjectionId(call.thursdayProjectionId)) {
+      // A kept Cube card linked to a Thursday call: its Handled is that call's reviewed too.
+      const ps = await db.collection(COLLECTION).doc(call.thursdayProjectionId).get();
+      const proj = ps.exists ? Object.assign({}, ps.data(), { id: ps.id }) : null;
+      if (proj && proj.cubeCallId === id) await syncThursdayReviewed(db, proj, auth, action === 'handled', nowMs);
+    }
     await settleAway(db, call, auth, nowMs);
     return { ok: true };
   }
@@ -1625,7 +1666,7 @@ async function callAction({ db, auth, data, nowMs }) {
   // parks the call itself (snoozeUntilYmd, read by collectSweepItems).
   // Each has an undo. Applies to calls and texts alike.
   if (action === 'taskDone' || action === 'taskUndone' || action === 'snooze' || action === 'unsnooze') {
-    const taskRef = call.leadId ? db.doc('leads/' + call.leadId + '/tasks/' + (isText ? 'sms-' : 'cube-') + id) : null;
+    const taskRef = call.leadId ? db.doc('leads/' + call.leadId + '/tasks/' + (isText ? 'sms-' + id : require('./thursday-projection-logic').followUpTaskId(call))) : null;
     const tSnap = taskRef ? await taskRef.get() : null;
     const task = tSnap && tSnap.exists ? tSnap.data() : null;
     const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
@@ -1872,9 +1913,11 @@ exports.callPromisesList = onCall(
 const { onDocumentWritten } = require('firebase-functions/v2/firestore');
 
 async function mirrorCallTask({ db, leadId, taskId, after }) {
-  const m = /^(cube|sms)-([A-Za-z0-9_-]{5,140})$/.exec(String(taskId || ''));
+  const m = /^(cube|sms|thursday)-([A-Za-z0-9_-]{5,140})$/.exec(String(taskId || ''));
   if (!m) return null;
-  const ref = db.collection(m[1] === 'sms' ? 'phone_text_days' : COLLECTION).doc(m[2]);
+  // thursday-<blandId> is a Thursday call's task: its call row is the
+  // phone_calls/thursday_<blandId> projection (roadmap step 17C).
+  const ref = db.collection(m[1] === 'sms' ? 'phone_text_days' : COLLECTION).doc(m[1] === 'thursday' ? 'thursday_' + m[2] : m[2]);
   const snap = await ref.get();
   if (!snap.exists) return null;
   const call = snap.data() || {};
@@ -1902,7 +1945,7 @@ exports.onCallTaskWrite = onDocumentWritten(
   { document: 'leads/{leadId}/tasks/{taskId}', region: 'us-central1', memory: '256MiB', timeoutSeconds: 30 },
   async (event) => {
     // Most tasks are not a call's; skip them before any read.
-    if (!/^(cube|sms)-/.test(String(event.params.taskId || ''))) return;
+    if (!/^(cube|sms|thursday)-/.test(String(event.params.taskId || ''))) return;
     const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
     try {
       await mirrorCallTask({ db: getFirestore(), leadId: event.params.leadId, taskId: event.params.taskId, after });
@@ -1925,7 +1968,8 @@ async function taggedMatch({ db, auth, data, nowMs }) {
   if (!(auth.uid === OWNER || role === 'admin')) throw new HttpsError('permission-denied', 'This is the owner\'s phone.');
   const calls = [];
   const q = await db.collection(COLLECTION).where('userId', '==', OWNER).where('leadId', '==', null).get();
-  q.forEach((d) => calls.push(Object.assign({}, d.data(), { id: d.id })));
+  // Thursday calls' projections are filed from the Thursday inbox (roadmap step 17C).
+  q.forEach((d) => { const r = Object.assign({}, d.data(), { id: d.id }); if (!TPL.isProjection(r)) calls.push(r); });
   const leads = await ownerLeads(db);
   const plan = L.taggedContactPlan({ calls, leads });
   const confirm = Array.isArray(data && data.confirm) ? data.confirm.slice(0, 500) : null;

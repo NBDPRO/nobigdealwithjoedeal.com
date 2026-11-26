@@ -522,7 +522,7 @@
     callcenter: [
       'js/call-center-filters-logic.js?v=5',
       'js/call-center-loop-logic.js?v=1',
-      'js/call-center-view.js?v=34'
+      'js/call-center-view.js?v=35'
     ],
     // Tenant-ready settings (2026-10-05, #2152 boot budget): the Business
     // Rules editor (Settings → Estimates) and the logo upload / company export

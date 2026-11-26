@@ -407,4 +407,4 @@ exports.extractReceiptData = onCall({
 }));
 
 // Export the pure helpers for unit testing.
-exports._test = { sanitizeReceipt, reconcile, computeNeedsReview, dollarsToCents, isHeicBytes };
+exports._test = { sanitizeReceipt, reconcile, computeNeedsReview, dollarsToCents, isHeicBytes, MODEL };

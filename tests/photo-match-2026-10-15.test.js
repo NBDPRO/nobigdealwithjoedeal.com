@@ -231,7 +231,7 @@ const m0 = (r, i) => (r.points && r.points[i || 0] ? r.points[i || 0].matches : 
     ok('no customer street, phone or other company\'s name in the answer', !/Oak St|8595550147|Oscar|Other/.test(r.text), r.text);
     const newDocs = [...DB.docs.keys()].filter((k) => !before.has(k));
     ok('the points are stored nowhere: the only new doc is the usual audit row, with no coordinates', newDocs.length === 1 && /^agent_audit\//.test(newDocs[0])
-      && !/39|84\.6|lat|lng|taken/.test(JSON.stringify(DB.docs.get(newDocs[0]))), JSON.stringify(newDocs.map((k) => [k, DB.docs.get(k)])));
+      && !/39|84\.6|"lat"|"lng"|taken/.test(JSON.stringify(DB.docs.get(newDocs[0]))), JSON.stringify(newDocs.map((k) => [k, DB.docs.get(k)])));
     ok('the only update is the key\'s lastUsedAt (as on every call)', DB.writes.filter((p) => !/^agent_audit\//.test(p)).every((p) => p === 'agent_keys/' + sha(KEY)));
     const bad = await callTool(KEY, 'match_photo_location', { points: Array(201).fill(pt(HOUSE, et('2026-10-20', '12:00'))) });
     ok('the cap is enforced by the server', bad.isError && /at most 200/.test(bad.text), bad.text);

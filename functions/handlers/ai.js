@@ -184,6 +184,14 @@ exports.claudeProxy = onRequest(
       // Ask Joe actions (2026-10-02): a NAMED server-side tool list — never
       // tool definitions from the browser. Unknown names are ignored.
       const tools = require('../ask-joe-tools').toolsFor(toolset);
+      // Prompt registry (2026-11-25, roadmap step 15): a promptId selects the
+      // server's own fixed system prompt (functions/ai-prompts.js); an
+      // unknown one is refused. No promptId → the free-form path below.
+      const registered = require('../ai-prompts').promptFromBody(req.body || {});
+      if (registered && !registered.ok) {
+        res.status(registered.status).json({ error: registered.error });
+        return;
+      }
       if (!Array.isArray(messages) || messages.length === 0) {
         res.status(400).json({ error: 'messages array required' });
         return;
@@ -208,7 +216,7 @@ exports.claudeProxy = onRequest(
       // System prompts are capped (tokens still count against the daily budget
       // below). 4000 chars silently cut the end off Ask Joe's prompt once it
       // carried the Kentucky + deposit ground rules (4186 chars, 2026-10-02).
-      const safeSystem = (typeof system === 'string') ? system.slice(0, CLAUDE_MAX_SYSTEM_CHARS) : undefined;
+      const safeSystem = registered ? registered.system : ((typeof system === 'string') ? system.slice(0, CLAUDE_MAX_SYSTEM_CHARS) : undefined);
       const safeTemperature = (typeof temperature === 'number')
         ? Math.max(0, Math.min(1, temperature))
         : undefined;
@@ -722,3 +730,7 @@ exports.adminAI = onRequest(
     }
   })
 );
+
+// functions/ai-models.js cross-checks its public-funnel and admin-ai rows.
+exports._FUNNEL_AI_MODEL = FUNNEL_AI_MODEL;
+exports._ADMIN_AI_MODEL = ADMIN_AI_MODEL;

@@ -1159,6 +1159,7 @@ module.exports = Object.assign(module.exports, {
   _checkVerbalConsent: checkVerbalConsent,
   _processRecording: processRecording,
   _VoiceError: VoiceError,
+  _VOICE_ANALYSIS_MODEL: VOICE_ANALYSIS_MODEL, // ai-models.js cross-checks both voice rows
   _constants: {
     VOICE_COMPANY_BUDGET_SEC,
     VOICE_COMPANY_BUDGET_DEFAULT,
