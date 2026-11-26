@@ -119,6 +119,8 @@ const CRON_GATES = [
   { name: 'PORTAL_MOMENT_EMAILS_ENABLED', polarity: 'enabled', file: 'portal-moments.js' },
   // Server mail feed (2026-11-25, roadmap step 17 part A): every 15 min, a READ-ONLY redacted copy of new iCloud + Gmail inbox mail. Needs the mail secrets too. Dark until Joe says go.
   { name: 'MAIL_FEED_ENABLED', polarity: 'enabled', file: 'mail-feed.js' },
+  // Storm-tips email (2026-11-26): Joe's manual send AND the daily schedule need it; the schedule also needs automations.stormTipsEmail. Dark until Joe says go.
+  { name: 'STORM_TIPS_EMAIL_ENABLED', polarity: 'enabled', file: 'storm-tips-email.js' },
 ];
 
 /**

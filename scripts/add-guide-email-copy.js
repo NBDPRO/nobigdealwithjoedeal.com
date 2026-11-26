@@ -36,7 +36,12 @@ const SLUGS = [
 const CONSENT_TEXT = 'Also email me storm-season tips from Joe now and then. Unsubscribe any time.';
 
 const SUBMIT_JS = '<script defer src="/assets/js/public-lead-submit.js"></script>';
-const COPY_JS = '<script defer src="/assets/js/guide-email-copy.js?v=1"></script>';
+const COPY_JS = '<script defer src="/assets/js/guide-email-copy.js?v=2"></script>';
+const COPY_JS_V1 = '<script defer src="/assets/js/guide-email-copy.js?v=1"></script>';
+
+// Optional ZIP (2026-11-26, Joe): lets a storm-tips email target people near a
+// real storm. Pages stamped before it get the line added after the checkbox.
+const ZIP_LINE = '      <div><label for="gcZip">ZIP code (optional, so storm tips can match your area)</label><input type="text" id="gcZip" name="zip" inputmode="numeric" autocomplete="postal-code" maxlength="10"></div>';
 
 function block(slug) {
   return [
@@ -47,6 +52,7 @@ function block(slug) {
     '    <form class="g-form" id="guideCopyForm" novalidate>',
     '      <div><label for="gcEmail">Your email</label><input type="email" id="gcEmail" name="email" autocomplete="email" required maxlength="200"></div>',
     '      <label class="g-consent" for="gcConsent"><input type="checkbox" id="gcConsent" name="emailConsent" value="yes"> <span>' + CONSENT_TEXT + '</span></label>',
+    ZIP_LINE,
     '      <div class="g-hp" aria-hidden="true"><label for="gcHp">Leave this empty</label><input type="text" id="gcHp" name="nbd_hp" tabindex="-1" autocomplete="off"></div>',
     '      <button type="submit" class="g-btn g-btn-primary">Email me the PDF</button>',
     '      <p class="g-form-note">See the <a href="/privacy">privacy policy</a>.</p>',
@@ -57,7 +63,7 @@ function block(slug) {
   ].join('\n');
 }
 
-module.exports = { SLUGS, CONSENT_TEXT, block };
+module.exports = { SLUGS, CONSENT_TEXT, ZIP_LINE, block };
 
 function main() {
   let changed = 0, skipped = 0, failed = 0;
@@ -68,7 +74,17 @@ function main() {
     const eol = raw.includes('\r\n') ? '\r\n' : '\n';
     let s = raw.replace(/\r\n/g, '\n');
 
-    if (s.includes('data-guide-copy=')) { console.log('  = ' + slug + ' already has the email box'); skipped++; continue; }
+    if (s.includes('data-guide-copy=')) {
+      // Already stamped: only add the ZIP line and the new script version.
+      let t = s;
+      if (!t.includes('id="gcZip"')) t = t.replace(/(<label class="g-consent"[^\n]*\n)/, (m) => m + ZIP_LINE + '\n');
+      t = t.replace(COPY_JS_V1, COPY_JS);
+      if (t === s) { console.log('  = ' + slug + ' already has the email box'); skipped++; continue; }
+      fs.writeFileSync(file, eol === '\r\n' ? t.replace(/\n/g, '\r\n') : t);
+      console.log('  ~ ' + slug + ' (ZIP field)');
+      changed++;
+      continue;
+    }
     const endMark = '<!-- GUIDE-BODY:END ' + slug + ' -->\n';
     const at = s.indexOf(endMark);
     if (at === -1 || !s.includes('</body>') || !s.includes('data-pdf-href="/guides/pdf/' + slug + '.pdf"')) {

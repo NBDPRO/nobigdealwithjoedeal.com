@@ -271,7 +271,7 @@
     if (o.enabled === false) return '<section class="mc-card"><h3>Messaging</h3><p class="' + (o.flagsUnread ? 'mc-bad-text' : 'mc-sub') + '">' + (o.flagsUnread ? 'The feature flags could not be read yet, so this page cannot tell whether Messaging is on. Reload in a moment.' : 'The Messaging Control Center is switched off for this account.') + '</p></section>';
     return incompleteHtml(o) + canaryHtml(o) + bannerHtml(o.alerts) +
       '<div class="mc-head"><h2>Messaging</h2><div class="mc-head-act"><button type="button" class="btn mc-refresh" data-mc-refresh>Refresh</button>' +
-      '<a class="btn mc-twilio" href="' + TWILIO_LOGS + '" target="_blank" rel="noopener noreferrer">Twilio logs</a></div></div>' +
+      '<a class="btn mc-twilio" href="' + TWILIO_LOGS + '" target="_blank" rel="noopener noreferrer">Twilio logs</a><a class="btn mc-twilio" href="/pro/storm-tips">Storm tips email</a></div></div>' +
       '<p class="mc-sub">Updated ' + esc(when(o.generatedAtMs, o.tz)) + '. Read-only. Phone numbers show the last 4 digits only.</p>' +
       needsLookHtml(o) + statusHtml(o) + countsHtml(o) + outcomesHtml(o) + blockedHtml(o) + optOutsHtml(o) + queuesHtml(o) + eventsHtml(o, filter) + coverageHtml(o) + howHtml();
   }

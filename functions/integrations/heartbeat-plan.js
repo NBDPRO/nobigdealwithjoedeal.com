@@ -112,6 +112,7 @@ const PLAN = {
   esignReminderSweep:        { slug: 'daily-customer-touches' }, // #2166: 10:00 ET signer reminders
   reviewAskAutoSweep:        { slug: 'daily-customer-touches' }, // 2026-10-15: 10:00 ET automatic review ask
   reviewAskTenantSweep:      { slug: 'daily-customer-touches' }, // 2026-11-26: 11:00 ET review ask for other companies (email, dark)
+  stormTipsSweep:            { slug: 'daily-customer-touches' }, // 2026-11-26: 11:00 ET storm-tips email schedule (dark)
   invoiceOverdueSweep:       { slug: 'daily-customer-touches' }, // R4 dates: 08:15 ET overdue flags
   officePlanner:             { slug: 'daily-customer-touches' }, // 2026-11-25: 08/12/17 ET, CRM lanes into the Agent inbox (reminders + drafts for the owner; nothing is sent)
 
