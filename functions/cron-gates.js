@@ -65,6 +65,8 @@ const CRON_GATES = [
   { name: 'LEAD_ALERT_WATCHDOG_DISABLED', polarity: 'disabled', file: 'lead-alert-watchdog.js' },
   // Per-job cron watcher (every 30 min, bell + push to Jo; daytime except call/text ingest): ON unless killed.
   { name: 'CRON_DEADMAN_DISABLED', polarity: 'disabled', file: 'cron-deadman.js' },
+  // Office planner (2026-11-25, roadmap step 17B): 08/12/17 ET, the CRM lanes into the Agent inbox for opted-in companies. A no-op until Jo says go.
+  { name: 'OFFICE_PLANNER_ENABLED', polarity: 'enabled', file: 'office-planner.js' },
   // Text Inbox ingest (SMS Backup & Restore → phone_texts): dry-run until Jo says go.
   { name: 'TEXT_INBOX_ENABLED', polarity: 'enabled', file: 'text-inbox.js' },
   // Receipt inbox reader (2026-11-04): submitInboxReceipt is a dry run (reads and spends nothing) until Jo says go. Not a cron.

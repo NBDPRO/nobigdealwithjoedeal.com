@@ -96,6 +96,7 @@ const ENTRIES = Object.freeze({
   companyDocExpiryWatch: none(['env:COMPANY_DOC_EXPIRY_ENABLED']),
   subPaperworkWatch: none(['env:SUB_PAPERWORK_WATCH_ENABLED']),
   ownerWeeklyDigest: none(['env:OWNER_WEEKLY_DIGEST_ENABLED'], CALL_CENTER_WHY),
+  officePlanner: none(['env:OFFICE_PLANNER_ENABLED']),
   leaderboardAggregate: none(['env:LEADERBOARD_AGGREGATE_ENABLED']),
   messagingWatch: none(['flag:messagingControlCenter']),
   visitCaptureSweep: none([], CALL_CENTER_WHY),

@@ -1849,9 +1849,12 @@ function keyProvenanceInput(data) {
   if (KEY_PLATFORMS.indexOf(given) === -1) return { error: 'platform must be one of: ' + KEY_PLATFORMS.join(', ') + '.' };
   return { platform: given, label: clean(d.label, KEY_LABEL_MAX) };
 }
+// 'server' = the CRM's own crons filing as a house bot (office-planner.js,
+// 2026-11-25): a stamp only, never mintable on a key (keyProvenanceInput).
+const STAMP_PLATFORMS = KEY_PLATFORMS.concat(['server']);
 function keyPlatform(k) {
   const p = k && k.platform;
-  return KEY_PLATFORMS.indexOf(p) !== -1 ? p : 'unknown';
+  return STAMP_PLATFORMS.indexOf(p) !== -1 ? p : 'unknown';
 }
 
 // ── Runtime kill switch (roadmap step 10) ─────────────────────────────
@@ -1924,7 +1927,7 @@ module.exports = {
   teamActivity, annotationsFor, WRITES,
   FILING_TOOLS, DEDUPE_KEY_MAX, dedupeKeyOf, dedupeLockId, dedupeOpen, dedupeDecision,
   quinnState, quinnGated, quinnLabel, sendGateProblem, verifyDecision, withdrawDecision, isHouseChecker, socialWordingProblem, gateText, SOCIAL_HONESTY_RULES,
-  TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, leadSources, expenseSignedCents, jobProfit, marginReview, stormNearCustomers, haversineMi, roleOf,
+  TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, completedMs, leadSources, expenseSignedCents, jobProfit, marginReview, stormNearCustomers, haversineMi, roleOf,
   reviewSprint, reviewSprintAsk, reviewDraftWaiting, isReviewAskDraft, sprintAsked, SPRINT_FROM_MS,
   PHOTO_MATCH, photoTimeMs, validatePhotoMatch, photoVisits, matchPhotoLocation, townOf, shortName,
   botFor, CUSTOM_TOOLS, ROUTE_TO, MAX_CUSTOM_BOTS, customBotKey, customBotIdFromKey, normalizeBotInput, customBotView,
