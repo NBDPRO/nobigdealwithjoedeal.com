@@ -151,8 +151,11 @@ async function tool(bot, name, args) {
   let json = null; try { json = JSON.parse(res.content[0].text); } catch (_) {}
   return { isError: res.isError === true, text: res.content[0].text, json };
 }
+// A 'sent' here is the owner who already tapped through the Quinn warning
+// (roadmap step 8; the gate itself is tests/quinn-gate-2026-11-25.test.js).
 async function call(auth, data) {
-  try { return { r: await M.agentDraftAction.run({ auth, data: data || {}, rawRequest: {} }) }; } catch (e) { return { err: e }; }
+  const d = data && data.action === 'sent' ? Object.assign({ confirmUnverified: true }, data) : data;
+  try { return { r: await M.agentDraftAction.run({ auth, data: d || {}, rawRequest: {} }) }; } catch (e) { return { err: e }; }
 }
 const inbox = () => [...DB.docs.entries()].filter(([k]) => /^agent_inbox\//.test(k)).map(([k, v]) => Object.assign({ id: k.split('/')[1] }, v));
 const rows = (c) => [...DB.docs.entries()].filter(([k]) => k.startsWith(c + '/')).map(([, v]) => v);
@@ -164,7 +167,8 @@ const rows = (c) => [...DB.docs.entries()].filter(([k]) => k.startsWith(c + '/')
   ok('Dana + Priya get file_social_draft, no customer drafts', ['dana', 'priya'].every((b) => names(b).includes('file_social_draft') && !names(b).includes('draft_text') && !names(b).includes('draft_email')));
   ok('only those four bots hold a draft tool', Object.keys(L.BOTS).filter((b) => L.DRAFT_TOOLS.some((t) => L.botAllows(b, t))).sort().join() === 'dana,marcus,priya,tucker');
   // + closes_this_week (2026-10-15, read-only): the What-closes-this-week radar for the morning brief / Command Deck.
-  ok('CoS keeps its exact list', L.BOTS.cos.tools.join() === 'crm_summary,schedule,overdue_followups,collected_revenue,lead_sources,inbox_pending,team_activity,closes_this_week,file_report');
+  // + withdraw_item (2026-11-25, roadmap step 8): every filing bot may take back its own waiting item.
+  ok('CoS keeps its exact list', L.BOTS.cos.tools.join() === 'crm_summary,schedule,overdue_followups,collected_revenue,lead_sources,inbox_pending,team_activity,closes_this_week,file_report,withdraw_item');
   ok('Frank gets post_job + file_reminder (and still no notes)', L.botAllows('frank', 'post_job') && L.botAllows('frank', 'file_reminder') && !L.botAllows('frank', 'file_note'));
   ok('company-made bots can never pick a draft tool', L.DRAFT_TOOLS.every((t) => L.CUSTOM_TOOLS.indexOf(t) === -1) && !!L.normalizeBotInput({ name: 'x', tools: ['draft_text'] }).error);
   ok('draft tools are marked as writes (not read-only)', L.DRAFT_TOOLS.every((t) => L.annotationsFor(t).readOnlyHint === false));
