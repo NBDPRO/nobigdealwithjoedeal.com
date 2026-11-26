@@ -38,7 +38,7 @@
   // boards read) stays an eager tag in dashboard.html.
   var BUNDLES = {
     staleleads: ['js/stale-leads-cleanup.js?v=2'],
-    leadsourcefixer: ['js/lead-source-fixer.js?v=1'],
+    leadsourcefixer: ['js/lead-source-fixer.js?v=2'],
     speedtolead: ['js/speed-to-lead.js?v=1'],
     reputation: ['js/reputation.js?v=1'],
     estimatefollowboard: ['js/estimate-follow-board.js?v=1'],

@@ -10,7 +10,10 @@
  *     abandons, recovery emails sent;
  *   - automation counts: homeowner acks, 24h follow-ups;
  *   - CRM movement: how far last month's web leads progressed by stage;
- *   - storm activity: qualifying events the watcher processed.
+ *   - storm activity: qualifying events the watcher processed;
+ *   - website pages → money (2026-11-26): per page, leads, inspected, sold
+ *     and COLLECTED dollars, last month and trailing 12 months
+ *     (website-page-revenue.js), for the website's own tenant only.
  *
  * All queries are createdAt-range-only (no composite indexes); webLead and
  * UTM filtering happen in code. Read-only except the outbound email.
@@ -23,10 +26,17 @@ const { Resend } = require('resend');
 const { Timestamp, getFirestore } = require('firebase-admin/firestore');
 const L = require('./lead-bridge-logic');
 const SR = require('./stage-roles');
+const WPR = require('./website-page-revenue');
+const AM = require('./agent-mcp-logic');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
 
+// The tenant the marketing site's public forms bridge into (lead-bridge.js
+// NBD_OWNER_UID, same env override). The page → money section reads ONLY this
+// company's leads and invoices, so no other tenant's customers or money can
+// reach this email.
+const SITE_COMPANY_ID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const REPORT_EMAILS = ['jd@nobigdealwithjoedeal.com', 'jonathandeal459@gmail.com'];
 const SOURCES = [
   ['estimate_leads', 'Instant Estimate'],
@@ -88,6 +98,49 @@ function aggregate({ leadDocsBySource, funnelDocs, crmDocs, stormCount }) {
   };
 }
 
+// One company's docs under any of its owner fields, de-duplicated (solo
+// accounts own by uid, team accounts by companyId; owner-weekly-digest.js docsOf).
+async function companyDocs(db, collection, companyId, fields) {
+  const snaps = await Promise.all(fields.map((f) => db.collection(collection).where(f, '==', companyId).limit(5000).get()));
+  const byId = {};
+  snaps.forEach((sn) => sn.docs.forEach((d) => { byId[d.id] = Object.assign({ id: d.id }, d.data()); }));
+  return Object.values(byId);
+}
+
+// Page → money for one company. null = could not read (the email then says
+// so; it never shows a failed read as $0).
+async function gatherPageRevenue(db, companyId, nowMs) {
+  try {
+    let tz = 'America/New_York';
+    const prof = await db.doc('companyProfile/' + companyId).get();
+    const ptz = prof.exists ? String((prof.data() || {}).timezone || '') : '';
+    if (ptz && AM.validTimeZone(ptz)) tz = ptz;
+    const [leads, invoices] = await Promise.all([
+      companyDocs(db, 'leads', companyId, ['companyId', 'userId']),
+      companyDocs(db, 'invoices', companyId, ['companyId', 'createdBy']),
+    ]);
+    return WPR.buildPageRevenue({ leads, invoices, todayYmd: AM.dayInZone(nowMs, tz), tz, nowMs });
+  } catch (e) {
+    logger.error('marketingReport: page revenue read failed', { err: e && e.message });
+    return null;
+  }
+}
+
+function pageRevenueHtml(pr) {
+  const head = '<tr style="color:#6b7280;font-size:12px;text-transform:uppercase"><td style="padding:6px 8px">Page</td><td style="padding:6px 8px;text-align:right">Leads</td><td style="padding:6px 8px;text-align:right">Inspected</td><td style="padding:6px 8px;text-align:right">Sold</td><td style="padding:6px 8px;text-align:right">Collected</td></tr>';
+  const cell = 'padding:6px 8px;border-bottom:1px solid #eee;text-align:right';
+  const line = (r, k, bold) => `<tr${bold ? ' style="font-weight:700"' : ''}><td style="padding:6px 8px;border-bottom:1px solid #eee;word-break:break-all">${esc(r.page)}</td><td style="${cell}">${r[k].leads}</td><td style="${cell}">${r[k].inspected}</td><td style="${cell}">${r[k].sold}</td><td style="${cell};font-weight:700">${WPR.money(r[k].collectedCents)}</td></tr>`;
+  const table = (k, title) => {
+    const rows = pr.rows.filter((r) => r[k].leads || r[k].collectedCents);
+    const body = rows.length ? rows.map((r) => line(r, k)).join('') + line(pr.total, k, true)
+      : '<tr><td style="padding:6px 8px;color:#9ca3af" colspan="5">none</td></tr>';
+    return `<h3 style="margin:22px 0 8px;color:#12223d">${esc(title)}</h3><table style="width:100%;border-collapse:collapse;font-size:13px">${head}${body}</table>`;
+  };
+  return table('month', 'Website pages → money, last month (' + pr.windows.month.label + ')')
+    + table('year', 'Website pages → money, last 12 months (' + pr.windows.year.label + ')')
+    + '<p style="font-size:12px;color:#6b7280;margin:8px 0 0">Leads = web leads that came in during the window, by the page they were sent from. Inspected and Sold = how many of those leads got there (sold = signed contract or later). Collected = money actually received in the window (payments minus refunds) from any customer who came off that page. Estimates and contracts are not counted as money.</p>';
+}
+
 function reportHtml(monthLabel, a) {
   const rows = (obj) => Object.entries(obj).sort((x, y) => y[1] - x[1])
     .map(([k, v]) => `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee">${esc(k)}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:700">${v}</td></tr>`)
@@ -115,6 +168,7 @@ function reportHtml(monthLabel, a) {
         'Storm events processed': a.stormCount,
       }))}
       ${section('Where last month\'s web leads stand now (CRM stage)', rows(a.crmStages))}
+      ${a.pageRevenue ? pageRevenueHtml(a.pageRevenue) : (a.pageRevenue === null ? '<h3 style="margin:22px 0 8px;color:#12223d">Website pages → money</h3><p style="font-size:13px;color:#b45309">Could not read the CRM this month, so no page numbers. This is a read failure, not $0.</p>' : '')}
     </div>
   </div>
 </body></html>`;
@@ -153,7 +207,9 @@ exports.monthlyMarketingReport = onSchedule(
       .where('processedAt', '>=', startTs).where('processedAt', '<', endTs).limit(1000).get()).size;
 
     const a = aggregate({ leadDocsBySource, funnelDocs, crmDocs, stormCount });
-    if (!a.totalLeads && !a.funnelStarts && !a.stormCount) {
+    a.pageRevenue = await gatherPageRevenue(db, SITE_COMPANY_ID, now.getTime());
+    const pageMoney = a.pageRevenue ? a.pageRevenue.total.month.collectedCents : 0;
+    if (!a.totalLeads && !a.funnelStarts && !a.stormCount && !pageMoney) {
       logger.info('marketingReport: empty month — skipping send');
       return;
     }
@@ -173,4 +229,4 @@ exports.monthlyMarketingReport = onSchedule(
   }
 );
 
-exports._test = { aggregate };
+exports._test = { aggregate, gatherPageRevenue, pageRevenueHtml, reportHtml };
