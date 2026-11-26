@@ -18,7 +18,6 @@
  *   --push-uid=<uid>           whose devices get the push (default: owner)
  *   --enabled=true|false       master switch for the CRM inbox widget ONLY
  *                              (enabled:false never holds calls)
- *
  *   --owner-numbers=+1...,+1...  Jo's extra phones — calls from them are tests
  *                              (added to the built-in cell, never replacing it)
  *   --company=<companyId>      default NBD 1phDvAVXHSg82wDLegAbQFq14Ci1
