@@ -44,12 +44,21 @@ click, on every retry.
   product refusal was correct. A Finish that never redirects now reports
   `#wizErr` in the failure instead of a bare timeout.
 
-## Not verified locally
+## Local proof (Joe's machine, full emulator rig incl. functions)
 
-The full spec could not run on Joe's machine during this session: the
-Firestore emulator needs port 8080 (the client hard-codes it), which a local
-open-webui server holds, and firebase-tools' `java -version` probe failed
-when spawned. The PR's own `@stranger` CI run is the end-to-end proof.
+Each run is a fresh Playwright process (new stamp) against ONE emulator
+session, the same shape as a CI serial retry.
+
+- **Before** (`origin/main`'s spec, provision only, 2 runs): run 1 passed,
+  run 2 `TimeoutError: page.waitForURL` at Finish, the CI symptom exactly.
+- **After** (this branch, full journey, 4 runs): provision and publish passed
+  in all 4; runs 2-4 passed 6/6. Run 1 failed in `public face`: the
+  `leadBridgeContact` Firestore trigger for its microsite lead only fired
+  during run 2, more than 45 s later. A cold first-trigger delay in the local
+  emulator, not seen in any of the four CI logs; not touched here.
+
+Port 8080 had to be freed first (a local open-webui server holds it and the
+client hard-codes the Firestore emulator there).
 
 ## Not root-caused
 
