@@ -12,8 +12,8 @@
  * echoed into the email: the title, link and attachment all come from this
  * table, and an unknown slug sends nothing (the gateway refuses it first).
  *
- * The optional "also email me storm tips" box records consent only. There is
- * no storm-tips email program yet (Joe, 2026-11-26), so nothing reads it.
+ * The optional "also email me storm tips" box records consent. The storm-tips
+ * email (storm-tips-email.js, 2026-11-26) reads it, dark until Joe turns it on.
  */
 'use strict';
 

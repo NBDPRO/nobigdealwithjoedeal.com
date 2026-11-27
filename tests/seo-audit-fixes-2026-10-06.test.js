@@ -78,32 +78,31 @@ console.log('\n1. hail-prep post: documentation title, no "wins claims"');
   ok('the URL is unchanged (slug carries no claim)', /<link rel="canonical" href="https:\/\/nobigdealwithjoedeal\.com\/blog\/hail-season-prep-checklist">/.test(post));
 }
 
-// ── 2. Hail vs storm town pages target different things ────────────────
-console.log('\n2. hail vs storm town pages: distinct titles, H1s and meta');
+// ── 2. Hail and storm town pages no longer compete ─────────────────────
+// 2026-11-26 (Jo, GSC content merge): the 26 hail-damage-<town> pages were
+// folded into their storm twins, so the pair is now ONE page per town
+// titled "Hail & Storm Damage Roof Repair in <Town>". Still pinned: no
+// "Insurance Claims" in the title or H1, and every page has a description.
+console.log('\n2. hail + storm town pages: one merged page per town');
 {
+  const hailLeft = fs.readdirSync(SVC).filter((f) => /^hail-damage-(?!insurance-claim).+-(oh|ky)\.html$/.test(f));
   const towns = fs.readdirSync(SVC)
-    .map((f) => /^hail-damage-(.+-(?:oh|ky))\.html$/.exec(f))
-    .filter((m) => m && !m[1].startsWith('insurance-claim'))
-    .map((m) => m[1])
-    .filter((t) => fs.existsSync(path.join(SVC, 'storm-damage-' + t + '.html')));
-  ok('found the town pairs (' + towns.length + ')', towns.length >= 26);
+    .map((f) => /^storm-damage-(.+-(?:oh|ky))\.html$/.exec(f))
+    .filter(Boolean)
+    .map((m) => m[1]);
+  ok('no hail-damage town page left; storm town pages found (' + towns.length + ')', hailLeft.length === 0 && towns.length >= 26, hailLeft.join(', '));
   const bad = [];
   for (const t of towns) {
-    const h = readDoc('services/hail-damage-' + t + '.html');
     const s = readDoc('services/storm-damage-' + t + '.html');
-    const ht = one(/<title>([^<]*)<\/title>/, h), st = one(/<title>([^<]*)<\/title>/, s);
-    const hh = (one(/<h1>([\s\S]*?)<\/h1>/, h) || '').replace(/<[^>]+>/g, ' ');
+    const st = one(/<title>([^<]*)<\/title>/, s);
     const sh = (one(/<h1>([\s\S]*?)<\/h1>/, s) || '').replace(/<[^>]+>/g, ' ');
-    const hd = one(/<meta name="description" content="([^"]*)"/, h), sd = one(/<meta name="description" content="([^"]*)"/, s);
-    if (!/^Hail Damage Roof Inspection in /.test(ht || '')) bad.push(t + ' hail title: ' + ht);
-    if (!/^Wind &(amp;)? Storm Damage Roof Repair in /.test(st || '')) bad.push(t + ' storm title: ' + st);
-    if (!/^Hail Damage Roof Inspection\s/.test(hh)) bad.push(t + ' hail h1: ' + hh);
-    if (!/^Wind &(amp;)? Storm Damage Repair\s/.test(sh)) bad.push(t + ' storm h1: ' + sh);
-    if (!hd || !sd || hd === sd) bad.push(t + ' descriptions missing or identical');
-    if (/Insurance Claims/i.test((ht || '') + (st || '') + hh + sh)) bad.push(t + ' title/H1 still targets "Insurance Claims"');
-    if (!/hail/i.test(hd || '') || /hail/i.test(sd || '')) bad.push(t + ' hail desc must say hail, storm desc must not');
+    const sd = one(/<meta name="description" content="([^"]*)"/, s);
+    if (!/^Hail &(amp;)? Storm Damage Roof Repair in /.test(st || '')) bad.push(t + ' title: ' + st);
+    if (!/^Hail &(amp;)? Storm Damage Roof Repair\s/.test(sh)) bad.push(t + ' h1: ' + sh);
+    if (!sd) bad.push(t + ' description missing');
+    if (/Insurance Claims/i.test((st || '') + sh)) bad.push(t + ' title/H1 still targets "Insurance Claims"');
   }
-  ok('every pair: hail = "Hail Damage Roof Inspection", storm = "Wind & Storm Damage Roof Repair"', bad.length === 0, show(bad));
+  ok('every town: title and H1 = "Hail & Storm Damage Roof Repair", with a description', bad.length === 0, show(bad));
   // Global: no two indexable pages share a <title>.
   const seen = new Map(); const dup = [];
   for (const f of TREE) {
@@ -121,7 +120,8 @@ console.log('\n3. service/area pages carry a visible date and a matching dateMod
   const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts/stamp-page-dates.mjs'), '--check'], { encoding: 'utf8' });
   const n = +(one(/--check: (\d+) pages/, r.stdout || '') || 0);
   ok('stamp-page-dates --check passes', r.status === 0, (r.stdout || '').split('\n').slice(0, 6).join(' | ') + (r.stderr || ''));
-  ok('...over every service and area page (' + n + ')', n >= 190);
+  // 2026-11-26: 169 after the 26 hail town pages were merged into their storm twins.
+  ok('...over every service and area page (' + n + ')', n >= 165);
   const sample = ['services/roof-replacement-mason-oh.html', 'areas/goshen-oh.html', 'services/the-nbd-build/index.html'];
   for (const rel of sample) {
     const src = readDoc(rel).replace(/\r\n/g, '\n');
@@ -139,7 +139,7 @@ console.log('\n4. town pages link the storm-roofer guide, tarping and the Roof C
 {
   const NEED = {
     'storm-damage': ['/services/emergency-roof-tarping', '/blog/how-to-choose-a-roofer-after-a-storm'],
-    'hail-damage': ['/blog/how-to-choose-a-roofer-after-a-storm'],
+    // 'hail-damage' town pages were merged into storm-damage (2026-11-26), which carries the same guide link.
     'roof-repair': ['/services/emergency-roof-tarping', '/services/roof-care-plan'],
   };
   for (const [fam, hrefs] of Object.entries(NEED)) {

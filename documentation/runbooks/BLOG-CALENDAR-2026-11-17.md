@@ -4,6 +4,16 @@ Written 2026-11-09 for [CONTENT-PHOTOS-CREDENTIALS-PLAN-2026-11-09](../projects/
 §2 step 4. How a queued post goes live, and the Tuesday / one-per-ISO-week rule, are in
 [BLOG-SCHEDULE](BLOG-SCHEDULE.md). Session note: [SESSION-2026-11-09-social-blog](../projects/SESSION-2026-11-09-social-blog.md).
 
+## Update 2026-11-26: four winter posts drafted, dates moved
+
+Weeks 1 and 2 (11-17, 11-24) passed with nothing queued. Four of the seasonal rows are now drafted in one draft PR
+(branch `claude/winter-content-banner-27cde0`), each moved to the next free Tuesday: #1 ice dams → **2026-12-01**
+(`/blog/ice-dams-why-your-eaves-freeze`), #3 winter installs → **2026-12-08** (`/blog/can-you-replace-a-roof-in-winter`),
+#4 gutters → **2026-12-15** (`/blog/gutters-after-leaf-season`), #6 holiday leak → **2026-12-22**
+(`/blog/roof-leak-after-winter-storm-what-to-do`). The rows below that were not drafted keep their old dates
+and need new ones from 2026-12-29 on. The same PR adds the winter announcement-bar slide
+(`node scripts/seasonal-ann-slide.js --season=winter`; turn it off with `--off`).
+
 ## This is a plan, not a queue
 
 **No post below is in the `POSTS` array, and none should be added there until Jo has read it.** The weekly

@@ -279,6 +279,9 @@ async function handleResendWebhook(req, res) {
       source,
     }, FieldValue.serverTimestamp);
     logger.info('resendWebhook: recorded', { companyId: tok.companyId, source, created: r.created });
+    // S3: a complaint / permanent bounce on REVIEW-ASK mail counts toward that company's health,
+    // once per event id (review-ask-health.js; dark = nothing written; never throws).
+    await require('./review-ask-health').noteEmailEvent(db, { eventId: verdict.id, source, tok });
     res.status(200).json({ ok: true, source, created: r.created });
   } catch (e) {
     logger.error('resendWebhook: record failed', { err: e && e.message });

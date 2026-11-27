@@ -303,7 +303,7 @@ function smsAutomation(d) {
 function blockedReasonOf(failureReason, errorCode, status) {
   const f = str(failureReason);
   if (f === 'consent_declined' || f === 'no_consent_on_file') return 'no_consent';
-  if (/^(customer_sends_off|controls_missing|controls_unreadable|channel_off|messaging_paused|switched_off|not_registered|no_tenant)/.test(f)) return 'kill_switch';
+  if (/^(customer_sends_off|controls_missing|controls_unreadable|channel_off|messaging_paused|switched_off|not_registered|no_own_sender|no_tenant)/.test(f)) return 'kill_switch';
   if (f === 'opted_out' || errorCode === '21610') return 'opted_out';
   if (f === 'consent_check_unverified') return 'other';
   if (/quiet/.test(f)) return 'quiet_hours';

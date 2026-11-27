@@ -48,9 +48,12 @@ const CALL_CENTER_WHY = 'shares call-center.js, whose one customer send (the mis
 const ENTRIES = Object.freeze({
   // ── automated CUSTOMER sends: every one waits for the send window ──
   esignReminderSweep: { sendsToCustomers: 'email', usesSendWindow: true, gate: ['env:ESIGN_REMINDERS_DISABLED'] },
+  stormTipsSweep: { sendsToCustomers: 'email', usesSendWindow: true, gate: ['env:STORM_TIPS_EMAIL_ENABLED', 'automation:stormTipsEmail'] },
   runAbandonRecovery: { sendsToCustomers: 'email', usesSendWindow: true, gate: ['env:FUNNEL_RECOVERY_ENABLED', 'automation:funnelRecoveryEmail'] },
   leadFollowUpSweep: { sendsToCustomers: 'email', usesSendWindow: true, gate: ['env:LEAD_FOLLOWUP_ENABLED', 'automation:leadFollowupEmail'] },
   reviewAskAutoSweep: { sendsToCustomers: 'email+text', usesSendWindow: true, gate: ['env:REVIEW_ASK_AUTO_EMAIL_ENABLED', 'env:REVIEW_ASK_AUTO_TEXT_ENABLED', 'automation:reviewAskAutoEmail', 'automation:reviewAskAutoText'] },
+  // the review ask for OTHER companies, email only (review-ask-tenant.js, dark)
+  reviewAskTenantSweep: { sendsToCustomers: 'email', usesSendWindow: true, gate: ['env:REVIEW_ASK_TENANTS_ENABLED', 'automation:reviewAskTenantEmail'] },
   // storm-watch subscriber texts, NWS storm texts, the subscriber confirm text
   stormPoller: { sendsToCustomers: 'text', usesSendWindow: true, gate: ['env:STORM_TEXT_ENABLED', 'env:STORM_NWS_TEXT_ENABLED', 'env:STORM_CONFIRM_TEXT_ENABLED', 'automation:stormText', 'automation:stormNwsText', 'automation:stormConfirmText'] },
   // the missed-call auto-text (missed-call-autotext.js)
@@ -62,6 +65,7 @@ const ENTRIES = Object.freeze({
   onYardSignPickupDue: none(),            // push to the rep
   onAfterInstallDay: none(),              // push to the rep
   cronDeadman: none(['env:CRON_DEADMAN_DISABLED'], 'owner-notify.js: bell + push to the owner about stopped crons (step 11, #3237); never a customer'),
+  leadGatewayProbe: none([], 'owner-notify.js: text + bell + push to the owner when the website lead gateway probe fails; the probe stores no lead, so no homeowner is ever messaged'),
   leadAlertWatchdog: none(['env:LEAD_ALERT_WATCHDOG_DISABLED'], 'lead-alert.js alertJoe re-sent to the owner (ack: false, never the homeowner ack)'),
   hailMatchCron: none(),
   meshHailCron: none(['flag:global.meshHailEnabled']),

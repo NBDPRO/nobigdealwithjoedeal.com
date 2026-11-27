@@ -56,9 +56,9 @@ function scan(source) {
       const rhs = nearestAssignment(src, root, m.index);
       guarded = /guard(Twilio|Resend)\s*\(/.test(rhs);
     }
-    // `resend.emails.send(gated.msg)`: the message came out of guardEmail() (kill switch + canary applied).
+    // `resend.emails.send(gated.msg)` (or `(gated.msg, { idempotencyKey })`): the message came out of guardEmail() (kill switch + canary applied).
     if (!guarded) {
-      const arg = /^\s*([A-Za-z_$][\w$]*)\.msg\s*\)/.exec(src.slice(m.index + full.length));
+      const arg = /^\s*([A-Za-z_$][\w$]*)\.msg\s*[,)]/.exec(src.slice(m.index + full.length));
       if (arg) guarded = /guardEmail\s*\(/.test(nearestAssignment(src, arg[1], m.index));
     }
     sites.push({ line: lineOf(src, m.index), receiver: chain || root || '(unknown)', guarded, text: full.slice(0, 80) });

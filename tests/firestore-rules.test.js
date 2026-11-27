@@ -69,6 +69,9 @@ async function run() {
   // withSecurityRulesDisabled again.
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
+    // Section 63 (S0, 2026-11-26): a website lead and a teammate's lead, for the provenance-on-update checks.
+    await setDoc(doc(db, 'leads/s63-web'), { userId: 't63', companyId: 'co-63', name: 'ZZ_QA web', meter: 'manual', webLead: true, publicLeadKind: 'inspect' });
+    await setDoc(doc(db, 'leads/s63-mate'), { userId: 't63mate', companyId: 'co-63', name: 'ZZ_QA mate', meter: 'manual' });
     // Credits (flag costCredits): a co-a cost whose id is 129 chars, so the relatedExpenseId
     // LENGTH rule is tested on its own (the row exists and is in-tenant; only the length is wrong).
     await setDoc(doc(db, 'expenses/' + 'L'.repeat(129)), { userId: 'alice', companyId: 'co-a', leadId: 'leadA', category: 'materials', costType: 'direct', supplier: 'Sample Supply', amountCents: 100, source: 'manual' });
@@ -166,6 +169,13 @@ async function run() {
       { email: 'm1@x.com', role: 'sales_rep', status: 'invited' });
     await setDoc(doc(db, 'subscriptions/co-a'),
       { plan: 'growth', status: 'active' });
+    // Section 65 (2026-11-26): every review_ask_* doc exists, so update / delete / get are tested on real docs.
+    for (const pth of ['review_ask_tenants/co-65', 'review_ask_profile/co-65', 'review_ask_sends/s1', 'review_ask_audit/a1',
+      'review_ask_emails/co-65_h1', 'review_ask_recipient/h1', 'review_ask_counters/co-65_d20261126', 'review_ask_jobs/co-65_L1__lead',
+    // S3 (2026-11-26, review-ask-health.js): the health counters, the count-once marks and the callback heartbeat.
+    'review_ask_health/co-65_2026-11-26', 'review_ask_counted/s1_undelivered', 'review_ask_heartbeat/co-65']) {
+      await setDoc(doc(db, pth), { companyId: 'co-65', enabled: true, paused: false, rampStage: 1 });
+    }
   });
 
   // 1. user cannot self-promote to admin via users/{uid}.role
@@ -4067,6 +4077,27 @@ async function run() {
   // carry the claim: the provenance FIELDS are refused on their own.
   await x63('forged booking shape at a newline-suffixed calcom__ id', 'deny', setDoc(doc(t63, 'leads/' + 'calcom__bk63nl' + String.fromCharCode(10)),
     Object.assign({}, base63, { webLead: true, publicLeadKind: 'calcom_booking', calcomBookingId: 'bk63nl' + String.fromCharCode(10) })));
+  // Provenance is frozen on UPDATE too (review-ask guardrail plan S0, 2026-11-26): a rep who
+  // owns a hand-typed lead must not stamp it as a website / Cal.com / bridge intake afterwards
+  // (lead-alert reads these, and the review ask for other companies will).
+  const s63Rep = env.authenticatedContext('t63rep', { role: 'sales_rep', companyId: 'co-63' }).firestore();
+  await x63('control: a sales_rep creates its own plain lead', 'allow', setDoc(doc(s63Rep, 'leads/s63-rep'), Object.assign({}, base63, { userId: 't63rep' })));
+  await x63('control: company_admin edits an ordinary field on its own lead', 'allow', updateDoc(doc(t63, 'leads/s63-plain'), { name: 'ZZ_QA relay renamed' }));
+  await x63('control: sales_rep edits an ordinary field on its own lead', 'allow', updateDoc(doc(s63Rep, 'leads/s63-rep'), { name: 'ZZ_QA rep renamed' }));
+  for (const [k, v] of [['webLead', true], ['publicLeadKind', 'inspect'], ['publicLeadCollection', 'thumbtack_leads'], ['publicLeadId', 'r1'], ['calcomBookingId', 'bk9'], ['backfilledBy', 'x']]) {
+    await x63('update adds ' + k + ' (company_admin)', 'deny', updateDoc(doc(t63, 'leads/s63-plain'), { [k]: v }));
+    await x63('update adds ' + k + ' (sales_rep, own lead)', 'deny', updateDoc(doc(s63Rep, 'leads/s63-rep'), { [k]: v }));
+  }
+  const s63Own = env.authenticatedContext('t63', { role: 'sales_rep', companyId: 'co-63' }).firestore();
+  const s63Mgr = env.authenticatedContext('t63mgr', { role: 'manager', companyId: 'co-63' }).firestore();
+  const s63Plat = env.authenticatedContext('t63plat', { role: 'admin' }).firestore();
+  await x63('control: the owner of a website lead edits its name', 'allow', updateDoc(doc(s63Own, 'leads/s63-web'), { name: 'ZZ_QA web renamed' }));
+  await x63('control: re-saving webLead unchanged is not a change', 'allow', updateDoc(doc(s63Own, 'leads/s63-web'), { webLead: true, name: 'ZZ_QA web again' }));
+  await x63('owner flips webLead to false', 'deny', updateDoc(doc(s63Own, 'leads/s63-web'), { webLead: false }));
+  await x63('owner deletes publicLeadKind', 'deny', updateDoc(doc(s63Own, 'leads/s63-web'), { publicLeadKind: deleteField() }));
+  await x63('control: a same-company manager edits a teammate lead', 'allow', updateDoc(doc(s63Mgr, 'leads/s63-mate'), { name: 'ZZ_QA mate renamed' }));
+  await x63('a same-company manager adds calcomBookingId to a teammate lead', 'deny', updateDoc(doc(s63Mgr, 'leads/s63-mate'), { calcomBookingId: 'bk63m' }));
+  await x63('the platform admin may still set provenance (exempt by design)', 'allow', updateDoc(doc(s63Plat, 'leads/s63-mate'), { webLead: true }));
   console.log('  63: ' + s63Pass + ' lead-alert provenance checks passed, ' + s63Fail.length + ' failed');
   if (s63Fail.length) {
     throw new Error('63 lead-alert provenance: ' + s63Fail.length + ' check(s) went the wrong way:\n    ' + s63Fail.join('\n    '));
@@ -4105,6 +4136,40 @@ async function run() {
   console.log('  64: ' + s64Pass + ' confirmed-alert-recipient checks passed, ' + s64Fail.length + ' failed');
   if (s64Fail.length) {
     throw new Error('64 confirmed alert recipients: ' + s64Fail.length + ' check(s) went the wrong way:\n    ' + s64Fail.join('\n    '));
+  }
+
+  // ─── 65. review ask for other companies (2026-11-26, review-ask-tenant.js): every
+  // review_ask_* collection is admin-SDK only (the catch-all deny). A company that
+  // could write review_ask_tenants could approve itself, lift its pause or caps,
+  // or swap the approved name / link / Reply-To; one that could read the send log,
+  // windows or recipient cap would learn who other companies asked.
+  let s65Pass = 0; const s65Fail = [];
+  const x65 = async (label, want, p) => {
+    let got;
+    try { await (want === 'allow' ? assertSucceeds(p) : assertFails(p)); got = want; } catch (_) { got = want === 'allow' ? 'deny' : 'allow'; }
+    if (got === want) s65Pass++; else s65Fail.push(label + ' (wanted ' + want + ')');
+  };
+  const own65 = env.authenticatedContext('co-65', {}).firestore();
+  const adm65 = env.authenticatedContext('t65adm', { role: 'company_admin', companyId: 'co-65' }).firestore();
+  await x65('control: the same tenant can still create a plain lead (harness wired)', 'allow',
+    setDoc(doc(adm65, 'leads/s65-ok'), { userId: 't65adm', companyId: 'co-65', name: 'ZZ_QA review ask', meter: 'manual' }));
+  const docs65 = ['review_ask_tenants/co-65', 'review_ask_profile/co-65', 'review_ask_sends/s1', 'review_ask_audit/a1',
+    'review_ask_emails/co-65_h1', 'review_ask_recipient/h1', 'review_ask_counters/co-65_d20261126', 'review_ask_jobs/co-65_L1__lead',
+    // S3 (2026-11-26, review-ask-health.js): the health counters, the count-once marks and the callback heartbeat.
+    'review_ask_health/co-65_2026-11-26', 'review_ask_counted/s1_undelivered', 'review_ask_heartbeat/co-65'];
+  const adm66 = env.authenticatedContext('t66adm', { role: 'company_admin', companyId: 'co-66' }).firestore();
+  const mgr65 = env.authenticatedContext('t65mgr', { role: 'manager', companyId: 'co-65' }).firestore();
+  for (const [label, db65] of [['solo owner', own65], ['company_admin', adm65], ['another company admin', adm66], ['manager', mgr65]]) {
+    for (const p of docs65) {
+      await x65(label + ' cannot update ' + p, 'deny', updateDoc(doc(db65, p), { enabled: true, paused: false, rampStage: 3 }));
+      await x65(label + ' cannot delete ' + p, 'deny', deleteDoc(doc(db65, p)));
+      await x65(label + ' cannot create ' + p, 'deny', setDoc(doc(db65, p), { enabled: true, paused: false, rampStage: 3, companyId: 'co-65' }));
+      await x65(label + ' cannot read ' + p, 'deny', getDoc(doc(db65, p)));
+    }
+  }
+  console.log('  65: ' + s65Pass + ' review-ask-for-companies checks passed, ' + s65Fail.length + ' failed');
+  if (s65Fail.length) {
+    throw new Error('65 review ask for companies: ' + s65Fail.length + ' check(s) went the wrong way:\n    ' + s65Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');

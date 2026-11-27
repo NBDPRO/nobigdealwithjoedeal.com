@@ -381,7 +381,10 @@ async function runTool(name, args, key) {
     return L.toolText(Object.assign(out, {
       review_url: reviewUrl || null,
       ask: reviewUrl ? L.reviewSprintAsk(reviewUrl, co) : null,
-      note: (reviewUrl ? '' : 'No Google review link is set (Settings → Google review link): add one before drafting. ')
+      note: (reviewUrl ? '' : (rep && typeof rep.googleReviewUrl === 'string' && rep.googleReviewUrl.trim()
+        // R12 (2026-11-26): a saved link that is not one of Google's own review pages is not used.
+        ? 'The Google review link in Settings is not a Google review page, so it is not used: paste the link from your Google Business Profile ("Ask for reviews") before drafting. '
+        : 'No Google review link is set (Settings → Google review link): add one before drafting. '))
         + 'Draft at most ONE ask per customer: draft_email for channel "email"; draft_text ONLY for "text_consented"; "in_person" gets no message (Joe shows the Job done QR). Put {first} = first_name and purpose "review_ask". Same words for everyone: no rating, no "if you were happy", nothing offered. Nothing is sent until the owner sends it.',
     }));
   }
