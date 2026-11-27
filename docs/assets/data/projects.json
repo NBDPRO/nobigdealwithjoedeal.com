@@ -31,7 +31,12 @@
     "not published) is before 2026, or that has no year, renders labelled",
     "\"Joe's work before No Big Deal\" and is left out of NBD schema, the homepage",
     "wall and NBD counts. Optional era: \"nbd\" | \"pre-nbd\" overrides that rule",
-    "for one job (e.g. an undated job Joe confirms was a 2026 NBD job)."
+    "for one job (e.g. an undated job Joe confirms was a 2026 NBD job).",
+    "BEFORE/AFTER + CLIPS (2026-11-27): optional beforeAfter[] pairs (before/after = two of the",
+    "job's own photos[] showing the SAME spot, service = what the pair shows,",
+    "optional caption/beforeLabel/afterLabel) and clips[] (short job video: src mp4,",
+    "optional webm, poster, captions .vtt, title, width, height). Rules and field",
+    "shapes: scripts/lib/before-after.mjs; hand-over: runbooks/PUBLISH-PROJECT.md."
   ],
   "projects": [
     {
@@ -920,6 +925,14 @@
           "alt": "The same front gable with the shake field continuous again and the reattached piece sitting flush and on-course"
         }
       ],
+      "beforeAfter": [
+        {
+          "before": "/assets/images/projects/montgomery-oh-shake-reattachment-2026-1.jpg",
+          "after": "/assets/images/projects/montgomery-oh-shake-reattachment-2026-4.jpg",
+          "service": "siding-repair",
+          "caption": "The front gable with the one shake missing, then set back flush and on course."
+        }
+      ],
       "consentOnFile": true,
       "published": "2026-08-28"
     },
@@ -1113,6 +1126,14 @@
         {
           "src": "/assets/images/projects/norwood-oh-victorian-three-system-2026-12.jpg",
           "alt": "The completed roof from a matching angle to the before frame, all three systems finished in one shot"
+        }
+      ],
+      "beforeAfter": [
+        {
+          "before": "/assets/images/projects/norwood-oh-victorian-three-system-2026-8.jpg",
+          "after": "/assets/images/projects/norwood-oh-victorian-three-system-2026-12.jpg",
+          "service": "roof-replacement",
+          "caption": "The back of the house from the drone, the same angle before and after: mansard, flat roof and dormer caps all redone."
         }
       ],
       "consentOnFile": true,
@@ -1532,6 +1553,16 @@
           "alt": "Straight-down view of the completed roof, framed to match the bare-deck shot"
         }
       ],
+      "beforeAfter": [
+        {
+          "before": "/assets/images/projects/loveland-oh-single-day-replacement-2024-1.jpg",
+          "after": "/assets/images/projects/loveland-oh-single-day-replacement-2024-4.jpg",
+          "service": "roof-replacement",
+          "beforeLabel": "Bare deck",
+          "afterLabel": "Finished",
+          "caption": "Stripped to the sheathing in the morning, finished the same afternoon, shot from the same spot."
+        }
+      ],
       "consentOnFile": true,
       "published": "2026-08-28"
     },
@@ -1567,6 +1598,14 @@
         {
           "src": "/assets/images/projects/loveland-oh-siding-peak-reseal-2026-5.jpg",
           "alt": "Detail of a metal flashing seam on an asphalt shingle roof, with an exposed fastener head capped under a dab of black sealant"
+        }
+      ],
+      "beforeAfter": [
+        {
+          "before": "/assets/images/projects/loveland-oh-siding-peak-reseal-2026-1.jpg",
+          "after": "/assets/images/projects/loveland-oh-siding-peak-reseal-2026-3.jpg",
+          "service": "siding-repair",
+          "caption": "The gable-peak joint where the J-channel had pulled away from the trim, then sealed back tight."
         }
       ],
       "consentOnFile": true,

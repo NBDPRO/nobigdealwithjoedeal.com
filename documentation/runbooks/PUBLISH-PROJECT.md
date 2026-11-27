@@ -252,3 +252,38 @@ job, another tenant's job (only NBD's leads; `--tenant` overrides) and a joint
 or subbed one, including one named only in the job text (hard rule 3). `--write` appends it to projects.json; steps
 3, 5 and 6 still apply. Details:
 [SESSION-2026-11-09-project-consent-draft](../projects/SESSION-2026-11-09-project-consent-draft.md).
+
+## Update 2026-11-27: before/after pairs and job clips
+
+Two optional fields on a project (shapes and rules:
+`scripts/lib/before-after.mjs`; guard: `tests/before-after-component.test.js`).
+
+**Before/after pairs (`beforeAfter`).** Pick two of the job's own `photos[]`
+that show the **same spot from the same angle**, one before the work and one
+after. A "before" of one wall and an "after" of another is not a pair; leave it
+out. Add `service` (what the two photos show, one of the job's `services[]`),
+an optional `caption`, and optional `beforeLabel`/`afterLabel` when "Before"
+would be wrong (a bare-deck shot is "Bare deck", not "Before"). The build then
+shows the pair as a slider on `/our-work#before-after` and the job's case page,
+under the matching service hub's strip, and on every `/areas/<town>` page
+within 30 miles: "in <Town>" only for the job's own town, otherwise "Near
+<Town>" with the real town and the miles. The first four pairs (Norwood,
+Montgomery, Loveland ×2) were picked by looking at every project photo.
+
+**Job clips (`clips`).** Short phone video is fine, vertical or horizontal,
+about 10-30 seconds. Hand-over: share the original file (a Google Drive link is
+easiest; texts often shrink video), say which job it is, and confirm the
+homeowner is OK with it. Before it goes in the repo:
+
+1. **Strip the metadata.** Phone video stores GPS like photos do.
+   `ffmpeg -i in.mov -map_metadata -1 -map_metadata:s:v -1 -map_metadata:s:a -1 -c:v libx264 -crf 26 -preset slow -vf "scale='min(720,iw)':-2" -c:a aac -b:a 96k -movflags +faststart docs/assets/video/projects/<slug>-1.mp4`.
+   The build refuses an MP4/WebM that still carries a QuickTime location atom.
+2. **Look at every frame.** No house numbers, street signs, licence plates, or
+   faces without that person's OK; crop or blur them, or skip the clip.
+3. **Poster + captions.** Export a still as the poster under
+   `docs/assets/images/projects/` (through `prepare-project-images.mjs`, so it
+   is EXIF-stripped like any photo) and write a `.vtt` caption file next to the
+   video. With no speech, the captions describe what is on screen.
+4. **Entry:** `{ "src", "poster", "captions", "title", "width", "height" }`
+   (+ optional `"webm"`). Clips never autoplay, start muted, and load nothing
+   until played (`preload="none"`), so they cost a page nothing until tapped.

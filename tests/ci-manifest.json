@@ -429,6 +429,7 @@
     "ourwork-deeplink-contract.test.js",
     "ourwork-detail-pages.test.js",
     "ourwork-retired-slugs.test.js",
+    "before-after-component.test.js",
     "project-price-context.test.js",
     "pdf-render-retention.test.js",
     "prefix-reservation.test.js",
