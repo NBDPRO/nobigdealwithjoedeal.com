@@ -1044,7 +1044,11 @@ const titleService = (p) => {
   const work = p.services.find((s) => s !== 'storm-damage') || p.services[0];
   return TITLE_SERVICE[work];
 };
-const titleLead = (p) => `${titleService(p)} in ${p.city}`;
+// The work year rides after the town (2026-11-27, local search pages): "Roof
+// Replacement in Milford, OH (2026) — …". Undated jobs carry no year; one is
+// never guessed.
+const yearPart = (p) => (p.year ? ` (${p.year})` : '');
+const titleLead = (p) => `${titleService(p)} in ${p.city}${yearPart(p)}`;
 const titlePhrase = (p) => p.title.replace(/ — /g, ', ');
 const shareTitle = (p) => `${titleLead(p)} — ${titlePhrase(p)}`;
 const trimTail = (s) => s.replace(/[\s—–\-,:;+&→]+$/u, '').replace(/\s+(a|an|the|of|to|and|for|near|by|with)$/i, '');
@@ -1063,12 +1067,14 @@ const trimTail = (s) => s.replace(/[\s—–\-,:;+&→]+$/u, '').replace(/\s+(a|
 //   4. a single later clause on its own, with " | NBD" (only reached
 //      when two jobs share a leading clause — "Three Layers Off")
 //   5. the phrase cut at a word boundary, with " | NBD"
-//   6. service + town alone
+//   (No bare "service + town" tier since 2026-11-27: that is the title of
+//   the service-by-city page, /services/<service>-<town>, and a case page
+//   must never copy it. A job with no fitting candidate is refused.)
 const titleCandidates = (p) => {
   const head = `${titleLead(p)} — `;
   const tail = ' | NBD';
   const t = townOf(p);
-  const headNoState = t ? `${titleService(p)} in ${t.name} — ` : head;
+  const headNoState = t ? `${titleService(p)} in ${t.name}${yearPart(p)} — ` : head;
   const phrase = titlePhrase(p);
   // Not " & " — it joins two nouns ("Gutter Section & Shingle Repair"), and
   // cutting there leaves half a phrase.
@@ -1091,8 +1097,12 @@ const titleCandidates = (p) => {
   const budget = TITLE_MAX - head.length - tail.length;
   const cut = phrase.slice(0, budget + 1);
   const word = trimTail(cut.slice(0, cut.lastIndexOf(' ')));
+  // The same cut with no " | NBD" and no state keeps more of the phrase
+  // ("— Three Generations" over "— Three | NBD"); it goes first when it does.
+  const cut2 = phrase.slice(0, TITLE_MAX - headNoState.length + 1);
+  const word2 = trimTail(cut2.slice(0, cut2.lastIndexOf(' ')));
+  if (word2 && word2.length > word.length + 4 && (headNoState + word2).length <= TITLE_MAX) out.push(headNoState + word2);
   if (word) out.push(wrap(word));
-  out.push(`${titleLead(p)}${tail}`);
   return [...new Set(out)];
 };
 // Assign unique titles: jobs with the fewest fitting candidates choose first
@@ -1102,7 +1112,7 @@ const titleCandidates = (p) => {
 // Uniqueness ignores the " | NBD" suffix and the town's state, so two jobs
 // can't end up a suffix apart ("… — Three Layers Off" vs "… — Three Layers
 // Off | NBD") once the shed-the-suffix tiers exist.
-const titleKey = (t) => t.replace(/ \| NBD$/, '').replace(/, [A-Z]{2} — /, ' — ');
+const titleKey = (t) => t.replace(/ \| NBD$/, '').replace(/, [A-Z]{2}( \(\d{4}\))? — /, '$1 — ');
 const PAGE_TITLES = new Map();
 {
   const taken = new Map();
@@ -1110,6 +1120,7 @@ const PAGE_TITLES = new Map();
     .sort((a, b) => a.c.length - b.c.length || a.i - b.i);
   for (const { p, c } of order) {
     const t = c.find((x) => !taken.has(titleKey(x)));
+    if (!t && !c.length) { fail(`project "${p.slug}" has no <title> that fits ${TITLE_MAX} characters with its job phrase; shorten the job title`); continue; }
     if (!t) { fail(`project "${p.slug}" has no unique <title> — every short form ("${c[0]}") is taken by "${taken.get(titleKey(c[0]))}"; shorten or reword one job title`); continue; }
     taken.set(titleKey(t), p.slug);
     PAGE_TITLES.set(p.slug, t);
@@ -1134,16 +1145,58 @@ const MOBILE_CTA_STRIP = `<!-- STICKY MOBILE CTA STRIP (site-wide, conversion au
 // budget, else at the last whole word with an ellipsis. It was a bare
 // .slice(0, 155) until 2026-10-26, which ended 46 of 48 pages mid-word. The
 // result is always the start of the source text, so no wording is added.
+// The sentence stop needs 120 characters (2026-11-27; was 60% of the budget):
+// check-seo-surface wants 120-160, and the work/town/materials lead made short
+// first sentences common.
 const META_DESC_MAX = 155;
+const META_DESC_MIN_SENTENCE = 120;
 const trimMetaDescription = (text, max = META_DESC_MAX) => {
   const t = String(text).replace(/\s+/g, ' ').trim();
   if (t.length <= max) return t;
   let sentenceEnd = 0;
   for (const m of t.slice(0, max + 1).matchAll(/[.!?](?=\s|$)/g)) if (m.index < max) sentenceEnd = m.index + 1;
-  if (sentenceEnd >= Math.round(max * 0.6)) return t.slice(0, sentenceEnd);
+  if (sentenceEnd >= META_DESC_MIN_SENTENCE) return t.slice(0, sentenceEnd);
   let cut = t.slice(0, max - 1); // room for the ellipsis
   if (/\S/.test(t[max - 1]) && cut.includes(' ')) cut = cut.slice(0, cut.lastIndexOf(' ')); // never mid-word
   return `${cut.replace(/[\s.,;:–—-]+$/, '')}…`;
+};
+
+// Meta description (2026-11-27, local search pages): names the work, the town
+// and the year first, then the materials when the job lists them, then the
+// job's own description — trimmed by trimMetaDescription(), so every word is
+// from projects.json. "Roof Replacement in Milford, OH, 2026: Owens Corning
+// Duration shingles, synthetic underlayment, …". A pre-NBD job keeps its label first.
+const BRAND_WORD = /^(GAF|Owens|LP|Roofivent|Roto|EPDM|[A-Z]{2,}\b)/;
+const metaDescription = (p) => {
+  const lead = `${titleService(p)} in ${p.city}${p.year ? `, ${p.year}` : ''}`;
+  // List items after the first drop their bullet capital ("New drip edge" →
+  // "new drip edge") unless they open on a brand name or an acronym.
+  const items = Array.isArray(p.materials) ? p.materials : (p.materials ? [p.materials] : []);
+  const mats = items.map((m, i) => (i && !BRAND_WORD.test(m) ? m.charAt(0).toLowerCase() + m.slice(1) : m)).join(', ');
+  const matText = mats ? `${mats.charAt(0).toUpperCase()}${mats.slice(1).replace(/[.\s]+$/, '')}. ` : '';
+  const body = `${lead}: ${matText}${p.description}`;
+  return trimMetaDescription(isPreNbd(p) ? `${PRE_NBD_LABEL}. ${body}` : body);
+};
+
+// Local CTA at the end of a case page (2026-11-27): "Need a roof looked at in
+// <Town>? Book a free inspection" to /inspect, plus the town's /areas page when
+// one exists. A town with no area page (out-of-area jobs) gets no town name,
+// so the page never offers work somewhere NBD does not serve.
+const CTA_NOUN = (p) => {
+  const s = p.services.find((x) => x !== 'storm-damage') || p.services[0];
+  if (/^siding|wood-siding/.test(s)) return 'siding';
+  if (/^gutter/.test(s)) return 'gutters';
+  return 'a roof';
+};
+const localCtaHtml = (p) => {
+  const t = townOf(p);
+  const area = areaHref(t);
+  const q = `Need ${CTA_NOUN(p)} looked at${area ? ` in ${esc(t.name)}` : ''}?`;
+  return `    <section class="pd-local" aria-labelledby="pd-local-h">
+      <h2 class="pd-h2" id="pd-local-h">${q}</h2>
+      <div class="pd-book pd-book-end"><a class="project-book" href="/inspect">Book a free inspection &rarr;</a></div>${area ? `
+      <p class="pd-links"><a href="${area}">Roofing, siding &amp; gutters in ${esc(t.name)}, ${t.state}</a></p>` : ''}
+    </section>`;
 };
 
 const detailPage = (p) => {
@@ -1157,7 +1210,7 @@ const detailPage = (p) => {
   const crumbArea = areaHref(townOf(p)) || '/areas/cincinnati-oh';
   const crumbCity = crumbArea === '/areas/cincinnati-oh' ? 'Cincinnati, OH' : esc(p.city);
   // A pre-NBD job's search snippet carries the label too.
-  const descMeta = trimMetaDescription(`${isPreNbd(p) ? `${PRE_NBD_LABEL}: ` : ''}${p.description}`);
+  const descMeta = metaDescription(p);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1277,7 +1330,7 @@ ${narrativeHtml(p) ? `${narrativeHtml(p)}\n` : ''}${factsHtml(p)}
 ${p.photos.map(detailPhotoCard).join('\n')}
     </div>
 ${linksOutHtml(p)}
-    <div class="pd-book pd-book-end">${BOOK_LIKE_THIS}</div>
+${localCtaHtml(p)}
     <a class="pd-back" href="/our-work">&larr; See more of our work</a>
   </div>
 <!-- nbd:partial reviews-strip -->
