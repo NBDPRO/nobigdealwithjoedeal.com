@@ -1,0 +1,897 @@
+/**
+ * functions/attic-gate.js - the server side of the Attic, Ventilation & Moisture Acknowledgment (phase 3, flag
+ * docAtticAckV1, default OFF). See documentation/projects/ATTIC-ACK-V1-2026-11-18.md.
+ *
+ *   applyAcks      the remote-signing record: the ORIGINAL document with each tick control's state taken from the
+ *                  submission (only the controls the original has; nothing else from the submission is kept)
+ *   resultFor      what a signed attic form says: { version, notInspected, declined, acknowledgments, formDate }
+ *   decide         the send/sign gate for a contract-class document: the lead's scope, whether a signed form with a
+ *                  server-written result exists, whether an owner/admin override was recorded
+ *   recordOverride the owner/admin "proceed anyway" event (Q18), server-written only
+ *
+ * db is injected (no npm packages) so the unit tests run against a fake. Pure logic is attic-ack.js.
+ */
+'use strict';
+
+const crypto = require('crypto');
+const AA = require('./attic-ack');
+const TXT = require('./attic-ack-text');
+const P5 = require('./p5-forms');
+
+const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+const OVERRIDES = 'attic_overrides';
+const CONTRACT_CLASS = ['contract', 'proposal', 'work_authorization', 'estimate_esign'];
+
+/** Is this a document type the gate applies to? */
+function gated(type) { return CONTRACT_CLASS.indexOf(String(type || '')) !== -1; }
+function isAtticDoc(type) { return AA.DOC_TYPES.indexOf(String(type || '')) !== -1; }
+
+// ── The manifest (review 2026-11-18, finding 2) ────────────────────
+// The server holds what an attic form MUST contain: which controls, which of them are required, the marker for the variant and the
+// packet's own wording. A stored copy that is rep-authored (the in-person path, and the remote path's original) is compared to it
+// and only a match counts. The ids below mirror the renderer (document-generator-library.js renderAtticAcknowledgment); the real
+// render is pinned against this in tests/attic-ack-review-2026-11-18.test.js.
+const ACK_IDS = ['saw', 'declined', 'existing', 'not_inspection', 'moisture', 'tearoff'];
+const STMT_IDS = ['not_checked', 'offered', 'unseen', 'no_change'];
+const MAX_CONTROLS = 60;
+const MARKER_RE = /<!--\s*nbd:attic-ack\s+(\S+)\s+(inspected|not_inspected)\s*-->/g;
+
+function manifestFor(docType) {
+  const t = String(docType || '');
+  if (AA.DOC_TYPES.indexOf(t) === -1) return null;
+  const notInspected = t === 'attic_not_inspected';
+  const required = (notInspected ? STMT_IDS.map((i) => 'ack:stmt_' + i) : []).concat(ACK_IDS.map((i) => 'ack:' + i));
+  const must = (TXT.RECS_THIRD_PARTY || []).map((_, i) => 'third_party_' + (i + 1));
+  const lines = AA.REC_DEFS.map((d) => d.id).concat(must);
+  const paras = [].concat(TXT.WHY, TXT.ACKS, [TXT.SAVINGS], notInspected ? TXT.STATEMENTS : []);
+  return { variant: notInspected ? 'not_inspected' : 'inspected', required, must, lines, paras };
+}
+
+// Review 2 (2026-11-18), item 2: the stored copy is rep-authored (in-person) or a signer's submission, so it is read with one linear
+// pass (indexOf and a character loop, no backtracking regex), and a copy over MAX_HTML is refused before any of it is read. The
+// real form is about 20 KB; the signed copy carries two signature images, so 2 MB is generous.
+const MAX_HTML = 2 * 1024 * 1024;
+// Elements whose content a reader never sees as page text (or that a script could reveal): their content is not wording.
+// Review 3 (item 3): a raw element opens even when written self-closing (<title/>, <style/>, <script/>: HTML ignores the slash), and textarea,
+// xmp, noembed, noframes and plaintext are raw too, so a control or wording inside one is not read as part of the page.
+const RAW_ELEMENTS = { script: 1, style: 1, template: 1, title: 1, noscript: 1, canvas: 1, object: 1, iframe: 1, audio: 1, video: 1, textarea: 1, xmp: 1, noembed: 1, noframes: 1, plaintext: 1 };
+const VOID_ELEMENTS = { area: 1, base: 1, br: 1, col: 1, embed: 1, hr: 1, img: 1, input: 1, link: 1, meta: 1, param: 1, source: 1, track: 1, wbr: 1 };
+// Classes that hide an element's text in the printed or signed copy (see the style allowlist): text inside one is not wording.
+// Round 4: the letterhead, footer and print button are dark or print-hidden surfaces: text inside them is never the packet's wording.
+const HIDDEN_CLASSES = { 'no-print': 1, 'nbd-sig-controls': 1, 'nbd-sig-state': 1, letterhead: 1, footer: 1, 'print-btn': 1 };
+const MAX_DEPTH = 400;
+// Review 4 (item 5): the real form has well under 1,000 tags; a copy with more is refused (the scan stops at the cap, so the work is bounded).
+const MAX_TAGS = 20000;
+// Round 4: each class the generator writes is valid only on the element(s) it writes it on and, for the surface and signing classes, inside
+// the element that carries the surface (a class on a different element, or outside its surface, is bad_position).
+const POSITIONS = {
+  'doc-page': { tags: ['div'] }, letterhead: { tags: ['div'] }, 'letterhead-brand': { tags: ['div'], anc: 'letterhead', par: 'letterhead' },
+  'letterhead-logo-img': { tags: ['img'], anc: 'letterhead', par: 'letterhead-brand' }, 'letterhead-name': { tags: ['div'], anc: 'letterhead' },
+  'letterhead-tagline': { tags: ['div'], anc: 'letterhead' }, 'letterhead-contact': { tags: ['div'], anc: 'letterhead', par: 'letterhead' },
+  'lib-h1': { tags: ['h1'] }, 'lib-sub': { tags: ['p'] }, 'aa-ver': { tags: ['p'] }, section: { tags: ['div'] }, 'aa-p': { tags: ['p'] }, 'aa-note': { tags: ['p'] },
+  'aa-thumbs': { tags: ['div'] }, 'lib-fine': { tags: ['span'] }, 'lib-table': { tags: ['table'] }, 'aa-opt': { tags: ['th', 'td'], par: 'tr' }, 'aa-row': { tags: ['label'], par: 'section|p5-item' },
+  // Phase 5 forms (functions/p5-forms.js) write these; each is valid only on its own element.
+  'p5-item': { tags: ['div'] }, 'p5-note': { tags: ['p'] }, 'p5-kv': { tags: ['dl'] }, 'p5-blank': { tags: ['div'] }, 'lib-list': { tags: ['ol', 'ul'] }, 'sig-caption': { tags: ['div'] },
+  'signature-block': { tags: ['div'] }, 'nbd-sig-block': { tags: ['div'], anc: 'signature-block' }, 'nbd-sig-label': { tags: ['div'], anc: 'nbd-sig-block' },
+  'nbd-sig-canvas': { tags: ['canvas'], anc: 'nbd-sig-block' }, 'nbd-sig-controls': { tags: ['div'], anc: 'nbd-sig-block' }, 'nbd-sig-state': { tags: ['span'], anc: 'nbd-sig-controls', par: 'nbd-sig-controls' },
+  'nbd-sig-print-name': { tags: ['div'], anc: 'nbd-sig-block' }, 'nbd-sig-img': { tags: ['img'] }, 'nbd-sig-date': { tags: ['div'], anc: 'nbd-sig-block' },
+  affiliates: { tags: ['div'] }, affiliate: { tags: ['div'], anc: 'affiliates', par: 'affiliates' }, 'affiliate-name': { tags: ['div'], anc: 'affiliate', par: 'affiliate' }, 'affiliate-num': { tags: ['div'], anc: 'affiliate', par: 'affiliate' },
+  footer: { tags: ['div'] }, 'footer-brand': { tags: ['span'], anc: 'footer', par: 'footer' }, 'no-print': { tags: ['div'] }, 'print-btn': { tags: ['div'] },
+  'sig-label': { tags: ['div', 'span', 'p'] }, 'sig-line': { tags: ['div', 'span'] },
+};
+function _classes(v) { return String(v == null ? '' : v).toLowerCase().split(/\s+/).filter(Boolean); }
+function _hiddenClass(attrs) { return _classes(attrs && attrs.class).some((c) => HIDDEN_CLASSES[c] === 1); }
+// Round 6: the markup is read by parse5, the HTML5 parser (the same tokenizer and tree construction rules a browser runs), never by a hand-written
+// tokenizer, so what the checks see is the tree a browser builds (comments that end at once, quotes after '=', foster-parented content and implied
+// elements all follow the specification). The size cap is applied before parsing (MAX_HTML) and the tag and depth caps while walking the tree.
+const { parse: _parseHtml } = require('parse5');
+
+let _scanRuns = 0; const _scanCache = [];
+/** _scanRaw, memoised for the large strings a request holds (verifyManifest, applyAcks and resultFor read the same stored copy). */
+function _scan(html) {
+  const s0 = String(html == null ? '' : html);
+  if (s0.length < 4096) return _scanRaw(s0);
+  for (let k = 0; k < _scanCache.length; k++) if (_scanCache[k].s === s0) return _scanCache[k].r;
+  _scanRuns++;   // counts the scans of whole copies (the paragraphs of the packet are small)
+  const r = _scanRaw(s0);
+  _scanCache.push({ s: s0, r }); if (_scanCache.length > 4) _scanCache.shift();
+  return r;
+}
+
+/**
+ * One walk over the parsed tree -> { text, tags: [{ name, closing, attrs, ... }], styles: [{ body, attrs }], labels, unterminated, tooDeep, tooMany }.
+ * text is the page text only (comments, the content of RAW_ELEMENTS and the text inside an element with a HIDDEN_CLASSES class removed).
+ * Input that ends inside a tag, comment or raw element, or a raw element with no end tag, is `unterminated`. An element nested deeper than
+ * MAX_DEPTH is too_deep; more than MAX_TAGS tags is too_many (the walk stops there).
+ */
+function _scanRaw(html) {
+  const s = String(html == null ? '' : html);
+  const text = []; const tags = []; const styles = []; const labels = [];
+  let unterminated = false; let tooDeep = false; let tooMany = false;
+  let doc;
+  try {
+    doc = _parseHtml(s, { sourceCodeLocationInfo: true, scriptingEnabled: true, onParseError: (e) => { if (e && /^eof-/.test(String(e.code))) unterminated = true; } });
+  } catch (_) {
+    return { text: '', tags: [], styles: [], labels: [], unterminated: true, tooDeep: false, tooMany: false };
+  }
+  const stack = []; const open = {}; const openCls = {}; let hid = 0; let lhSeen = false; let footerSeen = false; let curLabel = null;
+  const say = (t) => { if (hid === 0) text.push(t); };
+  const work = [{ n: doc, i: 0, ent: null }];
+  while (work.length) {
+    const fr = work[work.length - 1];
+    const kids = fr.n.childNodes || [];
+    if (fr.i >= kids.length) {   // leaving an element
+      work.pop();
+      if (fr.ent) {
+        const t = stack.pop(); open[t.name]--; if (t.h) hid--; t.c.forEach((c) => { openCls[c]--; });
+        tags.push({ name: t.name, closing: true, attrs: {} });
+        if (t.name === 'label' && curLabel) { labels.push({ ids: curLabel.ids, text: text.slice(curLabel.start).join('') }); curLabel = null; }
+      }
+      continue;
+    }
+    const node = kids[fr.i++];
+    const nn = node.nodeName;
+    if (nn === '#text') { say(node.value); continue; }
+    if (nn === '#comment') { say(' '); continue; }
+    if (!node.tagName) continue;   // doctype
+    if (tags.length > MAX_TAGS) { tooMany = true; break; }
+    const name = String(node.tagName).toLowerCase();
+    const attrs = {};
+    (node.attrs || []).forEach((a) => { const k = String(a.name).toLowerCase(); if (!Object.prototype.hasOwnProperty.call(attrs, k)) attrs[k] = a.value; });
+    const tg = { name, closing: false, attrs };
+    const loc = node.sourceCodeLocation;
+    const al = loc && loc.startTag && loc.startTag.attrs;
+    if (al) ['class', 'style', 'id', 'hidden'].forEach((k) => { const l = al[k]; if (l && s.slice(l.startOffset, l.endOffset).indexOf('&') !== -1) tg.entityAttr = true; });
+    const cls0 = _classes(attrs.class);
+    const par = stack.length ? stack[stack.length - 1] : null;
+    const underPage = !!par && par.c.indexOf('doc-page') !== -1;
+    let bp = cls0.some((c) => {
+      const r = POSITIONS[c];
+      return !!r && !((!r.tags || r.tags.indexOf(name) !== -1) && (!r.anc || openCls[r.anc] > 0) && (!r.par || (!!par && r.par.split('|').some((p) => par.name === p || par.c.indexOf(p) !== -1))));
+    });
+    // The letterhead is the first rendered child of the page, the footer a direct child of it, once each, with nothing rendered after the footer.
+    if (cls0.indexOf('letterhead') !== -1) { if (!(underPage && par.kids === 0 && !lhSeen)) bp = true; lhSeen = true; }
+    if (cls0.indexOf('footer') !== -1) { if (!(underPage && !footerSeen)) bp = true; footerSeen = true; }
+    else if (underPage && footerSeen && name !== 'style' && name !== 'script') bp = true;
+    if (par && name !== 'style' && name !== 'script') par.kids++;   // a style block or script renders nothing
+    if (bp) tg.badPos = true;
+    if (hid > 0) tg.inHidden = true;
+    if (name === 'label' && !curLabel) curLabel = { start: text.length, ids: [] };
+    if (curLabel && Object.prototype.hasOwnProperty.call(attrs, 'data-nbd-ack')) curLabel.ids.push(String(attrs['data-nbd-ack']));
+    tags.push(tg);
+    if (RAW_ELEMENTS[name] === 1) {
+      // the content of a raw element is never wording (and is not walked); a missing end tag swallows the rest of the page
+      const cn = node.childNodes || [];
+      let bodyText = ''; let other = 0;
+      cn.forEach((c) => { if (c.nodeName === '#text') bodyText += c.value; else other++; });
+      tg.bodyLength = bodyText.length + other;
+      if (name === 'style') styles.push({ body: bodyText, attrs });
+      if (!(loc && loc.endTag)) unterminated = true;
+      tags.push({ name, closing: true, attrs: {} });
+      continue;
+    }
+    if (VOID_ELEMENTS[name] === 1) continue;
+    if (stack.length >= MAX_DEPTH) { tooDeep = true; break; }
+    const h = _hiddenClass(attrs);
+    stack.push({ name, h, c: cls0, kids: 0 }); open[name] = (open[name] || 0) + 1; if (h) hid++;
+    cls0.forEach((c) => { openCls[c] = (openCls[c] || 0) + 1; });
+    work.push({ n: node, i: 0, ent: true });
+  }
+  return { text: text.join(''), tags, styles, labels, unterminated, tooDeep, tooMany };
+}
+
+function _norm(t) {
+  return String(t)
+    .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0*39;|&#x27;/g, "'").replace(/&amp;/g, '&')
+    .replace(/\*\*/g, '').replace(/\bNBD\b/g, 'Contractor').replace(/at least (\d+|\{\{atticFreeCheckDays\}\}) days/g, 'at least N days').replace(/\s+/g, ' ').trim();
+}
+function _plain(s) { return _norm(_scan(s).text); }
+
+// Review 2 (2026-11-18), item 3: wording that is in the markup but not on the page. The form the server issues has no template element,
+// no hidden attribute, and no inline style except a margin; its style blocks are the allowlist below. Anything else fails.
+// Round 4: the only inline style the generator writes (besides the signature image's own) is margin-top:36px on div.section above the signature
+// block (document-generator-templates.js). Exactly that, on that element, at most twice: no other margin, so nested margins cannot accumulate.
+const GEN_MARGIN = 'margin-top:36px;';
+const SIG_IMG_STYLE = 'max-width:100%;height:auto;display:block;background:#fff;';
+const HIDING_CSS_RES = [
+  /display:none/, /visibility:(?:hidden|collapse)/, /content-visibility:hidden/, /font-size:(?:0+(?:\.0*)?|\.0+)(?:px|pt|em|rem|ex|%)?(?![0-9.])/, /opacity:(?:0+(?:\.0*)?|\.0+)(?![0-9.])/,
+  /color:transparent/, /text-indent:-/, /(?<![a-z-])(?:max-)?(?:height|width):(?:0+(?:\.0*)?|\.0+)(?:px|pt|em|rem|ex|%)?(?![0-9.])/, /(?<![a-z-])line-height:(?:0+(?:\.0*)?|\.0+)(?![0-9.])/,
+  /clip(?:-path)?:/, /@import/, /(?:left|top|right|bottom|margin-left|margin-top):-[0-9]{3,}/,
+];
+const ALLOWED_TAGS = {};
+('html head meta title style body div p span strong em b i small sup sub br hr label input table thead tbody tfoot tr td th h1 h2 h3 ul ol li dl dt dd img canvas button script').split(' ').forEach((n) => { ALLOWED_TAGS[n] = 1; });
+const GLOBAL_ATTRS = { class: 1, id: 1, style: 1, lang: 1 };
+const TAG_ATTRS = {
+  img: { src: 1, alt: 1, width: 1, height: 1 }, canvas: { width: 1, height: 1 },
+  input: { type: 1, name: 1, 'data-nbd-ack': 1, 'data-nbd-required': 1, 'aria-label': 1, checked: 1, disabled: 1 },
+  button: { type: 1, 'data-nbd-sig-action': 1, 'data-dgt-action': 1 }, meta: { charset: 1, name: 1, content: 1 }, script: { src: 1, defer: 1 },
+  div: { 'data-nbd-sig': 1, 'data-label': 1, 'data-required': 1, 'data-nbd-sig-finalized': 1, 'data-nbd-sig-signed-at': 1 }, td: { colspan: 1, rowspan: 1 }, th: { colspan: 1, rowspan: 1 },
+};
+// The elements that carry the required wording may have only the classes the server render writes (a class is not a way to hide text
+// once the style blocks are an allowlist, but an unknown class on a paragraph is not the server's form).
+const WORD_CARRIERS = { p: 1, label: 1, strong: 1, em: 1, h1: 1, h2: 1, h3: 1, li: 1, span: 1 };
+const WORD_CLASSES = { 'p5-note': 1, 'aa-p': 1, 'aa-note': 1, 'aa-ver': 1, 'aa-row': 1, 'lib-sub': 1, 'lib-h1': 1, 'lib-fine': 1, 'footer-brand': 1, 'nbd-sig-state': 1 };
+// Every class the generated form and the signing step (signature-widget.js, finalizeBlock) write. Pinned against a real generate() in
+// tests/attic-ack-review3-2026-11-18.test.js (the real form passes verifyManifest).
+const FORM_CLASSES = {};
+('doc-page letterhead letterhead-brand letterhead-logo-img letterhead-name letterhead-tagline letterhead-contact lib-h1 lib-sub lib-fine lib-table aa-ver section aa-p aa-note aa-thumbs aa-opt aa-row ' +
+  'signature-block nbd-sig-block nbd-sig-label nbd-sig-canvas nbd-sig-controls nbd-sig-state nbd-sig-print-name nbd-sig-img nbd-sig-date affiliates affiliate affiliate-name affiliate-num footer footer-brand ' +
+  'no-print print-btn sig-label sig-line p5-note p5-item p5-kv p5-blank lib-list sig-caption').split(' ').forEach((c) => { FORM_CLASSES[c] = 1; });
+// The signing widget's script: no body, and a source on this site's own path.
+const SCRIPT_SRC_RE = /^(?:https?:\/\/(?:[a-z0-9-]{1,63}\.){0,4}(?:nobigdealwithjoedeal\.com|localhost|127\.0\.0\.1)(?::[0-9]{1,5})?)?\/pro\/js\/signature-widget\.js$/i;
+const WORDING_TAGS = { p: 1, label: 1, span: 1, strong: 1, em: 1, td: 1, th: 1, tr: 1, tbody: 1, thead: 1, table: 1, li: 1, ul: 1, ol: 1, h1: 1, h2: 1, h3: 1, input: 1 };
+
+/** The CSS text lower-cased, with comments and white space removed (linear: indexOf, no backtracking regex). */
+function _cssFlat(css) {
+  const t = String(css).toLowerCase(); let out = ''; let i = 0;
+  for (;;) {   // /* */ comments
+    const a = t.indexOf('/*', i);
+    if (a === -1) { out += t.slice(i); break; }
+    out += t.slice(i, a); const e = t.indexOf('*/', a + 2);
+    if (e === -1) break;
+    i = e + 2;
+  }
+  return out.replace(/\s+/g, '').replace(/!important/g, '');
+}
+
+/** transform:...scale(0 inside one declaration (no ';' or '}' between). One pass: the old /transform:[^;}]*scale(0/ rescanned the rest for every 'transform:'. */
+function _scaleZero(flat) {
+  let t = -1;
+  for (let i = 0; i < flat.length; i++) {
+    const ch = flat.charAt(i);
+    if (ch === ';' || ch === '}') { t = -1; continue; }
+    if (t === -1 && ch === 't' && flat.startsWith('transform:', i)) { t = i; continue; }
+    if (t !== -1 && ch === 's' && flat.startsWith('scale(0', i)) return true;
+  }
+  return false;
+}
+function _hidingCss(css) {
+  const flat = _cssFlat(css);
+  return HIDING_CSS_RES.some((re) => re.test(flat)) || _scaleZero(flat);
+}
+
+// Review 3 (2026-11-18), item 1: the form may carry only the style blocks the server knows. The generator injects <style id="nbd-sig-styles">
+// (its print rule hides the signing controls), the form has its own block, and the page has its own block, which opens with the print rule
+// (that rule hides the print button). An allowlist: each block must EQUAL a known one (white space normalised), or - the page block, whose
+// colours and fonts follow the tenant's brand - open with the exact print rule and then hold only rules from the property allowlist below.
+// Anything else is a style_block; hiding constructs in it are also named css_hidden.
+const _ws = (t) => String(t).replace(/\s+/g, ' ').trim();
+const CSS_PROPS = {};
+('font-family font-size font-weight font-style line-height letter-spacing text-transform text-align color background box-sizing display flex flex-wrap flex-direction flex-shrink justify-content align-items gap ' +
+  'position left bottom top right content width height max-width min-width min-height max-height object-fit object-position cursor border border-radius border-collapse font-variant-numeric opacity ' +
+  'border-top border-bottom border-left border-right margin margin-top margin-bottom margin-left margin-right padding padding-top padding-bottom padding-left padding-right').split(' ').forEach((p) => { CSS_PROPS[p] = 1; });
+const SEL_RE = /^[a-z0-9_.#:>+~*(), -]+$/i;
+const VAL_RE = /^[a-z0-9#%.,()'" _:\/!-]*$/i;
+function _pageCssOk(css) {
+  if (css.indexOf('/*') !== -1 || css.indexOf('@') !== -1 || css.indexOf('\\') !== -1) return false;
+  const n = css.length; let i = 0;
+  while (i < n) {
+    while (css.charAt(i) === ' ') i++;
+    if (i >= n) break;
+    const ob = css.indexOf('{', i); if (ob === -1) return false;
+    if (!SEL_RE.test(css.slice(i, ob).trim())) return false;
+    const cb = css.indexOf('}', ob + 1); if (cb === -1) return false;
+    const body = css.slice(ob + 1, cb);
+    if (body.indexOf('{') !== -1) return false;
+    const decls = body.split(';');
+    for (let k = 0; k < decls.length; k++) {
+      const d = decls[k].trim(); if (!d) continue;
+      const c = d.indexOf(':'); if (c < 1) return false;
+      const prop = d.slice(0, c).trim().toLowerCase(); const val = d.slice(c + 1).trim();
+      if (CSS_PROPS[prop] !== 1 || !VAL_RE.test(val)) return false;
+      const lv = val.toLowerCase();
+      if (lv.indexOf('url(') !== -1 || lv.indexOf('expression') !== -1 || lv.indexOf('attr(') !== -1) return false;
+      if (prop === 'display' && lv.indexOf('none') === 0) return false;
+      if (prop === 'content' && val !== '""') return false;
+    }
+    i = cb + 1;
+  }
+  return true;
+}
+// Review 4 (2026-11-18), item 1: the rep-supplied page block is not a property allowlist any more (colour, size, opacity and position are
+// exactly what hides wording). Its rules, selectors and properties must be the generator's own (PAGE_CSS_CANON: the generated block with
+// every colour written as '#' and the font stacks as F), so a rep can change only the tenant's brand colours and fonts - and the colours must
+// still be readable: text against its own background (and the page's) at a contrast of 3 or more.
+const PAGE_CSS_CANON =
+  '*{box-sizing:border-box;}body{font-family:F;color:#;line-height:1.55;margin:0;padding:0;background:#;}h1,h2,h3' +
+  ',h4{font-family:F;color:#;margin:0 0 12px 0;}.doc-page{max-width:8.5in;margin:0 auto;padding:40px 50px;}.orang' +
+  'e{color:#;}.section{margin-bottom:28px;}.section-title{font-size:15px;font-weight:700;text-transform:uppercase' +
+  ';letter-spacing:0.1em;color:#;padding-bottom:8px;margin-bottom:14px;position:relative;display:inline-block;pad' +
+  'ding-right:24px;font-family:F;}.section-title:after{content:"";position:absolute;left:0;bottom:0;width:32px;he' +
+  'ight:3px;background:#;border-radius:2px;}.section-num{font-family:F;font-weight:800;font-size:15px;color:#;mar' +
+  'gin-right:10px;letter-spacing:0.04em;}table.items{width:100%;border-collapse:collapse;margin:16px 0;}table.ite' +
+  'ms th{background:#;color:#;padding:10px 14px;text-align:left;font-family:F;font-size:12px;font-weight:700;text' +
+  '-transform:uppercase;letter-spacing:0.06em;}table.items td{padding:10px 14px;border-bottom:1px solid #;font-si' +
+  'ze:14px;}table.items tr:nth-child(even) td{background:#;}table.items .right{text-align:right;}.total-bar{displ' +
+  'ay:flex;justify-content:space-between;align-items:center;background:#;color:#;font-family:F;font-size:14px;fon' +
+  't-weight:700;padding:14px 20px;border-radius:4px;margin:18px 0;letter-spacing:0.04em;}.total-bar .total-figure' +
+  '{font-size:18px;}.sig-line{display:inline-block;width:280px;border-bottom:2px solid #;margin:0 20px;}.sig-labe' +
+  'l{font-size:11px;color:#;margin-top:4px;}.photo-zone{border:2px dashed #;border-radius:8px;min-height:180px;di' +
+  'splay:flex;align-items:center;justify-content:center;color:#;font-size:13px;background:#;}.photo-cap{font-size' +
+  ':11px;color:#;margin-top:6px;line-height:1.4;}.badge{display:inline-block;padding:6px 16px;border-radius:20px;' +
+  'font-size:12px;font-weight:700;font-family:F;letter-spacing:0.04em;}.affiliates{display:flex;justify-content:c' +
+  'enter;align-items:center;gap:14px;flex-wrap:wrap;margin:28px 0 8px 0;}.affiliate{border:1px solid #;border-rad' +
+  'ius:6px;background:#;padding:8px 14px;text-align:left;}.affiliate-name{font-family:F;font-size:11px;font-weigh' +
+  't:700;color:#;letter-spacing:0.04em;}.affiliate-num{font-family:F;font-size:10px;color:#;margin-top:2px;}.affi' +
+  'liate-badge{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 12px 8px;' +
+  '}.affiliate-badge-img{display:block;height:52px;width:auto;}.affiliate-badge-num{font-family:F;font-size:10px;' +
+  'color:#;margin-top:5px;letter-spacing:0.02em;}.pay-panel{border:2px solid #;border-radius:6px;background:#;pad' +
+  'ding:16px 20px;margin:18px 0;}.pay-panel-title{font-family:F;font-size:12px;font-weight:700;color:#;text-trans' +
+  'form:uppercase;letter-spacing:0.08em;margin-bottom:8px;}.fine-print{font-size:11px;color:#;line-height:1.5;}.l' +
+  'etterhead{background:linear-gradient(180deg,# 0%,# 100%);color:#;padding:24px 32px;margin:-40px -50px 28px -50' +
+  'px;border-bottom:6px solid #;display:flex;justify-content:space-between;align-items:center;gap:18px;}.letterhe' +
+  'ad-brand{display:flex;align-items:center;gap:14px;min-width:0;position:relative;}.letterhead-logo-img{display:' +
+  'block;width:160px;height:auto;object-fit:contain;object-position:left center;flex-shrink:0;background:#;border' +
+  '-radius:8px;padding:6px 10px;box-sizing:border-box;}.letterhead-name{font-family:F;font-size:22px;font-weight:' +
+  '800;color:#;letter-spacing:.04em;text-transform:uppercase;line-height:1.1;}.letterhead-tagline{font-family:F;f' +
+  'ont-size:12px;color:rgba(255,255,255,.88);font-style:italic;margin-top:4px;}.letterhead-contact{text-align:rig' +
+  'ht;font-family:F;font-size:11px;color:rgba(255,255,255,.92);line-height:1.7;flex-shrink:0;letter-spacing:.02em' +
+  ';}.footer{background:linear-gradient(180deg,# 0%,# 100%);color:rgba(255,255,255,.92);margin:40px -50px -40px -' +
+  '50px;padding:18px 32px;border-top:4px solid #;display:flex;justify-content:space-between;align-items:center;ga' +
+  'p:18px;font-family:F;font-size:10px;letter-spacing:.04em;}.footer .footer-brand{font-family:F;font-weight:800;' +
+  'text-transform:uppercase;letter-spacing:.1em;color:#;font-size:11px;}.footer .footer-docnum{font-variant-numer' +
+  'ic:tabular-nums;}.closing-tag{text-align:center;font-family:F;font-style:italic;font-size:11px;color:#;margin-' +
+  'top:22px;}.print-btn{text-align:center;padding:24px;}.print-btn button{background:#;color:#;border:none;paddin' +
+  'g:14px 36px;border-radius:8px;font-size:16px;cursor:pointer;font-weight:600;font-family:F;}.print-btn button:h' +
+  'over{opacity:0.9;}';
+function _canonCss(css) {
+  return String(css).replace(/\s+/g, ' ').trim().replace(/\s*([{};:,])\s*/g, '$1').toLowerCase()
+    .replace(/#[0-9a-f]{3,8}\b/g, '#').replace(/font-family:[^;}]*/g, 'font-family:F');
+}
+function _hexRgb(h) {
+  const x = String(h).slice(1);
+  if (x.length === 3) return [0, 1, 2].map((i) => parseInt(x.charAt(i) + x.charAt(i), 16));
+  if (x.length === 6) return [0, 2, 4].map((i) => parseInt(x.substr(i, 2), 16));
+  return null;
+}
+function _lum(rgb) {
+  const c = rgb.map((v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+function _contrast(a, b) { const la = _lum(a); const lb = _lum(b); return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05); }
+function _hexes(v) { return String(v).match(/#[0-9a-f]+/gi) || []; }
+function _pageCssCanon(css) {
+  if (_canonCss(css) !== PAGE_CSS_CANON) return false;
+  const rules = []; const flat = String(css).toLowerCase();
+  flat.split('}').forEach((r) => {
+    const ob = r.indexOf('{'); if (ob === -1) return;
+    const decls = {};
+    r.slice(ob + 1).split(';').forEach((d) => { const c = d.indexOf(':'); if (c > 0) decls[d.slice(0, c).trim()] = d.slice(c + 1).trim(); });
+    rules.push({ sel: r.slice(0, ob).replace(/\s+/g, ' ').trim(), decls });
+  });
+  const all = _hexes(flat);
+  for (const h of all) if (!_hexRgb(h)) return false;
+  const find = (sel) => rules.filter((r) => r.sel === sel)[0];
+  const body = find('body');
+  const bodyBg = body && _hexes(body.decls.background || '')[0];
+  const bodyFg = body && _hexes(body.decls.color || '')[0];
+  if (!bodyBg || !bodyFg) return false;
+  const page = _hexRgb(bodyBg);
+  if (_lum(page) < 0.9) return false;   // the page stays light
+  // The fixed colours the server's own CSS blocks use (captions, notes) must stay readable on this page.
+  const fixed = (String(AA.ATTIC_FORM_CSS) + ' ' + String(AA.SIG_STYLES_CSS)).toLowerCase().match(/[^a-z-]color:#[0-9a-f]{3,6}/g) || [];
+  const surface = (sel) => { const r = sel.indexOf('.footer') !== -1 ? find('.footer') : (sel.indexOf('.letterhead') !== -1 && sel !== '.letterhead' ? find('.letterhead') : null); return r ? _hexes(r.decls.background || '') : []; };
+  for (const r of rules) {
+    const own = _hexes(r.decls.background || r.decls['background-color'] || '');
+    const bgs = (own.length ? own : surface(r.sel)).map(_hexRgb);
+    if (!bgs.length && r.decls.color) bgs.push(page);
+    let fgs = _hexes(r.decls.color || '');
+    if (!r.decls.color && own.length) fgs = [bodyFg];
+    if (r.decls.color && !fgs.length) continue;   // an rgba() white, as the generator writes it
+    if (r.sel.indexOf(':after') !== -1 || r.sel.indexOf(':before') !== -1) continue;   // a decorative bar (content:"") carries no text
+    for (const f of fgs) for (const b of bgs) if (_contrast(_hexRgb(f), b) < 4.5) return false;
+  }
+  // Round 4: text colours and light backgrounds of the rules a form can use (every class in the selector is one the generator writes, and it is not
+  // a dark surface) must read against EACH OTHER, so a class nested in another's background cannot match it.
+  const usable = (sel) => !/letterhead|footer|print-btn|:after|:before|th\b|total-bar/.test(sel) && (sel.match(/\.[a-z0-9_-]+/g) || []).every((c) => FORM_CLASSES[c.slice(1)] === 1);
+  const txt = []; const bgl = [page];
+  rules.forEach((r) => { if (!usable(r.sel)) return; _hexes(r.decls.color || '').forEach((h) => txt.push(_hexRgb(h))); _hexes(r.decls.background || r.decls['background-color'] || '').forEach((h) => bgl.push(_hexRgb(h))); });
+  for (const t of txt) for (const b of bgl) if (_contrast(t, b) < 4.5) return false;
+  // Round 7: the server's own fixed text colours must read on EVERY light background the tenant's rules can put behind them, not only the page's.
+  for (const c of fixed) for (const b of bgl) if (_contrast(_hexRgb(c.slice(c.indexOf('#'))), b) < 3) return false;
+  // Review 4 (PR re-review): every font stack is the shape a tenant's brand fonts produce ('Face','Segoe UI',Helvetica,Arial,sans-serif, or
+  // the fallback alone), with no symbol face.
+  const col = flat.replace(/\s*([{};:,])\s*/g, '$1');
+  const stacks = col.match(/font-family:[^;}]*/g) || [];
+  if (stacks.length !== (flat.match(/font-family\s*:/g) || []).length) return false;
+  for (const st of stacks) {
+    const v = st.slice('font-family:'.length).replace(/\s+/g, ' ').trim();
+    const m = /^(?:'([a-z0-9][a-z0-9 ._&-]{0,39})',)?'segoe ui',helvetica,arial,sans-serif$/.exec(v.replace(/,\s+/g, ','));
+    if (!m || (m[1] && BRAND_FONTS[m[1]] !== 1)) return false;
+  }
+  return true;
+}
+// Round 4: an allowlist, not a denylist of symbol faces. A tenant's document face must be one of these (lower case); others are refused until added.
+const BRAND_FONTS = {};
+([ 'montserrat', 'lato', 'open sans', 'roboto', 'inter', 'poppins', 'nunito', 'raleway', 'oswald', 'work sans', 'dm sans', 'source sans pro', 'source sans 3', 'pt sans', 'noto sans', 'noto serif', 'lora', 'merriweather',
+  'playfair display', 'libre baskerville', 'bebas neue', 'arial', 'helvetica', 'georgia', 'times new roman', 'calibri', 'cambria', 'verdana', 'tahoma', 'trebuchet ms', 'segoe ui', 'garamond' ]).forEach((n) => { BRAND_FONTS[n] = 1; });
+/** Reason codes for the page's style blocks (empty when every block is one the server knows). */
+function _styleReasons(blocks) {
+  const bad = []; const add = (c) => { if (bad.indexOf(c) === -1) bad.push(c); };
+  const sig = _ws(AA.SIG_STYLES_CSS); const attic = _ws(AA.ATTIC_FORM_CSS); const p5css = _ws(P5.FORM_CSS); const pr = _ws(AA.PRINT_RULE_CSS);
+  const seen = { sig: 0, attic: 0, page: 0 };
+  blocks.forEach((b) => {
+    const body = _ws(b.body); const names = Object.keys(b.attrs || {});
+    if (body === sig && names.length === 1 && names[0] === 'id' && b.attrs.id === 'nbd-sig-styles') { seen.sig++; return; }
+    if ((body === attic || body === p5css) && names.length === 0) { seen.attic++; return; }
+    if (names.length === 0 && body.indexOf(pr) === 0 && _pageCssOk(body.slice(pr.length).trim()) && !_hidingCss(body.slice(pr.length)) && _pageCssCanon(body.slice(pr.length))) { seen.page++; return; }
+    add('style_block');
+    if (_hidingCss(body)) add('css_hidden');
+  });
+  Object.keys(seen).forEach((k) => { if (seen[k] > 1) add('style_block'); });
+  return bad;
+}
+
+/**
+ * Reasons the markup can show something other than what the text says (hidden wording, pre-ticked boxes). signed: the copy is a SIGNED one,
+ * where ticks are expected. Original copies (the remote path's, and every stored form before it is signed) carry no tick at all.
+ */
+function _risks(scan, parsed, opts) {
+  const bad = [];
+  const add = (c) => { if (bad.indexOf(c) === -1) bad.push(c); };
+  if (scan.tooDeep) add('too_deep');
+  if (scan.tooMany) add('too_many_tags');
+  let noPrint = 0; let margins = 0;
+  scan.tags.forEach((t) => {
+    // Review 3 (item 3): the tags and attributes of the form are an allowlist (what the server render and the signing step write).
+    if (ALLOWED_TAGS[t.name] !== 1) add('bad_tag:' + String(t.name).slice(0, 20));
+    if (t.closing) return;
+    const a = t.attrs;
+    Object.keys(a).forEach((k) => { if (!(GLOBAL_ATTRS[k] === 1 || (TAG_ATTRS[t.name] && TAG_ATTRS[t.name][k] === 1))) add('bad_attr:' + String(k).slice(0, 30)); });
+    // Review 4 (item 3): a browser decodes entities in an attribute value (class="&#110;o-print" is no-print); these checks read the raw text, so
+    // the attributes they read may not carry one.
+    if (t.entityAttr) add('entity_attr');   // set from the raw source of the attribute (the parser has already decoded its value)
+    const cls = _classes(a.class);
+    if (cls.indexOf('no-print') !== -1) {   // the print button's own wrapper is the only element that may carry it
+      noPrint++;
+      if (!(t.name === 'div' && cls.slice().sort().join(' ') === 'no-print print-btn' && noPrint === 1)) add('no_print_wording');
+    }
+    if (cls.indexOf('nbd-sig-controls') !== -1 && t.name !== 'div') add('hidden_class');
+    if (cls.indexOf('nbd-sig-state') !== -1 && t.name !== 'span') add('hidden_class');
+    if (WORD_CARRIERS[t.name] === 1 && cls.some((c) => WORD_CLASSES[c] !== 1)) add('bad_class');
+    // Review 4 (PR re-review): containers (div, td, th, ul, table ...) take only the classes the generator and the signing step write.
+    if (cls.some((c) => FORM_CLASSES[c] !== 1)) add('bad_class');
+    if (t.badPos) add('bad_position');
+    if (t.name === 'script' && (!(t.bodyLength === 0) || !SCRIPT_SRC_RE.test(String(a.src || '').slice(0, 200)))) add('script');
+    if (t.name === 'template') add('template');
+    if (Object.prototype.hasOwnProperty.call(a, 'hidden')) add('hidden_attr');
+    // The one inline style a signed copy gets is the signature image's own (signature-widget.js and remote-signing.js finalizeBlock write it).
+    const sigImg = t.name === 'img' && /(?:^|\s)nbd-sig-img(?:\s|$)/.test(a.class || '') && String(a.style || '').replace(/\s+/g, '').toLowerCase() === SIG_IMG_STYLE;
+    if (Object.prototype.hasOwnProperty.call(a, 'style') && !sigImg && !(t.name === 'div' && _classes(a.class).join(' ') === 'section' && String(a.style).replace(/\s+/g, '').toLowerCase() === GEN_MARGIN && ++margins <= 2)) add('inline_style');
+    if (t.name === 'link' && /stylesheet/i.test(a.rel || '')) add('css_hidden');
+    if (WORDING_TAGS[t.name] === 1 && /(?:^|\s)no-print(?:\s|$)/i.test(a.class || '')) add('no_print_wording');
+    if (Object.prototype.hasOwnProperty.call(a, 'data-nbd-ack')) {
+      if (t.inHidden) add('hidden_control');
+      const ty = String(a.type == null ? '' : a.type).trim().toLowerCase();
+      if (t.name !== 'input' || (ty !== 'checkbox' && ty !== 'radio')) add('control_type');
+      if (opts.signed !== true && Object.prototype.hasOwnProperty.call(a, 'checked')) add('preticked');
+    }
+  });
+  if (opts.signed !== true && parsed.some((c) => c.checked === true)) add('preticked');
+  _styleReasons(scan.styles).forEach(add);
+  return bad;
+}
+
+/**
+ * Is this stored HTML the attic form the server would have issued for this document type? -> { ok, reasons: [code] }
+ * Same controls (ids, types, required flags), the variant marker for the type, and the packet's paragraphs. Ticks are not part of
+ * it (a signed copy has them). Anything else - an extra, missing or non-required control, a stripped flag, hand-written HTML - fails.
+ */
+/**
+ * Phase 5 forms (flag docClauseSetV1): the same checks for a form whose spec is p5-forms.js - the marker names this type and a known
+ * variant, the required ticks are exactly the spec's, each Yes/No line has both answers, the registry wording and the form's own static
+ * text are present, and nothing hides wording or pre-ticks a box. -> { ok, reasons }
+ */
+function verifyP5(docType, html, o) {
+  const bad = [];
+  const s = String(html == null ? '' : html);
+  if (s.length > MAX_HTML) return { ok: false, reasons: ['too_large'] };
+  const markers = []; let mm; P5.MARKER_RE.lastIndex = 0;
+  while ((mm = P5.MARKER_RE.exec(s))) markers.push(mm);
+  const sp = markers.length === 1 && markers[0][1] === P5.VERSION && markers[0][2] === docType ? P5.spec(docType, markers[0][3]) : null;
+  if (!sp) return { ok: false, reasons: ['marker'] };
+  const parsed = AA.parseAcks(s);
+  const scan = _scan(s);
+  const rawCount = (s.match(/data-nbd-ack/gi) || []).length;
+  const liveCount = scan.tags.filter((t) => !t.closing && Object.prototype.hasOwnProperty.call(t.attrs, 'data-nbd-ack')).length;
+  if (parsed.length !== rawCount || parsed.length !== liveCount || parsed.length > MAX_CONTROLS) bad.push('control_count');
+  const seen = {};
+  parsed.forEach((c) => { if (seen[c.id]) bad.push('duplicate:' + c.id); seen[c.id] = c; });
+  const boxes = parsed.filter((c) => c.type === 'checkbox').map((c) => c.id).sort();
+  if (boxes.join('|') !== sp.required.slice().sort().join('|')) bad.push('checkboxes');
+  parsed.filter((c) => c.type === 'checkbox').forEach((c) => { if (c.required !== true) bad.push('not_required:' + c.id); });
+  const groups = {};
+  parsed.filter((c) => c.type === 'radio').forEach((c) => {
+    const r = /^rec:([a-z_0-9]+):(yes|no)$/.exec(c.id);
+    if (!r || sp.lines.indexOf(r[1]) === -1) { bad.push('radio_id:' + c.id); return; }
+    if (c.required) bad.push('radio_required:' + c.id);
+    (groups[r[1]] = groups[r[1]] || {})[r[2]] = true;
+  });
+  sp.lines.forEach((g) => { if (!(groups[g] && groups[g].yes && groups[g].no)) bad.push('missing_line:' + g); });
+  if (scan.unterminated) bad.push('unterminated');
+  const text = _norm(scan.text);
+  P5.fragments(docType, sp.variant).forEach((p, i) => { if (text.indexOf(_norm(p)) === -1) bad.push('wording:' + i); });
+  _risks(scan, parsed, o).forEach((c) => bad.push(c));
+  return { ok: bad.length === 0, reasons: bad.slice(0, 12) };
+}
+
+// ── Phase 5 checks beyond the manifest (security review 2026-11-19) ─────────────────────────────────────────────
+function isP5Doc(type) { return P5.isP5Doc(type); }
+function _p5Money(c) { return '$' + Math.floor(c / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + ('0' + (c % 100)).slice(-2); }
+function _p5Cents(s) { const m = /^(\d{1,3}(?:,\d{3})+|\d+)\.(\d{2})$/.exec(String(s)); return m ? Number(m[1].replace(/,/g, '')) * 100 + Number(m[2]) : null; }
+/**
+ * What the server re-derives for a phase 5 form, from the company's own terms and the lead, never from the form's text alone.
+ * ctx = { profile, tenantKey, isNbd, lead, KyLaw }. Decking: sheets x paymentTerms.deckingPerSheetCents in integer cents, compared with the
+ * stored figures and the CO-2 paragraph's price; an unset price, no profile, or more sheets than CO-2 allows refuses. Ohio insurance: the lead's
+ * state must read OH now (not only at the send); unreadable refuses. -> { ok, reasons, derived }
+ */
+function p5Check(docType, html, ctx) {
+  const c = ctx || {};
+  const bad = []; let derived = null;
+  if (docType === 'decking_authorization') {
+    const CS = require('./clause-set');
+    const terms = CS.paymentTermsFor((c.profile || {}).paymentTerms, c.isNbd === true);
+    const price = terms.deckingPerSheetCents;
+    const limit = terms.deckingSheetsBeforeChangeOrder;
+    const T = P5.TEXT;
+    const t = _norm(_scan(html).text);
+    // Each figure is a whole token: the sheet count a whole integer followed by the next label, an amount a whole money string (not "12.5", "1e3", "$1,0,0.00").
+    const sm = new RegExp(T.DK_SHEETS + '\\s*([0-9]+)\\s*' + T.DK_PRICE).exec(t);
+    const pm = new RegExp(T.DK_PRICE + '\\s*\\$([0-9,.]+)\\s*' + T.DK_TOTAL).exec(t);
+    const tm = new RegExp(T.DK_TOTAL + '\\s*\\$([0-9,.]+)(?![0-9,.])').exec(t);
+    const priceOk = CS.numOk(price, 'deckingPerSheetCents') && price > 0;
+    if (!priceOk) bad.push('price_unset');
+    const sheets = sm ? Number(sm[1]) : null;
+    if (!(sheets > 0)) bad.push('sheets');
+    if (sheets > 0 && !(CS.numOk(limit, 'deckingSheetsBeforeChangeOrder') && sheets <= limit)) bad.push('sheets_over_limit');
+    if (priceOk) {
+      if (!pm || _p5Cents(pm[1]) !== price) bad.push('price_mismatch');
+      if (t.indexOf('charged at ' + _p5Money(price) + ' per sheet') === -1) bad.push('co2_price');
+      if (sheets > 0 && (!tm || _p5Cents(tm[1]) !== sheets * price)) bad.push('total_mismatch');
+    }
+    if (!bad.length) derived = { sheets, perSheetCents: price, totalCents: sheets * price };
+  }
+  if (docType === 'ohio_insurance_ack') {
+    let st = '';
+    try { st = String((c.KyLaw && c.KyLaw.classifyLead ? c.KyLaw.classifyLead(c.lead || {}, {}) : {}).state || ''); } catch (_) { st = ''; }
+    if (st !== 'OH') bad.push('not_ohio');
+  }
+  return { ok: bad.length === 0, reasons: bad, derived };
+}
+
+function verifyManifest(docType, html, opts) {
+  const o = opts || {};
+  if (P5.isP5Doc(docType)) return verifyP5(String(docType), html, o);
+  const m = manifestFor(docType);
+  const bad = [];
+  if (!m) return { ok: false, reasons: ['doc_type'] };
+  const s = String(html == null ? '' : html);
+  if (s.length > MAX_HTML) return { ok: false, reasons: ['too_large'] };
+  const markers = []; let mm; MARKER_RE.lastIndex = 0;
+  while ((mm = MARKER_RE.exec(s))) markers.push(mm);
+  if (markers.length !== 1 || markers[0][1] !== AA.VERSION || markers[0][2] !== m.variant) bad.push('marker');
+  const parsed = AA.parseAcks(s);
+  // Round 5: each required control sits inside the label of its own paragraph (a tick on the wrong wording is refused).
+  const pairs = {};
+  ACK_IDS.forEach((id, i) => { pairs['ack:' + id] = (TXT.ACKS || [])[i]; });
+  if (docType === 'attic_not_inspected') STMT_IDS.forEach((id, i) => { pairs['ack:stmt_' + id] = (TXT.STATEMENTS || [])[i]; });
+  const scan = _scan(s);
+  const rawCount = (s.match(/data-nbd-ack/gi) || []).length;
+  // Review 3 (item 3): a control counts only when it is a real tag of the page, not text in a comment, textarea, noscript or template.
+  const liveCount = scan.tags.filter((t) => !t.closing && Object.prototype.hasOwnProperty.call(t.attrs, 'data-nbd-ack')).length;
+  if (parsed.length !== rawCount || parsed.length !== liveCount || parsed.length > MAX_CONTROLS) bad.push('control_count');
+  // Round 6: the regex reader of the ticks (attic-ack.js parseAcks) and the parsed tree must agree on every control, its id and its tick.
+  const treeAcks = scan.tags.filter((t) => !t.closing && Object.prototype.hasOwnProperty.call(t.attrs, 'data-nbd-ack'));
+  if (treeAcks.length === parsed.length && treeAcks.some((t, i) => String(t.attrs['data-nbd-ack']) !== parsed[i].id || Object.prototype.hasOwnProperty.call(t.attrs, 'checked') !== (parsed[i].checked === true)
+    || (String(t.attrs.type == null ? '' : t.attrs.type).trim().toLowerCase() === 'radio' ? 'radio' : 'checkbox') !== parsed[i].type || (t.attrs['data-nbd-required'] === '1') !== (parsed[i].required === true))) bad.push('control_mismatch');
+  const seen = {};
+  parsed.forEach((c) => { if (seen[c.id]) bad.push('duplicate:' + c.id); seen[c.id] = c; });
+  const boxes = parsed.filter((c) => c.type === 'checkbox').map((c) => c.id).sort();
+  const reqs = m.required.slice().sort();
+  if (boxes.join('|') !== reqs.join('|')) bad.push('checkboxes');
+  parsed.filter((c) => c.type === 'checkbox').forEach((c) => { if (c.required !== true) bad.push('not_required:' + c.id); });
+  const groups = {};
+  parsed.filter((c) => c.type === 'radio').forEach((c) => {
+    const r = /^rec:([a-z_0-9]+):(yes|no)$/.exec(c.id);
+    if (!r || m.lines.indexOf(r[1]) === -1) { bad.push('radio_id:' + c.id); return; }
+    if (c.required) bad.push('radio_required:' + c.id);
+    (groups[r[1]] = groups[r[1]] || {})[r[2]] = true;
+  });
+  Object.keys(groups).forEach((g) => { if (!(groups[g].yes && groups[g].no)) bad.push('half_line:' + g); });
+  m.must.forEach((g) => { if (!groups[g]) bad.push('missing_line:' + g); });
+  if (scan.unterminated) bad.push('unterminated');
+  const text = _norm(scan.text);
+  m.paras.forEach((p, i) => { if (text.indexOf(_plain(p)) === -1) bad.push('wording:' + i); });
+  _risks(scan, parsed, o).forEach((c) => bad.push(c));
+  m.required.forEach((id) => {
+    const lab = (scan.labels || []).filter((l) => l.ids.indexOf(id) !== -1)[0];
+    if (pairs[id] && (!lab || lab.ids.length !== 1 || _norm(lab.text).indexOf(_plain(pairs[id])) === -1)) bad.push('pairing:' + id);   // exactly one control per label
+  });
+  return { ok: bad.length === 0, reasons: bad.slice(0, 12) };
+}
+
+/** The doc type the marker names (for a caller with no type of its own). */
+function typeFromMarker(html) {
+  const r = /<!--\s*nbd:attic-ack\s+\S+\s+(inspected|not_inspected)\s*-->/.exec(String(html || ''));
+  return r && r[1] === 'not_inspected' ? 'attic_not_inspected' : 'attic_acknowledgment';
+}
+
+/**
+ * The executed record for a document that carries tick controls: the original's markup, with `checked` and
+ * `disabled` written onto each control from the submission's state. Returns { html, acks, complete }.
+ * A control the submission added (an id the original does not have) is ignored.
+ */
+function applyAcks(originalHtml, signedHtml, docType) {
+  const orig = String(originalHtml == null ? '' : originalHtml);
+  // The ORIGINAL is rep-authored: it must be the server's own form for this type before any of it is rewritten (size and shape first).
+  const manifest0 = verifyManifest(docType || typeFromMarker(orig), orig);
+  if (!manifest0.ok || String(signedHtml == null ? '' : signedHtml).length > MAX_HTML) {
+    return { html: orig, acks: [], manifestOk: false, manifestReasons: manifest0.ok ? ['too_large'] : manifest0.reasons, complete: false };
+  }
+  const sub = {};
+  AA.parseAcks(signedHtml).forEach((a) => { sub[a.id] = a.checked === true; });
+  const rewrite = (tag) => {
+    const m = /\bdata-nbd-ack\s*=\s*"([^"]{1,80})"/i.exec(tag);
+    if (!m) return tag;
+    const bare = tag.replace(/\s(checked|disabled)(\s*=\s*"[^"]*")?(?=[\s\/>])/gi, '');
+    // The tag ends in '>' (it was cut at one). Its closing is found by a backward walk (review 3, item 2): the regex this replaces,
+    // /\s*(\/?)>$/, rescanned the rest of the tag from every white-space character, so a tag padded with 1 MB of spaces took minutes.
+    let e = bare.length - 1;                                  // the '>'
+    const slash = e > 0 && bare.charAt(e - 1) === '/';
+    if (slash) e--;
+    while (e > 0 && /\s/.test(bare.charAt(e - 1))) e--;       // white space before the '/' or '>'
+    return bare.slice(0, e) + (sub[m[1]] === true ? ' checked=""' : '') + ' disabled=""' + (slash ? ' />' : '>');
+  };
+  // Each <input ...> tag is found with indexOf (linear), the same tag boundaries parseAcks uses.
+  const out = []; const inRe = /<input\b/gi; let last = 0; let im;
+  while ((im = inRe.exec(orig))) {
+    const gt = orig.indexOf('>', im.index);
+    if (gt === -1) break;
+    out.push(orig.slice(last, im.index), rewrite(orig.slice(im.index, gt + 1)));
+    last = gt + 1; inRe.lastIndex = gt + 1;
+  }
+  out.push(orig.slice(last));
+  const html = out.join('');
+  const acks = AA.parseAcks(html);
+  return { html, acks, manifestOk: true, manifestReasons: [], complete: acks.length > 0 && AA.acksComplete(acks).ok };
+}
+
+/** What a signed attic form records, from the stored signed copy. */
+function resultFor(docType, signedHtml, formDateMs, derived) {
+  const manifest = verifyManifest(docType, signedHtml, { signed: true });
+  const acks = manifest.reasons.indexOf('too_large') === -1 ? AA.parseAcks(signedHtml) : [];
+  if (P5.isP5Doc(docType)) {
+    // A phase 5 form: stored in the same server-owned field (atticAckResult), told apart by version and formType. It never counts as an attic form.
+    // The decking authorization's answer is read from its Yes/No pair: declined is true only for a ticked "no", approved only for a ticked "yes".
+    const isDk = String(docType) === 'decking_authorization';
+    const yes = acks.some((a) => a.id === 'rec:decking:yes' && a.checked === true);
+    const no = acks.some((a) => a.id === 'rec:decking:no' && a.checked === true);
+    return Object.assign({
+      version: P5.VERSION, formType: String(docType), notInspected: false, declined: isDk ? (no && !yes) : false, approved: isDk ? (yes && !no) : null,
+      manifestOk: manifest.ok,
+      complete: manifest.ok && acks.length > 0 && AA.acksComplete(acks).ok,
+      acknowledgments: AA.evidenceAcks(acks),
+      formDateMs: Number.isFinite(Number(formDateMs)) ? Number(formDateMs) : null,
+    }, derived && typeof derived === 'object' ? { sheets: derived.sheets, perSheetCents: derived.perSheetCents, totalCents: derived.totalCents } : {});
+  }
+  return {
+    version: AA.VERSION,
+    notInspected: String(docType) === 'attic_not_inspected',
+    declined: AA.declinedAny(acks),
+    manifestOk: manifest.ok,
+    complete: manifest.ok && acks.length > 0 && AA.acksComplete(acks).ok,
+    acknowledgments: AA.evidenceAcks(acks),
+    formDateMs: Number.isFinite(Number(formDateMs)) ? Number(formDateMs) : null,
+  };
+}
+
+const okId = (v) => typeof v === 'string' && ID_RE.test(v);
+
+/** A short digest of an estimate's priced content: an override is bound to it, so a re-priced or re-scoped estimate needs a new one. */
+function estimateStamp(est) {
+  const e = est || {};
+  return crypto.createHash('sha256').update(JSON.stringify([e.rows || [], e.lineItems || [], e.grandTotal == null ? null : e.grandTotal])).digest('hex').slice(0, 16);
+}
+
+/**
+ * Every estimate in play for this send, and the BASIS an override or signed form is bound to (review 4, item 4).
+ * The estimate being sent (o.estimateId / o.estimate) must be one of THIS lead's (the lead's primary, or its leadId, in the lead's tenant);
+ * otherwise the result is { rejected: true } and the caller refuses. The basis is the estimate with the highest scope among the one being
+ * sent, the lead's primary and the lead's own estimates (ties: the one being sent, then the primary, then by id), so binding a form to a
+ * trivial estimate while the real re-roof estimate is re-priced does not satisfy the gate. A read that fails throws (the caller fails closed).
+ */
+async function _estimateSet(db, leadId, lead, o) {
+  const L = lead || {};
+  const none = { list: [], basis: { id: '', stamp: '' }, rejected: false };
+  const ownedBy = (id, e) => !!e && e.deleted !== true && (id === L.primaryEstimateId || (okId(leadId) && e.leadId === leadId))
+    && !(e.companyId && L.companyId && e.companyId !== L.companyId);
+  const cand = [];
+  let capped = false;
+  const seen = {};
+  const add = (id, data) => { if (data && !seen[id]) { seen[id] = true; cand.push({ id, data }); } };
+  if (o.estimateId != null && o.estimateId !== '') {
+    if (!okId(o.estimateId)) return Object.assign({}, none, { rejected: true });
+    const s = await db.doc('estimates/' + o.estimateId).get();
+    const e = s && s.exists ? (s.data() || {}) : null;
+    if (!e || (okId(leadId) && !ownedBy(o.estimateId, e))) return Object.assign({}, none, { rejected: true });
+    add(o.estimateId, o.estimate && typeof o.estimate === 'object' ? o.estimate : e);   // the estimate actually being sent, once its id is known to be this lead's
+  } else if (o.estimate && typeof o.estimate === 'object') {
+    add('', o.estimate);
+  }
+  const pid = okId(L.primaryEstimateId) ? L.primaryEstimateId : '';
+  if (pid && !seen[pid]) {
+    const s = await db.doc('estimates/' + pid).get();
+    if (s && s.exists) add(pid, s.data() || {});
+  }
+  if (okId(leadId)) {
+    // Round 4: an unordered limit would read an arbitrary page, so more than 20 LIVE estimates (a soft-deleted one is not counted; the read
+    // takes up to 101 so a pile of deleted ones cannot hide the live ones) marks the list capped: the scope is then assumed to be a re-roof, a
+    // signed form cannot satisfy it (a re-roof estimate may be out of sight), and only the owner's recorded override does.
+    const q = await db.collection('estimates').where('leadId', '==', leadId).limit(101).get();
+    const live = q.docs.map((d) => ({ id: d.id, x: d.data() || {} })).filter((d) => d.x.deleted !== true).sort((p, r) => (p.id < r.id ? -1 : 1));
+    if (live.length > 20 || q.docs.length > 100) capped = true;
+    live.slice(0, 20).forEach((d) => add(d.id, d.x));
+  }
+  const rank = (c) => AA.scopeRank(AA.scopeFromEstimate(c.data));
+  let top = null;
+  cand.forEach((c) => { if (!top || rank(c) > rank(top)) top = c; });
+  return { list: cand, basis: top ? { id: top.id, stamp: estimateStamp(top.data) } : { id: '', stamp: '' }, rejected: false, tooMany: capped };
+}
+
+const TOO_MANY_MSG = 'This customer has more than 20 estimates, so the attic acknowledgment cannot be checked. Archive the old estimates, then try again. Nothing was sent.';
+const NOT_ON_LEAD_MSG = "This document's estimate is not one of this customer's estimates, so the attic acknowledgment cannot be checked. Use the customer's own estimate, then try again. Nothing was sent.";
+
+/**
+ * The estimate (id and stamp) a form signed NOW covers: the basis described above, with the estimate the form was generated for
+ * (opts.estimateId, written on the document row by the generator) as the preferred one among equals. An estimate that is not on this lead
+ * THROWS an error with code 'estimate_not_on_lead' (the signing paths refuse); a read that fails throws.
+ */
+async function formBasis(db, leadId, lead, opts) {
+  const want = opts && okId(opts.estimateId) ? opts.estimateId : '';
+  const set = await _estimateSet(db, leadId, lead || {}, want ? { estimateId: want } : {});
+  if (set.rejected || set.tooMany) { const c = set.tooMany ? 'too_many_estimates' : 'estimate_not_on_lead'; const e = new Error(c); e.code = c; throw e; }
+  return set.basis;
+}
+
+/**
+ * The gate for a contract-class document on this lead. A read that fails THROWS (the caller fails closed; a
+ * missing attic form is never assumed). opts = { estimate, estimateId } the estimate actually being sent (else the lead's
+ * primary), requireResolved (a deal with no lead: refuse when no estimate resolves), noWrite.
+ * -> { scope, basis: { id, stamp }, required, satisfied, how, message, warn }
+ * An override (kind 'proceed') or a lowered scope (kind 'scope_lowered') counts only while it is not revoked, not expired and
+ * bound to THIS basis estimate (id and stamp): a re-priced or re-scoped estimate needs a new one.
+ */
+async function decide(db, leadId, lead, opts) {
+  const o = opts || {};
+  const L = lead || {};
+  const set = await _estimateSet(db, leadId, L, o);
+  if (set.rejected) {
+    return { scope: 'unknown', basis: set.basis, required: true, satisfied: false, how: null, warn: false, message: NOT_ON_LEAD_MSG };
+  }
+  // A deal with no resolvable lead and no estimate cannot be classified: refuse (never assume "not a re-roof").
+  if (o.requireResolved === true && !set.list.length && AA.effectiveScope(L, []) === 'other') {
+    return { scope: 'unknown', basis: set.basis, required: true, satisfied: false, how: null, warn: false,
+      message: 'This deal is not linked to a customer or an estimate, so the attic acknowledgment cannot be checked. Link the deal to the customer, then send it. Nothing was sent.' };
+  }
+  let scope = set.tooMany ? 'reroof' : AA.effectiveScope(L, set.list.map((x) => x.data));
+  const rawScope = scope;
+  // Overrides recorded on this lead that are still good for this basis.
+  let valid = [];
+  if (okId(leadId) && AA.scopeRank(scope) >= 2) {
+    const ov = await db.collection(OVERRIDES).where('leadId', '==', leadId).get();
+    const now = Date.now();
+    valid = ov.docs.map((d) => d.data() || {}).filter((v) => v.version === AA.VERSION && !v.revokedAt && typeof v.expiresAt === 'number' && v.expiresAt > now
+      && String(v.estimateId || '') === set.basis.id && String(v.estimateStamp || '') === set.basis.stamp);
+    const lowered = set.tooMany ? null : valid.filter((v) => v.kind === 'scope_lowered' && AA.SCOPES.indexOf(v.toScope) !== -1 && AA.scopeRank(v.toScope) < AA.scopeRank(rawScope))[0];
+    if (lowered) scope = lowered.toScope;
+  }
+  const g0 = AA.gate({ scope, signedForm: false, override: false });
+  if (!g0.required) return Object.assign({ scope, rawScope, basis: set.basis }, g0);
+  // Remember that this was a re-roof (server-owned floor): taking the tear-off line off the estimate later does not lower it.
+  if (L.atticScopeFloor !== 'reroof' && okId(leadId) && o.noWrite !== true) {
+    try { await db.doc('leads/' + leadId).set({ atticScopeFloor: 'reroof' }, { merge: true }); } catch (_) { /* the gate below is the control */ }
+  }
+  // No lead: no signed form can exist (the forms live on the lead) and no override can be recorded: the gate stays closed.
+  if (!okId(leadId)) return Object.assign({ scope, rawScope, basis: set.basis }, AA.gate({ scope, signedForm: false, override: false }));
+  const found = [];
+  for (const t of AA.DOC_TYPES) {
+    const snap = await db.collection('leads/' + leadId + '/documents').where('type', '==', t).get();
+    snap.docs.forEach((d) => found.push(d));
+  }
+  // A form counts only with the server-written result (atticAckResult, server-owned in firestore.rules): the row's
+  // own status and signedAt are written by the rep's browser on the in-person path.
+  // Review 2 (item 4): a deleted row never counts, and a form covers the estimate (id and stamp) it was signed against - the same binding an
+  // override has - so a form signed for an older estimate cannot satisfy a newer, re-priced or re-scoped re-roof estimate.
+  const signedForm = !set.tooMany && found.some((d) => {
+    const r = d.data() || {};
+    if (r.deleted === true || String(r.status || '') === 'deleted') return false;
+    const res = r.atticAckResult;
+    return AA.isSignedForm(r) && !!res && res.version === AA.VERSION && res.complete === true
+      && String(res.estimateId || '') === set.basis.id && String(res.estimateStamp || '') === set.basis.stamp;
+  });
+  const override = valid.some((v) => v.kind !== 'scope_lowered');
+  const out = Object.assign({ scope, rawScope, basis: set.basis }, AA.gate({ scope, signedForm, override }));
+  if (set.tooMany && !out.satisfied) out.message = TOO_MANY_MSG;
+  return out;
+}
+
+const OVERRIDE_DAYS = 30;
+
+/** The owner or admin of THIS tenant: the platform admin, the tenant's company_admin, or the tenant's own owner (uid is the tenant). */
+function _ownerOrAdmin(auth, lead) {
+  const uid = auth && auth.uid;
+  const token = (auth && auth.token) || {};
+  // Review 2 (item 4): a legacy lead with no companyId has no company owner. lead.userId is whoever created the lead (a rep), so it is never
+  // read as the owner here: only a platform admin can approve on such a lead.
+  const companyId = String(lead.companyId || '');
+  const role = String(token.role || '');
+  const tokenCo = typeof token.companyId === 'string' ? token.companyId : '';
+  // A member of a company is never its owner just because they created the lead (review 2026-11-18, finding 6).
+  return role === 'admin' || (companyId !== '' && ((role === 'company_admin' && tokenCo !== '' && tokenCo === companyId) || uid === companyId));
+}
+
+/**
+ * Q18: only an owner or admin may record "proceed anyway" (kind 'proceed'), or lower a job's scope (kind 'scope_lowered', with
+ * toScope), with a required reason, as a server-written event (name, uid, time, reason) bound to the estimate it covers, good for
+ * 30 days. { revoke: true, overrideId? } ends them. auth = { uid, token }. Throws via the thrower (no firebase-functions import).
+ * deps.flagOn(lead) is the lead-aware flag check (the acting user's OR the tenant owner's, strict).
+ */
+async function recordOverride(db, auth, data, fail, deps) {
+  const uid = auth && auth.uid;
+  if (!uid) throw fail('unauthenticated', 'Sign in required');
+  const token = (auth && auth.token) || {};
+  const d = data || {};
+  const leadId = typeof d.leadId === 'string' ? d.leadId.trim() : '';
+  const reason = typeof d.reason === 'string' ? d.reason.trim() : '';
+  if (!ID_RE.test(leadId)) throw fail('invalid-argument', 'leadId required');
+  const ls = await db.doc('leads/' + leadId).get();
+  if (!ls.exists) throw fail('not-found', 'Lead not found');
+  const lead = ls.data() || {};
+  if (lead.deleted === true) throw fail('not-found', 'Lead not found');
+  const companyId = String(lead.companyId || lead.userId || '');
+  if (!_ownerOrAdmin(auth, lead)) throw fail('permission-denied', 'Only the company owner or an admin can approve a job to proceed without a signed attic page.');
+  if (deps && typeof deps.flagOn === 'function' && !(await deps.flagOn(lead))) throw fail('failed-precondition', 'The attic acknowledgment is not turned on for your account.');
+  const now = Date.now();
+  if (d.revoke === true) {
+    const snap = await db.collection(OVERRIDES).where('leadId', '==', leadId).get();
+    let n = 0;
+    for (const x of snap.docs) {
+      const v = x.data() || {};
+      if (v.revokedAt || (typeof d.overrideId === 'string' && d.overrideId && x.id !== d.overrideId)) continue;
+      await db.doc(OVERRIDES + '/' + x.id).set({ revokedAt: now, revokedBy: uid }, { merge: true });
+      n++;
+    }
+    return { ok: true, revoked: n };
+  }
+  const kind = d.kind === 'scope_lowered' ? 'scope_lowered' : 'proceed';
+  if (reason.length < 10 || reason.length > 500) throw fail('invalid-argument', kind === 'scope_lowered' ? 'Give the reason this job is not at that scope (at least 10 characters).' : 'Give the reason the job proceeds without a signed attic page (at least 10 characters).');
+  let estimateId;
+  if (d.estimateId != null && d.estimateId !== '') {
+    if (!okId(d.estimateId)) throw fail('invalid-argument', 'estimateId is not valid');
+    const es = await db.doc('estimates/' + d.estimateId).get();
+    const e = es && es.exists ? (es.data() || {}) : null;
+    if (!e) throw fail('not-found', 'Estimate not found');
+    if (!(e.userId === lead.userId || e.userId === companyId || e.companyId === companyId || e.leadId === leadId)) throw fail('permission-denied', 'That estimate is not on this customer.');
+    estimateId = d.estimateId;
+  }
+  const gate = await decide(db, leadId, lead, { estimateId, noWrite: true });
+  const name = String((token.name || token.email || '')).slice(0, 120);
+  const rec = { leadId, companyId, byUid: uid, byName: name || null, kind, reason, scope: gate.scope, estimateId: gate.basis.id, estimateStamp: gate.basis.stamp, at: now, expiresAt: now + OVERRIDE_DAYS * 86400000, version: AA.VERSION };
+  if (kind === 'scope_lowered') {
+    const to = typeof d.toScope === 'string' ? d.toScope : '';
+    const from = gate.rawScope || gate.scope;
+    if (AA.SCOPES.indexOf(to) === -1 || !(AA.scopeRank(to) < AA.scopeRank(from))) throw fail('failed-precondition', 'The scope can only be lowered to something below its current level (' + from + ').');
+    rec.toScope = to; rec.scope = from;
+  } else if (!gate.required) {
+    throw fail('failed-precondition', 'This job does not need an attic acknowledgment.');
+  }
+  const ref = db.collection(OVERRIDES).doc();
+  await ref.set(rec);
+  // The lowering is the one write to the lead's scope that is allowed to go down: server-side, with the event above as its record.
+  if (kind === 'scope_lowered') await db.doc('leads/' + leadId).set({ scope: rec.toScope }, { merge: true });
+  return { ok: true, id: ref.id, expiresAt: rec.expiresAt };
+}
+
+const TOO_LARGE_MSG = 'This attic acknowledgment is too large to verify. Open the customer, create a fresh copy of the form and try again.';
+
+module.exports = { _scanCalls: () => _scanRuns, estimateStamp, manifestFor, verifyManifest, OVERRIDES, MAX_HTML, TOO_LARGE_MSG, NOT_ON_LEAD_MSG, TOO_MANY_MSG, formBasis, gated, isAtticDoc, isP5Doc, p5Check, applyAcks, resultFor, decide, recordOverride };

@@ -156,6 +156,8 @@ async function post(L) {
       && docs['account_erasures/u1'].failures.some((f) => f.step === 'recursiveDelete' && f.target === 'priceBook'), r1.code + ' ' + JSON.stringify(docs['account_erasures/u1'].failures));
     const r2 = await post(L);
     ok('...the retry deletes the price ledger tree and confirms', r2.code === 200 && events.includes('delete:priceBook/u1') && docs['account_erasures/u1'].confirmed === true, events.filter((e) => /priceBook/.test(e)).join(' > '));
+    // 2026-11-18: the ledger's product photos (Storage product-photos/{companyId}/) go with it.
+    ok('...and the product photos and supplier documents of that company are deleted from Storage', events.includes('storage-delete:product-photos/u1/') && events.includes('storage-delete:price-docs/u1/'), events.filter((e) => /storage-delete/.test(e)).join(' > '));
     L.done();
   }
   {
@@ -230,12 +232,24 @@ async function post(L) {
   const readmeOf = (out) => (out ? String(readZip(out.zip)['README.txt'] || '') : '');
   const mkSnap = (docs) => ({ docs: docs.map(([id, d]) => ({ id, data: () => d })) });
   const mkDb = (o) => ({
-    doc: (p) => ({ get: async () => ({ exists: p.startsWith('companies/'), data: () => ({ name: 'Acme', ownerId: 'u1' }) }) }),
-    collection: (coll) => ({ where: (field) => ({ limit: (n) => ({ get: async () => {
-      if (o.fail && o.fail[coll] === field) throw new Error('DEADLINE_EXCEEDED (simulated)');
-      if (o.big === coll && field === 'companyId') return mkSnap(Array.from({ length: n }, (_, i) => [coll + i, { companyId: 'c1' }]));
-      return field === 'companyId' ? mkSnap([[coll + '1', { companyId: 'c1' }]]) : mkSnap([]);
-    } }) }) }),
+    doc: (p) => ({ get: async () => {
+      if (o.fail && o.fail[p] === 'doc') throw new Error('DEADLINE_EXCEEDED (simulated)');
+      if (p === 'priceBook/c1') return { exists: !!o.legacyBook, data: () => o.legacyBook };
+      return { exists: p.startsWith('companies/'), data: () => ({ name: 'Acme', ownerId: 'u1' }) };
+    } }),
+    collection: (coll) => ({
+      where: (field) => ({ limit: (n) => ({ get: async () => {
+        if (o.fail && o.fail[coll] === field) throw new Error('DEADLINE_EXCEEDED (simulated)');
+        if (o.big === coll && field === 'companyId') return mkSnap(Array.from({ length: n }, (_, i) => [coll + i, { companyId: 'c1' }]));
+        return field === 'companyId' ? mkSnap([[coll + '1', { companyId: 'c1' }]]) : mkSnap([]);
+      } }) }),
+      // The price ledger is read by path (priceBook/{companyId}/<sub>), with a limit and no filter.
+      limit: (n) => ({ get: async () => {
+        if (o.fail && o.fail[coll] === 'path') throw new Error('DEADLINE_EXCEEDED (simulated)');
+        if (o.big === coll) return mkSnap(Array.from({ length: n }, (_, i) => ['row' + i, { v: 1 }]));
+        return mkSnap((o.ledger && o.ledger[coll]) || []);
+      } }),
+    }),
   });
   // firebase-functions' logger writes JSON straight to stdout/stderr: mute
   // only the expected export lines.
@@ -267,6 +281,29 @@ async function post(L) {
   {
     const r = await exportWith({});
     ok('control: a clean export has no truncation marker', !!r.out && (r.out.truncated || []).length === 0 && /leads: 1/.test(readmeOf(r.out)) && !/TRUNCATED/.test(readmeOf(r.out)));
+  }
+  // The supplier price ledger joins the export (2026-11-17, slice 2).
+  {
+    const base = 'priceBook/c1/';
+    const r = await exportWith({
+      ledger: { [base + 'supplierAccounts']: [['other_testco', { label: 'Testco' }]], [base + 'priceOffers']: [['o1', { sku: 'TEST-0001' }], ['o2', { sku: 'TEST-0002' }]], [base + 'priceObservations']: [['r1', { offerId: 'o1' }]], [base + 'priceAudit']: [] },
+      legacyBook: { items: { 'other_TEST-0001': { sku: 'TEST-0001' } } },
+    });
+    const names = r.out ? Object.keys(readZip(r.out.zip)) : [];
+    const c = (r.out && r.out.counts) || {};
+    ok('the price ledger is in the export: its files and its counts', ['price_supplier_accounts', 'price_offers', 'price_observations', 'price_audit'].every((n) => names.some((f) => f.endsWith('-' + n + '.json')))
+      && c.price_supplier_accounts === 1 && c.price_offers === 2 && c.price_observations === 1 && c.price_audit === 0, r.err ? r.err.message : JSON.stringify([names, c]));
+    ok('the legacy price book document is in the export too', names.some((f) => f.endsWith('-price_book.json')) && c.price_book === 1, JSON.stringify(c));
+  }
+  {
+    const r = await exportWith({ fail: { 'priceBook/c1/priceObservations': 'path' } });
+    ok('a failed price ledger read FAILS the export', !!r.err && !r.out && r.err.code === 'unavailable' && /price observations/.test(r.err.message), r.err && r.err.message);
+    const d = await exportWith({ fail: { 'priceBook/c1': 'doc' } });
+    ok('a failed read of the legacy price book fails it too', !!d.err && !d.out);
+  }
+  {
+    const r = await exportWith({ big: 'priceBook/c1/priceObservations' });
+    ok('a capped price ledger collection is named in truncated', !!r.out && r.out.truncated.join() === 'price_observations', r.err ? r.err.message : JSON.stringify(r.out && r.out.truncated));
   }
   {
     const L2 = require(path.join(FN, 'tenant-ops-logic.js'));

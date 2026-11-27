@@ -40,6 +40,8 @@ const FEATURES = {
   reputationLoop: ['reputation', 'docs/pro/js/reputation.js'],
   estimateFollowBoard: ['estimatefollowboard', 'docs/pro/js/estimate-follow-board.js'],
   followUpBoard: ['followupboard', 'docs/pro/js/follow-up-board.js'],
+  // 2026-11-18: the materials list at the company's suppliers (live supplier pricing slice 7).
+  supplierPricing: ['supplierpricing', 'docs/pro/js/price-materials.js'], recordVisitTab: ['recordvisittab', 'docs/pro/js/visit-recorder-tab.js'], // recordVisitTab 2026-11-19: the phone Record visit tab
 };
 
 // ── a window with a fake ScriptLoader and NBDFlags ──────────────────────────
@@ -80,7 +82,7 @@ console.log('\nDARK FEATURES: the loader');
   w.flags.followUpBoard = true;
   w.dispatch('nbd:flags-loaded');
   ok('a flag turned on later loads its bundle on the next flags read', w.loads.slice(2).join() === 'followupboard', w.loads);
-  ok('the API is exposed once, with the map', w.NBDDarkFeatures && w.NBDDarkFeatures.__sentinel === 'nbd-dark-features-v1' && typeof w.NBDDarkFeatures.sync === 'function' && Object.keys(w.NBDDarkFeatures.flags).length === 6);
+  ok('the API is exposed once, with the map', w.NBDDarkFeatures && w.NBDDarkFeatures.__sentinel === 'nbd-dark-features-v1' && typeof w.NBDDarkFeatures.sync === 'function' && Object.keys(w.NBDDarkFeatures.flags).length === 8);
 }
 {
   const w = run(makeWindow({ flags: { bulkCloseStaleLeads: true }, loaded: true }));
@@ -133,12 +135,12 @@ console.log('\nDARK FEATURES: the bundles registered on the real script-loader.j
   vm.createContext(ctx);
   vm.runInContext(read('docs/pro/js/script-loader.js'), ctx, { filename: 'script-loader.js' });
   const before = Object.keys(ctx.window.ScriptLoader.bundles).length;
-  ok('control: script-loader.js itself does not carry the six bundles (it is a blocking script at its byte ceiling)', !ctx.window.ScriptLoader.bundles.followupboard && !ctx.window.ScriptLoader.bundles.reputation);
+  ok('control: script-loader.js itself does not carry the seven bundles (it is a blocking script at its byte ceiling)', !ctx.window.ScriptLoader.bundles.followupboard && !ctx.window.ScriptLoader.bundles.reputation);
   vm.runInContext(SRC, ctx, { filename: 'dark-features.js' });
   const B = ctx.window.ScriptLoader && ctx.window.ScriptLoader.bundles;
-  ok('dark-features.js registers exactly six bundles on the real ScriptLoader, like today-home.js registers promise', !!B && Object.keys(B).length === before + 6);
+  ok('dark-features.js registers exactly eight bundles on the real ScriptLoader, like today-home.js registers promise', !!B && Object.keys(B).length === before + 8);
   vm.runInContext(SRC, ctx, { filename: 'dark-features.js' });
-  ok('running it again adds nothing (sentinel + registered-once guard)', Object.keys(B).length === before + 6);
+  ok('running it again adds nothing (sentinel + registered-once guard)', Object.keys(B).length === before + 8);
   const base = (s) => String(s).split('?')[0];
   Object.keys(FEATURES).forEach((flag) => {
     const [bundle, file] = FEATURES[flag];
@@ -164,7 +166,7 @@ console.log('\nDARK FEATURES: dashboard.html');
   const sheets = ['stale-leads-cleanup', 'lead-source-fixer', 'reputation', 'speed-to-lead', 'estimate-follow-board', 'follow-up-board'];
   ok('their stylesheets are still linked (late, media="print")', sheets.every((n) => new RegExp('media="print" data-late-css href="css/' + n + '\\.css').test(dash)));
   ok('the loader comes after the blocking script-loader.js (registration needs it); feature-flags.js may land either side, the listener waits', dash.indexOf('js/dark-features.js') > dash.indexOf('js/script-loader.js') && dash.indexOf('js/script-loader.js') > 0);
-  ok('script-loader.js is untouched by this lane: no feature bundle inside the blocking file', !/followupboard|staleleads|leadsourcefixer|speedtolead|estimatefollowboard/.test(read('docs/pro/js/script-loader.js')));
+  ok('script-loader.js is untouched by this lane: no feature bundle inside the blocking file', !/followupboard|staleleads|leadsourcefixer|speedtolead|estimatefollowboard|supplierpricing/.test(read('docs/pro/js/script-loader.js')));
   const manifest = read('tests/ci-manifest.json');
   ok('this suite is in the node bucket', manifest.indexOf('"dark-features-lazy-2026-11-08.test.js"') >= 0);
 }

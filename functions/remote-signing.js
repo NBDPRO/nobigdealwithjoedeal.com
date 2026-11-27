@@ -35,6 +35,7 @@ const { Timestamp, getFirestore } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const { FieldValue } = require('firebase-admin/firestore');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
+const DE = require('./doc-evidence');
 const { callableRateLimit, assertNotViewer } = require('./shared');
 const EVA = require('./estimate-view-alert');
 
@@ -50,6 +51,8 @@ const { uidInLeadTenant } = require('./lead-artifact-paths');
 const ESL = require('./esign-logic');
 const { awaitBriefly } = require('./await-briefly');
 const SP = require('./signed-price');
+const AA = require('./attic-ack');
+const AG = require('./attic-gate');
 
 /** Cents → "$14,500.00" for the rep's bell. */
 const usd = (cents) => '$' + (Number(cents) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -224,7 +227,8 @@ function signablePathUid(htmlPath, leadId) {
  * this misses one.
  */
 const SUPERSEDED_MSG = 'This signing link was replaced by a newer one. Use the latest link from your rep.';
-async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why) {
+async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why, linkSeq) {
+  let n = 0;
   try {
     const snap = await db.collection('doc_sign_tokens').where('leadId', '==', leadId).where('status', '==', 'pending').get();
     for (const d of snap.docs) {
@@ -236,11 +240,44 @@ async function supersedeContractTokens(db, leadId, ownerUid, keepToken, why) {
         try { const ds = await db.doc(`leads/${leadId}/documents/${t.docId}`).get(); type = ds.exists ? (ds.data() || {}).type : null; } catch (_) { type = null; }
       }
       if (!CW.isContractDocType(type)) continue;
+      // Flag docSignPanelV1 only (linkSeq given): never retire a link with a higher sequence number than this mint (review item 5).
+      if (Number.isFinite(linkSeq) && Number.isFinite(t.linkSeq) && (t.linkSeq > linkSeq || (t.linkSeq === linkSeq && String(d.id) > String(keepToken)))) continue;
       await db.doc(`doc_sign_tokens/${d.id}`).update({ status: 'superseded', supersededBy: keepToken || null, supersededWhy: why, supersededAt: FieldValue.serverTimestamp() });
+      n++;
     }
   } catch (e) {
     logger.warn('[remoteSigning] supersede older contract links failed', { leadId, err: e && e.message });
+    return { n, error: true };
   }
+  return { n, error: false };
+}
+
+/**
+ * Flag docSignPanelV1: retire this lead's other pending links for the SAME document (any type), the one-tap "make a new
+ * link" (Q60). Only the lead owner's tokens. Best-effort like the contract version: a miss never blocks the new link.
+ * Security review 2026-11-18, item 5: only a link OLDER than this mint (a lower linkSeq: a per-document counter bumped in a transaction, so the mint now running always outranks every link made before it) is
+ * retired, never a newer one, so two concurrent mints cannot retire each other and leave no live link. A link with no
+ * linkSeq (minted before this field, or with the flag off) counts as older. Equal sequence numbers (only possible if two transactions raced) fall back to the token id.
+ * Returns { n: how many were retired, error: true when the query or an update failed }.
+ */
+async function supersedeDocTokens(db, leadId, ownerUid, docId, keepToken, why, linkSeq) {
+  let n = 0;
+  try {
+    const snap = await db.collection('doc_sign_tokens').where('leadId', '==', leadId).where('status', '==', 'pending').get();
+    for (const d of snap.docs) {
+      if (d.id === keepToken) continue;
+      const t = d.data() || {};
+      if (t.ownerUid !== ownerUid || t.docId !== docId) continue;
+      const theirs = Number.isFinite(t.linkSeq) ? t.linkSeq : -Infinity;
+      if (theirs > linkSeq || (theirs === linkSeq && String(d.id) > String(keepToken))) continue; // newer than this mint: leave it live
+      await db.doc(`doc_sign_tokens/${d.id}`).update({ status: 'superseded', supersededBy: keepToken || null, supersededWhy: why, supersededAt: FieldValue.serverTimestamp() });
+      n++;
+    }
+  } catch (e) {
+    logger.warn('[remoteSigning] supersede older document links failed', { leadId, err: e && e.message });
+    return { n, error: true };
+  }
+  return { n, error: false };
 }
 
 async function signableHtmlPathOk(db, htmlPath, leadId, lead) {
@@ -379,17 +416,26 @@ exports.createSignRequest = onCall(
     // A compromised rep session could otherwise mint tokens / send mail
     // in a loop. 20/min/uid is far above any real workflow.
     await callableRateLimit(request, 'createSignRequest', 20, 60_000);
+    const d = request.data || {};
+    // Signing-ease lane (flag docSignPanelV1, Jo's Q48): sendEmail:false asks for a link with NO email, for the QR / text /
+    // copy panel. It relaxes the email-required and on-record checks below ONLY when that flag is on for the caller; with the
+    // flag off the parameter is ignored and every check is exactly the old one. Only this request reads the flag strictly.
+    const linkOnlyAsked = d.sendEmail === false;
+    const linkOnlyFlag = linkOnlyAsked ? await DE.signPanelFlagForGate(getFirestore(), uid, HttpsError) : false;
     // R3-11: and a daily cap, shared with the e-sign envelope sends — this
     // mails from the platform domain and sign-up is open.
-    await callableRateLimit(request, 'signLinkEmailDaily', ESL.SIGN_EMAIL_DAILY_CAP, 86_400_000);
+    // Security review 2026-11-18, item 4: a link-only mint sends no email, so it draws its OWN, larger counter and cannot
+    // starve the email sends. A flag-off caller who sends sendEmail:false still emails, so it still draws the email counter.
+    if (linkOnlyAsked && linkOnlyFlag) await callableRateLimit(request, 'signLinkOnlyDaily', ESL.SIGN_LINK_ONLY_DAILY_CAP, 86_400_000);
+    else await callableRateLimit(request, 'signLinkEmailDaily', ESL.SIGN_EMAIL_DAILY_CAP, 86_400_000);
 
-    const d = request.data || {};
     const leadId = typeof d.leadId === 'string' ? d.leadId : null;
     const docId = typeof d.docId === 'string' ? d.docId : null;
     const signerEmail = typeof d.signerEmail === 'string' ? d.signerEmail.trim() : '';
     const signerName = typeof d.signerName === 'string' ? d.signerName.trim().slice(0, 120) : '';
     if (!leadId || !docId) throw new HttpsError('invalid-argument', 'leadId and docId required');
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(signerEmail)) {
+    const emailShapeOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(signerEmail);
+    if (!linkOnlyAsked && !emailShapeOk) {
       throw new HttpsError('invalid-argument', 'A valid signer email is required');
     }
 
@@ -402,7 +448,14 @@ exports.createSignRequest = onCall(
     if (lead.userId !== uid && !isAdmin) throw new HttpsError('permission-denied', 'Not your lead');
     // R3-11: the link goes only to an email on this lead's record (its email,
     // or a saved alternate) — never to any address the caller types.
-    if (!ESL.recipientOnRecord(lead, signerEmail)) {
+    // Only the link-only request (sendEmail:false) reads the flag strictly (a read that fails refuses, retryable). Every other
+    // caller reads it loosely (a failed read = off), so a flag-read problem never changes the ordinary email mint.
+    const signPanelOn = linkOnlyAsked ? linkOnlyFlag : await DE.signPanelFlagLoose(db, uid);
+    const noEmailMint = linkOnlyAsked && signPanelOn;
+    if (linkOnlyAsked && !signPanelOn && !emailShapeOk) {
+      throw new HttpsError('invalid-argument', 'A valid signer email is required');
+    }
+    if (!noEmailMint && !ESL.recipientOnRecord(lead, signerEmail)) {
       throw new HttpsError('failed-precondition', ESL.SIGN_EMAIL_NOT_ON_RECORD);
     }
 
@@ -418,6 +471,13 @@ exports.createSignRequest = onCall(
     if ((docMeta.signedAt || docMeta.status === 'signed') && docMeta.signedSaveFailed !== true) {
       throw new HttpsError('failed-precondition', 'This document is already signed. Open the signed copy from the Documents tab; to change it, generate a new document and send that one.');
     }
+    // Flag docClauseSetV1 (Q51): a document only the company signs (a lien waiver) is never emailed to the homeowner.
+    // The flag is read only for such a document, and strictly: a read that fails refuses (retryable).
+    if (Array.isArray(docMeta.signers) && docMeta.signers.length > 0
+        && docMeta.signers.every((s) => s && s.role === 'rep')
+        && await DE.clauseFlagForGate(db, uid, HttpsError)) {
+      throw new HttpsError('failed-precondition', 'Only your company signs this document, so it is not sent to the homeowner. Open it and sign it yourself.');
+    }
     const htmlPath = docMeta.htmlPath || null;
     if (!htmlPath) throw new HttpsError('failed-precondition', 'This document has no signable HTML on file');
     // htmlPath is client-written: confine it to THIS lead's own documents/
@@ -429,6 +489,18 @@ exports.createSignRequest = onCall(
     // 2026-10-04: a contract goes out for signature only with the Notice of
     // Right to Cancel + both completed FTC forms attached. A contract
     // generated before they were added has none — it is refused with the fix.
+    // Review 2026-11-18 (findings 2 and 7): the pre-send gap check runs HERE, on the server, from the
+    // stored document, the lead, the company profile and the locked price; the browser check is UX only.
+    // The flag is read strictly: a read that FAILS refuses the send (retryable) instead of reading "off".
+    const gateClass = DE.isContractClass(docMeta.type);
+    // flagOnAtMint is ALSO what the sign page will do about consent: it is stamped on the token (consentAsked)
+    // so getSignDocument and submitSignature follow the decision made here and never re-read the flag (finding 7).
+    const flagOnAtMint = await DE.flagForGate(db, uid, HttpsError);
+    // Review 2026-11-18, item 6: the unresolved-number / placeholder gate also runs under docClauseSetV1 (strict read,
+    // a read error refuses). The consent checkbox above stays docEvidenceFoundation's alone.
+    const clauseFlagOnAtMint = await DE.clauseFlagForGate(db, uid, HttpsError);
+    const gateOn = (flagOnAtMint || clauseFlagOnAtMint) && (CW.isContractDocType(docMeta.type) || gateClass);
+    let gateHtml = null;
     if (CW.isContractDocType(docMeta.type)) {
       let contractHtml = '';
       try {
@@ -441,6 +513,16 @@ exports.createSignRequest = onCall(
       if (!KyLaw.hasCancelPacket(contractHtml)) {
         throw new HttpsError('failed-precondition',
           'This contract was made before the 3-day cancellation forms were added. Generate the contract again, then send that one.');
+      }
+      gateHtml = contractHtml;
+    }
+    if (gateOn && gateHtml == null) {
+      try {
+        const [gbuf] = await getStorage().bucket().file(htmlPath).download();
+        gateHtml = gbuf.toString('utf8');
+      } catch (e) {
+        logger.error('[createSignRequest] document html unreadable for the send check', { leadId, docId, err: e.message });
+        throw new HttpsError('unavailable', 'Could not read the document. Try again shortly.');
       }
     }
 
@@ -474,9 +556,35 @@ exports.createSignRequest = onCall(
     }
 
     const now = Date.now();
-    const ttlDays = 7;
+    const ttlDays = signPanelOn ? 14 : 7; // Q61: 14 days, only for a caller with docSignPanelV1
     const expiresAt = Timestamp.fromMillis(now + ttlDays * 86_400_000);
     const token = mintSignToken();
+    // Flag docSignPanelV1 (security review item 5): a strictly increasing per-document sequence number, taken in a transaction on
+    // the document row. The mint now running always outranks every link made before it, whatever the clock says.
+    // The row counter is rules-protected, but a tampered or missing value is still safe: it counts as 0 unless it is a sane
+    // non-negative integer, and the number is never below the highest live link of this document, so a reset cannot keep one alive.
+    let linkSeq = null;
+    if (signPanelOn) {
+      try {
+        let liveMax = 0;
+        try {
+          const live = await db.collection('doc_sign_tokens').where('leadId', '==', leadId).where('status', '==', 'pending').get();
+          live.docs.forEach((x) => { const t = x.data() || {}; if (t.docId === docId && Number.isSafeInteger(t.linkSeq) && t.linkSeq > liveMax) liveMax = t.linkSeq; });
+        } catch (_) { liveMax = 0; /* the retire step below reports a failed query */ }
+        linkSeq = await db.runTransaction(async (tx) => {
+          const ref = db.doc(`leads/${leadId}/documents/${docId}`);
+          const s = await tx.get(ref);
+          const raw = s.exists ? (s.data() || {}).linkSeq : 0;
+          const cur = Number.isSafeInteger(raw) && raw >= 0 ? raw : 0;
+          const next = Math.max(cur, liveMax) + 1;
+          tx.set(ref, { linkSeq: next }, { merge: true });
+          return next;
+        });
+      } catch (e) {
+        logger.warn('[createSignRequest] link sequence failed', { leadId, docId, err: e && e.message });
+        throw new HttpsError('unavailable', 'Could not make the link just now. Nothing was sent. Try again in a moment.');
+      }
+    }
 
     // Multi-tenant branding: resolve the tenant's legal name so the signing
     // email AND the sign-page chrome announce THEIR company, not NBD. Keyed
@@ -486,14 +594,55 @@ exports.createSignRequest = onCall(
     // legalName is NBD's, or absent) leaves tenantName '' → the exact
     // lead.repName || NBD fallback below stands → byte-identical.
     let tenantName = '';
+    let tenantProfile = {};
     const tenantKey = lead.companyId || lead.userId;
     if (tenantKey) {
       try {
         const cpSnap = await db.doc(`companyProfile/${tenantKey}`).get();
+        if (cpSnap.exists) tenantProfile = cpSnap.data() || {};
         if (cpSnap.exists) { const _ln = ((cpSnap.data() || {}).brand || {}).legalName || ''; tenantName = (_ln && _ln !== 'No Big Deal Home Solutions') ? _ln : ''; }  // NBD-name guard (byte-identical; mirrors render-pdf.js/sms-functions.js)
       } catch (e) {
         logger.warn('[createSignRequest] tenant resolve failed', { leadId, err: e.message });
       }
+    }
+
+    // Fail closed (flag docEvidenceFoundation, default OFF): price, property address, homeowner name,
+    // company mailing address, legal entity name and any [Placeholder] / {{token}} left in the stored
+    // document. A profile that could not be read counts as blank, never as fine.
+    if (gateOn) {
+      let gatePrice = priceSnapshot && priceSnapshot.totalCents > 0 ? priceSnapshot.totalCents : null;
+      if (gatePrice == null) {
+        try {
+          const gpid = typeof lead.primaryEstimateId === 'string' ? lead.primaryEstimateId : '';
+          const ges = gpid && /^[A-Za-z0-9_-]{1,128}$/.test(gpid) ? await db.doc(`estimates/${gpid}`).get() : null;
+          if (ges && ges.exists) gatePrice = DE.estimateCents(ges.data());
+        } catch (_) { gatePrice = null; }
+      }
+      let secondOwner = '';
+      if (clauseFlagOnAtMint === true) {
+        try { secondOwner = await DE.secondOwnerFor(db, leadId, lead); }
+        catch (e) { throw new HttpsError('unavailable', (e && e.message) || 'Could not check the co-owner record just now. Try again in a moment.'); }
+      }
+      const gaps = DE.serverContractGaps({
+        type: docMeta.type, html: gateHtml, lead, profile: tenantProfile, tenantKey, KyLaw,
+        priceCents: gatePrice, homeownerName: signerName || undefined,
+        // Co-owners (flag docClauseSetV1, Q52): every owner on record signs. Only checked when the flag is on. The second owner
+        // comes from the server's own record (the lead's field is client-writable), and the signers from the stored document's blocks.
+        ...(secondOwner ? { secondOwnerName: secondOwner, signerRoles: DE.sigBlockRoles(gateHtml) } : {}),
+      });
+      if (gaps.length) throw new HttpsError('failed-precondition', DE.describeGaps(gaps));
+    }
+
+    // Phase 3 (flag docAtticAckV1, read strictly: a read error refuses): a re-roof contract does not go out for
+    // signature until the signed attic form (or the signed not-inspected page, or a recorded owner override) exists.
+    if (AG.gated(docMeta.type) && await DE.atticGateOn(db, uid, lead, HttpsError)) {
+      let dec;
+      try { dec = await AG.decide(db, leadId, lead, { estimateId: docMeta.estimateId }); }
+      catch (e) {
+        logger.warn('[createSignRequest] attic gate unreadable', { leadId, err: e.message });
+        throw new HttpsError('unavailable', 'Could not check the attic acknowledgment just now. Nothing was sent. Try again in a moment.');
+      }
+      if (!dec.satisfied) throw new HttpsError('failed-precondition', dec.message);
     }
 
     await db.doc(`doc_sign_tokens/${token}`).set({
@@ -504,12 +653,17 @@ exports.createSignRequest = onCall(
       htmlPath,
       docTypeName: docMeta.typeName || docMeta.type || 'Document',
       signerName: signerName || (lead.firstName ? `${lead.firstName} ${lead.lastName || ''}`.trim() : ''),
-      signerEmail,
+      signerEmail: noEmailMint ? '' : signerEmail,
       // '' for NBD → sign.html keeps its NBD literals byte-identical.
       companyName: tenantName || '',
       docType: typeof docMeta.type === 'string' ? docMeta.type.slice(0, 60) : null,
+      consentAsked: flagOnAtMint === true,
+      // Flag docSignPanelV1 only (security review item 3): how this bearer link was delivered; the signing evidence carries it.
+      ...(signPanelOn ? { deliveryChannel: noEmailMint ? 'link_only' : 'email', mintedAtMs: now, linkSeq } : {}),
       priceSnapshot,
       ...(isContract && !priceSnapshot ? { priceSnapshotMissing: true, priceLockReason } : {}),
+      // Evidence parity (2026-11-18): the clause set this document was sent under.
+      ...DE.stampFor(KyLaw, lead, {}, { html: gateHtml, v1: clauseFlagOnAtMint === true }),
       status: 'pending',
       mintedAt: FieldValue.serverTimestamp(),
       expiresAt,
@@ -518,14 +672,28 @@ exports.createSignRequest = onCall(
     // One live contract link per customer (review H1, 2026-11-14): a new
     // contract link retires the older pending ones, so a homeowner can't sign
     // yesterday's price after today's (the e-sign envelope does the same).
-    if (isContract) await supersedeContractTokens(db, leadId, lead.userId, token, 'new_link');
+    // Flag docSignPanelV1 (Q60, "make a new link"): a new link also retires the older pending link of the SAME document, whatever
+    // its type, so only one link per document is ever live. Flag off: only the contract rule above, as before.
+    let supersededOld = false;
+    let supersedeError = false;
+    if (isContract) {
+      const cr = await supersedeContractTokens(db, leadId, lead.userId, token, 'new_link', signPanelOn ? linkSeq : undefined);
+      supersededOld = cr.n > 0;
+      if (cr.error && signPanelOn) supersedeError = true; // flag off: best-effort and silent, as on main
+    }
+    if (signPanelOn) {
+      const sr = await supersedeDocTokens(db, leadId, lead.userId, docId, token, 'new_link', linkSeq);
+      if (sr.error) supersedeError = true;
+      else if (sr.n > 0) supersededOld = true;
+    }
 
     // Document lifecycle: draft -> sent. Best-effort and separate from the
     // token above (doc_sign_tokens.status is the token's own pending/signed/
     // expired state) — a failure here must not stop the mint+email below,
     // it only means the CRM's "awaiting signature" label doesn't light up.
+    // A link-only link delivered nothing, so it does not mark the document "sent" (security review item 4); it records the mint.
     try {
-      await db.doc(`leads/${leadId}/documents/${docId}`).set({ status: 'sent' }, { merge: true });
+      await db.doc(`leads/${leadId}/documents/${docId}`).set(noEmailMint ? { linkMintedAt: FieldValue.serverTimestamp() } : { status: 'sent' }, { merge: true });
     } catch (e) {
       logger.warn('[createSignRequest] status stamp failed', { leadId, docId, err: e.message });
     }
@@ -534,7 +702,7 @@ exports.createSignRequest = onCall(
     // as email-functions.js). Best-effort — the token is already minted,
     // so a transient mail failure surfaces to the rep without losing it.
     let emailed = false;
-    try {
+    if (!noEmailMint) try {
       const { Resend } = require('resend');
       const resend = new Resend(RESEND_API_KEY.value());
       const fromEmail = secretOr(EMAIL_FROM, 'noreply@nobigdealwithjoedeal.com');
@@ -554,7 +722,7 @@ exports.createSignRequest = onCall(
           <p style="text-align:center;margin:28px 0;">
             <a href="${escHtml(link)}" style="background:#bd5728;color:#fff;text-decoration:none;padding:13px 26px;border-radius:8px;font-weight:700;display:inline-block;">Review &amp; Sign</a>
           </p>
-          <p style="font-size:12px;color:#666;">This secure link expires in 7 days and can only be used once. If you didn't expect this, you can ignore the email.</p>
+          <p style="font-size:12px;color:#666;">This secure link expires in ${ttlDays} days and can only be used once. If you didn't expect this, you can ignore the email.</p>
         </div>`,
       });
       // Resend resolves { data: null, error } on an API-level rejection
@@ -573,6 +741,8 @@ exports.createSignRequest = onCall(
     logger.info('[createSignRequest] minted', { leadId, docId, emailed });
     return {
       token, expiresAt: expiresAt.toMillis(), emailed, signLink: SIGN_URL_BASE + token,
+      // supersededOld is null (not false) with supersedeError:true when the old links could not be checked.
+      ...(signPanelOn ? { supersededOld: supersedeError ? null : supersededOld, ...(supersedeError ? { supersedeError: true } : {}) } : {}),
       // null = not a contract (nothing to lock); false = sent without a
       // locked price, with why (the viewer warns the rep).
       priceLocked: isContract ? !!priceSnapshot : null,
@@ -661,9 +831,28 @@ exports.getSignDocument = onRequest(
     }
     await awaitBriefly(pendingWrites);
 
+    // Flag docEvidenceFoundation (default OFF): ask for the consent the e-sign envelope already
+    // asks for, in the e-sign envelope's own words (never text from the wire). The page shows a
+    // checkbox only when this is present.
+    // The decision was made when the link was minted (tok.consentAsked); only a link minted before that
+    // field existed reads the flag as it stands.
+    // Review 2 (item 8): for such a legacy link a flag read that FAILS is not "off": the page is not served
+    // without knowing whether consent is required (retryable 503). A flag that is simply off still serves.
+    let consentOn;
+    if (typeof tok.consentAsked === 'boolean') consentOn = tok.consentAsked;
+    else {
+      try { consentOn = await DE.flagForUid(db, tok.mintedBy || tok.ownerUid, { strict: true }); }
+      catch (e) {
+        logger.warn('[getSignDocument] consent flag unreadable for a link minted before the snapshot — not served', { msg: e && e.message });
+        res.status(503).json({ error: 'Could not load the document right now. Please try again shortly.' }); return;
+      }
+    }
+    const consent = consentOn ? { required: true, text: ESL.CONSENT_TEXT } : null;
+
     // Only the minimum the sign page needs — no lead internals.
     res.status(200).json({
       html,
+      ...(consent ? { consent } : {}),
       docTypeName: tok.docTypeName || 'Document',
       signerName: tok.signerName || '',
       // '' for NBD (page keeps its NBD chrome); tenant name for white-label.
@@ -688,7 +877,7 @@ exports.submitSignature = onRequest(
     if (req.method !== 'POST') { res.status(405).end(); return; }
     if (!(await httpRateLimit(req, res, 'docsign-submit:ip', 20, 60_000))) return;
 
-    const { token, signedHtml } = req.body || {};
+    const { token, signedHtml, consent } = req.body || {};
     if (typeof token !== 'string' || !/^[A-Za-z0-9]{10,64}$/.test(token)) {
       res.status(400).json({ error: 'Invalid link' }); return;
     }
@@ -714,11 +903,29 @@ exports.submitSignature = onRequest(
     let originalHtml = null;
     let record = null;        // the executed record, rebuilt from the original
     let verifiedPath = null;  // the htmlPath the checks below ran against
+    let consentAsked = false; // flag docEvidenceFoundation: the page showed the consent checkbox
+    let atticResult = null;   // a document with tick controls (the attic acknowledgment): what the homeowner ticked, read back server-side
+    let signedDocType = null;
     {
       const pre = await tokRef.get();
       if (!pre.exists) { res.status(404).json({ error: 'Invalid link' }); return; }
       const p = pre.data();
       if (p.status === 'pending') {
+        // Before the burn, like every gate below: a missing consent tick must not consume the
+        // homeowner's one-shot link.
+        if (typeof p.consentAsked === 'boolean') consentAsked = p.consentAsked;
+        else {
+          // A legacy link (no snapshot): an unreadable flag must not read "off" and skip the consent tick.
+          try { consentAsked = await DE.flagForUid(db, p.mintedBy || p.ownerUid, { strict: true }); }
+          catch (e) {
+            logger.warn('[submitSignature] consent flag unreadable for a link minted before the snapshot — refusing before the burn', { msg: e && e.message });
+            res.status(503).json({ error: 'Could not record your signature right now. Nothing was used up; please try again shortly.' }); return;
+          }
+        }
+        if (consentAsked && consent !== true) {
+          res.status(422).json({ error: 'Please tick the box to agree to sign electronically, then submit again.', needsConsent: true });
+          return;
+        }
         // Fail CLOSED on a path outside the lead (or none at all): that token
         // used to skip every gate below, burn, and write the counterparty's
         // bytes to whatever it named.
@@ -790,12 +997,93 @@ exports.submitSignature = onRequest(
           return;
         }
         record = rebuilt.html;
+        // Co-owners (Q52, re-review): the stored original is rep-authored, so its own data-required flags are not believed. A
+        // homeowner2 block must be signed in the rebuilt record, and a second owner on the server's record (a contract-class
+        // document) needs that block to exist and be signed. Before the burn; a record that cannot be read refuses (retryable).
+        {
+          const hasCoBlock = DE.sigBlockRoles(originalHtml).indexOf('homeowner2') !== -1;
+          let needCo = hasCoBlock;
+          if (!needCo && DE.isContractClass(p.docType) && p.leadId) {
+            try { const rs = await db.doc(`second_owner_records/${p.leadId}`).get(); needCo = !!(rs && rs.exists && String((rs.data() || {}).name || '').trim()); }
+            catch (_) { res.status(503).json({ error: 'Could not record your signature right now. Nothing was used up; please try again shortly.' }); return; }
+          }
+          if (needCo && !DE.signedRoles(rebuilt.html).some((r) => r.role === 'homeowner2')) {
+            res.status(422).json({ error: 'Both owners must sign this contract. The co-owner has not signed yet. Please ask the co-owner to sign, or contact your rep for a corrected copy.' });
+            return;
+          }
+        }
+        // Phase 3 (attic acknowledgment): a document with tick controls is recorded with the ticks the signer made,
+        // taken from the submission for the controls the ORIGINAL has and nothing else. Every required tick and a
+        // Yes or No on every line is enforced here, not only in the page. Before the burn.
+        if (AG.isAtticDoc(p.docType) || AG.isP5Doc(p.docType) || AA.parseAcks(originalHtml).length) {
+          // Review 2026-11-18 (finding 2): the ORIGINAL is rep-authored. It must be the server's own attic form for this document
+          // type (same controls, required flags, marker and wording) or the submission is refused, before the burn.
+          const mf = AG.verifyManifest(typeof p.docType === 'string' ? p.docType : '', originalHtml);
+          if (!mf.ok) {
+            logger.error('[submitSignature] attic form does not match the server manifest - refusing', { token: token.slice(0, 6), leadId: p.leadId || null, docId: p.docId || null, reasons: mf.reasons });
+            res.status(422).json({ error: mf.reasons.indexOf('too_large') !== -1 ? AG.TOO_LARGE_MSG : 'This acknowledgment could not be verified. Please contact your rep for a corrected copy.' });
+            return;
+          }
+          // Phase 5 (security review 2026-11-19): the figures and the state are re-derived HERE, from the company's own terms and the lead as
+          // they stand now, before the burn. A profile that cannot be read refuses (retryable); one that is missing leaves the price unset.
+          let p5Derived = null;
+          if (AG.isP5Doc(p.docType)) {
+            let prof = {};
+            const tk = lead && (lead.companyId || lead.userId);
+            try { const cs = tk ? await db.doc(`companyProfile/${tk}`).get() : null; prof = cs && cs.exists ? (cs.data() || {}) : {}; }
+            catch (_) { res.status(503).json({ error: 'Could not record your signature right now. Nothing was used up; please try again shortly.' }); return; }
+            const chk = AG.p5Check(p.docType, originalHtml, { profile: prof, tenantKey: tk, isNbd: DE.isNbdTenant(tk), lead, KyLaw });
+            if (!chk.ok) {
+              logger.error('[submitSignature] phase 5 form failed the server check - refusing', { token: token.slice(0, 6), leadId: p.leadId || null, docId: p.docId || null, reasons: chk.reasons });
+              res.status(422).json({ error: chk.reasons.indexOf('not_ohio') !== -1 ? 'This acknowledgment is for Ohio properties only. Please contact your rep.' : 'This form could not be verified. Please contact your rep for a corrected copy.' });
+              return;
+            }
+            p5Derived = chk.derived;
+          }
+          const applied = AG.applyAcks(rebuilt.html, signedHtml, typeof p.docType === 'string' ? p.docType : '');
+          if (!applied.complete && (applied.manifestReasons || []).indexOf('too_large') !== -1) {
+            // Review 3 (item 7): a signed copy over the cap is not "a box left unticked"; say what is wrong, before the burn.
+            res.status(422).json({ error: AG.TOO_LARGE_MSG, tooLarge: true });
+            return;
+          }
+          if (!applied.complete) {
+            res.status(422).json({ error: 'Please tick every box and choose Yes or No on every line, then sign again.', missingAcks: true });
+            return;
+          }
+          record = applied.html;
+          signedDocType = typeof p.docType === 'string' ? p.docType : null;
+          atticResult = AG.resultFor(signedDocType, applied.html, null, p5Derived);
+          // Round 7: the verdict on the rebuilt record comes from the parsed tree (resultFor verifies it), not only from the regex tick reader; a copy the two
+          // read differently is refused before the burn.
+          if (!atticResult.complete || !atticResult.manifestOk) {
+            res.status(422).json({ error: 'This acknowledgment could not be verified. Please contact your rep for a corrected copy.' });
+            return;
+          }
+          // Review 2 (item 4): the form is bound to the estimate it covers (id and stamp), read before the burn; a read that fails refuses.
+          try { const dm = await db.doc(`leads/${p.leadId}/documents/${p.docId}`).get(); const b = await AG.formBasis(db, p.leadId, lead || {}, { estimateId: dm && dm.exists ? (dm.data() || {}).estimateId : undefined }); atticResult.estimateId = b.id; atticResult.estimateStamp = b.stamp; }
+          catch (be) {
+            if (be && be.code === 'too_many_estimates') { res.status(422).json({ error: AG.TOO_MANY_MSG }); return; }
+            if (be && be.code === 'estimate_not_on_lead') { res.status(422).json({ error: 'This acknowledgment could not be verified. Please contact your rep for a corrected copy.' }); return; }
+            res.status(503).json({ error: 'Could not record your signature right now. Nothing was used up; please try again shortly.' }); return;
+          }
+        }
       }
     }
 
     // ATOMIC single-use burn: flip pending → signed inside a transaction
     // so two concurrent submits can't both sign (TOCTOU). Mirrors the
     // portal.js write-once pattern.
+    // Review 2 (2026-11-18), item 2: the homeowner's evidence is written onto the admin-only sign token
+    // INSIDE the burn transaction, so if the document-row stamp below fails for good the facts still exist
+    // somewhere durable and the row can be re-stamped from them. (doc_sign_tokens is write:false for clients.)
+    const signedAtNow = new Date();
+    const evidenceFacts = {
+      path: 'remote_link',
+      ...DE.requestFacts(req),
+      documentSha256: originalHtml ? DE.sha256Hex(originalHtml) : null,
+      consent: consentAsked ? { agreed: true, text: ESL.CONSENT_TEXT, at: signedAtNow.getTime() } : { agreed: null },
+      signedAtMs: signedAtNow.getTime(),
+    };
     let info;
     try {
       info = await db.runTransaction(async (tx) => {
@@ -812,9 +1100,18 @@ exports.submitSignature = onRequest(
         if (!verifiedPath || t.htmlPath !== verifiedPath || record == null) {
           const e = new Error('unverified'); e._http = 409; e._msg = 'This document changed while you were signing. Please reload the page.'; throw e;
         }
-        tx.update(tokRef, { status: 'signed', signedAt: FieldValue.serverTimestamp() });
+        tx.update(tokRef, { status: 'signed', signedAt: FieldValue.serverTimestamp(),
+          evidenceFacts: Object.assign({}, evidenceFacts, {
+            clauseSetVersion: t.clauseSetVersion || null, clauseIds: Array.isArray(t.clauseIds) ? t.clauseIds : [],
+            clauseRefsMismatch: t.clauseRefsMismatch === true,
+            ...(DE.DELIVERY_CHANNELS.indexOf(t.deliveryChannel) !== -1 ? { deliveryChannel: t.deliveryChannel, mintedBy: t.mintedBy || null } : {}),
+          }),
+        });
         return { leadId: t.leadId, docId: t.docId, ownerUid: t.ownerUid, htmlPath: t.htmlPath, signerName: t.signerName || '',
           docType: t.docType || null,
+          clauseSetVersion: t.clauseSetVersion || null, clauseIds: Array.isArray(t.clauseIds) ? t.clauseIds : [],
+          clauseRefsMismatch: t.clauseRefsMismatch === true,
+          deliveryChannel: t.deliveryChannel || null, mintedBy: t.mintedBy || null,
           priceSnapshot: (t.priceSnapshot && typeof t.priceSnapshot === 'object') ? t.priceSnapshot : null,
           priceSnapshotMissing: t.priceSnapshotMissing === true, priceLockReason: t.priceLockReason || null };
       });
@@ -845,7 +1142,6 @@ exports.submitSignature = onRequest(
     // the signing, never read back from a packet that kept an older date, and
     // a record whose packet could not be re-dated (or stored) is flagged
     // (cancelPacketStale) on the document and the lead for the rep.
-    const signedAtNow = new Date();
     let recordHtml = record;
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
@@ -918,7 +1214,46 @@ exports.submitSignature = onRequest(
         ? { signedSha256: sha(recordHtml), signedSaveFailed: FieldValue.delete() }
         : { signedSha256: null, unsavedRecordSha256: sha(recordHtml), signedSaveFailed: true }),
       ...(cancelBy && recordSaved ? Object.assign({ cancelBy }, CW.staleRecordPatch(cxl)) : {}),
+      // Evidence parity (2026-11-18). IP and user agent come from THIS request, never the body.
+      // Consent is recorded only when the page asked for it (flag docEvidenceFoundation), with
+      // the server's own copy of the text.
+      signatureEvidence: DE.buildEvidence({
+        path: 'remote_link',
+        clauseSetVersion: info.clauseSetVersion, clauseIds: info.clauseIds, clauseRefsMismatch: info.clauseRefsMismatch === true,
+        deliveryChannel: info.deliveryChannel, mintedBy: info.mintedBy,
+        documentSha256: originalHtml ? sha(originalHtml) : null,
+        signedSha256: recordSaved ? sha(recordHtml) : null,
+        consent: consentAsked ? { agreed: true, text: ESL.CONSENT_TEXT, at: signedAtNow.getTime() } : { agreed: null },
+        signedAtMs: signedAtNow.getTime(),
+        ...DE.requestFacts(req),
+      }),
     };
+    // Co-owners (flag docClauseSetV1, Q52): a signed copy with a co-owner block lists every finalized signer the server reads.
+    { const _roles = DE.signedRoles(recordHtml); if (_roles.some((r) => r.role === 'homeowner2')) docPatch.signatureEvidence.signers = _roles; }
+    // The tick states travel with the evidence (acknowledgments: [{ id, checked }]); atticAckResult is what the
+    // warranty and the contract gate read, server-written (server-owned in firestore.rules).
+    if (atticResult) {
+      docPatch.signatureEvidence.acknowledgments = atticResult.acknowledgments;
+      docPatch.atticAckResult = Object.assign({}, atticResult, { formDateMs: signedAtNow.getTime() });
+    }
+    // Review 2 (2026-11-18), item 7: the row write REPLACES signatureEvidence as a whole (mergeFields lists the
+    // top-level keys), so the new record can never deep-merge into an older one and read as a hybrid. And a row
+    // that already carries evidence from ANOTHER path (an in-person record) keeps it untouched: the homeowner's
+    // record then lives whole on the admin-only token (signatureEvidence there), and the skip is logged.
+    let evidenceSkipped = false;
+    try {
+      const curRow = await docRef.get();
+      const ce = curRow && curRow.exists ? (curRow.data() || {}).signatureEvidence : null;
+      if (ce && typeof ce === 'object' && ce.path !== 'remote_link') evidenceSkipped = true;
+    } catch (_) { evidenceSkipped = false; }
+    const rowPatch = Object.assign({}, docPatch);
+    if (evidenceSkipped) {
+      delete rowPatch.signatureEvidence;
+      logger.warn('[submitSignature] the row already has signatureEvidence from another path — kept as is; the remote signatureEvidence is on the sign token', ids);
+      try { await tokRef.update({ signatureEvidence: docPatch.signatureEvidence, signatureEvidenceNotStamped: 'row_has_other_path' }); }
+      catch (e) { logger.error('[submitSignature] could not keep the remote signatureEvidence on the token either', Object.assign({ msg: e.message }, ids)); }
+    }
+    const rowWrite = { mergeFields: Object.keys(rowPatch) };
     const who = info.signerName ? info.signerName + ' ' : 'A homeowner ';
     const note = {
       userId: info.ownerUid,
@@ -934,7 +1269,44 @@ exports.submitSignature = onRequest(
     };
     let notified = false;
     if (recordSaved) {
-      try { await docRef.set(docPatch, { merge: true }); } catch (e) { logger.warn('[submitSignature] doc meta stamp failed', { msg: e.message }); }
+      // The signed copy is stored and the link is burned; this row write is what makes the document read
+      // "signed" and carries its evidence. A single failure used to only warn (review 2026-11-18, finding 8):
+      // retried with backoff, and if it still fails it is flagged for the rep, never silent.
+      let stamped = false;
+      const backoffMs = [0, 250, 1000];
+      for (let attempt = 1; attempt <= backoffMs.length && !stamped; attempt++) {
+        if (backoffMs[attempt - 1]) await new Promise((r) => setTimeout(r, backoffMs[attempt - 1]));
+        try { await docRef.set(rowPatch, rowWrite); stamped = true; }
+        catch (e) { logger.warn('[submitSignature] doc meta stamp failed (attempt ' + attempt + ' of ' + backoffMs.length + ')', { msg: e.message }); }
+      }
+      if (!stamped) {
+        logger.error('[submitSignature] signed copy saved but the document row could NOT be stamped — flagged signedStampFailed', ids);
+        note.title = 'Signed, but the document record is incomplete — action needed';
+        note.message = who + 'signed a document remotely and the signed copy is saved, but the document still reads "sent" and its signing record was not written. Open the document, check the signed copy, and mark it signed.';
+        for (let attempt = 1; attempt <= 2 && !notified; attempt++) {
+          try {
+            const b = db.batch();
+            b.set(docRef, { signedStampFailed: true, signedStampFailedAt: FieldValue.serverTimestamp() }, { merge: true });
+            b.set(db.collection('notifications').doc(), note);
+            b.update(tokRef, { docStampFailed: true, signatureEvidence: docPatch.signatureEvidence });
+            await b.commit();
+            notified = true;
+          } catch (e) {
+            logger.error('[submitSignature] stamp-failure flag + rep alert write failed (attempt ' + attempt + ' of 2)', Object.assign({ msg: e.message }, ids));
+          }
+        }
+        if (!notified) {
+          try { await tokRef.update({ docStampFailed: true, signatureEvidence: docPatch.signatureEvidence }); } catch (_) { /* the activity row below is the other channel */ }
+          try {
+            await db.collection(`leads/${info.leadId}/activity`).add({
+              userId: info.ownerUid, type: 'remote_signature_unstamped', label: 'Signed, document record incomplete',
+              message: note.message, docId: info.docId, createdAt: FieldValue.serverTimestamp(),
+            });
+          } catch (e) {
+            logger.error('[submitSignature] activity fallback failed too — the rep has NO signal of the unstamped document', Object.assign({ msg: e.message }, ids));
+          }
+        }
+      }
     } else {
       // The flag and the bell are the rep's only signals: one batch (with the
       // token, so a reload of the link says the same thing), tried twice, then
@@ -942,7 +1314,7 @@ exports.submitSignature = onRequest(
       for (let attempt = 1; attempt <= 2 && !notified; attempt++) {
         try {
           const b = db.batch();
-          b.set(docRef, docPatch, { merge: true });
+          b.set(docRef, rowPatch, rowWrite);
           b.set(db.collection('notifications').doc(), note);
           b.update(tokRef, { signedSaveFailed: true });
           await b.commit();
@@ -954,7 +1326,7 @@ exports.submitSignature = onRequest(
       if (!notified) {
         // Second channel: the flag alone, and a row on the lead's activity
         // timeline. The bell is tried once more on its own below.
-        try { await docRef.set(docPatch, { merge: true }); } catch (e) {
+        try { await docRef.set(rowPatch, rowWrite); } catch (e) {
           logger.error('[submitSignature] save-failure flag write failed', Object.assign({ msg: e.message }, ids));
         }
         try {

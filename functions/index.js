@@ -275,13 +275,18 @@ Object.assign(exports, pushFunctions);
 const emailFunctions = require('./email-functions');
 Object.assign(exports, emailFunctions);
 
-// Public storm-history proxy for the /storm-report page (additive; no CRM coupling).
+// Public storm-history proxy for the /roof-check page (was /storm-report; additive; no CRM coupling).
 const stormReportFn = require('./storm-report');
 Object.assign(exports, stormReportFn);
 
-// Homeowner follow-up email when a /storm-report lead is captured (additive trigger).
+// Homeowner follow-up email when a /roof-check lead with an email is captured (additive trigger).
 // By name only: storm-report-email.js also exports _test (2026-10-06 gust line).
 exports.stormReportEmail = require('./storm-report-email').stormReportEmail;
+// "Email me this guide" (2026-11-26): one copy with the guide's PDF attached.
+exports.guideCopyEmail = require('./guide-copy-email').guideCopyEmail;
+// Storm-season tips email for guide subscribers who opted in (2026-11-26, DARK).
+exports.stormTipsAdmin = require('./storm-tips-email').stormTipsAdmin;
+exports.stormTipsSweep = require('./storm-tips-email').stormTipsSweep;
 
 // Text + email Joe the moment any public marketing lead lands (additive triggers).
 const leadAlertFns = require('./lead-alert');
@@ -289,6 +294,18 @@ Object.assign(exports, leadAlertFns);
 // Every 10 min: a new NBD lead that no channel confirmed reaching Joe is
 // re-sent by email + push (2026-10-07). LEAD_ALERT_WATCHDOG_DISABLED=true → dry run.
 exports.leadAlertWatchdog = require('./lead-alert-watchdog').leadAlertWatchdog;
+// Daily 09:00 ET: probe the live submitPublicLead for every lead kind (stores
+// nothing) and text Joe if a homeowner submit would fail; bell-only notice
+// after 14 days with no stored website lead (2026-11-26, outage follow-up 5).
+exports.leadGatewayProbe = require('./lead-gateway-probe').leadGatewayProbe;
+// Every 30 min: judge each cron on its own heartbeat ledger doc (a shared
+// Healthchecks check hides a dead member) and tell Joe, daytime only except
+// call/text ingest (2026-11-22). CRON_DEADMAN_DISABLED=true → dry run.
+exports.cronDeadman = require('./cron-deadman').cronDeadman;
+// Every 15 min: a READ-ONLY copy of new iCloud (jd@ + info@) and Gmail inbox
+// mail, redacted, for the office planner (2026-11-25, roadmap step 17 part A).
+// DARK: MAIL_FEED_ENABLED=true and the mail secrets set, else a logged no-op.
+exports.mailFeed = require('./mail-feed').mailFeed;
 // /estimate saves at step 1 and later UPDATES that lead (2026-11-14): tell Joe
 // when it is finished, and re-apply the CRM-card patch if the inline one failed.
 const estimateFunnelTriggers = require('./estimate-funnel-triggers');
@@ -420,6 +437,10 @@ Object.assign(exports, remoteSigningFunctions);
 // leads and unsigned documents. By name only: in-person-signing.js also
 // exports _test. See functions/in-person-signing.js.
 exports.recordInPersonSignature = require('./in-person-signing').recordInPersonSignature;
+exports.recordAtticOverride = require('./attic-override').recordAtticOverride;
+// Paper certification (2026-11-18, flag docClauseSetV1): the rep certifies an uploaded paper-signed document; the server writes
+// the attestation and files the contract through the job spine. By name only: paper-cert.js also exports _test.
+exports.attestWetSigned = require('./paper-cert').attestWetSigned;
 
 // PDF-native envelope signing: a rep uploads ANY PDF (supplier form,
 // insurance scope, manufacturer warranty), places typed fields on it, and the
@@ -902,6 +923,19 @@ exports.reviewRequestNudge = require('./review-request-nudge').reviewRequestNudg
 // (REVIEW_ASK_AUTO_TEXT_ENABLED). functions/review-ask-auto.js.
 exports.reviewAskAutoSweep = require('./review-ask-auto').reviewAskAutoSweep;
 
+// The review ask for OTHER companies (2026-11-26), EMAIL ONLY, DARK
+// (REVIEW_ASK_TENANTS_ENABLED + automations reviewAskTenantEmail): daily 11:00 ET
+// sweep, the company's profile request and the platform admin's approval /
+// switches. functions/review-ask-tenant.js.
+exports.reviewAskTenantSweep = require('./review-ask-tenant').reviewAskTenantSweep;
+exports.setReviewAskProfile = require('./review-ask-tenant').setReviewAskProfile;
+exports.manageReviewAskTenant = require('./review-ask-tenant').manageReviewAskTenant;
+
+// Review-ask carrier health + auto-pause (2026-11-26, S3), DARK (REVIEW_ASK_HEALTH_ENABLED):
+// the Twilio status callback for review texts, POST /api/review-ask/status?s=<send id>,
+// verified with the stored send's own sender token. functions/review-ask-health.js.
+exports.reviewAskTextStatus = require('./review-ask-health').reviewAskTextStatus;
+
 // ═══════════════════════════════════════════════════════════════
 // MORNING BRIEF — 06:45 ET appointment brief for the owner
 // ═══════════════════════════════════════════════════════════════
@@ -993,6 +1027,11 @@ exports.subPaperworkWatch = require('./sub-paperwork-watch').subPaperworkWatch;
 // Monday 07:30 ET: one Agent-inbox report to the owner (collected last week, estimates awaiting signature,
 // calls to return, jobs this week). Never a customer or rep. DRY-RUN unless OWNER_WEEKLY_DIGEST_ENABLED=true.
 exports.ownerWeeklyDigest = require('./owner-weekly-digest').ownerWeeklyDigest;
+// 08:00 / 12:00 / 17:00 ET (2026-11-25, roadmap step 17B): the CRM lanes the office sweep and the local radar ran
+// (first-contact reminders, quiet proposals, overdue follow-ups, 30-day / one-year check-in drafts) filed through
+// crmMcp's runTool as Marcus / Tucker with dedupe keys, for companies with agent_settings.officePlanner === true.
+// Nothing is sent. A no-op unless OFFICE_PLANNER_ENABLED=true.
+exports.officePlanner = require('./office-planner').officePlanner;
 // Every 30 min (NBD OS P2 Team, 2026-11-09): leaderboard/{uid} rows per active member, today's and this week's
 // counted doors / appointments / estimates sent / deals in the company time zone. DRY-RUN unless LEADERBOARD_AGGREGATE_ENABLED=true.
 exports.leaderboardAggregate = require('./leaderboard-aggregate').leaderboardAggregate;
@@ -1022,6 +1061,8 @@ exports.callPipelineHealth = require('./pipeline-health').callPipelineHealth;
 exports.onVisitCaptureWrite = require('./visit-capture').onVisitCaptureWrite;
 exports.visitCaptureSweep = require('./visit-capture').visitCaptureSweep;
 exports.attachVisitCapture = require('./visit-capture').attachVisitCapture;
+exports.visitBinSweep = require('./visit-capture').visitBinSweep;
+exports.visitCaptureAdmin = require('./visit-capture').visitCaptureAdmin;
 // Optional game card (2026-10-03): level, XP and this week vs last week,
 // derived on request from the caller's own records — nothing stored.
 exports.getGameCard = require('./game').getGameCard;
@@ -1174,6 +1215,9 @@ exports.onInboxReceiptDropped = receiptInbox.onInboxReceiptDropped;
 const priceLedger = require('./price-ledger');
 exports.priceLedgerSave = priceLedger.priceLedgerSave;
 exports.priceLedgerRecord = priceLedger.priceLedgerRecord;
+// Slice 9 (2026-11-18): read a supplier's PDF or photo into draft price lines for the
+// Import prices screen. Saves no price; capped per company per month; dark behind the flag.
+exports.priceDocRead = require('./price-doc-read').priceDocRead;
 
 // Server-side plan-usage tracking (Audit A follow-up, Batch 3 of the
 // audit-driven rollups). Closes the KNOWN GAP where client-side

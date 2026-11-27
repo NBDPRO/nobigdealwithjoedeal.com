@@ -119,7 +119,8 @@ function fakeResend() {
   const sent = [];
   return { sent, emails: { send: async (m) => { sent.push(JSON.parse(JSON.stringify(m))); return { data: { id: 're_' + sent.length }, error: null }; } } };
 }
-const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowMs: NOW }, o || {});
+// sendWindow: the customer send window held open (NOW is the real clock); tests/send-window-2026-11-22.test.js covers it.
+const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowMs: NOW, sendWindow: () => ({ ok: true }) }, o || {});
 const hash = (c) => crypto.createHash('sha256').update(c.subject + '\n' + c.html + '\n' + c.text).digest('hex');
 
 (async () => {

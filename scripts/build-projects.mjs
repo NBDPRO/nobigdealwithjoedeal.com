@@ -15,11 +15,13 @@
  *                                   derived from the same live projects so
  *                                   the two manifests can never drift
  *   4. docs/our-work/<slug>.html   — one case-study page per live project
- *   5. docs/areas/<town>.html      — "Jobs we've done in <Town>" (OURWORK-AREA,
- *                                   only on towns with ≥1 live job; the
- *                                   generator inserts/removes the region)
- *   6. docs/services/<svc>-<town>.html — "Real <svc> jobs in <Town>"
- *                                   (OURWORK-LOCAL, same insert/remove rule)
+ *   5. docs/areas/<town>.html      — "Jobs we've done in <Town>" (OURWORK-AREA)
+ *                                   or, with no job there, "Jobs Near <Town>"
+ *                                   (nearest real jobs within 30 mi, labelled;
+ *                                   coordinates from site-src/data/towns.json);
+ *                                   the generator inserts/removes the region
+ *   6. docs/services/<svc>-<town>.html — "Real <svc> jobs in <Town>" or
+ *                                   "… Near <Town>" (OURWORK-LOCAL, same rules)
  *   7. docs/index.html             — homepage jobs strip (OURWORK-HOME:
  *                                   the HOME_PICKS slugs + live job count)
  *
@@ -403,12 +405,15 @@ const JOB_NOUN = {
 // Card that links to the job's own case-study page (hub strips, area blocks,
 // town-service strips). withDesc adds the write-up — used where the card is
 // the page's local-proof content, not a teaser.
-const caseCard = (p, { withDesc = false } = {}) => {
+const caseCard = (p, { withDesc = false, nearMi = null } = {}) => {
   const price = priceLine(p);
   // The whole card is a link, so its dated-price line is text only (a nested
   // <a> is invalid); the case page it opens carries the link.
   const ctx = dated(p);
-  const meta = [`<span class="project-loc">${PIN_SVG} ${esc(p.city)}</span>`];
+  // nearMi: the card stands in for a town with no job of its own, so it says
+  // where the job really was and how far away (see nearbyJobs below).
+  const loc = nearMi == null ? esc(p.city) : `Nearby: ${esc(p.city)} · ${nearMi} mi away`;
+  const meta = [`<span class="project-loc">${PIN_SVG} ${loc}</span>`];
   if (p.year) meta.push(`<span>${esc(String(p.year))}</span>`);
   return `    <a class="project project-link" href="/our-work/${esc(p.slug)}">
       ${heroImg(p, 'project-img', false, [400, 640], CASE_SIZES)}
@@ -638,7 +643,8 @@ ${matches.map((p) => caseCard(p)).join('\n\n')}
 // ── Generated regions that the generator places itself ──────────
 // OURWORK-AREA (on /areas/<town>) and OURWORK-LOCAL (on the town-specific
 // /services/<service>-<town> pages) exist only where there is at least one
-// matching live job: the generator INSERTS the region before a fixed anchor
+// matching live job in the town, or (since 2026-11-26) one within
+// NEARBY_MAX_MI of it: the generator INSERTS the region before a fixed anchor
 // the first time a town gets a job, restamps it after, and REMOVES it
 // (markers included) if the last job goes — never an empty block. --check
 // treats a missing-but-owed or present-but-unowed region as drift.
@@ -707,6 +713,97 @@ ${CARDS_CSS}
     <div class="gallery">
 ${jobs.slice(0, LOCAL_CARDS).map((p) => caseCard(p, { withDesc: true })).join('\n\n')}
     </div>${moreList(jobs.slice(LOCAL_CARDS), `More ${esc(noun.toLowerCase())} jobs in ${esc(t.name)}`)}
+  </div>
+</section>`;
+};
+
+// ── Nearby fallback (2026-11-26) ────────────────────────────────
+// A town page (or town-service page) whose own town has no matching live job
+// shows the NEAREST real ones instead, each card saying where it really was
+// and how far ("Nearby: Milford, OH · 6 mi away"), under a "Near <Town>"
+// heading. Nothing pretends a nearby job was in the page's town. Distances are
+// straight-line miles between Census 2024 Gazetteer internal points stored in
+// site-src/data/towns.json (towns[].geo, plus otherPlaces[] for job towns with
+// no /areas page) — never looked up or guessed at render time. A live job
+// whose town has no point there is fatal, so the data file gets fixed.
+// Past NEARBY_MAX_MI nothing is shown: a job 60 miles off is not local proof.
+const TOWNS_JSON = path.join(ROOT, 'site-src', 'data', 'towns.json');
+const NEARBY_MAX_MI = 30;
+const NEARBY_CARDS = 3;
+const TOWN_INFO = new Map();                 // area slug → { name, state }
+const GEO = new Map();                       // town slug → { lat, lng }
+{
+  const td = JSON.parse(readFileSync(TOWNS_JSON, 'utf8'));
+  for (const t of td.towns) {
+    TOWN_INFO.set(t.slug, { name: t.town, state: t.state, slug: t.slug });
+    if (t.geo) GEO.set(t.slug, t.geo);
+  }
+  for (const o of td.otherPlaces || []) {
+    const t = townOf({ city: `${o.town}, ${o.state}` });
+    if (t && o.geo) GEO.set(t.slug, o.geo);
+  }
+}
+for (const slug of byTown.keys()) {
+  if (!GEO.has(slug)) fail(`a live job is in "${byTown.get(slug)[0].city}" but site-src/data/towns.json has no geo point for "${slug}" — add it (towns[].geo or otherPlaces[]) from the Census Gazetteer`);
+}
+if (process.exitCode) process.exit(1);
+const milesBetween = (a, b) => {
+  const r = (x) => (x * Math.PI) / 180;
+  const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2;
+  return 2 * 3958.8 * Math.asin(Math.sqrt(h));
+};
+// Nearest live jobs in OTHER towns within NEARBY_MAX_MI, closest town first,
+// newest first within a town (byTown order). keep() filters by service.
+const nearbyJobs = (slug, keep = () => true) => {
+  const here = GEO.get(slug);
+  if (!here) return [];
+  const out = [];
+  for (const [other, jobs] of byTown) {
+    if (other === slug) continue;
+    const mi = milesBetween(here, GEO.get(other));
+    if (mi > NEARBY_MAX_MI) continue;
+    for (const p of jobs) if (keep(p)) out.push({ p, mi });
+  }
+  return out.sort((a, b) => a.mi - b.mi).slice(0, NEARBY_CARDS);
+};
+const miLabel = (mi) => Math.max(1, Math.round(mi));
+const nearbySummary = (near) => near.map(({ p, mi }) => `${p.slug} (${p.city}, ${miLabel(mi)} mi)`).join('; ');
+const nearbyPreLine = (near) => {
+  const pre = near.filter(({ p }) => isPreNbd(p)).length;
+  if (!pre) return '';
+  return ` ${pre === near.length ? (pre === 1 ? 'It is' : 'All of them are') : `${pre} of them ${pre === 1 ? 'is' : 'are'}`} Joe's work from before he started No Big Deal in 2026, labelled on the card.`;
+};
+const nearbyCards = (near) => near.map(({ p, mi }) => caseCard(p, { withDesc: true, nearMi: miLabel(mi) })).join('\n\n');
+
+const nearbyAreaBlock = (t, near) => `<!-- generated by build-projects.mjs from assets/data/projects.json + site-src/data/towns.json (geo) — do not hand-edit; no live job in ${esc(t.name)}, ${t.state} yet; ${near.length} nearest within ${NEARBY_MAX_MI} mi: ${esc(nearbySummary(near))} -->
+${CARDS_CSS}
+<section class="nbd-recent-jobs nbd-local-jobs" id="local-jobs" aria-labelledby="local-jobs-h">
+  <div class="nbd-recent-jobs-inner">
+    <div class="nbd-recent-jobs-head">
+      <h2 id="local-jobs-h">Finished Jobs Near <span>${esc(t.name)}</span></h2>
+      <a class="nbd-recent-jobs-all" href="/our-work">See all our work &rarr;</a>
+    </div>
+    <p class="nbd-recent-jobs-lede">We haven't posted a finished job in ${esc(t.name)} yet. ${near.length === 1 ? 'This is the closest one' : `These are the ${near.length} closest`}, each card marked with the town it was in and how far that is from ${esc(t.name)} in a straight line.${nearbyPreLine(near)}</p>
+    <div class="gallery">
+${nearbyCards(near)}
+    </div>
+  </div>
+</section>`;
+
+const nearbyLocalBlock = (service, t, near) => {
+  const noun = JOB_NOUN[service];
+  return `<!-- generated by build-projects.mjs from assets/data/projects.json + site-src/data/towns.json (geo) — do not hand-edit; no live ${service} job in ${esc(t.name)}, ${t.state} yet; ${near.length} nearest within ${NEARBY_MAX_MI} mi: ${esc(nearbySummary(near))} -->
+${CARDS_CSS}
+<section class="nbd-recent-jobs nbd-local-jobs" id="local-jobs" aria-labelledby="local-jobs-h">
+  <div class="nbd-recent-jobs-inner">
+    <div class="nbd-recent-jobs-head">
+      <h2 id="local-jobs-h">Real ${esc(noun)} Jobs Near <span>${esc(t.name)}</span></h2>
+      <a class="nbd-recent-jobs-all" href="/our-work#svc-${service}">See all our work &rarr;</a>
+    </div>
+    <p class="nbd-recent-jobs-lede">We haven't posted a ${esc(noun.toLowerCase())} job in ${esc(t.name)} yet. ${near.length === 1 ? 'This is the closest one' : `These are the ${near.length} closest`}, each card marked with the town it was in and how far that is from ${esc(t.name)} in a straight line.${nearbyPreLine(near)}</p>
+    <div class="gallery">
+${nearbyCards(near)}
+    </div>
   </div>
 </section>`;
 };
@@ -1153,6 +1250,9 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
 <!-- nbd:partial schema-entity -->
 <!-- /nbd:partial schema-entity -->
 <link rel="stylesheet" href="/assets/css/nbd-nav.css">
+<script defer src="/assets/js/ga-loader.js" data-gtag="https://www.googletagmanager.com/gtag/js?id=G-8PG7N9Q3DL"></script>
+<script defer src="/assets/js/inline/2a90205f1b.js"></script>
+<script defer src="/assets/js/clarity-loader.js"></script>
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 <!-- nbd:partial nav-standard cta_href="/inspect" -->
@@ -1358,12 +1458,16 @@ const AREA_START = '<!-- OURWORK-AREA-START -->';
 const AREA_END = '<!-- OURWORK-AREA-END -->';
 const AREA_ANCHOR = '<!-- WHY NBD -->';
 let areaCount = 0;
+let areaNearCount = 0;
 for (const f of readdirSync(AREAS_DIR)) {
   if (!f.endsWith('.html') || f === 'index.html') continue;
   const slug = f.replace(/\.html$/, '');
   const jobs = byTown.get(slug) || [];
-  const block = jobs.length ? areaBlock(townOf(jobs[0]), jobs) : null;
-  if (block) areaCount++;
+  // No job of its own: the nearest real ones, labelled (nearby fallback above).
+  const near = jobs.length || !TOWN_INFO.has(slug) ? [] : nearbyJobs(slug);
+  const block = jobs.length ? areaBlock(townOf(jobs[0]), jobs) : near.length ? nearbyAreaBlock(TOWN_INFO.get(slug), near) : null;
+  if (block && jobs.length) areaCount++;
+  else if (block) areaNearCount++;
   stampFile(path.join(AREAS_DIR, f), (src, eol) => {
     const out = syncRegion(src, eol, AREA_START, AREA_END, block, AREA_ANCHOR);
     if (out === null) { console.error(`FATAL: docs/areas/${f}: has ${jobs.length} job(s) but no "${AREA_ANCHOR}" anchor to place OURWORK-AREA before`); process.exit(1); }
@@ -1379,6 +1483,7 @@ const LOCAL_START = '<!-- OURWORK-LOCAL-START -->';
 const LOCAL_END = '<!-- OURWORK-LOCAL-END -->';
 const LOCAL_ANCHOR = '<!-- Transparency strip (injected) -->';
 let localCount = 0;
+let localNearCount = 0;
 {
   const prefixes = Object.keys(TOWN_PAGE_PREFIX).sort((a, b) => b.length - a.length);
   for (const f of readdirSync(SERVICES_DIR)) {
@@ -1392,8 +1497,10 @@ let localCount = 0;
     const file = path.join(SERVICES_DIR, f);
     const hasStrip = /<!-- OURWORK-STRIP-START /.test(readFileSync(file, 'utf8'));
     const t = jobs.length ? townOf(jobs[0]) : null;
-    const block = jobs.length && !hasStrip ? localBlock(service, t, jobs) : null;
-    if (block) localCount++;
+    const near = jobs.length || hasStrip || !TOWN_INFO.has(townSlug) ? [] : nearbyJobs(townSlug, (p) => p.services.includes(service));
+    const block = hasStrip ? null : jobs.length ? localBlock(service, t, jobs) : near.length ? nearbyLocalBlock(service, TOWN_INFO.get(townSlug), near) : null;
+    if (block && jobs.length) localCount++;
+    else if (block) localNearCount++;
     stampFile(file, (src, eol) => {
       const out = syncRegion(src, eol, LOCAL_START, LOCAL_END, block, LOCAL_ANCHOR);
       if (out === null) { console.error(`FATAL: docs/services/${f}: has ${jobs.length} matching job(s) but no transparency-strip anchor to place OURWORK-LOCAL before`); process.exit(1); }
@@ -1426,7 +1533,7 @@ stampFile(HOME_HTML, (src, eol) => {
 
 if (CHECK) {
   if (!stale.length) {
-    console.log(`build-projects --check: ${live.length} live project(s), ${stripCount} hub strip(s), ${areaCount} area block(s), ${localCount} town-service strip(s), ${live.length} detail page(s) — all stamped surfaces clean.`);
+    console.log(`build-projects --check: ${live.length} live project(s), ${stripCount} hub strip(s), ${areaCount} area block(s) + ${areaNearCount} nearby, ${localCount} town-service strip(s) + ${localNearCount} nearby, ${live.length} detail page(s) — all stamped surfaces clean.`);
     process.exit(0);
   }
   // Lag allowance: is the committed tree exactly an earlier day's render? Re-run this check as of each cut day
@@ -1450,4 +1557,4 @@ and commit ALL stamped files.`);
   process.exit(1);
 }
 
-console.log(`OK: ${live.length} live project(s) stamped — gallery + schema in docs/our-work.html, ${stripCount} hub strip(s), ${areaCount} area block(s), ${localCount} town-service strip(s), ${detailWritten} detail page(s) written (${detailDeleted} orphaned deleted), homeowner-wall.json (${Math.min(live.length, 12)} entries)${all.length - live.length ? ` (${all.length - live.length} staged for a future date)` : ''}`);
+console.log(`OK: ${live.length} live project(s) stamped — gallery + schema in docs/our-work.html, ${stripCount} hub strip(s), ${areaCount} area block(s) + ${areaNearCount} nearby, ${localCount} town-service strip(s) + ${localNearCount} nearby, ${detailWritten} detail page(s) written (${detailDeleted} orphaned deleted), homeowner-wall.json (${Math.min(live.length, 12)} entries)${all.length - live.length ? ` (${all.length - live.length} staged for a future date)` : ''}`);

@@ -804,7 +804,7 @@ async function _nbdInvoicePipeline(fnName) {
   if (!window._auth && window.auth) window._auth = window.auth;
   if (!(window.InvoicePipeline && typeof window.InvoicePipeline[fnName] === 'function')) {
     if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
-    await window.ScriptLoader.load('js/invoice-pipeline.js?v=44');
+    await window.ScriptLoader.load('js/invoice-pipeline.js?v=45');
   }
   if (!(window.InvoicePipeline && typeof window.InvoicePipeline[fnName] === 'function')) {
     throw new Error('InvoicePipeline.' + fnName + ' missing after load');
@@ -881,7 +881,7 @@ window.NBDCustomerInvoices = {
       if (!window._auth && window.auth) window._auth = window.auth;
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.showInvoiceDetailModal === 'function')) {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
-        await window.ScriptLoader.load('js/invoice-pipeline.js?v=44');
+        await window.ScriptLoader.load('js/invoice-pipeline.js?v=45');
       }
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.showInvoiceDetailModal === 'function')) {
         throw new Error('InvoicePipeline.showInvoiceDetailModal missing after load');
@@ -929,7 +929,7 @@ window.NBDCustomerInvoices = {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) {
           throw new Error('ScriptLoader unavailable');
         }
-        await window.ScriptLoader.load('js/invoice-pipeline.js?v=44');
+        await window.ScriptLoader.load('js/invoice-pipeline.js?v=45');
       }
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.markPaidUI === 'function')) {
         throw new Error('InvoicePipeline.markPaidUI missing after load');
@@ -2341,7 +2341,13 @@ const DOC_PREREQUISITES = {
   right_to_cancel:      { needs: ['address'], label: 'Right to Cancel', msg: 'Add the property address first.' },
   material_selection:   { needs: ['address'], label: 'Material & Color Selection', msg: 'Add the property address first.' },
   proposal_options:     { needs: ['estimate'], label: 'Good-Better-Best Options', msg: 'Build an estimate first — its package prices fill the page.' },
-  insurance_next_steps: { needs: ['address'], label: 'Insurance Next Steps', msg: 'Add the property address first.' }
+  insurance_next_steps: { needs: ['address'], label: 'Insurance Next Steps', msg: 'Add the property address first.' },
+  // Phase 5 (flag docClauseSetV1): only reachable while the flag is on.
+  property_condition:   { needs: ['address'], label: 'Property Condition & Access', msg: 'Add the property address first.' },
+  decking_authorization: { needs: ['address'], label: 'Decking Authorization', msg: 'Add the property address first.' },
+  emergency_services_request: { needs: ['address'], label: 'Emergency Services Request', msg: 'Add the property address first.' },
+  final_walkthrough:    { needs: ['address'], label: 'Final Walkthrough & Punch List', msg: 'Add the property address first.' },
+  ohio_insurance_ack:   { needs: ['address'], label: 'Ohio Insurance Acknowledgment', msg: 'Add the property address first.' }
 };
 
 function getCustomerDocData() {
@@ -2619,6 +2625,12 @@ window._DOC_TEMPLATE_CATALOG = [
   { type:'financing_options',         icon:'💳', name:'Financing Options',        desc:'Payment plan options for customer',         cats:['sales'],             kw:'finance financing loan payment plan monthly' },
   { type:'company_intro',             icon:'🏠', name:'Company Introduction',     desc:'About us packet for new prospects',         cats:['sales'],             kw:'about us intro company brochure packet new prospect' },
   { type:'referral_card',             icon:'🎁', name:'Referral Card',            desc:'Shareable referral with incentives',        cats:['closeout'],          kw:'refer referral review incentive share' },
+  // Phase 5 (flag docClauseSetV1): listed only while the flag is on (_orderedDocTemplates), so flag off lists the same cards as before.
+  { type:'property_condition',        icon:'🏠', name:'Property Condition & Access', desc:'Pre-job walk-through checklist the homeowner ticks and signs', cats:['sales','install'], kw:'property condition access walk-through walkthrough driveway landscaping skylight solar pets utilities parking acknowledgment', flag:'docClauseSetV1' },
+  { type:'decking_authorization',     icon:'🪵', name:'Decking Authorization',    desc:'Hidden conditions: homeowner approves or declines replacing damaged decking', cats:['install'], kw:'decking deck sheets plywood osb hidden conditions rotted tear-off authorize approve change', flag:'docClauseSetV1' },
+  { type:'emergency_services_request', icon:'⛈', name:'Emergency Services Request', desc:'Separate signed request for tarp or dry-in inside the cancellation window', cats:['install','claim'], kw:'emergency tarp dry-in dry in cancellation window request separate leak weather', flag:'docClauseSetV1' },
+  { type:'final_walkthrough',         icon:'🔍', name:'Final Walkthrough & Punch List', desc:'Completion sign-off with any open items listed', cats:['closeout'], kw:'final walkthrough punch list open items completion sign-off close out', flag:'docClauseSetV1' },
+  { type:'ohio_insurance_ack',        icon:'📑', name:'Ohio Insurance Acknowledgment', desc:'Ohio insurance jobs: deductible, claim, supplements, no assignment', cats:['claim','sales'], kw:'ohio insurance acknowledgment deductible claim supplement assignment adjuster', flag:'docClauseSetV1' },
   { type:'storm_history_report',      icon:'⛈️', name:'Storm History Report',     desc:'Free 5-yr NOAA hail & wind history — skip the paid GAF report', cats:['claim','inspection'], kw:'storm hail wind weather history noaa nws gaf 5-year verification report' }
 ];
 
@@ -2650,7 +2662,9 @@ window._STAGE_TEMPLATE_PRIORITY = {
 function _orderedDocTemplates() {
   var stage = window._currentStage || 'new';
   var priority = window._STAGE_TEMPLATE_PRIORITY[stage] || ['sales','inspection'];
+  var _flagOn = function(n) { return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled(n)); };
   return window._DOC_TEMPLATE_CATALOG
+    .filter(function(t) { return !t.flag || _flagOn(t.flag); })
     .map(function(t, idx) {
       var bestRank = priority.length;
       t.cats.forEach(function(c) {

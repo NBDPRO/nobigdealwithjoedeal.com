@@ -27,6 +27,8 @@ const StormGuard = require('./storm-sms-guard');
 const MessagingControls = require('./messaging-controls');
 const OptOut = require('./sms-optout');
 const SendWindow = require('./sms-send-window');
+// The stricter customer send window for automations (8:00-20:00 recipient time, 2026-11-22).
+const CustomerWindow = require('./send-window');
 const { formatPhone } = require('./phone-utils');
 
 const SUBSCRIBERS = 'storm_alert_subscribers';
@@ -61,7 +63,7 @@ function createdMs(sub) {
 }
 
 /**
- * args: { db, nowMs, send(to, body) -> twilio result, logger, maxPerRun,
+ * args: { db, nowMs, send(to, body, ctx) -> twilio result (ctx = { recipient, companyProfile, nowMs } for guardTwilio), logger, maxPerRun,
  *         serverTimestamp, optOutTimeoutMs? }
  * Returns { requested, skipped: {reason: n} }. Never throws.
  */
@@ -90,6 +92,7 @@ async function sendPendingConfirmations(args) {
     log.error('storm_confirm_load_failed', { err: e && e.message });
     return out;
   }
+  let companyZone; // undefined = not read yet
   for (const doc of docs) {
     if (out.requested >= maxPerRun) { skip('per_run_cap'); break; }
     const sub = doc.data() || {};
@@ -99,7 +102,15 @@ async function sendPendingConfirmations(args) {
     if (!created || nowMs - created > MAX_AGE_DAYS * 86_400_000) { skip('too_old'); continue; }
     const to = formatPhone(sub.phone);
     if (!to) { skip('bad_phone'); continue; }
-    if (!SendWindow.withinRecipientWindow(nowMs, { zip: sub.zip, state: sub.state, tz: sub.tz })) { skip('quiet_hours'); continue; }
+    const where = { zip: sub.zip, state: sub.state, tz: sub.tz };
+    // The company zone only for a subscriber with no location (read once a run).
+    // send() gets this same answer and nowMs for guardTwilio: one verdict per text.
+    let companyProfile = null;
+    if (CustomerWindow.recipientZones(where, null).basis === 'default') {
+      if (companyZone === undefined) companyZone = await CustomerWindow.readCompanyZone(db, args.companyId || require('./sms-texting-gate').NBD_OWNER_UID);
+      companyProfile = companyZone;
+    }
+    if (!SendWindow.withinRecipientWindow(nowMs, where) || !CustomerWindow.check(nowMs, where, companyProfile).ok) { skip('quiet_hours'); continue; }
     try {
       const opt = await OptOut.isOptedOut(db, to, { companyId: args.companyId || require('./sms-texting-gate').NBD_OWNER_UID, timeoutMs: args.optOutTimeoutMs || OptOut.READ_TIMEOUT_MS });
       if (opt.optedOut) { skip('opted_out'); continue; }
@@ -118,7 +129,7 @@ async function sendPendingConfirmations(args) {
     if (!claimed) { skip('already_asked'); continue; }
     try {
       if (!(await MessagingControls.claimSendOnce(db, to, 'storm_confirm', 'subscriber'))) { skip('duplicate'); continue; }
-      await send(to, confirmBody());
+      await send(to, confirmBody(), { recipient: where, companyProfile, nowMs });
       out.requested++;
     } catch (e) {
       log.warn('storm_confirm_send_failed', { sub: doc.id, err: e && e.message });

@@ -358,10 +358,20 @@
   // Signatures PR4: email the homeowner a remote-signing link. Delegates
   // to the generator's onSendForSignature closure (which awaits the doc's
   // persist, then calls the createSignRequest callable).
+  // Flag docSignPanelV1 (default OFF): the QR / text / copy / email panel (sign-link-panel.js, loaded on first use)
+  // replaces the window.prompt below.
+  async function openSignPanel() {
+    const ctx = currentContext;
+    if (!window.NBDSignLinkPanel && window.ScriptLoader) await window.ScriptLoader.load('js/sign-link-panel.js?v=7');
+    if (!window.NBDSignLinkPanel) flashStatus('Could not open the signing panel');
+    else if (currentContext === ctx) await window.NBDSignLinkPanel.openFor(ctx, currentOverlay);
+  }
+
   async function handleSendForSignature() {
     if (!currentContext || typeof currentContext.onSendForSignature !== 'function') return;
+    if (window.NBDFlags && window.NBDFlags.enabled('docSignPanelV1')) return openSignPanel();
     const def = currentContext.signerEmailDefault || '';
-    const email = (window.prompt('Email the signing link to which address?', def) || '').trim();
+    const email = ((await window.nbdPrompt('Email the signing link to which address?', def)) || '').trim();
     if (!email) return;
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
       if (window.showToast) window.showToast("That doesn't look like a valid email.", 'error');
@@ -773,6 +783,7 @@
       // passes a closure that mints a doc_sign_tokens link + emails it.
       onSendForSignature: opts.onSendForSignature || null,
       signerEmailDefault: opts.signerEmailDefault || '',
+      signPanelOpts: opts,
       signedSigners: null
     };
     // Toggle the remote-signature button per doc (signable docs only).

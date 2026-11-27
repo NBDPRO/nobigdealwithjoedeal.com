@@ -42,6 +42,7 @@
 const IFE = require('./invoice-from-estimate');
 const CER = require('./customer-estimate-rows');
 const DR = require('./deposit-rule');
+const TenantOps = require('./tenant-ops-logic');
 
 const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 const JOB_RE = /^[A-Za-z0-9_-]{1,40}$/;
@@ -246,7 +247,12 @@ function planSupplementInvoice(o) {
 
   let depositPlan = null, depositSplit = null, depositAmount = 0;
   if (!jobCredits.length) {
-    depositPlan = DR.fromEstimate(est, { totalCents: Math.round(total * 100), lead: lead || null });
+    // The company's own cash deposit rule (repo sweep 2026-11-17): the server
+    // has no window.NBDTenantRules, so without o.depositConfig every company's
+    // supplement invoice billed NBD's 50%. undefined (NBD) keeps that rule.
+    depositPlan = DR.fromEstimate(est, o.depositConfig
+      ? { totalCents: Math.round(total * 100), lead: lead || null, config: o.depositConfig }
+      : { totalCents: Math.round(total * 100), lead: lead || null });
     depositSplit = DR.invoiceDeposit(depositPlan);
     depositAmount = depositSplit.depositCents / 100;
   }
@@ -432,10 +438,18 @@ async function handleCreateSupplementInvoice(request, deps) {
         throw new HttpsError('failed-precondition', 'The insurance supplements on this job changed (none is billable now). Reload and make the invoice again.');
       }
 
+      // The billing company's own cash deposit rule (repo sweep 2026-11-17),
+      // the same read deposit-draft.js makes; NBD → undefined (its own rule).
+      let depositConfig;
+      if (companyId && companyId !== TenantOps.NBD_OWNER_UID) {
+        const ps = await tx.get(db.collection('companyProfile').doc(companyId));
+        depositConfig = TenantOps.depositConfigFor(companyId, ps.exists ? (ps.data() || {}) : {});
+      }
+
       let plan;
       try {
         const billedInvoices = Array.from(new Set(billed.map((b) => b.invoiceId))).map((iid) => byId.get(iid)).filter(Boolean);
-        plan = planSupplementInvoice({ est, estimateId, lead, leadId, jobId, companyId, uid: auth.uid, bill, billed, billedInvoices, invoices, jobs, nowMs });
+        plan = planSupplementInvoice({ est, estimateId, lead, leadId, jobId, companyId, uid: auth.uid, bill, billed, billedInvoices, invoices, jobs, nowMs, depositConfig });
       } catch (e) {
         if (e instanceof PlanRefusal) throw new HttpsError('failed-precondition', e.message);
         throw e;

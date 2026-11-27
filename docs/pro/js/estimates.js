@@ -566,16 +566,27 @@ function buildReview() {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
   // reviewEl resolved at top of buildReview (early-exit guard).
-  const marginSafeClass = marginPct >= 35 ? 'margin-strong'
-                        : marginPct >= 20 ? 'margin-ok'
-                        : 'margin-weak';
+  // 2026-11-17: the Internal View margin is measured before sales tax, on the
+  // price the customer pays, and banded against the COMPANY's floor and target
+  // (js/margin-floor.js; no band when the company has set none). It replaces a
+  // tax-inclusive figure and three classes (35 / 20) that no stylesheet defined.
+  // 2026-11-17 (part three): this "cost basis" is built from the catalog's SELL
+  // prices (getInternalCostBasis reads window.R, which product-library.js fills
+  // from pricing[tier].sell), not from costs. So it gets no floor band and does
+  // not gate the print: it says what it is measured against instead.
+  const MFv = window.NBDMarginFloor
+    ? window.NBDMarginFloor.view({ mode: d.mode, grandTotal, taxAmount: estData.taxAmount || 0, costBasis }, null)
+    : null;
+  const marginCellHtml = !MFv ? (esc(fmt(margin)) + ' · ' + marginPct.toFixed(1) + '%')
+    : !MFv.known ? 'Unknown (no cost basis)'
+      : (esc(fmt(MFv.marginCents / 100)) + ' · ' + MFv.marginPct.toFixed(1) + '% before tax, against catalog prices (not your costs)');
   const internalViewHtml = `
     <div id="internalViewPanel" style="display:none;margin-top:16px;padding:12px;background:var(--s2);border:1px dashed var(--orange);border-radius:7px;font-size:11px;">
       <div class="erx-w700-corange-mb8px">Internal View — NOT FOR CUSTOMER</div>
       <div class="erx-dgrid-gtcrepeat31-gap8px">
         <div><div class="erx-cm">Customer Price</div><div class="erx-w700">${fmt(grandTotal)}</div></div>
         <div><div class="erx-cm">Cost Basis</div><div class="erx-w700">${fmt(costBasis)}</div></div>
-        <div><div class="erx-cm">Margin</div><div class="${marginSafeClass} erx-w700">${fmt(margin)} · ${marginPct.toFixed(1)}%</div></div>
+        <div><div class="erx-cm">Margin</div><div class="erx-w700">${marginCellHtml}</div></div>
       </div>
     </div>`;
   reviewEl.innerHTML = `
@@ -646,7 +657,7 @@ function buildReview() {
       <div class="erx-fs10px-cm">Version v${d.version || 1}${d.revisedFrom ? ' · revised from prior estimate' : ''}</div>
       <div class="erx-dflex-gap6px">
         <button type="button" class="btn btn-ghost erx-fs10px-p4px10px" data-est-action="createEstimateRevision">↻ Create Revision</button>
-        <button type="button" class="btn btn-ghost erx-fs10px-p4px10px" data-est-action="toggleInternalView">🔒 Internal View</button>
+        ${(window.NBDMarginFloor && typeof window.NBDMarginFloor.canSeeCosts === 'function' && !window.NBDMarginFloor.canSeeCosts()) ? '' : '<button type="button" class="btn btn-ghost erx-fs10px-p4px10px" data-est-action="toggleInternalView">🔒 Internal View</button>'}
       </div>
     </div>
     ${internalViewHtml}`;
@@ -667,6 +678,11 @@ window.setDepositOverride = function setDepositOverride(val) {
 // Toggle the margin / cost-basis panel on the review step. Kept on
 // window so the onclick handler in the review HTML can find it.
 window.toggleInternalView = function toggleInternalView() {
+  // Costs: the owner and a company admin only (2026-11-17).
+  if (window.NBDMarginFloor && typeof window.NBDMarginFloor.canSeeCosts === 'function' && !window.NBDMarginFloor.canSeeCosts()) {
+    if (typeof window.showToast === 'function') window.showToast('Only the owner or a company admin can open the Internal View.', 'warning');
+    return;
+  }
   const el = document.getElementById('internalViewPanel');
   if (!el) return;
   el.style.display = el.style.display === 'none' ? 'block' : 'none';

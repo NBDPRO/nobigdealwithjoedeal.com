@@ -38,6 +38,15 @@ async function publicAiDailyCap(res, name) {
     return false;
   }
 }
+// The one AI gate (functions/ai-gate.js) for the two public endpoints: no
+// caller, so no plan check; the platform spend breaker and stop-all switch
+// still apply. Checked after validation, before the shared daily cap counts.
+async function publicGate(res, feature) {
+  const gate = await require('../ai-gate').aiGate(getFirestore(), { publicCaller: true, feature });
+  if (gate.ok) return true;
+  res.status(gate.status).json({ error: gate.message });
+  return false;
+}
 // Declarative per-route policy (rate-limit-policy.js ROUTES table) — the
 // wrapper enforces per-IP AND per-uid ceilings before the handler runs.
 // claudeProxy is the wiring pilot (2026-08-10): its uid namespace/limit are
@@ -62,6 +71,7 @@ const {
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 const { recordAiSpend, rowFromAnthropic } = require('../ai-spend');
+const { FENCE_CLAUSE, fence } = require('../ai-fence');
 
 /**
  * The upstream /v1/messages body for an allowlisted model (2026-10-04).
@@ -127,29 +137,15 @@ exports.claudeProxy = onRequest(
     const { decoded } = authResult;
 
     try {
-      // M-1: email-verification gate. An unverified email can be
-      // anything — squatters can burn legitimate emails by signing
-      // up first. Block unverified accounts from touching billable
-      // surfaces (AI proxy). Platform admin exempt for support.
+      // The one AI gate (functions/ai-gate.js aiGate, 2026-11-25): a
+      // verified email (M-1) and a paid plan on the caller's COMPANY
+      // (companyId claim; a solo owner's own uid), platform admin and the
+      // platform tenant exempt, plus the daily spend breaker. The plan
+      // check fails closed; a refusal returns before any counter or call.
       const isAdmin = decoded.role === 'admin';
-      if (!isAdmin && decoded.email_verified !== true) {
-        res.status(403).json({ error: 'Verify your email before using AI features.' });
-        return;
-      }
-
-      // Subscription gate — server-trusted Firestore doc written only by Stripe webhook.
-      // Billing key = the COMPANY (companyId claim), not the caller: an invited
-      // rep's uid has no subscriptions doc, so keying on uid gated every rep of
-      // a paying tenant as free (gauntlet gap, same class as the #945 stripe.js
-      // fix). 'trialing' counts as paid — a Growth trial is exactly the window
-      // where AI features must work.
-      const billingKey = decoded.companyId || decoded.uid;
-      const subSnap = await getFirestore().doc(`subscriptions/${billingKey}`).get();
-      const sub = subSnap.exists ? subSnap.data() : null;
-      const hasPaidPlan = sub && sub.plan && sub.plan !== 'free'
-        && (sub.status === 'active' || sub.status === 'trialing');
-      if (!isAdmin && !hasPaidPlan) {
-        res.status(403).json({ error: 'AI features require an active paid subscription.' });
+      const gate = await require('../ai-gate').aiGate(getFirestore(), { auth: { uid: decoded.uid, token: decoded }, feature: 'claude-proxy' });
+      if (!gate.ok) {
+        res.status(gate.status).json({ error: gate.message });
         return;
       }
 
@@ -188,6 +184,14 @@ exports.claudeProxy = onRequest(
       // Ask Joe actions (2026-10-02): a NAMED server-side tool list — never
       // tool definitions from the browser. Unknown names are ignored.
       const tools = require('../ask-joe-tools').toolsFor(toolset);
+      // Prompt registry (2026-11-25, roadmap step 15): a promptId selects the
+      // server's own fixed system prompt (functions/ai-prompts.js); an
+      // unknown one is refused. No promptId → the free-form path below.
+      const registered = require('../ai-prompts').promptFromBody(req.body || {});
+      if (registered && !registered.ok) {
+        res.status(registered.status).json({ error: registered.error });
+        return;
+      }
       if (!Array.isArray(messages) || messages.length === 0) {
         res.status(400).json({ error: 'messages array required' });
         return;
@@ -212,7 +216,7 @@ exports.claudeProxy = onRequest(
       // System prompts are capped (tokens still count against the daily budget
       // below). 4000 chars silently cut the end off Ask Joe's prompt once it
       // carried the Kentucky + deposit ground rules (4186 chars, 2026-10-02).
-      const safeSystem = (typeof system === 'string') ? system.slice(0, CLAUDE_MAX_SYSTEM_CHARS) : undefined;
+      const safeSystem = registered ? registered.system : ((typeof system === 'string') ? system.slice(0, CLAUDE_MAX_SYSTEM_CHARS) : undefined);
       const safeTemperature = (typeof temperature === 'number')
         ? Math.max(0, Math.min(1, temperature))
         : undefined;
@@ -229,7 +233,10 @@ exports.claudeProxy = onRequest(
         .doc(`api_usage_daily/${dayKey}__uid__${decoded.uid}`);
       const coCounterRef  = getFirestore()
         .doc(`api_usage_daily/${dayKey}__co__${callerCompanyId}`);
-      const plan = (sub && sub.plan) || 'lite';
+      // The gate's capKey is the company's own plan name; the platform
+      // tenant (no plan to read) gets the top token budget, as the vision
+      // and walkthrough budgets already give it.
+      const plan = gate.capKey === 'platform' ? 'professional' : (gate.capKey || 'lite');
       const companyCap = CLAUDE_COMPANY_BUDGET[plan] ?? CLAUDE_COMPANY_BUDGET_DEFAULT;
 
       const reservation = Math.min(
@@ -335,7 +342,7 @@ exports.claudeProxy = onRequest(
           adjustClaudeBudget(uidCounterRef, coCounterRef, delta),
           // AI spend in one place (ai_spend_daily / ai_spend_monthly): the
           // smart follow-up drafts and every other browser AI feature land here.
-          recordAiSpend(rowFromAnthropic(feature || 'claude-proxy', anthropicBody.model, data), { log: logger }),
+          recordAiSpend(rowFromAnthropic(feature || 'claude-proxy', anthropicBody.model, data), { log: logger, companyId: callerCompanyId }),
         ]);
       } catch (e) {
         logger.warn('api_usage logging failed', { err: e.message });
@@ -429,17 +436,22 @@ exports.publicVisualizerAI = onRequest(
       // Counted only once the request is valid (2026-11-14, AI audit F6):
       // counted first, empty requests used up the day's cap for free and
       // switched the visualizer off for real homeowners.
+      // The one AI gate: no plan (public), but the platform spend breaker.
+      if (!(await publicGate(res, 'public-visualizer'))) return;
       if (!(await publicAiDailyCap(res, 'publicVisualizerAI'))) return;
 
       const anthropicBody = {
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 800,
-        system: VISUALIZER_SYSTEM_PROMPT,
+        // The selections and notes come from a public web form: fenced as data.
+        // The carve-out keeps the clause's "never invent numbers" off the
+        // model's own photo read and the machine-parsed CANVAS hex line.
+        system: VISUALIZER_SYSTEM_PROMPT + '\n\n' + FENCE_CLAUSE + ' That rule is about the fenced selections and notes: your read of the photo and the CANVAS: hex values are still yours to write.',
         messages: [{
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: safeMediaType, data: imageBase64 } },
-            { type: 'text', text: `Selections: ${safeSelections}.${safeNotes ? ' Notes: ' + safeNotes : ''}` },
+            { type: 'text', text: 'Selections:\n' + fence('selections', safeSelections) + (safeNotes ? '\nNotes:\n' + fence('homeowner_notes', safeNotes) : '') },
           ],
         }],
       };
@@ -478,7 +490,7 @@ exports.publicVisualizerAI = onRequest(
 );
 
 // ═══════════════════════════════════════════════════════════════════════════
-// publicFunnelAI — Public marketing-funnel text AI (estimate + storm-check).
+// publicFunnelAI — Public marketing-funnel text AI (estimate + roof-check).
 //
 // The estimate.html instant-estimator and the storm-alerts self-check call this
 // for short, text-only Claude completions (a roof-size JSON estimate and a
@@ -549,6 +561,7 @@ exports.publicFunnelAI = onRequest(
       res.status(built.status).json({ error: built.error });
       return;
     }
+    if (!(await publicGate(res, 'public-funnel'))) return;
     if (!(await publicAiDailyCap(res, 'publicFunnelAI'))) return;
 
     try {
@@ -652,31 +665,13 @@ exports.adminAI = onRequest(
     }
     // Every self-serve signup is company_admin of its own company, so the
     // role alone made this a free Anthropic proxy for any new account
-    // (2026-11-14). Same gates as claudeProxy: verified email + a paid plan on
-    // the company; the platform admin and the platform tenant (NBD's own
-    // uid/company, which may have no Stripe subscription) are exempt.
-    const PLATFORM_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
-    const isPlatformTenant = decoded.uid === PLATFORM_UID || decoded.companyId === PLATFORM_UID;
-    if (role !== 'admin' && !isPlatformTenant) {
-      if (decoded.email_verified !== true) {
-        res.status(403).json({ error: 'Verify your email before using AI features.' });
-        return;
-      }
-      let subSnap;
-      try {
-        subSnap = await getFirestore().doc(`subscriptions/${decoded.companyId || decoded.uid}`).get();
-      } catch (e) {
-        // Fail closed with a clean answer, not an unhandled rejection.
-        logger.error('adminAI: subscription read failed', { err: e && e.message });
-        res.status(503).json({ error: 'Could not check your plan. Try again shortly.' });
-        return;
-      }
-      const sub = subSnap.exists ? subSnap.data() : null;
-      const paid = !!(sub && sub.plan && sub.plan !== 'free' && (sub.status === 'active' || sub.status === 'trialing'));
-      if (!paid) {
-        res.status(403).json({ error: 'AI features require an active paid subscription.' });
-        return;
-      }
+    // (2026-11-14). The one AI gate (functions/ai-gate.js aiGate): verified
+    // email + a paid plan on the company (platform admin and platform tenant
+    // exempt; a failed plan read fails closed, 503), and the spend breaker.
+    const gate = await require('../ai-gate').aiGate(getFirestore(), { auth: { uid: decoded.uid, token: decoded }, feature: 'admin-ai' });
+    if (!gate.ok) {
+      res.status(gate.status).json({ error: gate.message });
+      return;
     }
 
     // Rate limiting (per-uid + per-IP) is enforced by the guardHttp('adminAI')
@@ -722,7 +717,7 @@ exports.adminAI = onRequest(
         res.status(response.status).json({ error: 'Upstream AI error' });
         return;
       }
-      await recordAiSpend(rowFromAnthropic('admin-ai', anthropicBody.model, data), { log: logger });
+      await recordAiSpend(rowFromAnthropic('admin-ai', anthropicBody.model, data), { log: logger, companyId: gate.companyId });
 
       const text = Array.isArray(data.content)
         ? data.content.map(c => (c && c.type === 'text' ? c.text : '')).join('')
@@ -735,3 +730,7 @@ exports.adminAI = onRequest(
     }
   })
 );
+
+// functions/ai-models.js cross-checks its public-funnel and admin-ai rows.
+exports._FUNNEL_AI_MODEL = FUNNEL_AI_MODEL;
+exports._ADMIN_AI_MODEL = ADMIN_AI_MODEL;

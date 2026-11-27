@@ -65,6 +65,61 @@
     { role: 'other',     label: 'Other' },
   ];
 
+  // ── Co-owners (flag docClauseSetV1, Jo's decision Q52) ─────────────────────────
+  // A contract needs EVERY owner on record to sign. The co-owner is its own role, 'homeowner2' ("Homeowner (co-owner)"),
+  // so it has its own saved-signature lookup (leads/{id}/signatures/{role}) and its own block in the signed record; a second
+  // "homeowner" used to share the first one's role and so the first one's saved signature. Flag off: none of this runs.
+  var CO_OWNER_LABEL = 'Homeowner (co-owner)';
+  function coOwnerOn() {
+    try { return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('docClauseSetV1')); }
+    catch (_) { return false; }
+  }
+  function isContractClassType(type) {
+    var C = window.NBDDocSendChecks;
+    if (C && typeof C.isContractClass === 'function') return C.isContractClass(type);
+    return ['contract', 'proposal', 'work_authorization', 'estimate_esign'].indexOf(String(type || '')) !== -1;
+  }
+  /** The schema the pre-flight shows for a type: the contract gets an optional "Second owner" name when the flag is on. */
+  function schemaFor(type) {
+    var base = DOC_SCHEMAS[type];
+    if (!base || type !== 'contract' || !coOwnerOn()) return base;
+    return Object.assign({}, base, {
+      sections: base.sections.map(function (sec) {
+        if (sec.id !== 'signatures') return sec;
+        return Object.assign({}, sec, { collapsed: false, fields: sec.fields.concat([
+          { key: 'secondOwnerName', label: 'Second owner (optional)', type: 'text',
+            source: 'lead.secondOwnerName', persist: PERSIST.LEAD,
+            help: 'If the property has two owners on record, enter the second one. Both must sign the contract.' }
+        ]) });
+      })
+    });
+  }
+  /** The signer row the "Add signer" picker creates for a role. */
+  function signerToAdd(signers, role) {
+    var opt = SIGNER_ROLE_OPTIONS.filter(function (o) { return o.role === role; })[0] || {};
+    var label = opt.label || role;
+    if (coOwnerOn() && (role === 'homeowner2'
+        || (role === 'homeowner' && (signers || []).some(function (s) { return s && s.role === 'homeowner'; })))) {
+      return { role: 'homeowner2', label: CO_OWNER_LABEL, required: true };
+    }
+    return { role: role, label: label, required: false };
+  }
+  /** A contract with a second owner needs the co-owner as a signer: adds the row, or refuses when it was switched off. */
+  function ensureCoOwner(signers, secondOwnerName, type) {
+    var list = Array.isArray(signers) ? signers : [];
+    var name = String(secondOwnerName == null ? '' : secondOwnerName).trim();
+    if (!coOwnerOn() || !name || !isContractClassType(type)) return { signers: list };
+    if (!list.some(function (s) { return s && s.role === 'homeowner' && s.enabled !== false; })) return { signers: list };
+    var co = list.filter(function (s) { return s && s.role === 'homeowner2'; })[0];
+    if (!co) {
+      return { signers: list.concat([{ role: 'homeowner2', label: CO_OWNER_LABEL, required: true, enabled: true, removable: false }]) };
+    }
+    if (co.enabled === false) {
+      return { signers: list, error: 'A second owner (' + name.slice(0, 80) + ') is listed, so the co-owner must sign too. Switch the co-owner signer back on, or clear the second owner.' };
+    }
+    return { signers: co.required ? list : list.map(function (s) { return s === co ? Object.assign({}, s, { required: true }) : s; }) };
+  }
+
   /** Tiny utility: escape HTML so user text can't break the modal. */
   function esc(v) {
     if (v === null || v === undefined) return '';
@@ -945,7 +1000,7 @@
           id: 'condition', title: 'Roof Condition Notes', collapsed: false,
           fields: [
             { key: 'overallDescription', label: 'Overall Assessment', type: 'textarea', rows: 3, required: true,
-              source: 'literal:The roof shows signs of wear consistent with age. Several areas require attention to prevent further damage.',
+              source: 'literal:',
               persist: PERSIST.DOCUMENT },
             { key: 'roofCondition', label: 'Roof Notes', type: 'textarea', rows: 2,
               source: 'literal:', persist: PERSIST.DOCUMENT },
@@ -1013,7 +1068,7 @@
           id: 'damage', title: 'Damage & Scope', collapsed: false,
           fields: [
             { key: 'damageNotes', label: 'Damage Description', type: 'textarea', rows: 3, required: true,
-              source: 'literal:Evidence of wind/impact damage to shingles including lifted edges, puncture marks, and missing shingles.',
+              source: 'literal:',
               persist: PERSIST.DOCUMENT },
             { key: 'scopeItems', label: 'Scope of Restoration', type: 'scope-list',
               source: 'computed.scopeItems', persist: PERSIST.DOCUMENT },
@@ -1066,6 +1121,21 @@
               source: 'literal:', persist: PERSIST.DOCUMENT,
               placeholder: 'Why are these items needed? Reference code, manufacturer spec, photos, etc.' }
           ]
+        },
+        {
+          id: 'docs', title: 'Supporting Documentation Included', collapsed: false,
+          fields: [
+            { key: 'docPhotos', label: 'Photographs of additional damage', type: 'checkbox', checkboxLabel: 'Attached',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'docRevisedScope', label: 'Revised scope of work', type: 'checkbox', checkboxLabel: 'Attached',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'docManufacturerSpecs', label: 'Manufacturer specifications', type: 'checkbox', checkboxLabel: 'Attached',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'docCodeCompliance', label: 'Code compliance documentation', type: 'checkbox', checkboxLabel: 'Attached',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'docThirdParty', label: 'Third-party assessment', type: 'checkbox', checkboxLabel: 'Attached',
+              source: 'literal:', persist: PERSIST.DOCUMENT }
+          ]
         }
       ]
     },
@@ -1112,6 +1182,25 @@
             { key: 'qualitySignoff', label: 'Quality Sign-off Note', type: 'textarea', rows: 2,
               source: 'literal:Work completed to specification. Final walkthrough passed.',
               persist: PERSIST.DOCUMENT }
+          ]
+        },
+        {
+          id: 'checklist', title: 'Completion Checklist', collapsed: false,
+          fields: [
+            { key: 'chkMaterials', label: 'All materials installed per manufacturer specifications', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkFlashing', label: 'Flashing and waterproofing completed at all penetrations', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkVentilation', label: 'Ventilation system installed and verified', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkCleanup', label: 'Property cleaned and all debris removed', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkNailSweep', label: 'Magnetic nail sweep of entire property completed', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkQualityInspection', label: 'Final quality inspection completed by crew lead', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT },
+            { key: 'chkWalkthrough', label: 'Homeowner walkthrough and approval obtained', type: 'checkbox', checkboxLabel: 'Done',
+              source: 'literal:', persist: PERSIST.DOCUMENT }
           ]
         },
         {
@@ -1646,8 +1735,11 @@
             { key: 'headline', label: 'Headline', type: 'text',
               source: 'literal:Free Roof Inspection — No Obligation', persist: PERSIST.DOCUMENT },
             { key: 'services', label: 'Services', type: 'textarea', rows: 2,
-              source: 'literal:Storm damage repair • Insurance claims • Roof replacement • Gutters',
-              persist: PERSIST.DOCUMENT }
+              source: 'literal:Storm damage repair • Roof replacement • Gutters',
+              persist: PERSIST.DOCUMENT },
+            { key: 'nearbyJobAddress', label: 'Nearby job address (optional)', type: 'text',
+              source: 'literal:', persist: PERSIST.DOCUMENT,
+              help: 'Only fill this in if a crew really is working on a job nearby. Left blank, the "crew working nearby" line does not print.' }
           ])
         }
       ]
@@ -1667,8 +1759,6 @@
               source: 'literal:', persist: PERSIST.DOCUMENT, placeholder: 'e.g., West Chester, OH' },
             { key: 'neighborhoodName', label: 'Neighborhood Name', type: 'text',
               source: 'literal:', persist: PERSIST.DOCUMENT, placeholder: 'Defaults to Affected Area' },
-            { key: 'projectAddress', label: 'Nearby Project Address', type: 'text',
-              source: 'lead.address', persist: PERSIST.DOCUMENT, placeholder: 'e.g., 123 Maple St' },
             { key: 'ctaText', label: 'Call to Action', type: 'text',
               source: 'literal:Schedule your free storm damage inspection today', persist: PERSIST.DOCUMENT }
           ]
@@ -1939,7 +2029,7 @@
       '.dpf-required-banner{background:color-mix(in srgb, var(--orange) 8%, transparent);border:1px solid color-mix(in srgb, var(--orange) 25%, transparent);border-radius:10px;padding:12px 14px;margin-bottom:18px;font-size:12px;color:var(--orange,#BD5728);display:flex;align-items:center;gap:10px;}',
       '.dpf-required-banner.hidden{display:none;}',
       '.dpf-section{margin-bottom:16px;border:1px solid var(--br,rgba(255,255,255,.09));border-radius:10px;background:var(--s2,#181C22);overflow:hidden;}',
-      '.dpf-section-head{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;transition:background .15s;}',
+      '.dpf-section-head{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-user-select:none;user-select:none;transition:background .15s;}',
       '.dpf-section-head:hover{background:var(--s3,#1E2229);}',
       '.dpf-section-title{font-family:"Barlow Condensed",sans-serif;font-size:14px;font-weight:700;color:var(--t,#E8EAF0);text-transform:uppercase;letter-spacing:.06em;margin:0;border-bottom:2px solid var(--orange,#BD5728);padding-bottom:3px;display:inline-block;}',
       '.dpf-section-chevron{font-size:16px;color:var(--m,#6B7280);transition:transform .2s;}',
@@ -2370,6 +2460,30 @@
             : 'No workmanship warranty — this job type carries none, or the repair was quoted without one.') +
         '</div></div></div>';
     }
+    // Another company (2026-11-17): its OWN enabled tiers, names and
+    // workmanship sentence — the same tenant-rules answer the fill step
+    // prints — never NBD's labor-year ladder or TAMKO HailGuard. Same test
+    // as the fill step's _wTenant, so NBD (or no rules loaded) is unchanged.
+    var _tr = window.NBDTenantRules;
+    if (_tr && typeof _tr.isPlatformTenant === 'function' && _tr.isPlatformTenant() === false) {
+      var order = (typeof _tr.tierOrder === 'function') ? _tr.tierOrder() : [];
+      // Selected only when the value IS one of its tiers: no card is shown
+      // picked for a value that would print something else.
+      var tcur = String(value || '').toLowerCase();
+      var tcards = order.map(function (id) {
+        var name = (typeof _tr.labelOverride === 'function' && _tr.labelOverride(id)) || id;
+        var lines = (typeof _tr.warrantyLines === 'function') ? _tr.warrantyLines({ tier: id, isNbd: false }) : null;
+        var work = (lines && lines.workmanship) || '';
+        return '<div class="dpf-warranty-card' + (id === tcur ? ' selected' : '') + '" data-warranty-field="' + esc(field.key) + '" data-warranty-tier="' + esc(id) + '">' +
+          '<div class="dpf-warranty-name">' + esc(name) + '</div>' +
+          '<div class="dpf-warranty-tag">' + (work ? 'Workmanship warranty' : 'No workmanship warranty') + '</div>' +
+          '<div class="dpf-warranty-desc">' + (work
+            ? esc(work)
+            : 'None set for this package in Settings, so the document prints no workmanship warranty.') + '</div>' +
+        '</div>';
+      }).join('');
+      return '<div class="dpf-warranty-grid">' + tcards + '</div>';
+    }
     // GBB audit, 2026-09-09: was 5/10/20-year — see WARRANTY_TIER_OPTIONS above.
     // Five tiers since 2026-10-02; written labor years by package (Jo, 2026-10-06).
     var tiers = [
@@ -2423,7 +2537,10 @@
       }).join('');
     }
 
-    var addOptionsHTML = SIGNER_ROLE_OPTIONS.map(function (o) {
+    var _roleOptions = coOwnerOn()
+      ? SIGNER_ROLE_OPTIONS.slice(0, 1).concat([{ role: 'homeowner2', label: CO_OWNER_LABEL }], SIGNER_ROLE_OPTIONS.slice(1))
+      : SIGNER_ROLE_OPTIONS;
+    var addOptionsHTML = _roleOptions.map(function (o) {
       return '<option value="' + esc(o.role) + '">' + esc(o.label) + '</option>';
     }).join('');
 
@@ -2724,20 +2841,25 @@
         var role = el.value;
         if (!role) return;
         el.value = ''; // reset so the same role can be added again
-        var defaultLabel = (SIGNER_ROLE_OPTIONS.find(function (o) { return o.role === role; }) || {}).label || role;
+        var added = signerToAdd(state.signers, role);
+        var pushSigner = function (label) {
+          state.signers.push({
+            role: added.role,
+            label: label,
+            required: added.required,
+            enabled: true,
+            removable: true,
+          });
+          renderModal();
+        };
         if (role === 'other') {
-          var custom = window.prompt('Label for this signer (e.g. "Project Manager"):', '');
-          if (custom === null) return; // cancelled
-          defaultLabel = custom.trim() || 'Signer';
+          window.nbdPrompt('Label for this signer (e.g. "Project Manager"):', '').then(function (custom) {
+            if (custom === null) return; // cancelled
+            pushSigner(custom.trim() || 'Signer');
+          });
+          return;
         }
-        state.signers.push({
-          role: role,
-          label: defaultLabel,
-          required: false,
-          enabled: true,
-          removable: true,
-        });
-        renderModal();
+        pushSigner(added.label);
         return;
       }
 
@@ -3127,6 +3249,8 @@
    * @param {string} customerId — current lead id
    */
   function open(type, customerId) {
+    // Phase 5 (flag docClauseSetV1): register the flag-gated schemas before the lookup (a no-op with the flag off).
+    try { if (window.NBDDocGen && typeof window.NBDDocGen.syncPhase5Types === 'function') window.NBDDocGen.syncPhase5Types(); } catch (_) { /* fall through to the lookup */ }
     if (!DOC_SCHEMAS[type]) {
       console.warn('[DocPreflight] No schema for type:', type, '— falling back to direct generate.');
       if (window.NBDDocGen && typeof window.NBDDocGen.generate === 'function') {
@@ -3176,7 +3300,7 @@
     }
 
     var ctx = { lead: lead, estimate: estimate, photos: photos, overrides: overrides, jobWarranty: jobWarranty, depositDropped: [] };
-    var schema = DOC_SCHEMAS[type];
+    var schema = schemaFor(type);
     var values = {};
     var fieldIndex = {};
     var lineItemsMode = {};
@@ -3237,7 +3361,9 @@
     // NBDDocGen.DOCUMENT_TYPES entry). Each becomes a toggleable row;
     // the rep can uncheck, rename inline, or add ad-hoc signers.
     var docTypeEntry = (window.NBDDocGen && window.NBDDocGen.DOCUMENT_TYPES && window.NBDDocGen.DOCUMENT_TYPES[type]) || {};
-    var defaults = Array.isArray(docTypeEntry.defaultSigners) ? docTypeEntry.defaultSigners : [];
+    var defaults = (window.NBDDocGen && typeof window.NBDDocGen.defaultSignersFor === 'function')
+      ? window.NBDDocGen.defaultSignersFor(type)
+      : (Array.isArray(docTypeEntry.defaultSigners) ? docTypeEntry.defaultSigners : []);
     // De-brand the seeded labels. DOCUMENT_TYPES.defaultSigners carries NBD
     // defaults like "Authorized NBD Representative" and "NBD Inspector"; the
     // EMITTED pdf is already corrected, because renderSignatureBlock runs every
@@ -3400,6 +3526,25 @@
     // generator re-derives it too and only ever ADDS a Kentucky signal.
     var _jur = legalJurisdiction();
     if (_jur) mergedData.jurisdiction = _jur;
+
+    // Fail-closed send check (flag docEvidenceFoundation, default OFF): the same check
+    // NBDDocGen.generate() runs, asked here first so a contract with a blank price,
+    // address, name, mailing address, entity name, start or completion keeps this modal
+    // open with the list of what is missing instead of closing it on a refusal.
+    if (window.NBDDocGen && typeof window.NBDDocGen._docSendGate === 'function'
+        && !window.NBDDocGen._docSendGate(state.type, mergedData, '')) {
+      return;
+    }
+
+    // Co-owners (flag docClauseSetV1, Q52): a second owner on the lead (or typed above) means the co-owner signs too.
+    // Adds the co-owner row, or keeps this modal open when it was switched off. Flag off: returns the list untouched.
+    if (Array.isArray(state.signers) && state.signers.length) {
+      var _coName = mergedData.secondOwnerName != null ? mergedData.secondOwnerName
+        : (((window._currentLead || window._leadDoc || {}).secondOwnerName) || '');
+      var _co = ensureCoOwner(state.signers, _coName, state.type);
+      if (_co.error) { toast(_co.error, 'error'); return; }
+      state.signers = _co.signers;
+    }
 
     // Attach signers chosen in the modal. The document generator
     // checks for data.signers and emits interactive canvas blocks
@@ -3682,6 +3827,82 @@
   }
 
   // ═══════════════════════════════════════════════════════════════
+  // PHASE 5 SCHEMAS (flag docClauseSetV1, default OFF). Added to DOC_SCHEMAS only while the flag is on
+  // (NBDDocGen.syncPhase5Types calls syncPhase5 with the answer), so flag off leaves DOC_SCHEMAS as it was.
+  // ═══════════════════════════════════════════════════════════════
+  var P5_SCHEMAS = {};
+  (function () {
+    var items = [['driveway', 'Driveway and walkways'], ['landscaping', 'Landscaping, plants and fences'], ['gutters', 'Gutters and downspouts'],
+      ['satellite_dish', 'Satellite dish or antenna'], ['solar', 'Solar panels'], ['skylights', 'Skylights'], ['wall_items', 'Items on interior walls'],
+      ['attic_items', 'Items stored in the attic'], ['ceilings', 'Interior ceilings (cracks, nail pops)'], ['pets', 'Pets'],
+      ['utilities', 'Power and water'], ['parking', 'Parking for crew and dumpster']];
+    P5_SCHEMAS.property_condition = {
+      title: 'Property Condition & Access Acknowledgment',
+      subtitle: 'Walk the property with the homeowner before work starts. The homeowner ticks each item and signs.',
+      sections: [
+        CUSTOMER_SECTION,
+        { id: 'walk', title: 'Walk-through', collapsed: false, fields: [
+          { key: 'walkedOn', label: 'Date walked', type: 'date', source: 'computed.todayISO', persist: PERSIST.EPHEMERAL },
+          { key: 'pcPhotoIds', label: 'Photo IDs (this customer\u2019s photos, separated by commas)', type: 'text', source: 'literal:', persist: PERSIST.DOCUMENT }
+        ] },
+        { id: 'notes', title: 'Notes by item', collapsed: false, fields: items.map(function (it) {
+          return { key: 'pcNote_' + it[0], label: it[1], type: 'textarea', rows: 2, source: 'literal:', persist: PERSIST.DOCUMENT };
+        }) }
+      ]
+    };
+  })();
+  P5_SCHEMAS.decking_authorization = {
+    title: 'Hidden Conditions / Decking Authorization',
+    subtitle: 'Damaged decking found at tear-off: the homeowner approves or declines replacing it. The per-sheet price is Company Profile\u2019s.',
+    sections: [
+      CUSTOMER_SECTION,
+      { id: 'found', title: 'What was found', collapsed: false, fields: [
+        { key: 'deckingSheets', label: 'Sheets to replace', type: 'number', required: true, source: 'literal:', persist: PERSIST.DOCUMENT },
+        { key: 'deckingFoundOn', label: 'Date found', type: 'date', source: 'computed.todayISO', persist: PERSIST.EPHEMERAL },
+        { key: 'deckingWhere', label: 'Where on the roof', type: 'text', source: 'literal:', persist: PERSIST.DOCUMENT },
+        { key: 'deckingPhotoIds', label: 'Photo IDs (this customer\u2019s photos, separated by commas)', type: 'text', source: 'literal:', persist: PERSIST.DOCUMENT }
+      ] }
+    ]
+  };
+  P5_SCHEMAS.emergency_services_request = {
+    title: 'Emergency Services Request',
+    subtitle: 'A separate request the homeowner signs and dates, for tarp or dry-in work before the cancellation period ends.',
+    sections: [
+      CUSTOMER_SECTION,
+      { id: 'work', title: 'Work requested', collapsed: false, fields: [
+        { key: 'emergencyWork', label: 'Work the homeowner is asking for', type: 'textarea', rows: 3, required: true, source: 'literal:', persist: PERSIST.DOCUMENT,
+          placeholder: 'e.g., tarp the north slope and dry in the opening over the kitchen' }
+      ] }
+    ]
+  };
+  P5_SCHEMAS.final_walkthrough = {
+    title: 'Final Walkthrough & Punch List',
+    subtitle: 'Sign-off after the walkthrough: the dates and any open items. Leave the items blank only if there are none.',
+    sections: [
+      CUSTOMER_SECTION,
+      { id: 'walk', title: 'Walkthrough', collapsed: false, fields: [
+        { key: 'completionDate', label: 'Completion date', type: 'date', required: true, source: 'computed.todayISO', persist: PERSIST.EPHEMERAL },
+        { key: 'walkthroughDate', label: 'Walkthrough date', type: 'date', required: true, source: 'computed.todayISO', persist: PERSIST.EPHEMERAL },
+        { key: 'punchItemsText', label: 'Open items (one per line; add " | 150" for the dollar amount held; blank = none)', type: 'textarea', rows: 4, source: 'literal:', persist: PERSIST.DOCUMENT }
+      ] }
+    ]
+  };
+  P5_SCHEMAS.ohio_insurance_ack = {
+    title: 'Ohio Insurance Job Acknowledgment',
+    subtitle: 'For an Ohio property whose repair may be paid by insurance. Kentucky jobs use the Kentucky notices instead.',
+    sections: [
+      CUSTOMER_SECTION,
+      { id: 'claim', title: 'Homeowner\u2019s insurance', collapsed: false, fields: [
+        { key: 'insCarrier', label: 'Homeowner\u2019s insurance company', type: 'text', source: 'lead.insCarrier', persist: PERSIST.LEAD },
+        { key: 'claimNumber', label: 'Homeowner\u2019s claim number', type: 'text', source: 'lead.claimNumber', persist: PERSIST.LEAD }
+      ] }
+    ]
+  };
+  function syncPhase5(on) {
+    Object.keys(P5_SCHEMAS).forEach(function (t) { if (on) DOC_SCHEMAS[t] = P5_SCHEMAS[t]; else delete DOC_SCHEMAS[t]; });
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   // SECTION 11: PUBLIC API
   // ═══════════════════════════════════════════════════════════════
 
@@ -3690,6 +3911,11 @@
     close: close,
     submit: submit,
     DOC_SCHEMAS: DOC_SCHEMAS,
+    // Co-owners (flag docClauseSetV1): the schema shown, the signer row the picker adds, the co-owner requirement.
+    schemaFor: schemaFor,
+    signerToAdd: signerToAdd,
+    ensureCoOwner: ensureCoOwner,
+    syncPhase5: syncPhase5,
     // Internal helpers exposed for debugging / testing only:
     _state: state,
     _resolveFieldValue: resolveFieldValue,

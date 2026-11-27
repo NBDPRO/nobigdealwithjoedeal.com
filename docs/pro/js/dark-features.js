@@ -17,6 +17,8 @@
  *   estimateFollowBoard → estimatefollowboard (js/estimate-follow-board.js)
  *   followUpBoard       → followupboard       (estimate board, logic, screen,
  *                                              Thumbtack opportunities cards)
+ *   supplierPricing     → supplierpricing     (js/price-materials.js: the materials
+ *                                              list at the company's suppliers, 2026-11-18)
  *
  * Each feature keeps its own flag check, role check and button sync, so with
  * the flag off nothing changes: the toolbar button stays hidden and no code
@@ -36,7 +38,7 @@
   // boards read) stays an eager tag in dashboard.html.
   var BUNDLES = {
     staleleads: ['js/stale-leads-cleanup.js?v=2'],
-    leadsourcefixer: ['js/lead-source-fixer.js?v=1'],
+    leadsourcefixer: ['js/lead-source-fixer.js?v=2'],
     speedtolead: ['js/speed-to-lead.js?v=1'],
     reputation: ['js/reputation.js?v=1'],
     estimatefollowboard: ['js/estimate-follow-board.js?v=1'],
@@ -46,7 +48,9 @@
       'js/follow-up-board.js?v=2',
       'js/opp-approval-logic.js?v=1',
       'js/opp-approval.js?v=1'
-    ]
+    ],
+    supplierpricing: ['js/price-materials.js?v=4'],
+    recordvisittab: ['js/visit-recorder-tab.js?v=1']
   };
   var FLAG_BUNDLES = {
     bulkCloseStaleLeads: 'staleleads',
@@ -54,7 +58,9 @@
     speedToLead: 'speedtolead',
     reputationLoop: 'reputation',
     estimateFollowBoard: 'estimatefollowboard',
-    followUpBoard: 'followupboard'
+    followUpBoard: 'followupboard',
+    supplierPricing: 'supplierpricing',
+    recordVisitTab: 'recordvisittab'
   };
   var requested = {};
 

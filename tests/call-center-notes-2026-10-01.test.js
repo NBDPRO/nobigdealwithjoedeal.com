@@ -123,7 +123,8 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   ok('only the test call ran', r.state === 'test' && r.noted === 1 && calls.transcribe === 1 && db.docs.get(COLLECTION + '/cube_2').status === 'stored', JSON.stringify(r));
   const doc1 = db.docs.get(COLLECTION + '/cube_1');
   ok('call doc noted with transcript + notes', doc1.status === 'noted' && /gutter/.test(doc1.transcript) && doc1.promises.length === 2 && doc1.followUpDate === '2026-10-02' && doc1.durationSec === 95);
-  ok('the prompt carries the CRM name and direction', /CRM customer this number belongs to: Pat Example/.test(calls.prompts[0]) && /They called Jo/.test(calls.prompts[0]));
+  // 2026-11-22: the CRM name sits inside its ai-fence.js fence (it can come from a web form).
+  ok('the prompt carries the CRM name and direction', /CRM customer this number belongs to: <untrusted_lead_name>\nPat Example\n<\/untrusted_lead_name>/.test(calls.prompts[0]) && /They called Jo/.test(calls.prompts[0]));
   ok('timeline entry on the lead', !!db.docs.get('leads/L1/activity/cube-cube_1'));
   ok('one follow-up task on the lead', db.docs.get('leads/L1/tasks/cube-cube_1') && db.docs.get('leads/L1/tasks/cube-cube_1').done === false && r.tasks === 1);
   ok('the test list clears after it runs', db.docs.get(CONFIG).transcribeOnly.length === 0);
@@ -171,7 +172,9 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   console.log('\n7. Live: personal call, unmatched call, failures');
   stub((prompt) => (/Mom/.test(prompt) ? { call_type: 'personal', summary: 'family', promises: [{ who: 'jo', text: 'x' }] } : BUSINESS()));
   db = fakeDb({
-    [COLLECTION + '/cube_p']: call('cube_p', { leadId: 'L1', contactName: 'Mom', startedAtMs: NOW - 10e3 }),
+    // On no lead (2026-11-22 audit): a personal verdict on a call matched to a
+    // lead is no longer applied, tests/ai-fence-2026-11-22.test.js §8.
+    [COLLECTION + '/cube_p']: call('cube_p', { leadId: null, contactName: 'Mom', startedAtMs: NOW - 10e3 }),
     [COLLECTION + '/cube_u']: call('cube_u', { leadId: null, contactName: '', startedAtMs: NOW - 20e3 }),
     [COLLECTION + '/cube_big']: call('cube_big', { leadId: null, sizeBytes: 30 * 1024 * 1024, startedAtMs: NOW - 30e3 }),
     'leads/L1': { firstName: 'Pat', lastName: 'Example', userId: OWNER },

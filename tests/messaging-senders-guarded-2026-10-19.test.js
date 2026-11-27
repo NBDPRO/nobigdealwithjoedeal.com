@@ -65,8 +65,13 @@ const SMS_RULES = {
   'functions/review-ask-auto.js': ['MessagingControls.guardTwilio('],
   'functions/call-center.js': ['MessagingControls.guardTwilio('],
   'functions/verify-functions.js': ['MessagingControls.internalAlertStatus('],
+  // The one owner system-alert text (roadmap step 13): internal, never a customer.
+  'functions/owner-notify.js': ['MessagingControls.internalAlertStatus('],
 };
-const smsSenders = files.filter((f) => /\.messages\.create\(/.test(f.code)).map((f) => f.rel);
+// Same shape, not Twilio: the Anthropic SDK model call (2026-11-25); its one
+// site is pinned in RAW_PINS below, so a second send in that file still fails.
+const NOT_TWILIO = { 'functions/ai-client.js': 'Anthropic SDK client.messages.create: a model call, not a text' };
+const smsSenders = files.filter((f) => !NOT_TWILIO[f.rel] && /\.messages\.create\(/.test(f.code)).map((f) => f.rel);
 for (const rel of smsSenders) {
   const need = SMS_RULES[rel];
   ok('Twilio sender is classified: ' + rel, !!need);
@@ -96,10 +101,17 @@ const CUSTOMER_EMAIL_RULES = {
   'functions/funnel-recovery.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/lead-followup.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/review-ask-auto.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
+  // v2 sends (2026-11-26): every email through guardEmail + the email switch; the automation status is the sweep's (review-ask-auto.js).
+  'functions/review-ask-v2.js': ['MessagingControls.guardEmail(', "MessagingControls.channelStatus(db, 'email')"],
+  // The review ask for OTHER companies, email only (2026-11-26, dark): guardEmail at the send + the automation status for the run.
+  'functions/review-ask-tenant.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/portal-moments.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/lead-alert.js': ['MessagingControls.guardEmail(', 'MessagingControls.automationStatus('],
   'functions/estimate-email.js': ['MessagingControls.guardEmail('],
   'functions/storm-report-email.js': ['MessagingControls.guardEmail('],
+  'functions/guide-copy-email.js': ['MessagingControls.guardEmail('],
+  // Storm-tips email (2026-11-26, dark): deps-injected MessagingControls, so the token is MC.
+  'functions/storm-tips-email.js': ['MC.guardResend(', 'MC.automationStatus('],
   'functions/esign-io.js': ['MessagingControls.guardResend('],
   'functions/remote-signing.js': ['MessagingControls.guardResend('],
   'functions/report-sharing.js': ['MessagingControls.guardResend('],
@@ -132,7 +144,7 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
 
 // E3. One-shot triggers check the pause BEFORE they take their claim (a pause must not burn the claim).
 {
-  for (const [rel, claimToken] of [['functions/estimate-email.js', 'runTransaction('], ['functions/storm-report-email.js', 'runTransaction('], ['functions/pro-prospects.js', 'runTransaction(']]) {
+  for (const [rel, claimToken] of [['functions/estimate-email.js', 'runTransaction('], ['functions/storm-report-email.js', 'runTransaction('], ['functions/guide-copy-email.js', 'runTransaction('], ['functions/pro-prospects.js', 'runTransaction(']]) {
     const code = byRel(rel);
     const iCheck = code.indexOf('channelStatus(');
     const iClaim = code.indexOf(claimToken, iCheck > 0 ? 0 : 0);
@@ -156,6 +168,7 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
   // file -> exact number of RAW (unguarded) send sites, with why each is not a customer message.
   // A NEW raw site in an already-listed file changes the count and fails here.
   const RAW_PINS = {
+    'functions/ai-client.js': [1, 'the Anthropic SDK model call (client.messages.create), not a message to anyone'],
     'functions/alert-recipients-fns.js': [1, 'security notice to the account owner\'s own verified address'],
     'functions/anniversary-touch.js': [1, 'rep digest'],
     'functions/call-center.js': [1, 'owner reminder digest'],
@@ -170,6 +183,7 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
     'functions/marketing-report.js': [1, 'owner monthly report'],
     'functions/messaging-controls.js': [1, 'the guardTwilio wrapper itself'],
     'functions/morning-brief.js': [1, 'owner brief'],
+    'functions/owner-notify.js': [1, 'owner system-alert SMS (internal alert, internalAlertStatus; daily cap + dedupe)'],
     'functions/review-request-nudge.js': [1, 'rep digest'],
     'functions/storm-watch.js': [2, 'owner storm SMS + owner storm email (internal alerts, internalAlertStatus)'],
     'functions/verify-functions.js': [3, 'the OTP call (switch + STOP register checked first), the owner new-lead SMS and email (internalAlertStatus)'],
@@ -220,7 +234,8 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
 //    or the owner. The set of files that can QUEUE a row is pinned, so a new writer (for example one that
 //    queues a homeowner email) must be reviewed and added here on purpose.
 {
-  const QUEUE_WRITERS = ['backup-freshness.js', 'care-plan.js', 'health-digest.js', 'integrations/compliance.js',
+  // ai-gate.js (2026-11-25): the AI spend breaker's one-a-day alert to the platform owner (sendBreakerAlert).
+  const QUEUE_WRITERS = ['ai-gate.js', 'backup-freshness.js', 'care-plan.js', 'health-digest.js', 'integrations/compliance.js',
     'messaging-controls-fns.js', 'monthly-overhead-alert.js', 'pro-prospects.js', 'stripe.js', 'tenant-ops.js'];
   const QUEUE_READERS = ['integrations/email-queue-worker.js', 'messaging-center.js'];
   const found = files.filter((f) => /email_queue['"\/`]/.test(stripJsComments(fs.readFileSync(path.join(ROOT, f.rel), 'utf8'))))
@@ -231,7 +246,7 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
 // H. One-shot triggers (Cloud Function bodies, no test hook): a pause OR a canary redirect that lands AFTER the
 //    pre-check (a flip between the pre-check and guardEmail) must release the claim, never leave it stamped emailed.
 {
-  for (const [rel, field] of [['estimate-email.js', 'estimateEmailedAt'], ['storm-report-email.js', 'reportEmailedAt']]) {
+  for (const [rel, field] of [['estimate-email.js', 'estimateEmailedAt'], ['storm-report-email.js', 'reportEmailedAt'], ['guide-copy-email.js', 'guideEmailedAt']]) {
     const src = stripJsComments(fs.readFileSync(path.join(FN, rel), 'utf8'));
     const afterGuard = src.slice(src.indexOf('guardEmail('));
     const release = new RegExp(field + ': FieldValue\\.delete\\(\\)', 'g');

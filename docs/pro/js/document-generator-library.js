@@ -71,6 +71,9 @@
     lien_waiver:          { name: 'Lien Waiver',                       template: 'renderLienWaiver',          defaultSigners: [REP] },
     right_to_cancel:      { name: 'Notice of Right to Cancel',         template: 'renderRightToCancel',       defaultSigners: [HOMEOWNER] },
     material_selection:   { name: 'Material & Color Selection',        template: 'renderMaterialSelection',   defaultSigners: [HOMEOWNER, REP] },
+    // Phase 3 (flag docAtticAckV1): the acknowledgment and its not-inspected second page, one renderer.
+    attic_acknowledgment: { name: 'Attic, Ventilation & Moisture Acknowledgment', template: 'renderAtticAcknowledgment', defaultSigners: [HOMEOWNER, REP] },
+    attic_not_inspected:  { name: 'Attic Not Inspected Acknowledgment', template: 'renderAtticAcknowledgment', defaultSigners: [HOMEOWNER, REP] },
     proposal_options:     { name: 'Good-Better-Best Options',          template: 'renderProposalOptions' },
     insurance_next_steps: { name: 'Insurance Job: Scope & Next Steps', template: 'renderInsuranceNextSteps' }
   });
@@ -84,6 +87,7 @@
   // One stylesheet for the library's documents, in the tenant's colours.
   function css(B) {
     return '<style>' +
+      '.lib-footer-wrap{display:flow-root;padding-bottom:40px;}' +
       '.lib-h1{text-align:center;font-family:' + B.FD + ';font-size:24px;color:' + B.S + ';margin:22px 0 4px;letter-spacing:.04em;text-transform:uppercase;}' +
       '.lib-sub{text-align:center;color:' + B.G + ';font-size:13px;margin:0 0 20px;}' +
       '.lib-intro{background:' + B.WSH + ';border-left:4px solid ' + B.A + ';padding:14px 18px;border-radius:4px;font-size:14px;margin:0 0 22px;}' +
@@ -342,7 +346,12 @@
       '<div class="section lib-mt"><div class="section-title">Acknowledgment</div>' +
         '<p class="lib-body">I received this notice and two completed copies of the Notice of Cancellation form on ' + esc(dateText) + '.</p></div>' +
       T.sigBlock(['Homeowner'], d) +
-      T.footer('Notice of Right to Cancel') +
+      // The shared .footer band carries margin-bottom:-40px so it bleeds to the
+      // page edge at the END of a document. Here more pages follow it, and that
+      // negative margin pulled the detachable forms' first lines UNDER the band
+      // (statutory text hidden on screen). The flow-root wrapper contains the
+      // negative margin; the padding gives the forms their own clear space.
+      '<div class="lib-footer-wrap">' + T.footer('Notice of Right to Cancel') + '</div>' +
       forms
     );
   };
@@ -561,6 +570,375 @@
     );
   };
 
+  // ═════════════════════════════════════════════════════════════════
+  // ATTIC, VENTILATION & MOISTURE ACKNOWLEDGMENT (phase 3, flag docAtticAckV1)
+  // The wording is attic-ack-text.js (the attorney packet's ATTIC-1 to ATTIC-5, copied by script). The rep's attic
+  // record (data.atticCheck) fills the slots. The homeowner's per-line Yes/No and each acknowledgment are REQUIRED
+  // tick controls (data-nbd-ack), recorded with the signature: the signing paths here only support signature
+  // canvases, so "initials" are implemented as recorded ticks + signature (documented deviation).
+  // ═════════════════════════════════════════════════════════════════
+  // The form's own CSS is the twinned module's constant (window.NBDAtticAck.ATTIC_FORM_CSS): functions/attic-gate.js accepts this block in a
+  // stored form only when it equals it.
+  function atticCss() { return '<style>' + window.NBDAtticAck.ATTIC_FORM_CSS + '</style>'; }
+
+  function aaMd(s) { return esc(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>'); }
+
+  function atticMoney(cents) { return '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+  function atticLongDate(v) {
+    var s = String(v || '').trim();
+    if (!s) return '';
+    return T.longDate ? (T.longDate(s) || s) : s;
+  }
+
+  DG.renderAtticAcknowledgment = function (data) {
+    T.refresh();
+    var B = T.brand();
+    var co = companyName(B);
+    var AA = window.NBDAtticAck;
+    if (!AA || !AA.TEXT) throw new Error('The attic acknowledgment wording did not load. Reload the page and try again.');
+    var X = AA.TEXT;
+    var d = Object.assign({ homeownerName: '[Homeowner Name]', address: '[Property Address]' }, data);
+    var rec = d.atticCheck && typeof d.atticCheck === 'object' ? d.atticCheck : {};
+    var g = (typeof DG._nbdGate === 'function') ? DG._nbdGate() : { isNbd: true };
+    var CS = window.NBDClauseSet;
+    var cp = d.companyProfile || {};
+    var terms = CS && CS.paymentTermsFor ? CS.paymentTermsFor(cp.paymentTerms, g.isNbd) : { atticFreeCheckDays: g.isNbd ? 3 : null };
+    var prices = (window.NBD_ESTIMATE_CONFIG && window.NBD_ESTIMATE_CONFIG.atticRecommendationPrices) || {};
+    var W = function (s) { return AA.words(s, terms, g.isNbd); };
+    var notInspected = rec.status === 'not_inspected';
+    var urls = d.atticPhotoUrls && typeof d.atticPhotoUrls === 'object' ? d.atticPhotoUrls : {};
+    var photoRow = function (kind) {
+      var ps = (Array.isArray(rec.photos) ? rec.photos : []).filter(function (p) { return p && p.kind === kind; });
+      if (!ps.length) return '';
+      return '<div class="aa-thumbs">' + ps.map(function (p) {
+        return urls[p.id] ? '<img src="' + esc(urls[p.id]) + '" alt="Attic photo">' : '<span class="lib-fine">Photo on file (' + esc(p.id) + ')</span> ';
+      }).join('') + '</div>';
+    };
+    var tick = function (id, text, required) {
+      return '<label class="aa-row"><input type="checkbox" data-nbd-ack="' + esc(id) + '"' + (required ? ' data-nbd-required="1"' : '') + '><span>' + aaMd(W(text)) + '</span></label>';
+    };
+    var mark = function (on) { return on ? '[x]' : '[ ]'; };
+    var parts = [];
+    parts.push(atticCss() + T.letterhead() +
+      '<h1 class="lib-h1">Attic, Ventilation &amp; Moisture Acknowledgment</h1>' +
+      '<p class="lib-sub">' + esc(d.homeownerName) + ' &middot; ' + esc(d.address) + '</p>' +
+      '<p class="aa-ver">' + esc(X.VERSION) + (d.formDate ? ' &middot; ' + esc(atticLongDate(d.formDate)) : '') + '</p>' +
+      '<!-- nbd:attic-ack ' + esc(X.VERSION) + ' ' + (notInspected ? 'not_inspected' : 'inspected') + ' -->');
+    // ATTIC-1
+    parts.push('<div class="section">' + X.WHY.map(function (p) { return '<p class="aa-p">' + aaMd(W(p)) + '</p>'; }).join('') + '</div>');
+    if (!notInspected) {
+      var on = atticLongDate(rec.inspectedOn) || '______';
+      var line = X.INSPECTED.replace('{{date}}', on).replace(/\{\{access point:[^}]*\}\}/, String(rec.accessPoint || '______'));
+      parts.push('<div class="section"><p class="aa-p">' + mark(true) + ' ' + aaMd(W(line)) + '</p><p class="aa-p">' + mark(false) + ' ' + aaMd(W(X.NOT_INSPECTED)) + '</p></div>');
+      // ATTIC-2: what we saw (the rep's record, with photos)
+      var cond = rec.conditions || {};
+      parts.push('<div class="section"><p class="aa-p">' + aaMd(W(X.SAW_INTRO)) + '</p>' + X.CONDITIONS.map(function (t, i) {
+        var k = AA.CONDITION_KEYS[i];
+        var txt = t;
+        if (k === 'other') txt = 'Other: ' + (rec.conditionOther ? rec.conditionOther : '______') + '. Notes: ' + (rec.notes ? rec.notes : '______');
+        return '<p class="aa-p">' + mark(cond[k] === true) + ' ' + (k === 'other' ? esc(txt) : aaMd(W(txt))) + '</p>' + (cond[k] === true ? photoRow('cond:' + k) : '');
+      }).join('') + (photoRow('overview') ? '<p class="aa-note">Overview photos</p>' + photoRow('overview') : '') + '</div>');
+      // Ventilation numbers (approximate)
+      var v = rec.vent || {};
+      var slots = [v.floorSqFt, v.neededArea, v.neededIntake, v.neededExhaust, v.nowIntake, v.nowExhaust, v.manufacturer];
+      var si = 0;
+      var nums = X.NUMBERS.replace(/\{\{[^}]*\}\}/g, function () { var x = slots[si++]; return x == null || x === '' ? '______' : String(x); });
+      ['1/300', '1/150', 'code'].forEach(function (r) {
+        var label = r === 'code' ? "[ ] code official's requirement" : '[ ] ' + r;
+        nums = nums.replace(label, label.replace('[ ]', mark(v.rule === r)));
+      });
+      parts.push('<div class="section"><p class="aa-p">' + aaMd(W(nums)) + '</p></div>');
+    } else {
+      // ATTIC-5: the second page, attic NOT inspected
+      var rl = AA.REASON_LINE[rec.reason];
+      parts.push('<div class="section"><p class="aa-p">' + aaMd(W(X.NOT_INSPECTED)) + '</p>' +
+        X.REASONS.map(function (t, i) {
+          var chosen = rl === i;
+          var txt = t;
+          if (i === 1) txt = t.replace('[ ] yours', (chosen && rec.reason === 'scheduling_homeowner' ? '[x]' : '[ ]') + ' yours').replace("[ ] NBD's", (chosen && rec.reason === 'scheduling_nbd' ? '[x]' : '[ ]') + " NBD's");
+          if (i === 5) txt = 'Other: ' + (rec.reasonText ? rec.reasonText : '______');
+          return '<p class="aa-p">' + mark(chosen) + ' ' + (i === 5 ? esc(txt) : aaMd(W(txt))) + '</p>';
+        }).join('') + (rec.notes ? '<p class="aa-p">Note: ' + esc(rec.notes) + '</p>' : '') + photoRow('access') + '</div>');
+    }
+    // Recommendations (ATTIC-2): priced lines only; each line has a Yes and a No
+    var lines = AA.recommendationLines(rec, terms, prices);
+    parts.push('<div class="section"><p class="aa-p">' + aaMd(W(X.RECS_INTRO)) + '</p><table class="lib-table"><thead><tr><th>Recommendation</th><th>Price</th><th class="aa-opt">Yes</th><th class="aa-opt">No</th></tr></thead><tbody>' +
+      lines.map(function (l) {
+        var nm = 'aa-rec-' + l.id;
+        return '<tr><td>' + esc(l.label) + '</td><td>' + (l.priceCents == null ? 'none' : esc(atticMoney(l.priceCents))) + '</td>' +
+          '<td class="aa-opt"><input type="radio" name="' + nm + '" data-nbd-ack="rec:' + esc(l.id) + ':yes" aria-label="Yes, add it"></td>' +
+          '<td class="aa-opt"><input type="radio" name="' + nm + '" data-nbd-ack="rec:' + esc(l.id) + ':no" aria-label="No, leave it out"></td></tr>';
+      }).join('') + '</tbody></table></div>');
+    // ATTIC-5 statements, then ATTIC-3 acknowledgments
+    var ACK_IDS = ['saw', 'declined', 'existing', 'not_inspection', 'moisture', 'tearoff'];
+    var STMT_IDS = ['not_checked', 'offered', 'unseen', 'no_change'];
+    if (notInspected) {
+      parts.push('<div class="section"><p class="aa-p">' + aaMd(X.STATEMENTS_HEAD) + '</p>' + X.STATEMENTS.map(function (t, i) { return tick('ack:stmt_' + STMT_IDS[i], t, true); }).join('') + '</div>');
+    }
+    parts.push('<div class="section"><p class="aa-note">Tick each box and each Yes or No. Your ticks are saved with your signature.</p>' +
+      X.ACKS.map(function (t, i) { return tick('ack:' + ACK_IDS[i], t, true); }).join('') + '</div>');
+    // ATTIC-4: the savings sentence (always prints, not editable per job), then the signatures
+    parts.push('<div class="section"><p class="aa-p">' + aaMd(W(X.SAVINGS)) + '</p></div>');
+    parts.push(T.sigBlock(['Homeowner', repLabel(B) + ' — ' + co], d));
+    parts.push(T.affiliateRow() + T.footer('Attic, Ventilation & Moisture Acknowledgment'));
+    return T.page('Attic, Ventilation & Moisture Acknowledgment', parts.join(''));
+  };
+
+  // ═════════════════════════════════════════════════════════════════
+  // PHASE 5 TEMPLATES (flag docClauseSetV1, default OFF). Registered only while the flag is on (syncPhase5Types), so with it off
+  // the picker, DOCUMENT_TYPES, FORM_FIELDS and the pre-flight schemas are exactly what they were. Wording: the clause registry
+  // (printed verbatim through NBDClauseSet.textV1) and p5-forms.js TEXT (the drafter's, marked there). Acknowledgments are
+  // required recorded ticks (data-nbd-ack), the same mechanism as the attic form; the server verifies them (attic-gate.js).
+  // ═════════════════════════════════════════════════════════════════
+  var P5_ENTRIES = {
+    property_condition: { name: 'Property Condition & Access Acknowledgment', template: 'renderPropertyCondition', defaultSigners: [HOMEOWNER, REP] },
+    decking_authorization: { name: 'Hidden Conditions / Decking Authorization', template: 'renderDeckingAuthorization', defaultSigners: [HOMEOWNER, REP] },
+    // The homeowner only: the request is the homeowner's, separate from the contract.
+    emergency_services_request: { name: 'Emergency Services Request', template: 'renderEmergencyServicesRequest', defaultSigners: [HOMEOWNER] },
+    final_walkthrough: { name: 'Final Walkthrough & Punch List', template: 'renderFinalWalkthrough', defaultSigners: [HOMEOWNER, REP] },
+    ohio_insurance_ack: { name: 'Ohio Insurance Job Acknowledgment', template: 'renderOhioInsuranceAck', defaultSigners: [HOMEOWNER, REP] }
+  };
+  var P5_FIELDS = {
+    property_condition: ['homeownerName', 'address', 'walkedOn', 'pcPhotoIds'],
+    decking_authorization: ['homeownerName', 'address', 'deckingSheets', 'deckingFoundOn', 'deckingWhere', 'deckingPhotoIds'],
+    emergency_services_request: ['homeownerName', 'address', 'emergencyWork'],
+    final_walkthrough: ['homeownerName', 'address', 'completionDate', 'walkthroughDate', 'punchItemsText'],
+    ohio_insurance_ack: ['homeownerName', 'address', 'insCarrier', 'claimNumber']
+  };
+  function p5Wanted() {
+    var w = typeof window !== 'undefined' ? window : null;
+    return !!(w && w.NBDFlags && typeof w.NBDFlags.enabled === 'function' && w.NBDFlags.enabled('docClauseSetV1')
+      && w.NBDP5Forms && w.NBDClauseSet && typeof w.NBDClauseSet.textV1 === 'function' && w.NBDClauseText && w.NBDClauseText.CLAUSES);
+  }
+  DG.syncPhase5Types = function () {
+    var on = p5Wanted();
+    Object.keys(P5_ENTRIES).forEach(function (t) {
+      if (on) { DG.DOCUMENT_TYPES[t] = Object.assign({}, P5_ENTRIES[t]); if (DG.FORM_FIELDS) DG.FORM_FIELDS[t] = P5_FIELDS[t].slice(); }
+      else { delete DG.DOCUMENT_TYPES[t]; if (DG.FORM_FIELDS) delete DG.FORM_FIELDS[t]; }
+    });
+    try { if (window.DocPreflight && typeof window.DocPreflight.syncPhase5 === 'function') window.DocPreflight.syncPhase5(on); } catch (_) { /* the schema side retries at open */ }
+    return on;
+  };
+  DG.syncPhase5Types();
+  try { if (typeof window.addEventListener === 'function') window.addEventListener('nbd:flags-loaded', function () { DG.syncPhase5Types(); }); } catch (_) { /* no events */ }
+
+  // The pieces every phase 5 form shares: the party sentence, the registry paragraphs, the signature block.
+  function p5Ctx(type, d) {
+    var P = window.NBDP5Forms, CS = window.NBDClauseSet;
+    if (!P || !CS || !window.NBDClauseText || !window.NBDClauseText.CLAUSES) throw new Error('The form wording did not load. Reload the page and try again.');
+    var g = (typeof DG._nbdGate === 'function') ? DG._nbdGate() : { isNbd: true, brand: {} };
+    var cp = d.companyProfile || {};
+    var party = CS.partyFor(g.brand || {}, g.isNbd);
+    var terms = CS.paymentTermsFor(cp.paymentTerms, g.isNbd);
+    var st = stateOf(d);
+    var o = { state: st, paymentSource: '', terms: terms, party: party,
+      facts: { ownerNames: CS.plain(d.homeownerName), propertyAddress: CS.plain(d.address), date: '{{date}}', companyPhone: '' } };
+    return { P: P, CS: CS, B: T.brand(), g: g, cp: cp, party: party, terms: terms, state: st, X: P.TEXT, o: o, type: type };
+  }
+  function p5Paras(c, id) { return c.CS.textV1(id, c.o); }
+  function p5Words(s) { return esc(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>'); }
+  function p5Fill(text, c, d) {
+    return String(text).replace(/\{\{contractor\}\}/g, function () { return c.party.nameLine ? c.party.nameLine : '{{contractor}}'; })
+      .replace(/\{\{owner\}\}/g, function () { return String(d.homeownerName == null ? '' : d.homeownerName); })
+      .replace(/\{\{address\}\}/g, function () { return String(d.address == null ? '' : d.address); });
+  }
+  function p5Tick(id, html, required) {
+    return '<label class="aa-row"><input type="checkbox" data-nbd-ack="' + esc(id) + '"' + (required ? ' data-nbd-required="1"' : '') + '><span>' + html + '</span></label>';
+  }
+  function p5Sig(c, d) {
+    var signers = Array.isArray(d.signers) ? d.signers.filter(Boolean) : [];
+    if (signers.length && typeof DG.renderSignatureBlock === 'function') {
+      var mapped = signers.map(function (s) {
+        return (s && typeof s === 'object' && s.role === 'rep') ? Object.assign({}, s, { label: c.party.signerLabel }) : s;
+      });
+      return '<div class="section">' + DG.renderSignatureBlock(mapped, { v1party: c.party }) + '</div>';
+    }
+    return T.sigBlock(['Homeowner', c.party.signerLabel], d);
+  }
+  function p5Head(c, d, subExtra) {
+    var X = c.X;
+    return '<style>' + c.P.FORM_CSS + '</style>' + T.letterhead() +
+      '<h1 class="lib-h1">' + esc(X.NAMES[c.type]) + '</h1>' +
+      '<p class="lib-sub">' + esc(d.homeownerName) + ' &middot; ' + esc(d.address) + (subExtra ? ' &middot; ' + esc(subExtra) : '') + '</p>' +
+      '<p class="aa-ver">' + esc(c.P.VERSION) + '</p>' +
+      '<div class="section"><p class="aa-p">' + p5Words(p5Fill(X.PARTY, c, d)) + '</p></div>';
+  }
+  function p5Photos(ids, urls) {
+    if (!ids.length) return '';
+    return '<div class="aa-thumbs">' + ids.map(function (id) {
+      return urls && urls[id] ? '<img src="' + esc(urls[id]) + '" alt="Photo">' : '<span class="lib-fine">Photo on file (' + esc(id) + ')</span> ';
+    }).join('') + '</div>';
+  }
+
+  // ── 1. PROPERTY CONDITION & ACCESS ACKNOWLEDGMENT ──
+  DG.renderPropertyCondition = function (data) {
+    T.refresh();
+    var d = Object.assign({ homeownerName: '[Homeowner Name]', address: '[Property Address]' }, data);
+    var c = p5Ctx('property_condition', d), X = c.X;
+    var pc = d.propertyCondition && typeof d.propertyCondition === 'object' ? d.propertyCondition : {};
+    var notes = pc.notes && typeof pc.notes === 'object' ? pc.notes : {};
+    var urls = (d.propertyPhotoUrls && typeof d.propertyPhotoUrls === 'object') ? d.propertyPhotoUrls : {};
+    var photos = Array.isArray(pc.photos) ? pc.photos.filter(function (p) { return p && p.id; }) : [];
+    var flat = String(d.pcPhotoIds || '').split(/[,\s]+/).filter(function (s) { return /^[A-Za-z0-9_-]{1,64}$/.test(s); });
+    var walked = String(pc.walkedOn || d.walkedOn || '').trim();
+    var sch2 = p5Paras(c, 'SCH-2'), disp6 = p5Paras(c, 'DISP-6'), media = p5Paras(c, 'MEDIA-1');
+    var mediaLine = media.length ? media[0].split(' [ ]')[0] : '';
+    var parts = [];
+    parts.push(p5Head(c, d, walked ? 'Walked ' + (T.longDate(walked) || walked) : ''));
+    parts.push(c.P.marker('property_condition', 'base', ['SCH-2', 'DISP-6', 'MEDIA-1']));
+    parts.push('<div class="section">' + sch2.concat(disp6, mediaLine ? [mediaLine] : []).map(function (p) { return '<p class="aa-p">' + p5Words(p) + '</p>'; }).join('') + '</div>');
+    parts.push('<div class="section"><p class="aa-p">' + esc(X.PC_INTRO) + '</p>' + p5Tick('ack:pc_notice', esc(X.PC_NOTICE), true) + '</div>');
+    parts.push('<div class="section">' + c.P.PC_KEYS.map(function (k) {
+      var note = String(notes[k] != null ? notes[k] : (d['pcNote_' + k] || '')).trim();
+      var ph = photos.filter(function (p) { return p.item === k; }).map(function (p) { return p.id; });
+      return '<div class="p5-item">' + p5Tick('ack:pc_' + k, '<strong>' + esc(X.PC_ITEMS[k]) + '</strong>', true) +
+        '<p class="p5-note">' + esc(note || X.PC_NOTE_NONE) + '</p>' + p5Photos(ph, urls) + '</div>';
+    }).join('') + '</div>');
+    var other = photos.filter(function (p) { return !p.item || c.P.PC_KEYS.indexOf(p.item) === -1; }).map(function (p) { return p.id; }).concat(flat);
+    if (other.length) parts.push('<div class="section"><p class="aa-note">' + esc(X.PC_PHOTOS) + '</p>' + p5Photos(other, urls) + '</div>');
+    parts.push('<div class="section"><p class="aa-note">' + esc(X.TICK_NOTE) + '</p></div>');
+    parts.push(p5Sig(c, d), T.affiliateRow() + T.footer(X.NAMES.property_condition));
+    return T.page(X.NAMES.property_condition, parts.join(''));
+  };
+
+  // ── 2. HIDDEN CONDITIONS / DECKING AUTHORIZATION ──
+  // The per-sheet price is paymentTerms.deckingPerSheetCents (NBD's own default is none): unset or 0 prints the {{token}} and the send check
+  // refuses. More sheets than CO-2 allows without a change order prints a [Needs A Change Order] marker, which the send check also refuses.
+  DG.renderDeckingAuthorization = function (data) {
+    T.refresh();
+    var d = Object.assign({ homeownerName: '[Homeowner Name]', address: '[Property Address]' }, data);
+    var c = p5Ctx('decking_authorization', d), X = c.X;
+    var priceOk = c.CS.numOk(c.terms.deckingPerSheetCents, 'deckingPerSheetCents') && Number(c.terms.deckingPerSheetCents) > 0;
+    if (!priceOk) { c.terms = Object.assign({}, c.terms, { deckingPerSheetCents: null }); c.o.terms = c.terms; }
+    var perSheet = priceOk ? Number(c.terms.deckingPerSheetCents) : 0;
+    var limit = c.CS.numOk(c.terms.deckingSheetsBeforeChangeOrder, 'deckingSheetsBeforeChangeOrder') ? Number(c.terms.deckingSheetsBeforeChangeOrder) : null;
+    var n = Number(d.deckingSheets);
+    var haveN = isFinite(n) && n > 0 && Math.floor(n) === n;
+    var over = haveN && limit != null && n > limit;
+    var sheetsCell = !haveN ? '[Number Of Sheets]' : (over ? '[Needs A Change Order]' : String(n));
+    var priceCell = priceOk ? T.centsText(perSheet) : '{{deckingPerSheetCents}}';
+    var totalCell = (haveN && !over && priceOk) ? T.centsText(n * perSheet) : (!priceOk ? '{{deckingPerSheetCents}}' : sheetsCell);
+    var urls = (d.deckingPhotoUrls && typeof d.deckingPhotoUrls === 'object') ? d.deckingPhotoUrls : {};
+    var ids = (Array.isArray(d.deckingPhotos) ? d.deckingPhotos : []).map(function (p) { return p && typeof p === 'object' ? p.id : p; })
+      .concat(String(d.deckingPhotoIds || '').split(/[,\s]+/)).filter(function (s) { return typeof s === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(s); });
+    var found = String(d.deckingFoundOn || '').trim();
+    var where = String(d.deckingWhere || '').trim();
+    var kvRow = function (k, v) { return '<div><dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd></div>'; };
+    var parts = [];
+    parts.push(p5Head(c, d, found ? 'Found ' + (T.longDate(found) || found) : ''));
+    parts.push(c.P.marker('decking_authorization', 'base', ['CO-2']));
+    parts.push('<div class="section">' + p5Paras(c, 'CO-2').map(function (p) { return '<p class="aa-p">' + p5Words(p) + '</p>'; }).join('') + '</div>');
+    parts.push('<div class="section"><p class="aa-p">' + esc(X.DK_INTRO) + '</p><dl class="p5-kv">' +
+      (found ? kvRow(X.DK_FOUND, T.longDate(found) || found) : '') + (where ? kvRow(X.DK_WHERE, where) : '') +
+      kvRow(X.DK_SHEETS, sheetsCell) + kvRow(X.DK_PRICE, priceCell) + kvRow(X.DK_TOTAL, totalCell) + '</dl>' +
+      (ids.length ? '<p class="aa-note">' + esc(X.DK_PHOTOS) + '</p>' + p5Photos(ids, urls) : '') + '</div>');
+    parts.push('<div class="section">' + p5Tick('ack:decking_read', esc(X.DK_READ), true) +
+      '<label class="aa-row"><input type="radio" name="p5-decking" data-nbd-ack="rec:decking:yes" aria-label="Approve"><span>' + esc(X.DK_YES) + '</span></label>' +
+      '<label class="aa-row"><input type="radio" name="p5-decking" data-nbd-ack="rec:decking:no" aria-label="Decline"><span>' + esc(X.DK_NO) + '</span></label>' +
+      '<p class="aa-note">' + esc(X.TICK_NOTE_LINE) + '</p></div>');
+    parts.push(p5Sig(c, d), T.affiliateRow() + T.footer(X.NAMES.decking_authorization));
+    return T.page(X.NAMES.decking_authorization, parts.join(''));
+  };
+
+  // ── 3. EMERGENCY SERVICES REQUEST ──
+  // A SEPARATE request the homeowner signs and dates (tarp / dry-in inside the cancellation window). Homeowner only: no contractor line.
+  // Only what the law memo (KY-OH-CONTRACTOR-LAW-RESEARCH-2026-10-13) says is stated: Ohio, a separate handwritten, dated, signed request
+  // (ORC 1345.21); Kentucky, an exception for work the buyer asks to start without delay (KRS 367.420). Whether a drawn signature on a
+  // screen is "handwritten", and what else the request must say, is open (packet question 9): attorney to confirm. An unreadable state
+  // prints the stricter Ohio line.
+  DG.renderEmergencyServicesRequest = function (data) {
+    T.refresh();
+    var d = Object.assign({ homeownerName: '[Homeowner Name]', address: '[Property Address]', emergencyWork: '[Emergency Work]' }, data);
+    var work = String(d.emergencyWork == null ? '' : d.emergencyWork).trim() || '[Emergency Work]';
+    var c = p5Ctx('emergency_services_request', d), X = c.X;
+    var variant = c.state === 'KY' ? 'ky' : 'oh';
+    var parts = [];
+    parts.push(p5Head(c, d, ''));
+    parts.push(c.P.marker('emergency_services_request', variant, ['SCH-1']));
+    parts.push('<div class="section"><p class="aa-p">' + esc(X.EM_INTRO) + '</p>' + p5Paras(c, 'SCH-1').map(function (p) { return '<p class="aa-p">' + p5Words(p) + '</p>'; }).join('') + '</div>');
+    parts.push('<div class="section"><p class="aa-note">' + esc(X.EM_WORK_H) + '</p><p class="aa-p">' + esc(work) + '</p>' +
+      p5Tick('ack:em_request', esc(X.EM_REQUEST), true) + p5Tick('ack:em_notice', esc(X.EM_NOTICE), true) +
+      '<p class="aa-p">' + esc(variant === 'ky' ? X.EM_KY : X.EM_OH) + '</p>' +
+      '<p class="aa-note">' + esc(X.EM_PAPER) + '</p><div class="p5-blank"></div>' +
+      '<p class="aa-note">' + esc(X.TICK_NOTE) + '</p></div>');
+    var own = Array.isArray(d.signers) && d.signers.length ? d.signers : null;
+    parts.push(own ? '<div class="section">' + DG.renderSignatureBlock(own.filter(function (s) { return !(s && typeof s === 'object' && s.role === 'rep'); })) + '</div>' : T.sigBlock(['Homeowner'], d));
+    parts.push(T.affiliateRow() + T.footer(X.NAMES.emergency_services_request));
+    return T.page(X.NAMES.emergency_services_request, parts.join(''));
+  };
+
+  // ── 4. FINAL WALKTHROUGH & PUNCH LIST ──
+  // PAY-4 is the registry's (the window to list items is paymentTerms.punchListDays; only the listed items may be held back). The rep
+  // enters the completion and walkthrough dates and the open items (data.punchItems: strings or { text, holdCents }; [] = none; the
+  // pre-flight's punchItemsText is one item per line, an optional amount after " | " in dollars). Neither listed nor declared none prints
+  // a [placeholder], which the send check refuses.
+  function p5PunchItems(d) {
+    if (Array.isArray(d.punchItems)) return d.punchItems;
+    if (typeof d.punchItemsText === 'string') {
+      return d.punchItemsText.split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean).map(function (l) {
+        var m = /^(.*?)\s*\|\s*\$?([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*$/.exec(l);
+        return m ? { text: m[1], holdCents: T.toCents(m[2]) } : { text: l };
+      });
+    }
+    return null;
+  }
+  DG.renderFinalWalkthrough = function (data) {
+    T.refresh();
+    var d = Object.assign({ homeownerName: '[Homeowner Name]', address: '[Property Address]' }, data);
+    var c = p5Ctx('final_walkthrough', d), X = c.X;
+    var jur = jurisdictionOf(d);
+    var jt = (J() && typeof J().normJobType === 'function') ? J().normJobType(d.jobType || (window._leadDoc && window._leadDoc.jobType)) : '';
+    c.o.paymentSource = (jur && jur.insurance) ? 'insurance' : (jt === 'finance' ? 'financed' : 'cash');
+    var raw = p5PunchItems(d);
+    var list = (raw || []).map(function (i) { return i && typeof i === 'object' ? { text: String(i.text || '').trim(), hold: Math.max(0, Math.round(Number(i.holdCents) || 0)) } : { text: String(i == null ? '' : i).trim(), hold: 0 }; })
+      .filter(function (i) { return i.text; });
+    var variant = (raw && !list.length) ? 'none' : 'items';
+    var held = list.reduce(function (s, i) { return s + i.hold; }, 0);
+    var done = String(d.completionDate || '').trim(), walk = String(d.walkthroughDate || '').trim();
+    var kvRow = function (k, v) { return '<div><dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd></div>'; };
+    var parts = [];
+    parts.push(p5Head(c, d, ''));
+    parts.push(c.P.marker('final_walkthrough', variant, ['PAY-4']));
+    parts.push('<div class="section"><p class="aa-p">' + esc(X.FW_INTRO) + '</p>' + p5Paras(c, 'PAY-4').map(function (p) { return '<p class="aa-p">' + p5Words(p) + '</p>'; }).join('') +
+      '<dl class="p5-kv">' + kvRow(X.FW_COMPLETED, done ? (T.longDate(done) || done) : '[Completion Date]') +
+      kvRow(X.FW_WALKTHROUGH, walk ? (T.longDate(walk) || walk) : '[Walkthrough Date]') + '</dl></div>');
+    var itemsHtml = !raw ? '<p class="aa-p">[Open Items Not Entered]</p>'
+      : (list.length ? '<ol class="lib-list">' + list.map(function (i) { return '<li>' + esc(i.text) + (i.hold ? ' &mdash; ' + esc(T.centsText(i.hold)) : '') + '</li>'; }).join('') + '</ol>' +
+        (held ? '<dl class="p5-kv">' + kvRow(X.FW_HOLD, T.centsText(held)) + '</dl>' : '') : '');
+    parts.push('<div class="section"><p class="aa-note">' + esc(X.FW_ITEMS_H) + '</p>' + itemsHtml +
+      p5Tick('ack:fw_walked', esc(X.FW_WALKED), true) +
+      (variant === 'none' ? p5Tick('ack:fw_no_items', esc(X.FW_NO_ITEMS), true) : p5Tick('ack:fw_items_listed', esc(X.FW_ITEMS_LISTED), true)) +
+      '<p class="aa-note">' + esc(X.TICK_NOTE) + '</p></div>');
+    parts.push(p5Sig(c, d), T.affiliateRow() + T.footer(X.NAMES.final_walkthrough));
+    return T.page(X.NAMES.final_walkthrough, parts.join(''));
+  };
+
+  // ── 5. OHIO INSURANCE JOB ACKNOWLEDGMENT ──
+  // Ohio only: a Kentucky (or unreadable-state) property prints an [Ohio Only] marker and the send check refuses it with a message
+  // pointing to the Kentucky notices and forms (ky-insurance-law.js; nothing of them is restated here). Each statement is a required
+  // tick whose label is the clause itself: INS-1 (the shipped payment clause's no-representation sentence), INS-2, CO-3, INS-5.
+  DG.renderOhioInsuranceAck = function (data) {
+    T.refresh();
+    var d = Object.assign({ homeownerName: '[Homeowner Name]', address: '[Property Address]' }, data);
+    var c = p5Ctx('ohio_insurance_ack', d), X = c.X;
+    var carrier = String(d.insCarrier || d.insuranceCompany || '').trim(), claim = String(d.claimNumber || '').trim();
+    var pay = (c.CS.textFor && c.CS.textFor('PAYMENT', 'all')) || (J() && J().PAYMENT_CLAUSE) || '';
+    var ins1 = c.P.ins1(pay);
+    if (!ins1) throw new Error('The payment clause did not load. Reload the page and try again.');
+    var kvRow = function (k, v) { return '<div><dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd></div>'; };
+    var rows = [['ack:ins_claim', [ins1]], ['ack:ins_deductible', p5Paras(c, 'INS-2')], ['ack:ins_supplement', p5Paras(c, 'CO-3')], ['ack:ins_assignment', p5Paras(c, 'INS-5')]];
+    var parts = [];
+    parts.push(p5Head(c, d, ''));
+    parts.push(c.P.marker('ohio_insurance_ack', 'base', ['INS-1', 'INS-2', 'CO-3', 'INS-5']));
+    if (c.state !== 'OH') parts.push('<div class="section"><p class="aa-p">[Ohio Only]</p></div>');
+    parts.push('<div class="section"><p class="aa-p">' + esc(X.OI_INTRO) + '</p>' +
+      ((carrier || claim) ? '<dl class="p5-kv">' + (carrier ? kvRow(X.OI_CARRIER, carrier) : '') + (claim ? kvRow(X.OI_CLAIM, claim) : '') + '</dl>' : '') + '</div>');
+    parts.push('<div class="section">' + rows.map(function (r) { return p5Tick(r[0], p5Words(r[1].join(' ')), true); }).join('') + '<p class="aa-note">' + esc(X.TICK_NOTE) + '</p></div>');
+    parts.push(p5Sig(c, d), T.affiliateRow() + T.footer(X.NAMES.ohio_insurance_ack));
+    return T.page(X.NAMES.ohio_insurance_ack, parts.join(''));
+  };
+
   // Brand refresh is done inside each renderer (T.refresh()), so these are
   // tenant-aware without the templates file's wrapping loop.
   if (DG.FORM_FIELDS) {
@@ -568,6 +946,8 @@
       lien_waiver: ['homeownerName', 'address', 'waiverKind', 'payerType', 'payerName', 'amount', 'throughDate', 'checkNumber'],
       right_to_cancel: ['homeownerName', 'address', 'contractDate'],
       material_selection: ['homeownerName', 'address', 'shingleLine', 'shingleColor', 'dripEdge', 'ventilation', 'gutters', 'gutterColor'],
+      attic_acknowledgment: ['homeownerName', 'address'],
+      attic_not_inspected: ['homeownerName', 'address'],
       proposal_options: ['homeownerName', 'address'],
       insurance_next_steps: ['homeownerName', 'address', 'scopeOfWork']
     });

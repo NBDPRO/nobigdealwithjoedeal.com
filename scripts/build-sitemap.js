@@ -6,10 +6,19 @@
  * diff against the current docs/sitemap.xml and writes NOTHING. Pass --write
  * to actually replace the file (atomic write: temp file + rename).
  *
- * lastmod policy: each URL already present in docs/sitemap.xml keeps its
- * current <lastmod>. Only URLs that are NEW to the sitemap get today's date.
- * (The previous generator re-stamped every URL on every run, destroying the
- * change history — that is why this one parses the existing file first.)
+ * lastmod policy (2026-11-17): <lastmod> is the page file's REAL last git
+ * commit date, not one blanket stamp. 188 URLs once carried the same
+ * 2026-07-13 date, which tells Google nothing. --write derives each date from
+ * `git log -1` on the page file when the clone has full history; on a shallow
+ * clone (every file's git date collapses to the tip commit) it keeps the
+ * recorded date instead. A URL with no git history (brand-new, uncommitted)
+ * falls back to the page's own JSON-LD dateModified, then today.
+ * The default dry-run drift check never compares dates against git: it keeps
+ * recorded lastmods, so it reports only added/removed URLs and format drift
+ * (a squash-merge rewrites commit dates, which would otherwise make the gate
+ * red forever). <changefreq> and <priority> are no longer emitted: Google
+ * ignores both. The CORE_PAGES/etc. priority columns below are kept only as
+ * ordering/curation data.
  *
  * Regression note (2026-04-17): a previous ad-hoc rebuild used path.join on
  * Windows and leaked backslashes into 11 service URLs. This generator builds
@@ -44,15 +53,19 @@ const DOCS = path.join(ROOT, 'docs');
 const OUT = path.join(DOCS, 'sitemap.xml');
 const ORIGIN = 'https://nobigdealwithjoedeal.com';
 const TODAY = new Date().toISOString().slice(0, 10);
+// A commit touching this many docs html pages counts as a sitewide restamp.
+const MASS_COMMIT_HTML = 60;
 
 const USAGE = [
   'Usage:',
   '  node scripts/build-sitemap.js          Dry-run (default): print a unified diff vs docs/sitemap.xml. Writes NOTHING.',
-  '  node scripts/build-sitemap.js --write  Regenerate docs/sitemap.xml (atomic temp-file + rename).',
-  '  node scripts/build-sitemap.js --write --lastmod-from-git  Also refresh <lastmod> from each page\'s last git commit date (local full clones only).',
+  '  node scripts/build-sitemap.js --write  Regenerate docs/sitemap.xml (atomic temp-file + rename). On a full-history clone, <lastmod> is each page\'s last git commit date.',
+  '  node scripts/build-sitemap.js --lastmod-from-git  Preview the git-derived <lastmod> dates in the dry-run diff (aborts on a shallow clone).',
+  '  node scripts/build-sitemap.js --write --keep-lastmod  Regenerate but keep every recorded <lastmod> (new URLs: git date, else dateModified, else today).',
   '',
   'Behavior:',
-  '  - Existing URLs keep their current <lastmod>; only NEW URLs get today\'s date.',
+  '  - Default dry-run keeps recorded <lastmod> values, so it only flags added/removed URLs and format drift.',
+  '  - --write on a shallow clone keeps recorded dates (git dates would all collapse to the tip commit).',
   '  - Any other flag (including --help) prints this usage and exits without writing.',
 ].join('\n');
 
@@ -62,7 +75,6 @@ const USAGE = [
 const CORE_PAGES = [
   ['',             'index.html',            '1.0',  'weekly'],
   ['the-pledge',   'the-pledge/index.html', '0.95', 'monthly'],
-  ['book',         'book/index.html',       '0.9',  'weekly'],
   ['about',        'about.html',            '0.8',  'monthly'],
   ['credentials',  'credentials.html',      '0.6',  'monthly'],
   ['our-work',     'our-work.html',         '0.8',  'monthly'],
@@ -70,9 +82,8 @@ const CORE_PAGES = [
   ['visualizer',   'visualizer.html',       '0.7',  'monthly'],
   ['estimate',     'estimate.html',         '0.9',  'weekly'],
   ['inspect',      'inspect.html',          '0.9',  'weekly'],
-  ['storm-check',  'storm-check.html',      '0.9',  'weekly'],
-  ['roof-score',   'roof-score.html',       '0.9',  'weekly'],
-  ['storm-report', 'storm-report.html',     '0.9',  'weekly'],
+  // 2026-11-25: /storm-check, /roof-score and /storm-report merged into /roof-check (301s in firebase.json).
+  ['roof-check',   'roof-check.html',       '0.9',  'weekly'],
   ['free-roof',    'free-roof/index.html',  '0.85', 'monthly'],
   ['free-tools',   'free-tools/index.html', '0.85', 'monthly'],
   ['privacy',      'privacy.html',          '0.6',  'monthly'],
@@ -234,8 +245,7 @@ function parseLastmods(xml) {
 function generate(prevLastmod, warn) {
   const entry = (loc, changefreq, priority) =>
     '  <url><loc>' + loc + '</loc><lastmod>' + (prevLastmod.get(loc) || TODAY) +
-    '</lastmod><changefreq>' + changefreq + '</changefreq><priority>' + priority +
-    '</priority></url>';
+    '</lastmod></url>';
 
   const checkExists = (rel, urlPath) => {
     if (!fs.existsSync(path.join(DOCS, rel))) {
@@ -510,9 +520,11 @@ function main() {
   const args = process.argv.slice(2);
   let write = false;
   let lastmodFromGit = false;
+  let keepLastmod = false;
   for (const arg of args) {
     if (arg === '--write') { write = true; continue; }
     if (arg === '--lastmod-from-git') { lastmodFromGit = true; continue; }
+    if (arg === '--keep-lastmod') { keepLastmod = true; continue; }
     const isHelp = arg === '--help' || arg === '-h';
     (isHelp ? console.log : console.error)(USAGE);
     process.exit(isHelp ? 0 : 2); // never writes
@@ -531,30 +543,87 @@ function main() {
   const currentLF = current.replace(/\r\n/g, '\n');
   const prevLastmod = parseLastmods(currentLF);
 
-  // --lastmod-from-git: stamp each URL with its page file's last git commit
-  // date when that is NEWER than the recorded lastmod. Local/manual use only:
-  // CI checkouts are shallow (depth 1), where every file's git date collapses
-  // to the latest commit and would falsely re-stamp unchanged pages. Note
-  // lastmod reflects any committed change to the file, including styling —
-  // an honest hint, not an editorial-significance signal.
-  if (lastmodFromGit) {
-    const { execFileSync } = require('child_process');
+  // Git-derived lastmod. Derivation runs for --write (unless --keep-lastmod)
+  // and for the explicit --lastmod-from-git preview. It needs full history: on
+  // a shallow clone every file's git date is the tip commit, so --write quietly
+  // keeps the recorded dates and the explicit flag aborts. Note the date
+  // reflects ANY committed change to the file, including a partial restamp or
+  // styling tweak: an honest hint, not an editorial-significance signal.
+  const wantDerive = lastmodFromGit || (write && !keepLastmod);
+  let derive = wantDerive;
+  const { execFileSync } = require('child_process');
+  if (wantDerive) {
+    let shallow = true;
     try {
-      execFileSync('git', ['rev-parse', '--is-shallow-repository'], { cwd: ROOT })
-        .toString().trim() === 'true' &&
-        (console.error('FATAL: shallow clone — git lastmod dates would be wrong. Aborting.'), process.exit(2));
-    } catch (e) { console.error('FATAL: not a git checkout.'); process.exit(2); }
-    let bumped = 0;
-    for (const [loc, prev] of prevLastmod) {
-      const rel = urlToFile(loc);
-      if (!rel || !fs.existsSync(path.join(DOCS, rel))) continue;
-      let gitDate = '';
-      try {
-        gitDate = execFileSync('git', ['log', '-1', '--format=%cs', '--', 'docs/' + rel], { cwd: ROOT }).toString().trim();
-      } catch (e) { continue; }
-      if (gitDate && gitDate > prev) { prevLastmod.set(loc, gitDate); bumped++; }
+      shallow = execFileSync('git', ['rev-parse', '--is-shallow-repository'], { cwd: ROOT }).toString().trim() === 'true';
+    } catch (e) {
+      if (lastmodFromGit) { console.error('FATAL: not a git checkout.'); process.exit(2); }
+      derive = false;
     }
-    console.log('lastmod-from-git: bumped ' + bumped + ' of ' + prevLastmod.size + ' URLs.');
+    if (derive && shallow) {
+      if (lastmodFromGit) { console.error('FATAL: shallow clone — git lastmod dates would be wrong. Aborting.'); process.exit(2); }
+      console.log('NOTE: shallow clone — keeping recorded <lastmod> dates (git dates unavailable).');
+      derive = false;
+    }
+  }
+  const pageDateModified = (rel) => {
+    try {
+      const html = fs.readFileSync(path.join(DOCS, rel), 'utf8');
+      const m = html.match(/"dateModified"\s*:\s*"(\d{4}-\d{2}-\d{2})/);
+      return m && m[1] <= TODAY ? m[1] : '';
+    } catch (e) { return ''; }
+  };
+  // One `git log` pass over docs/ (newest first). A commit that touched
+  // MASS_COMMIT_HTML or more html pages is a sitewide restamp (footer partial,
+  // social links, nav): it dates every page the same day and says nothing about
+  // any one page, so it is skipped. Per page: newest non-sitewide commit, else
+  // the page's own JSON-LD dateModified, else its oldest commit of any kind.
+  let gitDates = null;
+  const loadGitDates = () => {
+    const out = execFileSync('git', ['log', '--format=@%cs', '--name-only', '--', 'docs'],
+      { cwd: ROOT, maxBuffer: 512 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+    const newest = new Map();
+    const oldest = new Map();
+    for (const chunk of out.split('\n@').filter(Boolean)) {
+      const lines = chunk.replace(/^@/, '').split('\n');
+      const date = lines[0].trim();
+      const files = lines.slice(1).map((l) => l.trim()).filter((l) => /^docs\/.*\.html$/.test(l));
+      const mass = files.length >= MASS_COMMIT_HTML;
+      for (const file of files) {
+        oldest.set(file, date);
+        if (!mass && !newest.has(file)) newest.set(file, date);
+      }
+    }
+    return { newest, oldest };
+  };
+  const deriveLastmod = (loc) => {
+    const rel = urlToFile(loc);
+    if (!rel) return '';
+    if (!gitDates) gitDates = loadGitDates();
+    const key = 'docs/' + rel;
+    return gitDates.newest.get(key) || pageDateModified(rel) || gitDates.oldest.get(key) || '';
+  };
+  if (derive) {
+    // Pass 1 renders with recorded dates only to learn the final URL set, so
+    // brand-new URLs get a derived date too (not a blanket today stamp).
+    const probe = generate(prevLastmod, () => {});
+    const probeLocs = [...probe.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+    let changed = 0;
+    for (const loc of probeLocs) {
+      const d = deriveLastmod(loc);
+      if (!d) continue;
+      if (prevLastmod.get(loc) !== d) changed++;
+      prevLastmod.set(loc, d);
+    }
+    console.log('lastmod from git: ' + changed + ' of ' + probeLocs.length + ' URLs changed date.');
+  } else if (write && keepLastmod) {
+    // New URLs only: a real date beats a blanket today stamp.
+    const probe = generate(prevLastmod, () => {});
+    for (const m of probe.matchAll(/<loc>([^<]+)<\/loc>/g)) {
+      if (prevLastmod.has(m[1])) continue;
+      const d = deriveLastmod(m[1]);
+      if (d) prevLastmod.set(m[1], d);
+    }
   }
 
   const warnings = [];

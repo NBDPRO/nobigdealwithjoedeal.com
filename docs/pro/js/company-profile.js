@@ -136,6 +136,14 @@
 
     latePaymentChargeText: '1.5% monthly finance charge',
 
+    /* PAYMENT TERMS (clause set v1, flag docClauseSetV1): the numbers the clauses print; equals
+       clause-set.js NBD_PAYMENT_TERMS_DEFAULTS. Other tenants get them blank (_resolveLegal). */
+    paymentTerms: {
+      lateGraceDays: 15, lateInterestPct: 8, disputeDays: 10, finalPaymentDays: 7, punchListDays: 3,
+      pauseNoticeDays: 5, restockPct: 15, cardFeePct: 0, deckingPerSheetCents: null,
+      deckingSheetsBeforeChangeOrder: 10, atticFreeCheckDays: 3, claimNoticeDays: 30
+    },
+
     /* ── FINANCING ─────────────────────────────────────────────── */
     financePartner: 'Acorn Finance',
     // apr 0 = "rate set by the lender" sentinel (see renderFinancingOptions in
@@ -182,6 +190,14 @@
     brand: {
       displayName: 'No Big Deal',
       legalName:   'No Big Deal Home Solutions',
+      // Legal-entity fields (2026-11-18, data only; no document prints them yet).
+      // entityName is the contracting party, dbaName the name it trades under, signerTitle
+      // the title of the person who signs for it. Identity fields: blanked for any other
+      // tenant that has not set its own (_IDENTITY_TOP below). With the send checks on
+      // (flag docEvidenceFoundation) a contract is refused while entityName is blank.
+      entityName:  'No Big Deal Solutions LLC',
+      dbaName:     'No Big Deal Home Solutions',
+      signerTitle: 'Manager',
       seal:        'NBD',
       docPrefix:   'NBD',   // customer IDs / doc numbers: NBD-0001, NBD-WC-…
       // The tagline documents actually carry. Was "No Big Deal with Joe Deal —
@@ -321,6 +337,10 @@
   // configured tenant never inherits NBD's phone/email/logo/seal (review M1).
   // null until a keyed load/cache/save populates it (i.e. NBD or pre-auth).
   let _brandOverrideRaw = null;
+  // The tenant's RAW paymentTerms (what it wrote, not the NBD defaults merged under it). _resolveLegal keeps a field
+  // when the tenant set it, whatever its value, and blanks it when it did not (review 2026-11-18, item 2): blank by
+  // tenant identity, never by comparing with NBD's number.
+  let _ptOverrideRaw = null;
 
   // Resolve the per-tenant document key for `companyProfile/{key}`.
   //
@@ -415,6 +435,7 @@
     _profileEpoch++;
     _loadedKey = null;
     _brandOverrideRaw = null;
+    _ptOverrideRaw = null;
     window._companyProfile = deepMerge({}, NBD_COMPANY_PROFILE_DEFAULTS);
     if (window._companyProfileLoaded === true) window._companyProfileLoaded = false;
   };
@@ -442,12 +463,14 @@
         // overrides can't survive into this tenant's session.
         window._companyProfile = deepMerge({}, NBD_COMPANY_PROFILE_DEFAULTS);
         _brandOverrideRaw = null;
+        _ptOverrideRaw = null;
         try {
           const cachedRaw = localStorage.getItem(_cacheKeyFor(key));
           if (cachedRaw) {
             const cached = JSON.parse(cachedRaw) || {};
             window._companyProfile = deepMerge(NBD_COMPANY_PROFILE_DEFAULTS, cached);
             _brandOverrideRaw = cached.brand || null;
+            _ptOverrideRaw = cached.paymentTerms || null;
           }
         } catch (_) { /* ignore */ }
       }
@@ -497,6 +520,7 @@
         const remote = snap.data() || {};
         window._companyProfile = deepMerge(NBD_COMPANY_PROFILE_DEFAULTS, remote);
         _brandOverrideRaw = (remote && remote.brand) || null;
+        _ptOverrideRaw = (remote && remote.paymentTerms) || null;
         try { localStorage.setItem(_cacheKeyFor(key), JSON.stringify(remote)); } catch (_) {}
       } else {
         // The server has no doc for this tenant: the defaults ARE its
@@ -504,6 +528,7 @@
         // server's — a write the rules refused, or a doc since deleted.
         window._companyProfile = deepMerge({}, NBD_COMPANY_PROFILE_DEFAULTS);
         _brandOverrideRaw = null;
+        _ptOverrideRaw = null;
         try { localStorage.removeItem(_cacheKeyFor(key)); } catch (_) {}
       }
       // Hydration is DEFINITIVE only once the doc read succeeded (exists or
@@ -681,12 +706,14 @@
     // Snapshot for a rollback if the server refuses the write (ST-F02).
     const _rbProfile = window._companyProfile;
     const _rbBrandRaw = _brandOverrideRaw;
+    const _rbPtRaw = _ptOverrideRaw;
     let _rbCache = null;
     if (key) { try { _rbCache = localStorage.getItem(_cacheKeyFor(key)); } catch (_) { /* storage blocked */ } }
     window._companyProfile = onServerCopy
       ? deepMerge(window._companyProfile, overridesObj)
       : deepMerge(NBD_COMPANY_PROFILE_DEFAULTS, mergedRemote);
     if ('brand' in overridesObj) _brandOverrideRaw = overridesObj.brand || null;
+    if (overridesObj.paymentTerms && typeof overridesObj.paymentTerms === 'object') _ptOverrideRaw = Object.assign({}, _ptOverrideRaw || {}, overridesObj.paymentTerms);
     if (key) { try { localStorage.setItem(_cacheKeyFor(key), JSON.stringify(mergedRemote)); } catch (_) {} }
     if (!window.db) return window._companyProfile;
     if (!key) {
@@ -716,6 +743,7 @@
       if (window._companyProfile === _applied) {
         window._companyProfile = _rbProfile;
         _brandOverrideRaw = _rbBrandRaw;
+        _ptOverrideRaw = _rbPtRaw;
         try {
           if (_rbCache == null) localStorage.removeItem(_cacheKeyFor(key));
           else localStorage.setItem(_cacheKeyFor(key), _rbCache);
@@ -768,7 +796,7 @@
   // worse failure than a wrong colour. Blanked to '' like the rest of the
   // identity surface; the badge renderer treats '' / [] / undefined as "no
   // badges" so a tenant that has not set its own simply prints none.
-  const _IDENTITY_TOP     = ['seal', 'docPrefix', 'tagline', 'smsSignOff', 'logoUrl', 'affiliates'];
+  const _IDENTITY_TOP     = ['seal', 'docPrefix', 'tagline', 'smsSignOff', 'logoUrl', 'affiliates', 'entityName', 'dbaName', 'signerTitle'];
   // 'mailingAddress' belongs here for the same reason as the rest: it is a
   // postal address that identifies a specific business. Left to deep-merge, a
   // stranger tenant would inherit NBD's the moment NBD sets one.
@@ -929,6 +957,14 @@
         if (R && typeof R.policyText === 'function') out[k] = R.policyText();
       }
     });
+    // Payment terms: NBD's numbers are NBD's. A tenant keeps the fields IT set (by identity, not by value: a tenant that
+    // deliberately chose 8% keeps 8%) and the rest are unset, the same as the server reads it.
+    if (out.paymentTerms && typeof out.paymentTerms === 'object') {
+      const pt = {};
+      const rawPt = _ptOverrideRaw && typeof _ptOverrideRaw === 'object' ? _ptOverrideRaw : {};
+      Object.keys(D.paymentTerms).forEach(function (k) { pt[k] = rawPt[k] !== undefined && rawPt[k] !== null && rawPt[k] !== '' ? rawPt[k] : null; });
+      out.paymentTerms = pt;
+    }
     return out;
   }
   const _NBD_ONLY_MARKETING = ['financePartner', 'services', 'valueProps', 'tagline'];

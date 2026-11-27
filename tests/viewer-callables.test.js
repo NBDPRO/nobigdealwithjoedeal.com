@@ -360,6 +360,10 @@ const CASES = [
   { fn: 'createSignRequest', file: 'remote-signing.js', kind: 'call', data: { leadId: 'lead-1', docId: 'doc-1', signerEmail: 'sam@example.com', signerName: 'Sam' } },
   // 2026-10-03: in-person signing moves the card + drafts the deposit invoice.
   { fn: 'recordInPersonSignature', file: 'in-person-signing.js', kind: 'call', data: { leadId: 'lead-1', docId: 'doc-1' } },
+  // 2026-11-18: paper certification (a viewer is refused before anything else).
+  { fn: 'attestWetSigned', file: 'paper-cert.js', kind: 'call', data: { leadId: 'lead-1', docId: 'doc-1' } },
+  // 2026-11-18: the owner/admin attic override (a viewer is refused before anything else).
+  { fn: 'recordAtticOverride', file: 'attic-override.js', kind: 'call', data: { leadId: 'lead-1', reason: 'Homeowner would not sign the page' } },
   // 2026-10-04: BoldSign's sendEstimateForSignature retired; the estimate's
   // send-for-signature is the in-house sendEstimateEnvelope.
   { fn: 'sendEstimateEnvelope', file: 'esign-envelope.js', kind: 'call', data: { estimateId: 'est-1', signers: [{ name: 'Sam', email: 'sam@example.com' }] } },
@@ -393,6 +397,8 @@ const CASES = [
   // 2026-11-17: the supplier price ledger (priceCaller refuses a viewer before the rate limit and before any read).
   { fn: 'priceLedgerSave', file: 'price-ledger.js', kind: 'call', data: { op: 'archiveOffer', data: { offerId: 'other_testco_TEST-0001' } } },
   { fn: 'priceLedgerRecord', file: 'price-ledger.js', kind: 'call', data: { rows: [] } },
+  // 2026-11-18: the supplier document reader (slice 9): priceCaller refuses a viewer before anything is read or paid.
+  { fn: 'priceDocRead', file: 'price-doc-read.js', kind: 'call', data: { file: 'data:application/pdf;base64,JVBERg==', fileName: 'q.pdf' } },
   { fn: 'resolveAddress', file: 'handlers/geocode.js', kind: 'call', data: { mode: 'forward', address: '123 Main St, Cincinnati OH' } },
 ];
 
@@ -449,6 +455,8 @@ const VERDICTS = {
   carePlanAdmin: 'role-gated', carePlanPublic: 'public', carePlanWebhook: 'public',
   // NBD's Twilio line (twilio-line.js, 2026-10-06): Twilio webhooks — no user
   // auth, X-Twilio-Signature verified instead (like incomingSMS).
+  // reviewAskTextStatus (S3, 2026-11-26): Twilio's signed status callback for review texts, no user auth.
+  reviewAskTextStatus: 'public',
   twilioSmsWebhook: 'public', twilioSmsStatus: 'public', twilioVoiceWebhook: 'public', twilioVoiceDialStatus: 'public',
   // Google Calendar sync (2026-09-29): owner / owner's company_admin / platform admin only.
   setupGoogleCalendar: 'role-gated', getGoogleCalendarStatus: 'role-gated', getBusyTimes: 'role-gated',
@@ -466,6 +474,9 @@ const VERDICTS = {
   createDealAcceptToken: 'refused', createEsignEnvelope: 'refused', createPortalToken: 'refused',
   createReportShareToken: 'refused', createSignRequest: 'refused', createTeamInvite: 'role-gated',
   recordInPersonSignature: 'refused',
+  recordAtticOverride: 'refused',
+  // 2026-11-18: paper certification (a viewer is read-only; the lead's owner or same-company staff certify).
+  attestWetSigned: 'refused',
   // "Use it" on the homeowner's accepted tier (2026-10-07, R6-2-4): rebuilds the estimate.
   useAcceptedTier: 'refused',
   // Send for review / Fresh link (2026-10-03, estimate-send.js): mint or revoke a homeowner link.
@@ -474,7 +485,7 @@ const VERDICTS = {
   getJobWeather: 'role-gated',
   createTeamMember: 'role-gated', deactivateUser: 'role-gated', dictate: 'read-paid',
   exportMyData: 'self', extractReceiptData: 'refused', submitInboxReceipt: 'refused', getAdjusterTacticBoard: 'read',
-  priceLedgerSave: 'refused', priceLedgerRecord: 'refused',
+  priceLedgerSave: 'refused', priceLedgerRecord: 'refused', priceDocRead: 'refused',
   getAdminAnalytics: 'role-gated', getAiTextingStats: 'read', getAiUsageAnalytics: 'role-gated',
   getConnectStatus: 'read', getDocumentHtml: 'read', getDocumentPdfUrl: 'read', getEsignEnvelopeForOwner: 'read',
   getHailHistory: 'read-paid',
@@ -484,9 +495,14 @@ const VERDICTS = {
   // viewer / member itself; remove goes through requireTeamAdmin. Proven in
   // tests/sms-dnc-2026-10-05.test.js section D.
   manageSmsCompliance: 'already',
+  // The review ask for other companies (2026-11-26): requireTeamAdmin (owner / company_admin) and platform admin only.
+  setReviewAskProfile: 'role-gated', manageReviewAskTenant: 'role-gated',
   // The customer kill switch (2026-10-19, messaging-controls-fns.js): Jo's own uid only
   // (uid === NBD_OWNER_UID), proven in tests/messaging-controls-2026-10-19.test.js section E.
   manageMessagingControls: 'role-gated',
+  // Storm-tips email screen (2026-11-26, storm-tips-email.js): NBD owner's uid only,
+  // proven in tests/storm-tips-email-2026-11-26.test.js (a non-owner is refused).
+  stormTipsAdmin: 'role-gated',
   // Invoice + supplement stamps on the server (2026-11-14, supplement-invoice.js): assertNotViewer first, then the
   // estimate's author / same-company staff / platform admin only (billingTenant), proven in
   // tests/supplement-invoice-callable-2026-11-14.test.js section A.
@@ -565,6 +581,8 @@ const VERDICTS = {
   callPipelineHealth: 'role-gated',
   // Visit recordings (2026-10-13): assertNotViewer + a role allowlist (owner / company_admin / manager / admin), on the caller's OWN capture only.
   attachVisitCapture: 'role-gated',
+  // Recordings Bin (2026-11-20): assertNotViewer + owner / admin only (a role allowlist that excludes manager), every target checked to be in the caller's company.
+  visitCaptureAdmin: 'role-gated',
   // Optional game card: read-only, the caller's OWN records only (game.js).
   getGameCard: 'self',
   // Tenant-ready (2026-10-04, tenant-ops.js): the admin Tenants list is

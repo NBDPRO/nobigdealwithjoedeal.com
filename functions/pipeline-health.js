@@ -103,8 +103,9 @@ async function snapshot({ db, nowMs, env }) {
   const [watch, cc, health, ledger] = await Promise.all(paths.map((p) => db.doc(p).get()));
   let newestCallMs = 0, waiting = 0, tokens = NaN;
   try {
-    const q = await db.collection('phone_calls').where('userId', '==', OWNER).orderBy('startedAtMs', 'desc').limit(1).get();
-    newestCallMs = q.docs.length ? W.toMs(q.docs[0].data().startedAtMs) : 0;
+    // The newest Cube ACR recording, not a Thursday call's projection (roadmap step 17C).
+    const q = await db.collection('phone_calls').where('userId', '==', OWNER).orderBy('startedAtMs', 'desc').limit(25).get();
+    newestCallMs = require('./thursday-projection-logic').newestCubeStartMs(q.docs.map((d) => d.data() || {}));
   } catch (_) { /* the row says "no recordings on file" */ }
   try { waiting = (await db.collection('phone_calls').where('userId', '==', OWNER).where('status', '==', 'stored').limit(200).get()).size; } catch (_) { /* 0 */ }
   try { tokens = (await db.collection('users').doc(OWNER).collection('fcmTokens').get()).size; } catch (_) { /* unknown */ }

@@ -1,0 +1,102 @@
+/**
+ * tests/r12-google-review-link-2026-11-26.test.js
+ *
+ * R12 of the review-ask guardrail plan (Jo, 2026-11-26: "Yes, fix it now").
+ * users/{uid}.googleReviewUrl is written by each user on their own doc, and the
+ * server used ANY https link from it: in NBD's live review-ask email from jd@
+ * (review-ask-auto-logic.js reviewUrlFor), on the customer portal's review
+ * button (portal.js portalReviewUrl) and in the agent review sprint
+ * (agent-mcp.js). Now a saved link is used only when it is one of Google's own
+ * review / Maps pages (functions/google-review-url.js); otherwise NBD falls
+ * back to its own review link and another company shows no link.
+ *
+ * Run: node tests/r12-google-review-link-2026-11-26.test.js
+ */
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const FN = path.join(__dirname, '..', 'functions');
+
+let passed = 0, failed = 0; const fails = [];
+function ok(name, cond, detail) {
+  if (cond) { passed++; console.log('  ✓ ' + name); }
+  else { failed++; fails.push(name); console.log('  ✗ ' + name + (detail ? ' — ' + detail : '')); }
+}
+const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+let G = null;
+try { G = require(path.join(FN, 'google-review-url.js')); } catch (e) { ok('functions/google-review-url.js exists', false, e.message); }
+const RA = require(path.join(FN, 'review-ask-auto-logic.js'));
+const NBD_LEAD = { companyId: RA.NBD_OWNER_UID, userId: RA.NBD_OWNER_UID };
+const OTHER_LEAD = { companyId: 'co-x', userId: 'rep-x' };
+
+console.log('A. the allowlist');
+{
+  const good = [
+    'https://g.page/r/CXzIjLwvtRPdEBM/review',
+    'https://g.page/r/rep/review',
+    'https://g.page/r/CXzIjLwvtRPdEBM',
+    'https://search.google.com/local/writereview?placeid=ChIJacme1234567',
+    'https://maps.app.goo.gl/AbCd1234',
+    'https://www.google.com/maps/place/Acme+Roofing/@39.1,-84.5,17z',
+    // Real share-sheet forms (silent-failure review): old g.page/<name>/review, maps share params, g.co/kgs, writereview extras.
+    'https://g.page/AcmeRoofing/review',
+    'https://maps.app.goo.gl/AbCd1234?g_st=ic',
+    'https://g.co/kgs/AbC123x',
+    'https://search.google.com/local/writereview?placeid=ChIJacme1234567&source=g.page.m',
+  ];
+  const bad = [
+    'https://evil.example/review', 'https://bit.ly/abc123', 'javascript:alert(1)', 'https://maps.app.goo.gl/AbCd1234?u=https://evil.example',
+    'https://search.google.com/local/writereview?placeid=ChIJacme1234567&next=//evil.example', 'http://evil.example/g.page/r/x',
+    // Dot segments a browser would resolve onto another google.com path (security review): never.
+    'https://www.google.com/maps/place/../../amp/s/evil.example/x', 'https://www.google.com/maps/place/%2e%2e/%2E%2E/amp/s/evil.example',
+    'https://www.google.com/maps/place/x/./../../url', 'https://google.com/maps/place/..',
+    'https://g.page.evil.example/r/x/review', 'https://evil.example/?u=https://g.page/r/x/review', 'https://g.page/r/x/review"><script>',
+    'https://search.google.com/local/writereview?placeid=ChIJacme1234567&redirect=https://evil.example', 'https://google.com.evil.example/maps/place/x',
+    'https://www.google.com/url?q=https://evil.example', ' ', '', null, 42,
+  ];
+  if (G) {
+    ok('Google review / Maps pages pass', good.every((u) => G.isGoogleReviewUrl(u)), good.filter((u) => !G.isGoogleReviewUrl(u)).join(' , '));
+    for (const u of bad) ok('refused: ' + JSON.stringify(u).slice(0, 70), !G.isGoogleReviewUrl(u));
+    ok('surrounding spaces are trimmed, not a reason to refuse', G.cleanReviewUrl('  https://g.page/r/CXzIjLwvtRPdEBM/review  ') === 'https://g.page/r/CXzIjLwvtRPdEBM/review');
+    ok('cleanReviewUrl answers "" for anything else', G.cleanReviewUrl('https://evil.example/x') === '');
+    ok('an http:// Google link is upgraded to https', G.cleanReviewUrl('http://g.page/r/CXzIjLwvtRPdEBM/review') === 'https://g.page/r/CXzIjLwvtRPdEBM/review');
+  }
+}
+
+console.log('B. the live review-ask email (review-ask-auto-logic.js reviewUrlFor)');
+{
+  ok('NBD: a rep\'s non-Google https link → NBD\'s own review link, never the saved one',
+    RA.reviewUrlFor(NBD_LEAD, 'https://evil.example/review') === RA.NBD_REVIEW_URL, RA.reviewUrlFor(NBD_LEAD, 'https://evil.example/review'));
+  // Jo, 2026-11-26: "Always NBD's link". NBD's automatic ask ignores every team member's saved link.
+  ok('NBD: even a rep\'s Google review link is ignored, NBD\'s own link is used',
+    RA.reviewUrlFor(NBD_LEAD, 'https://g.page/r/rep/review') === RA.NBD_REVIEW_URL, RA.reviewUrlFor(NBD_LEAD, 'https://g.page/r/rep/review'));
+  ok('NBD: no saved link → NBD\'s own link', RA.reviewUrlFor(NBD_LEAD, '') === RA.NBD_REVIEW_URL && RA.reviewUrlFor(NBD_LEAD, undefined) === RA.NBD_REVIEW_URL);
+  ok('another company: a non-Google link → no link at all', RA.reviewUrlFor(OTHER_LEAD, 'https://evil.example/review') === '');
+  ok('another company: its Google link is used', RA.reviewUrlFor(OTHER_LEAD, 'https://search.google.com/local/writereview?placeid=ChIJacme1234567') === 'https://search.google.com/local/writereview?placeid=ChIJacme1234567');
+}
+
+console.log('C. the portal review button and the agent review sprint use the same allowlist');
+{
+  // Security review of #3293: the portal button and the rating response also use NBD's own link for NBD.
+  ok('portal, NBD: a rep\'s Google review link is ignored, NBD\'s own link is shown',
+    typeof RA.portalReviewUrlFor === 'function' && RA.portalReviewUrlFor('https://g.page/r/rep/review', true) === RA.NBD_REVIEW_URL);
+  ok('portal, NBD: a non-Google or missing link → NBD\'s own link',
+    typeof RA.portalReviewUrlFor === 'function' && RA.portalReviewUrlFor('https://evil.example', true) === RA.NBD_REVIEW_URL && RA.portalReviewUrlFor(null, true) === RA.NBD_REVIEW_URL);
+  ok('portal, another company: its Google link is shown, anything else → null',
+    typeof RA.portalReviewUrlFor === 'function' && RA.portalReviewUrlFor('https://g.page/r/rep/review', false) === 'https://g.page/r/rep/review'
+    && RA.portalReviewUrlFor('https://evil.example', false) === null && RA.portalReviewUrlFor('', false) === null);
+  ok('the maps/place shape refuses encoded slashes and backslashes',
+    ['https://www.google.com/maps/place/..%2f..%2furl', 'https://www.google.com/maps/place/x%5c..%5cy', 'https://www.google.com/maps/place/a%2Fb'].every((u) => G.cleanReviewUrl(u) === ''));
+  const portal = strip(fs.readFileSync(path.join(FN, 'portal.js'), 'utf8'));
+  const fnBody = (portal.match(/function portalReviewUrl\([^)]*\)\s*\{[\s\S]*?\n\}/) || [''])[0];
+  ok('control: found portalReviewUrl', fnBody.length > 40);
+  ok('portalReviewUrl delegates to RA.portalReviewUrlFor (covered above)', /portalReviewUrlFor\(/.test(fnBody), fnBody.slice(0, 200));
+  const agent = strip(fs.readFileSync(path.join(FN, 'agent-mcp.js'), 'utf8'));
+  ok('the agent review sprint resolves the link through RA.reviewUrlFor (covered by B), and says a saved non-Google link is not used',
+    /RA\.reviewUrlFor\(/.test(agent) && /is not a Google review page, so it is not used/.test(agent) && /No Google review link is set/.test(agent));
+}
+
+console.log('\n' + passed + ' passed, ' + failed + ' failed');
+if (failed) { console.log('FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }

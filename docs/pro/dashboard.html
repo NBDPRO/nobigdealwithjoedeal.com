@@ -5,7 +5,7 @@
 <!-- Sample account (Pro demo phase 2, 2026-10-06): inert on this real page;
      under /pro/explore/ it arms the browser-only sample account. First and
      synchronous so its network tripwire is in place before any other script. -->
-<script src="/pro/js/demo-mode.js?v=7"></script>
+<script src="/pro/js/demo-mode.js?v=8"></script>
 <!-- The ?legacy=1 rollback twin (dashboard.legacy.html + js/dashboard-legacy-redirect.js)
      was retired 2026-09-02: it had become byte-identical to this file and was being
      updated by every dashboard commit, so it provided no rollback and doubled the edit
@@ -29,8 +29,8 @@
 <link rel="stylesheet" href="css/theme-art.css?v=2">
 <link rel="stylesheet" media="print" data-late-css href="css/agent-inbox.css?v=5">
 <link rel="stylesheet" media="print" data-late-css href="css/agent-bots.css?v=1">
-<link rel="stylesheet" href="css/sort-customers.css?v=2">
-<link rel="stylesheet" media="print" data-late-css href="css/triage-deck.css?v=3">
+<link rel="stylesheet" href="css/sort-customers.css?v=3">
+<link rel="stylesheet" media="print" data-late-css href="css/triage-deck.css?v=4">
 <link rel="stylesheet" href="css/no-next-step.css?v=1">
 <link rel="stylesheet" media="print" data-late-css href="css/stale-leads-cleanup.css?v=1">
 <link rel="stylesheet" media="print" data-late-css href="css/lead-source-fixer.css?v=1">
@@ -40,7 +40,7 @@
 <link rel="stylesheet" media="print" data-late-css href="css/follow-up-board.css?v=2">
 <link rel="stylesheet" media="print" data-late-css href="css/dol-fill.css?v=1">
 <link rel="stylesheet" media="print" data-late-css href="css/d2d-storm.css?v=2">
-<link rel="stylesheet" href="css/phone-calls.css?v=15">
+<link rel="stylesheet" href="css/phone-calls.css?v=18">
 <style id="theme-system-noop">
 /* Theme variables now live in css/theme-system.css. This stub keeps the
    #theme-system id reachable for any DOM lookup that still expects a
@@ -54,12 +54,12 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NBD Pro">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="var(--bg)">
+<meta name="theme-color" content="#0A0C0F">
 <link rel="manifest" href="/pro/manifest.json">
 <!-- W151: mobile polish sweep — touch-target floors, customer
      page stacking, sticky jump nav, hover-on-touch suppression,
      iOS zoom-on-focus prevention, standalone safe-area padding. -->
-<link rel="stylesheet" href="/pro/css/mobile-polish.css?v=5">
+<link rel="stylesheet" href="/pro/css/mobile-polish.css?v=8">
 <link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
@@ -78,7 +78,7 @@
 <link rel="modulepreload" href="js/crm-stages.js">
 <link rel="modulepreload" href="js/estimate-lead-sync.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
-<link rel="preload" href="js/crm-portal-bridge.js?v=11" as="script">
+<link rel="preload" href="js/crm-portal-bridge.js?v=12" as="script">
 <link rel="preload" href="js/crm.js?v=38" as="script">
 <link rel="preload" href="js/maps.js?v=12" as="script">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -143,7 +143,7 @@
      the first tap/key, a non-Home goTo(), a ?query link, or idle after load. -->
 <script defer src="js/late-css.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=229"></script>
+<script src="js/script-loader.js?v=274"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -162,13 +162,13 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=48"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=51"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
-<link rel="stylesheet" href="css/dashboard-app.css?v=30">
-<link rel="stylesheet" href="css/ui-primitives.css?v=16">
+<link rel="stylesheet" href="css/dashboard-app.css?v=33">
+<link rel="stylesheet" href="css/ui-primitives.css?v=18">
 <link rel="stylesheet" href="css/care-plan.css?v=1">
 <link rel="stylesheet" media="print" data-late-css href="css/invoice-pipeline.css?v=8">
 <link rel="stylesheet" media="print" data-late-css href="css/rep-os.css?v=1">
@@ -189,7 +189,7 @@
 <link rel="stylesheet" media="print" data-late-css href="css/lead-snooze-view.css?v=2">
 <link rel="stylesheet" media="print" data-late-css href="css/ai-texting-persona-view.css?v=1">
 <link rel="stylesheet" media="print" data-late-css href="css/admin-manager-view.css?v=1">
-<link rel="stylesheet" media="print" data-late-css href="css/claim-core-view.css?v=1">
+<link rel="stylesheet" media="print" data-late-css href="css/claim-core-view.css?v=2">
 <link rel="stylesheet" media="print" data-late-css href="css/quick-capture-view.css?v=2">
 <link rel="stylesheet" media="print" data-late-css href="css/quick-capture-inbox-view.css?v=1">
 <link rel="stylesheet" media="print" data-late-css href="css/dashboard-widgets-view.css?v=3">
@@ -197,15 +197,15 @@
 <link rel="stylesheet" media="print" data-late-css href="css/voicemail-view.css?v=1">
 <link rel="stylesheet" media="print" data-late-css href="css/reports-trends-view.css?v=2">
 <link rel="stylesheet" media="print" data-late-css href="css/supplement.css?v=1">
-<link rel="stylesheet" media="print" data-late-css href="css/product-library.css?v=6">
-<link rel="stylesheet" href="css/widgets-home.css?v=2">
+<link rel="stylesheet" media="print" data-late-css href="css/product-library.css?v=7">
+<link rel="stylesheet" href="css/widgets-home.css?v=3">
 <link rel="stylesheet" href="css/d2d-tracker.css?v=4">
 <link rel="stylesheet" media="print" data-late-css href="css/storm-center.css?v=7">
-<link rel="stylesheet" href="css/my-skin.css?v=6">
+<link rel="stylesheet" href="css/my-skin.css?v=7">
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
-<link rel="stylesheet" href="css/kanban-force.css?v=8" id="kanban-force-css-link">
+<link rel="stylesheet" href="css/kanban-force.css?v=9" id="kanban-force-css-link">
 <!-- v5→DS theme bridge — extracted to css/theme-bridge.css (Rock 4 Phase 2d). -->
-<link rel="stylesheet" href="css/theme-bridge.css?v=7" id="nbd-theme-bridge-link">
+<link rel="stylesheet" href="css/theme-bridge.css?v=9" id="nbd-theme-bridge-link">
 <!-- Surface styles for Shape & Depth (Clay, Liquid Glass, Skeuo, Spatial). -->
 <link rel="stylesheet" href="css/shape-styles.css?v=1">
 
@@ -240,14 +240,14 @@
 <link rel="stylesheet" href="css/dashboard-nav.css?v=2">
 <link rel="stylesheet" media="print" data-late-css href="css/dashboard-bootstrap-view.css?v=1">
 <link rel="stylesheet" media="print" data-late-css href="css/google-calendar.css?v=9">
-<link rel="stylesheet" href="css/production.css?v=1">
+<link rel="stylesheet" href="css/production.css?v=2">
 <link rel="stylesheet" media="print" data-late-css href="css/ask-joe-actions.css?v=1">
 <link rel="stylesheet" href="css/game-card.css?v=5">
 <link rel="stylesheet" media="print" data-late-css href="css/estimate-send.css?v=3">
 <link rel="stylesheet" media="print" data-late-css href="css/materials-list.css?v=1">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
 <!-- Knowing your numbers (2026-10-04): Sunday review, lost-reason sheet, Reports panels, lead-source table. -->
-<link rel="stylesheet" href="css/numbers.css?v=3">
+<link rel="stylesheet" href="css/numbers.css?v=4">
 <link rel="stylesheet" href="css/offline-sync.css?v=1">
 <!-- Mobile job-detail Voice Intel tab (mirrors customer.html's #voiceIntelRoot). -->
 <link rel="stylesheet" media="print" data-late-css href="css/voice-intelligence.css?v=4">
@@ -4154,7 +4154,7 @@
         <div style="font-size:12px;color:var(--m);margin-bottom:14px;">Customize the kanban stages for each job type. Changes apply to your whole team.</div>
         <div id="pipelineBuilderRoot"></div>
       </div><!-- /stab-panel-pipelines -->
-      <script src="js/pipeline-builder.js?v=7"></script>
+      <script src="js/pipeline-builder.js?v=8"></script>
 
       <!-- ══ TAB: DAILY OS ══ -->
       <div class="stab-panel dn" id="stab-panel-daily">
@@ -4560,6 +4560,37 @@
                 <input type="number" id="cp_budget_directCostPctWarn" min="1" max="99" step="1" placeholder="65"></div>
               <div class="sf"><label>Margin floor (% gross margin)</label>
                 <input type="number" id="cp_budget_marginFloorPct" min="1" max="99" step="1" placeholder="30"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Estimate margin floor (2026-11-17): companyProfile.pricing.marginFloor,
+             read by js/margin-floor.js. Blank = off; there is no default. -->
+        <div class="panel mb-md">
+          <div class="panel-hdr"><div><div class="panel-label">The margin you want on a cash job, before sales tax: (price − material − labor) ÷ price. Estimates show a band against it. Insurance scopes are left out. Blank = off.</div><div class="panel-title">Estimate Margin Floor</div></div></div>
+          <div class="panel-body">
+            <div class="sf-row">
+              <div class="sf"><label>Floor (% margin, lowest you accept)</label>
+                <input type="number" id="cp_pricing_marginFloor_floorPct" min="1" max="94" step="0.5" placeholder="Off" inputmode="decimal"></div>
+              <div class="sf"><label>Target (% margin, what you aim for)</label>
+                <input type="number" id="cp_pricing_marginFloor_targetPct" min="1" max="94" step="0.5" placeholder="Same as floor" inputmode="decimal"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Supplier price compare (2026-11-17, supplier pricing slice 3):
+             companyProfile.pricing.supplierCompare, read by js/price-compare-ui.js.
+             Blank = off; there is no default. -->
+        <div class="panel mb-md">
+          <div class="panel-hdr"><div><div class="panel-label">Used by Compare suppliers in the Product Library. A price recorded before tax gets your tax rate added, so every supplier is compared tax included. Blank = off.</div><div class="panel-title">Supplier Price Compare</div></div></div>
+          <div class="panel-body">
+            <div class="sf-row">
+              <div class="sf"><label>Sales tax you pay on materials (%)</label>
+                <input type="number" id="cp_pricing_supplierCompare_taxPct" min="0" max="25" step="0.01" placeholder="Off" inputmode="decimal"></div>
+              <div class="sf"><label>Alert when a price moves by (%)</label>
+                <input type="number" id="cp_pricing_supplierCompare_alertPct" min="0.1" max="100" step="0.1" placeholder="Off" inputmode="decimal"></div>
+              <div class="sf"><label>Monthly limit for reading supplier PDFs and photos ($)</label>
+                <input type="number" id="cp_pricing_supplierCompare_docCap" min="1" max="50" step="1" placeholder="10" inputmode="numeric"></div>
             </div>
           </div>
         </div>
@@ -6368,7 +6399,7 @@
 <script defer src="js/dashboard-state.js?v=13"></script>
 <!-- uid → teammate display name for the leaderboards (window.NBDTeamNames). -->
 <script defer src="js/team-names.js?v=2"></script>
-<script defer src="js/dashboard-api.js?v=10"></script>
+<script defer src="js/dashboard-api.js?v=11"></script>
 <!-- Durable offline photo queue. Loaded EAGERLY and ahead of the lazy
      `photos` bundle on purpose: photo-engine.js only arrives when the rep
      opens a photos view, but a photo queued before a bfcache reload has to
@@ -6401,9 +6432,9 @@
      classic dashboard-actions.js mount/unmount wiring to call. -->
 <script type="module" src="js/voice-intel-dashboard-bridge.module.js?v=1"></script>
 <script defer src="js/estimate-preview.js?v=3"></script>
-<script defer src="js/dashboard-widgets.js?v=12"></script>
-<script defer src="js/dashboard-ui.js?v=14"></script>
-<script defer src="js/dashboard-actions.js?v=22"></script>
+<script defer src="js/dashboard-widgets.js?v=13"></script>
+<script defer src="js/dashboard-ui.js?v=15"></script>
+<script defer src="js/dashboard-actions.js?v=24"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
 
 <!-- DOC VIEWER MODAL -->
@@ -6508,6 +6539,22 @@
     <span class="m-create-row-text">
       <span class="m-create-row-lbl">Voice Note</span>
       <span class="m-create-row-hint">Talk it out — save to Talk Tank or a lead</span>
+    </span>
+  </button>
+  <!-- 2026-11-25 iPhone parity: the Android home-screen shortcuts "Record a
+       visit" and "New estimate" (manifest.json) have no iPhone equivalent. -->
+  <button class="m-create-row" data-action="call" data-fn="_mCreate" data-arg="visit">
+    <span class="m-create-row-ico"><svg class="nbd-icon" aria-hidden="true"><use href="#nbd-icon-home"/></svg></span>
+    <span class="m-create-row-text">
+      <span class="m-create-row-lbl">Record a Visit</span>
+      <span class="m-create-row-hint">Record the conversation at the door or table</span>
+    </span>
+  </button>
+  <button class="m-create-row" data-action="call" data-fn="_mCreate" data-arg="estimate">
+    <span class="m-create-row-ico"><svg class="nbd-icon" aria-hidden="true"><use href="#nbd-icon-doc"/></svg></span>
+    <span class="m-create-row-text">
+      <span class="m-create-row-lbl">New Estimate</span>
+      <span class="m-create-row-hint">Open the estimate builder</span>
     </span>
   </button>
   <button class="m-create-cancel" data-action="closeModal" data-target="mobileCreatePopover">Cancel</button>
@@ -6646,6 +6693,9 @@
   <div class="mm-section">System</div>
   <div class="mm-item" data-action="mobileNav" data-target="joe" data-close-more>
     <span class="mm-item-icon">🤖</span>Ask Joe AI
+  </div>
+  <div class="mm-item" data-action="module" data-target="NBDQuickCaptureInbox.open" data-fallback-toast="Capture inbox is still loading. Try again in a moment." data-close-more id="mm-captureinbox">
+    <span class="mm-item-icon">🎙️</span>Capture inbox
   </div>
   <div class="mm-item dn" data-action="module" data-target="NBDAgentInbox.open" id="mm-agentinbox">
     <span class="mm-item-icon">📥</span>Agent inbox
@@ -7300,7 +7350,7 @@
      doc-phone-layout.js (2026-09-25) is its phone reading layout for a
      generated document, shared with sign.html and the portal. -->
 <script defer src="js/doc-phone-layout.js?v=1"></script>
-<script defer src="js/nbd-doc-viewer.js?v=6"></script>
+<script defer src="js/nbd-doc-viewer.js?v=12"></script>
 <!-- Talk Tank: unified voice-capture inbox under #/talk-tank. Reads
      users/<uid>/captures (written by quick-capture.js). REC button on
      the page invokes window.NBDQuickCapture.open() — no duplicate
@@ -7358,9 +7408,9 @@
      push token via getToken({vapidKey}), and persists it to
      users/{uid}/fcmTokens so the backend reminder/lead pushes have recipients.
      No-ops until window.__NBD_VAPID_KEY is set (dashboard-fcm-config.js). -->
-<script defer src="js/push-registration.js?v=7"></script>
+<script defer src="js/push-registration.js?v=9"></script>
 <script defer src="js/push-actions.js?v=3"></script>
-<script defer src="js/crm-portal-bridge.js?v=11"></script>
+<script defer src="js/crm-portal-bridge.js?v=12"></script>
 <script defer src="js/triage-deck.js?v=2"></script>
 <script defer src="js/followup-deck.js?v=2"></script>
 <!-- "Sort my customers" (js/sort-customers.js) is a ScriptLoader bundle since 2026-11-08: crm-pipeline.js loads it
@@ -7371,7 +7421,7 @@
 <script defer src="js/storm-time.js?v=1"></script>
 <script defer src="js/dol-fill.js?v=3"></script>
 <script defer src="js/notif-bell.js?v=9"></script>
-<script defer src="js/agent-inbox.js?v=10"></script>
+<script defer src="js/agent-inbox.js?v=11"></script>
 <!-- Messaging Control Center nav reveal (2026-10-19): flag messagingControlCenter, owner/admin only. -->
 <script defer src="js/messaging-nav.js?v=1"></script>
 <script defer src="js/agent-bots-settings.js?v=6"></script>
@@ -7398,7 +7448,7 @@
 <!-- Flag-gated toolbar features (stale leads clean-up, lead-source fixer, reputation, speed to lead, the two
      follow-up boards) are ScriptLoader bundles since 2026-11-08: dark-features.js fetches one when NBDFlags says its
      flag is on, so a boot with the flags off ships none of them. -->
-<script defer src="js/dark-features.js?v=2"></script>
+<script defer src="js/dark-features.js?v=7"></script>
 <script defer src="js/stale-shares-filter.js?v=3"></script>
 <script defer src="js/lead-snooze.js?v=6"></script>
 <script defer src="js/prefs-sync.js?v=4"></script>
@@ -7408,7 +7458,7 @@
      Pipeline is entered or a card / chip menu is first opened, so this tag has
      always run first. Keep this one eager: the deploy joins eager tags, so a
      bundle entry for it would run it twice. -->
-<script defer src="js/portal-link-helpers.js?v=3"></script>
+<script defer src="js/portal-link-helpers.js?v=4"></script>
 <script defer src="js/customer-engagement-score.js?v=3"></script>
 <script defer src="js/engagement-cohort-widget.js?v=2"></script>
 <script defer src="js/templates-library.js?v=4"></script>
@@ -7418,11 +7468,11 @@
 <!-- W139: Hot-lead threshold-crossing alert -->
 <script defer src="js/lead-score-alert.js?v=3"></script>
 <script defer src="js/smart-followup-briefing.js?v=2"></script>
-<script defer src="js/home-attention.js?v=27"></script>
+<script defer src="js/home-attention.js?v=28"></script>
 <!-- Send from Jo's own phone (share sheet / Messages) + the estimate follow-up
      cadence and its Home card (2026-10-03). phone-share.js first: close-board.js
      (ScriptLoader) and estimate-followups.js both call window.NBDPhoneShare. -->
-<script defer src="js/phone-share.js?v=3"></script>
+<script defer src="js/phone-share.js?v=9"></script>
 <script defer src="js/estimate-followups.js?v=3"></script>
 <script defer src="js/chibi.js?v=12"></script>
 <script defer src="js/game-sprite.js?v=6"></script>
@@ -7442,19 +7492,19 @@
 <!-- Keyboard contract for the self-built dialogs (Escape, focus in / back, Tab trap): window.nbdOverlay.
      Called by widgets.js, maps.js, whats-new.js and the lazy d2d / hd-import / yard-signs / decision-engine bundles. -->
 <script defer src="js/overlay-a11y.js?v=1"></script>
-<script defer src="js/widgets.js?v=21"></script>
-<script defer src="js/today-home.js?v=25"></script>
+<script defer src="js/widgets.js?v=22"></script>
+<script defer src="js/today-home.js?v=26"></script>
 <!-- Sheets above the iPhone keyboard (2026-10-08). -->
 <script defer src="js/keyboard-viewport.js?v=1"></script>
 <!-- My Skin (my-skin-logic.js + my-skin.js) is the lazy myskin bundle since 2026-11-08: my-skin-boot.js loads it for an account with a skin, or when Settings opens. -->
 <script defer src="js/my-skin-boot.js?v=1"></script>
-<script defer src="js/layout-system.js?v=9"></script>
+<script defer src="js/layout-system.js?v=10"></script>
 <script defer src="js/pixel-mode.js?v=4"></script>
 <script defer src="js/ui.js?v=12"></script>
 <script defer src="js/demo.js?v=5"></script>
 <script defer src="js/icons.js?v=4"></script>
-<script defer src="js/nbd-comms.js?v=6"></script>
-<script defer src="js/sms-outbox.js?v=2"></script>
+<script defer src="js/nbd-comms.js?v=7"></script>
+<script defer src="js/sms-outbox.js?v=3"></script>
 <script defer src="js/stage-checklist.js?v=2"></script>
 <script defer src="js/paperwork-write.js?v=1"></script>
 <script defer src="js/warranty-claim.js?v=3"></script>
@@ -7467,7 +7517,7 @@
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
 <script defer src="js/photo-ai.js?v=4"></script>
-<script defer src="js/invoice-pipeline.js?v=44"></script>
+<script defer src="js/invoice-pipeline.js?v=45"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js
@@ -7531,7 +7581,7 @@
 <script defer src="js/review-engine.js?v=11"></script>
 <script defer src="js/review-deck.js?v=3"></script>
 <script defer src="js/referral-rewards-ui.js?v=2"></script>
-<script defer src="js/company-profile.js?v=11"></script>
+<script defer src="js/company-profile.js?v=14"></script>
 <!-- tenant-rules.js (2026-10-04, tenant-ready): each company's own business
      rules (tiers, names, warranties, shingle locks, deposit) with NBD-only
      defaults. After company-profile.js (reads _companyProfile at call time);
@@ -7601,7 +7651,7 @@
      boot only for a first-run rep or how-to's Restart Tour, else by Settings → Help → Start Tour. -->
 <!-- (theme-overlays/sounds/achievements/gx ride the lazy `theme` bundle — see
      the note at the theme-engine slot above.) -->
-<script src="js/dashboard-sw-bootstrap.js?v=3"></script>
+<script src="js/dashboard-sw-bootstrap.js?v=5"></script>
 <script defer src="js/mobile-nav-customizer.js?v=7"></script>
 <script defer src="js/connection-status-btn.js?v=5"></script>
 <!-- admin-manager must load eagerly — it gates the #nav-admin visibility
@@ -7631,7 +7681,7 @@
 <!-- Visit recorder launcher (2026-10-13): entry points only; the recorder, its
      IndexedDB store and screens load on the first tap or when a recording is
      still on the phone. -->
-<script defer src="js/visit-recorder-launcher.js?v=5"></script>
+<script defer src="js/visit-recorder-launcher.js?v=7"></script>
 <!-- W149: FAB stack coordinator — hides voice/inbox FABs when a
      modal is open so they don't float over the modal content. -->
 <script defer src="js/fab-stack-coordinator.js?v=3"></script>
@@ -7661,7 +7711,7 @@
      shipped tools so they don't sit invisible behind hotkeys. -->
 <script defer src="js/whats-new.js?v=3"></script>
 <!-- Feature flags (F9) — window.NBDFlags for kill switches + gradual rollout -->
-<script defer src="js/feature-flags.js?v=2"></script>
+<script defer src="js/feature-flags.js?v=3"></script>
 <!-- Stage B slice 1: flag-gated shadow server aggregates (no UI reads) -->
 <script defer src="js/server-aggregates.js?v=3"></script>
 <!-- Help-icon helper: window.HelpIcon.attach(el, anchor) drops a "?"

@@ -122,7 +122,7 @@ html.nbd-demo #d2d-quick-knock-overlay .d2d-qk-footer { padding-bottom: calc(56p
 }
 @media (min-width: 720px) { .nbd-sp-back { align-items: center; padding: 24px; } }
 .nbd-sp {
-  width: 100%; max-width: 640px; max-height: calc(100vh - 24px); overflow: auto;
+  width: 100%; max-width: 640px; max-height: calc(100vh - 24px); max-height: min(calc(100vh - 24px), calc(100dvh - 2 * env(safe-area-inset-top, 0px) - 16px)); overflow: auto;
   box-sizing: border-box;
   background: #fff; color: #14181F;
   border-radius: 16px 16px 0 0;

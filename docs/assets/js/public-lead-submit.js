@@ -271,11 +271,45 @@
   // opts.silent (2026-11-14): a save the visitor did not press a button for
   // (the /estimate step-1 save runs in the background while they carry on)
   // shows no call/text fallback on failure: the page decides what to say.
+  // Failed-submit signal (2026-11-25). From 2026-10-13 to 2026-11-25 every
+  // submit got 403 and GA saw nothing, because generate_lead only fires on
+  // success: six weeks of lost leads went unnoticed. One event per failed
+  // attempt, every form, silent saves included. No PII: kind, page source,
+  // HTTP status (0 = never reached the server), the server's short reason code
+  // ('turnstile-required', 'missing-token'…) and whether a token was sent.
+  function trackLeadFailure(kind, fields, info) {
+    try {
+      if (typeof window.gtag !== 'function') return;
+      window.gtag('event', 'lead_submit_failed', {
+        lead_kind: kind,
+        lead_source: String((fields && fields.source) || '').slice(0, 100),
+        failure: info.failure,
+        http_status: info.status || 0,
+        server_reason: String(info.reason || '').slice(0, 60),
+        had_token: !!info.hadToken
+      });
+    } catch (e) { /* analytics must never break a submit */ }
+  }
+
   async function submitPublicLead(kind, fields, opts) {
     const silent = !!(opts && opts.silent);
     if (!kind || typeof kind !== 'string') {
       return { ok: false, reason: 'Missing kind' };
     }
+    // Submit attempt (2026-11-26, form drop-off events): one `lead_submit` per
+    // new-lead attempt, so GA4 shows submits next to generate_lead (saved)
+    // and lead_submit_failed (not saved). Follow-up saves and step-1 updates
+    // (the same rule generate_lead uses) are not new attempts. No PII.
+    try {
+      const isFollowUp = FOLLOW_UP_TYPES.indexOf(String((fields && fields.type) || '')) !== -1 ||
+        !!(fields && fields.leadToken);
+      if (!isFollowUp && typeof window.gtag === 'function') {
+        window.gtag('event', 'lead_submit', {
+          lead_kind: kind,
+          lead_source: String((fields && fields.source) || '').slice(0, 100)
+        });
+      }
+    } catch (e) { /* analytics must never break a submit */ }
     // Pull a Turnstile token if we can. Pages that don't wire it
     // get an empty string — the server falls through to App Check
     // + rate limit + honeypot. Only attach the field when we actually
@@ -305,6 +339,7 @@
       const data = await res.json().catch(() => ({}));
       if (abortTimer) clearTimeout(abortTimer);
       if (!res.ok) {
+        trackLeadFailure(kind, fields, { failure: 'http', status: res.status, reason: data.reason, hadToken: !!turnstileToken });
         if (!silent) showLeadFallback();
         const plain = plainReason(res.status);
         if (plain) {
@@ -338,6 +373,7 @@
       return { ok: true, id: data.id || null, photoToken: data.photoToken || null };
     } catch (e) {
       if (abortTimer) clearTimeout(abortTimer);
+      trackLeadFailure(kind, fields, { failure: (e && e.name === 'AbortError') ? 'timeout' : 'network', hadToken: !!turnstileToken });
       if (!silent) showLeadFallback();
       if (e && e.name === 'AbortError') {
         return { ok: false, timedOut: true, friendly: true, reason: 'This is taking too long. Check your connection and try again' + orCallJoe() + '.' };

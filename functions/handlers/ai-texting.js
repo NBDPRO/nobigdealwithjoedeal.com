@@ -53,6 +53,7 @@ const { logger } = require('firebase-functions/v2');
 const { FieldValue } = require('firebase-admin/firestore');
 const { buildPersonaPrompt, sanitizeMultiline } = require('./ai-persona');
 const { channelForTriggerType } = require('../ai-draft-routing');
+const { FENCE_CLAUSE, fence } = require('../ai-fence');
 
 // Neutralize customer-controlled text before it goes INTO the AI prompt:
 // sanitizeMultiline kills forged "═══" section headers; the replace strips
@@ -107,7 +108,10 @@ const PERSONA_PROMPT = `You are "Joe's assistant" — an AI texting on behalf of
 Return ONLY the SMS text — no preamble, no commentary, no "Here's a draft:". Just the message a human would tap Send on.`;
 
 // ─── Anthropic call ────────────────────────────────────────────
-async function callClaudeForDraft({ system, userText, maxTokens, apiKey }) {
+// Every draft prompt (locked, persona, and the live preview) ends with the
+// standard data clause: the lead context is fenced (buildLeadContext).
+async function callClaudeForDraft({ system, userText, maxTokens, apiKey, companyId }) {
+  system = String(system || '') + '\n\n' + FENCE_CLAUSE;
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -128,7 +132,7 @@ async function callClaudeForDraft({ system, userText, maxTokens, apiKey }) {
     throw new Error('AI draft generation failed');
   }
   const data = await res.json();
-  await require('../ai-spend').recordAiSpend(require('../ai-spend').rowFromAnthropic('ai-texting', 'claude-haiku-4-5-20251001', data), { log: logger });
+  await require('../ai-spend').recordAiSpend(require('../ai-spend').rowFromAnthropic('ai-texting', 'claude-haiku-4-5-20251001', data), { log: logger, companyId });
   const text = (data?.content?.[0]?.text || '').trim();
   return { text, usage: data?.usage || null };
 }
@@ -181,23 +185,29 @@ async function buildLeadContext(db, leadId, lead, incomingBody) {
   const activity     = activitySnap ? activitySnap.docs.map(d => d.data()) : [];
 
   // ── Format ──
+  // Each section's content sits in its own ai-fence.js fence (the lead record
+  // too: names and addresses arrive from web forms). Headers stay outside.
   const lines = [];
   lines.push('═══ WHO THIS IS ═══');
-  lines.push(`Name: ${firstName} ${lastName}`.trim() || 'Name: (unknown)');
-  if (address) lines.push(`Address: ${address}`);
-  lines.push(`Relationship: ${isCustomer ? 'Past customer (job complete)' : isProspect ? 'Prospect (not yet qualified)' : 'Active lead — stage ' + stage}`);
-  if (lead.jobType) lines.push(`Job type: ${lead.jobType}`);
-  if (lead.insCarrier) lines.push(`Insurance carrier: ${lead.insCarrier}`);
-  if (lead.claimNumber) lines.push(`Claim no.: ${lead.claimNumber}`);
+  const who = [];
+  who.push(`Name: ${firstName} ${lastName}`.trim() || 'Name: (unknown)');
+  if (address) who.push(`Address: ${address}`);
+  who.push(`Relationship: ${isCustomer ? 'Past customer (job complete)' : isProspect ? 'Prospect (not yet qualified)' : 'Active lead — stage ' + stage}`);
+  if (lead.jobType) who.push(`Job type: ${lead.jobType}`);
+  if (lead.insCarrier) who.push(`Insurance carrier: ${lead.insCarrier}`);
+  if (lead.claimNumber) who.push(`Claim no.: ${lead.claimNumber}`);
+  lines.push(fence('lead_record', who.join('\n')));
 
   if (thread.length > 0) {
     lines.push('');
     lines.push('═══ RECENT TEXT THREAD (oldest → newest) ═══');
+    const sms = [];
     for (const m of thread) {
       const dir = m.direction === 'incoming' ? 'HOMEOWNER' : 'JOE/ASSISTANT';
       const body = cleanInbound(m.body, 240);
-      lines.push(`[${dir}] ${body}`);
+      sms.push(`[${dir}] ${body}`);
     }
+    lines.push(fence('text_thread', sms.join('\n')));
   } else {
     lines.push('');
     lines.push('═══ RECENT TEXT THREAD ═══');
@@ -207,10 +217,12 @@ async function buildLeadContext(db, leadId, lead, incomingBody) {
   if (portalThread.length > 0) {
     lines.push('');
     lines.push('═══ HOMEOWNER PORTAL THREAD (oldest → newest) ═══');
+    const portal = [];
     for (const m of portalThread) {
       const dir = m.source === 'homeowner' ? 'HOMEOWNER' : 'JOE/ASSISTANT';
-      lines.push(`[${dir}] ${cleanInbound(m.text, 240)}`);
+      portal.push(`[${dir}] ${cleanInbound(m.text, 240)}`);
     }
+    lines.push(fence('portal_thread', portal.join('\n')));
   }
 
   // Nothing at all on EITHER channel is the only true first contact — say so
@@ -222,6 +234,7 @@ async function buildLeadContext(db, leadId, lead, incomingBody) {
   if (activity.length > 0) {
     lines.push('');
     lines.push('═══ RECENT ACTIVITY ═══');
+    const acts = [];
     for (const a of activity) {
       // EVERY field here can be homeowner-authored: textPreview on a
       // portal_message_in entry is the raw inbound text (portal.js only trims +
@@ -232,13 +245,14 @@ async function buildLeadContext(db, leadId, lead, incomingBody) {
       // is unfiltered), so an unsanitized preview would be a live-SMS hole.
       const label = cleanInbound(a.label || a.type || 'activity', 60);
       const msg = cleanInbound(a.message || a.transcript || a.textPreview || '', 120);
-      lines.push(`- ${label}${msg ? ': ' + msg : ''}`);
+      acts.push(`- ${label}${msg ? ': ' + msg : ''}`);
     }
+    lines.push(fence('activity', acts.join('\n')));
   }
 
   lines.push('');
   lines.push('═══ THE NEW INBOUND MESSAGE TO REPLY TO ═══');
-  lines.push(cleanInbound(incomingBody, 600));
+  lines.push(fence('inbound_message', cleanInbound(incomingBody, 600)));
 
   return lines.join('\n');
 }
@@ -384,7 +398,8 @@ async function generateAIDraft({ db, leadId, lead, incomingBody, incomingNoteId,
   // portal tokens for its own leads and get unlimited drafts on NBD's key.
   // Checked here, like the kill switch, so all three callers are covered.
   // Fails closed: no draft (the inbound message itself is unaffected).
-  const ent = await require('../ai-gate').aiEntitlementForUid(db, lead.userId);
+  // The one AI gate (2026-11-25), so the daily spend breaker applies too.
+  const ent = await require('../ai-gate').aiGate(db, { forUid: lead.userId, feature: 'ai-texting' });
   if (!ent.ok) {
     logger.info('[ai-texting] draft skipped — lead owner not entitled to AI', { leadId, triggerType, reason: ent.reason });
     return null;
@@ -421,6 +436,7 @@ async function generateAIDraft({ db, leadId, lead, incomingBody, incomingNoteId,
     userText: contextBlock,
     maxTokens: 280, // SMS = 1-3 sentences; 280 tokens ≈ 200 words ≈ 1300 chars
     apiKey,
+    companyId: ent.companyId,
   });
   const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('claude_timeout')), 10_000));
 

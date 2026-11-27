@@ -141,7 +141,7 @@ const VISION_SYSTEM = [
 ].join('\n');
 
 /**
- * frames: [{ t, b64 }]. deps: { apiKey, fetchFn, batch }. → { ran, raw, costUsd, error }
+ * frames: [{ t, b64 }]. deps: { apiKey, fetchFn, batch, companyId }. → { ran, raw, costUsd, error }
  * Never throws: a failed check returns ran:false (→ 'unchecked', Jo confirms).
  */
 async function callVision(frames, deps) {
@@ -166,6 +166,10 @@ async function callVision(frames, deps) {
       if (!res.ok || !data) return { ran: false, error: 'vision HTTP ' + res.status, costUsd: cost };
       const u = data.usage || {};
       cost += (u.input_tokens || 0) * COST_IN + (u.output_tokens || 0) * COST_OUT;
+      // AI spend in one place (functions/ai-spend.js; never throws), on the
+      // reel's company counter, which the ai-gate.js spend breaker reads.
+      const S = require('./ai-spend');
+      await S.recordAiSpend(S.rowFromAnthropic('reel-vision', VISION_MODEL, data), { companyId: deps.companyId });
       const block = (data.content || []).find((b) => b && b.type === 'text');
       const text = String((block && block.text) || '').replace(/^```(?:json)?\s*|\s*```\s*$/g, '').trim();
       let parsed;
@@ -357,7 +361,7 @@ async function privacyCheck(dir, outFile, durationSec, reel, deps) {
     const blocked = await deps.visionGate(uid, reel.companyId);
     if (blocked) check = { ran: false, reason: blocked };
     else {
-      const res = await deps.vision(frames.map((f) => ({ t: f.t, b64: fs.readFileSync(f.file).toString('base64') })));
+      const res = await deps.vision(frames.map((f) => ({ t: f.t, b64: fs.readFileSync(f.file).toString('base64') })), reel.companyId);
       await deps.meter(uid, res.costUsd || 0);
       check = res.ran ? Object.assign({ ran: true }, RL.sanitizeVision(res.raw, times), { costUsd: res.costUsd }) : { ran: false, reason: res.error || 'vision_failed', costUsd: res.costUsd || 0 };
     }
@@ -408,7 +412,7 @@ async function doRender(companyId, reelId, reel, deps) {
         // The SAME window buildPlan trims to (shared helper) — the caption
         // timestamps Whisper returns are relative to this audio's start.
         const trim = RL.talkingHeadWindow(req.params, local[0].durationSec);
-        const tr = await transcribeTrim(dir, local[0].file, trim, deps);
+        const tr = await transcribeTrim(dir, local[0].file, trim, deps, companyId);
         if (tr.ok) {
           const words = (tr.words && tr.words.length) ? tr.words : RL.wordsFromSegments(tr.segments);
           const filtered = RL.filterTranscriptWords(words, terms);
@@ -453,12 +457,12 @@ async function doRender(companyId, reelId, reel, deps) {
   });
 }
 
-async function transcribeTrim(dir, file, trim, deps) {
-  const gate = await deps.transcribeGate();
+async function transcribeTrim(dir, file, trim, deps, companyId) {
+  const gate = await deps.transcribeGate(companyId);
   if (gate) return { ok: false, reason: gate };
   try {
     await deps.ff.run(RL.audioArgs(file, trim.start, trim.end, 'speech.m4a'), { cwd: dir });
-    const out = await deps.transcribe(fs.readFileSync(path.join(dir, 'speech.m4a')));
+    const out = await deps.transcribe(fs.readFileSync(path.join(dir, 'speech.m4a')), companyId);
     return { ok: true, words: out.words || [], segments: out.segments || [] };
   } catch (e) {
     return { ok: false, reason: 'whisper_failed: ' + String((e && e.message) || e).slice(0, 160) };
@@ -771,16 +775,25 @@ function liveDeps() {
     reelsGate: (companyId) => reelsBlocked(db, companyId, killswitch.getFlags),
     reencode: (buf, f) => require('./photo-reencode').reencodePhoto(buf, f),
     heicToJpeg: async (buf) => Buffer.from(await require('heic-convert')({ buffer: buf, format: 'JPEG', quality: 0.9 })),
-    visionGate: (uid, companyId) => visionBlocked(db, uid, companyId, { aiDisabled: killswitch.isAiDisabled, emulator: isEmulator(), apiKey, nowMs: Date.now() }),
-    vision: (frames) => callVision(frames, { apiKey }),
+    // The render worker spends for the reel's company: the one AI gate
+    // (functions/ai-gate.js aiGate, 2026-11-25) re-checks that company's plan
+    // and the daily spend breaker before vision and before transcription.
+    visionGate: async (uid, companyId) => {
+      const g = await require('./ai-gate').aiGate(db, { companyId, feature: 'reel-vision' });
+      if (!g.ok) return g.reason;
+      return visionBlocked(db, uid, companyId, { aiDisabled: killswitch.isAiDisabled, emulator: isEmulator(), apiKey, nowMs: Date.now() });
+    },
+    vision: (frames, companyId) => callVision(frames, { apiKey, companyId }),
     meter: (uid, usd) => meterVision(db, uid, usd, Date.now()),
-    transcribeGate: async () => {
+    transcribeGate: async (companyId) => {
       if (await killswitch.isAiDisabled()) return 'ai_disabled';
       if (isEmulator()) return 'emulator';
       if (!hasSecret('GROQ_API_KEY')) return 'not_configured';
+      const g = await require('./ai-gate').aiGate(db, { companyId, feature: 'reel-transcribe' });
+      if (!g.ok) return g.reason;
       return null;
     },
-    transcribe: (buf) => require('./integrations/voice-intelligence').transcribeGroqBuffer({ buffer: buf, mimeType: 'audio/mp4', filename: 'speech.m4a', timeoutMs: 120000, words: true }),
+    transcribe: (buf, companyId) => require('./integrations/voice-intelligence').transcribeGroqBuffer({ buffer: buf, mimeType: 'audio/mp4', filename: 'speech.m4a', timeoutMs: 120000, words: true, companyId }),
   };
 }
 
@@ -833,4 +846,4 @@ exports.reelCleanup = onSchedule({ schedule: 'every day 04:15', timeZone: 'Ameri
   logger.info('reelCleanup', counts);
 });
 
-exports._test = { reelsBlocked, FFMPEG_MISSING, processReel, ingestUpload, resolveClips, takeRenderSlot, callVision, visionBlocked, reelPostsFor, aiImagePostsFor, cleanup, isHeic, UPLOAD_RE, VISION_SYSTEM };
+exports._test = { reelsBlocked, FFMPEG_MISSING, processReel, ingestUpload, resolveClips, takeRenderSlot, callVision, visionBlocked, reelPostsFor, aiImagePostsFor, cleanup, isHeic, UPLOAD_RE, VISION_SYSTEM, VISION_MODEL };

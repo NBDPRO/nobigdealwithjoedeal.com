@@ -458,10 +458,14 @@ function goTo(name, params = {}) {
     try { window.D2D.leaveView(); } catch (_) {}
   }
 
-  // Update URL hash (without triggering hashchange event)
+  // Update URL hash. Writing it DOES fire 'hashchange'; window._goToHash tells
+  // dashboard-main.js's listener to skip that one echo, or every view ran its
+  // setup twice (two D2D.init()s re-rendered the Knock button under an open
+  // sheet; tests/goto-single-route-2026-11-26.test.js).
   if (!params.skipHash) {
     const hash = params.id ? `#/${name}/${params.id}` : `#/${name}`;
     if (window.location.hash !== hash) {
+      window._goToHash = hash;
       window.location.hash = hash;
     }
   }
@@ -1321,7 +1325,7 @@ if (typeof window.PhotoEngine === 'undefined' || typeof window.InspectionReportE
 // and says so; ScriptLoader drops the dead tag, so the next tap fetches again.
 if (typeof window.KanbanContextMenu === 'undefined') {
   const _kcmSl = window.ScriptLoader;
-  if (_kcmSl && _kcmSl.bundles && !_kcmSl.bundles.kanbanctx) _kcmSl.bundles.kanbanctx = ['js/kanban-context-menu.js?v=6'];
+  if (_kcmSl && _kcmSl.bundles && !_kcmSl.bundles.kanbanctx) _kcmSl.bundles.kanbanctx = ['js/kanban-context-menu.js?v=7'];
   const _kcmStub = { __nbdLazyKanbanCtxStub: true, close: function () {} };
   const _kcmLoad = function () {
     const sl = window.ScriptLoader;
@@ -2633,6 +2637,14 @@ function _mCreate(kind) {
         showToast('Voice notes are still loading — try again in a moment.', 'info');
       }
       break;
+    // The Android app's home-screen shortcuts (manifest.json) have no iPhone
+    // equivalent, so the two that start work live here too (2026-11-25 parity).
+    case 'visit':
+      if (window.NBDVisitRecorderLauncher) window.NBDVisitRecorderLauncher.begin({ source: 'create' });
+      break;
+    case 'estimate':
+      if (typeof goTo === 'function') goTo('est');
+      break;
   }
 }
 
@@ -2724,7 +2736,7 @@ async function _prospectPrompt(message) {
   if (typeof window.uiPrompt === 'function') {
     return await window.uiPrompt(message);
   }
-  return prompt(message);
+  return window.nbdPrompt(message);
 }
 
 // Confirm-then-promote. Single confirm dialog before flipping isProspect.

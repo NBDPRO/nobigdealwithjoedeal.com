@@ -50,6 +50,9 @@ const {
   groqExtensionForMime,
   normalizeGroqTranscription,
 } = require('./integrations/transcription-logic');
+// summarize / extract-tasks may hear a customer in the room or on speaker:
+// their transcript is fenced as data (clean mode echoes the text back, so no tags there).
+const { FENCE_CLAUSE, fence } = require('./ai-fence');
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 
 const CORS_ORIGINS = [
@@ -99,7 +102,8 @@ Rules:
 - If a field has no values, return an empty array (not null).
 - Keep the rep's voice in actionItems — do NOT paraphrase, do NOT add suggestions the rep didn't make.
 - If multiple homeowners or addresses are mentioned, list each separately.
-- Output ONLY the JSON. No markdown, no preamble, no trailing text.`;
+- Output ONLY the JSON. No markdown, no preamble, no trailing text.
+` + FENCE_CLAUSE;
 
 // ─── Extract-tasks prompt ──────────────────────────────────────
 const EXTRACT_TASKS_PROMPT = `You are an assistant helping a roofing/insurance restoration sales rep
@@ -117,11 +121,12 @@ Rules:
 - Use the CURRENT user's local date as today when resolving relative phrases like "tomorrow" / "next week".
 - If no due date is implied, use null.
 - Maximum 8 tasks per transcript — pick the most important ones.
-- Output ONLY the JSON.`;
+- Output ONLY the JSON.
+` + FENCE_CLAUSE;
 
 // ─── Transcription helpers ─────────────────────────────────────
 // Groq Whisper-large-v3-turbo — free tier, same key as Voice Intel.
-async function transcribeGroq(audioBuf, mimeType) {
+async function transcribeGroq(audioBuf, mimeType, companyId) {
   const out = await transcribeGroqBuffer({
     buffer: audioBuf,
     mimeType,
@@ -130,6 +135,7 @@ async function transcribeGroq(audioBuf, mimeType) {
     // the Claude call after a slow Groq response.
     timeoutMs: 25_000,
     feature: 'dictate',
+    companyId, // the caller's company: its daily AI spend counter
   });
   return normalizeGroqTranscription(out);
 }
@@ -140,11 +146,11 @@ const TRANSCRIBERS = { groq: transcribeGroq };
 // Every failure path logs the provider + status (a 429 from Groq is the
 // free tier saying "slow down", which is exactly when the fallback earns
 // its keep); only when both fail does the caller see an error.
-async function transcribeAudio(audioBuf, mimeType, plan) {
+async function transcribeAudio(audioBuf, mimeType, plan, companyId) {
   let lastErr = null;
   for (const name of [plan.primary, plan.fallback].filter(Boolean)) {
     try {
-      const out = await TRANSCRIBERS[name](audioBuf, mimeType);
+      const out = await TRANSCRIBERS[name](audioBuf, mimeType, companyId);
       return { ...out, provider: name, fellBack: name !== plan.primary };
     } catch (e) {
       lastErr = e;
@@ -161,7 +167,7 @@ async function transcribeAudio(audioBuf, mimeType, plan) {
 // Uses raw fetch against Anthropic's API rather than going through
 // the claudeProxy onRequest endpoint — same secret, same provider,
 // but skipping the proxy avoids a second network hop + double-auth.
-async function callClaudeForDictate({ system, userText, maxTokens, apiKey }) {
+async function callClaudeForDictate({ system, userText, maxTokens, apiKey, companyId }) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -182,7 +188,7 @@ async function callClaudeForDictate({ system, userText, maxTokens, apiKey }) {
     throw new HttpsError('internal', 'AI processing failed');
   }
   const data = await res.json();
-  await require('./ai-spend').recordAiSpend(require('./ai-spend').rowFromAnthropic('dictate', 'claude-haiku-4-5-20251001', data), { log: logger });
+  await require('./ai-spend').recordAiSpend(require('./ai-spend').rowFromAnthropic('dictate', 'claude-haiku-4-5-20251001', data), { log: logger, companyId });
   const text = (data?.content?.[0]?.text || '').trim();
   return {
     text,
@@ -241,7 +247,7 @@ exports.dictate = onCall(
     // Before the rate limit, so a refusal spends nothing. (A viewer on a paid
     // company may still dictate: it writes nothing, as transcribeVoiceMemo's
     // no-lead path already allows, decision B 2026-09-25.)
-    await require('./ai-gate').assertAiEntitled(require('firebase-admin/firestore').getFirestore(), request.auth);
+    const gate = await require('./ai-gate').assertAiEntitled(require('firebase-admin/firestore').getFirestore(), request.auth, { feature: 'dictate' });
 
     // Per-uid rate limit. 30/hr is generous for an active dictator
     // — the W128 click-to-toggle UI naturally tops out around
@@ -291,7 +297,7 @@ exports.dictate = onCall(
 
     // ── 1. Transcribe ───────────────────────────────────────
     const t0 = Date.now();
-    const { transcript, confidence, provider, fellBack } = await transcribeAudio(audioBuf, mimeType, plan);
+    const { transcript, confidence, provider, fellBack } = await transcribeAudio(audioBuf, mimeType, plan, gate && gate.companyId);
     const transcribeMs = Date.now() - t0;
     if (fellBack) logger.info('[dictate] used fallback transcriber', { provider, primary: plan.primary });
 
@@ -318,6 +324,7 @@ exports.dictate = onCall(
         // longer dictations.
         maxTokens: Math.min(1500, Math.max(200, Math.ceil(transcript.length / 2) + 200)),
         apiKey: anthKey,
+        companyId: gate && gate.companyId,
       });
       return {
         success: true,
@@ -336,9 +343,10 @@ exports.dictate = onCall(
       const todayHint = todayLocal ? `\n\nToday is ${todayLocal} (rep's local date).` : '';
       const { text, usage } = await callClaudeForDictate({
         system: SUMMARIZE_PROMPT + todayHint,
-        userText: transcript,
+        userText: fence('transcript', transcript),
         maxTokens: 1200,
         apiKey: anthKey,
+        companyId: gate && gate.companyId,
       });
       const parsed = safeJsonParse(text);
       // If JSON parse fails, downgrade to overview-only so the user
@@ -381,9 +389,10 @@ exports.dictate = onCall(
       const todayHint = todayLocal ? `\n\nToday is ${todayLocal} (rep's local date).` : '';
       const { text, usage } = await callClaudeForDictate({
         system: EXTRACT_TASKS_PROMPT + todayHint,
-        userText: transcript,
+        userText: fence('transcript', transcript),
         maxTokens: 800,
         apiKey: anthKey,
+        companyId: gate && gate.companyId,
       });
       const parsed = safeJsonParse(text);
       const tasks = (parsed && Array.isArray(parsed.tasks)) ? parsed.tasks

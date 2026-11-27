@@ -49,8 +49,13 @@ const INIT_LINE = `<script defer src="${INIT_SCRIPT}"></script>`;
 // scope: 404.html / offline.html (no visitors to attribute), the Google
 // site-verification file, /pro/** (the CRM), /admin/**, /dev/**, /sites/**
 // (tenant microsites — a tenant's traffic is not NBD's to measure).
-const SCOPE_DIRS = ['services', 'areas'];
-const SCOPE_FILES = ['careers.html', 'partners.html', 'storm-alerts.html'];
+// 2026-11-25: blog posts and the /our-work case studies added; 84 pages had no
+// analytics, so no one could see which content led to a lead. The case-study
+// template in scripts/build-projects.mjs carries the same lines.
+const SCOPE_DIRS = ['services', 'areas', 'blog', 'our-work'];
+// 2026-11-26: /free-roof (the giveaway entry form) and /the-pledge were the
+// last public pages with no analytics (Joe approved).
+const SCOPE_FILES = ['careers.html', 'partners.html', 'storm-alerts.html', 'free-roof/index.html', 'the-pledge/index.html'];
 
 const HAS_LOADER = /googletagmanager\.com\/gtag\/js\?id=G-[A-Z0-9]+/;
 

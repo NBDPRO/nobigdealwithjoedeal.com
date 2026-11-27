@@ -24,6 +24,9 @@
  *   node tests/sms-outbox-server.test.js
  */
 'use strict';
+// Only NBD texts on NBD's Twilio sender (review-ask guardrail plan S0, 2026-11-26): this suite's
+// fixture tenant stands in for NBD. sms-texting-gate.js refuses every other company (no_own_sender).
+process.env.NBD_OWNER_UID = 'co-1';
 
 const fs = require('fs');
 const path = require('path');
@@ -1102,8 +1105,10 @@ const logRow = (over) => Object.assign({
   }
   {
     const { res, w } = await soloLead({ userId: UID });
-    ok('the same rep\'s OWN company-less lead still sends (the rule is tenancy, not "no company, no texting")',
-      res.statusCode === 200 && w.twilioCalls.length === 1, res.statusCode + ' ' + JSON.stringify(res.body));
+    // Tenancy passes (not lead_gone); the sender gate then refuses: a solo rep is not NBD, and only NBD
+    // texts on NBD's number until per-company senders exist (S0, 2026-11-26).
+    ok('the same rep\'s OWN company-less lead passes tenancy, then the sender gate refuses it (no_own_sender, Twilio untouched)',
+      res.statusCode === 403 && res.body && res.body.reason === 'no_own_sender' && w.twilioCalls.length === 0, res.statusCode + ' ' + JSON.stringify(res.body));
   }
 
   // ═══ overrides never touch opt-out ═════════════════════════════════════
@@ -1334,7 +1339,9 @@ const logRow = (over) => Object.assign({
     ok('solo rep (no company claim): the scan filters on their uid, and their own later live text competes',
       held(a.res, 'recent_outbound') && a.w.events.includes('activity-read:uid=' + UID), a.w.events.join(' > '));
     const b = await tenantAct([logRow({ uid: 'rep-2', companyId: undefined, date: QT + MIN })], {}, solo);
-    ok('…another solo rep\'s text to the same homeowner does not', b.res.statusCode === 200, JSON.stringify(b.res.body));
+    // Not held by the activity scan; it reaches the sender gate, which refuses a solo rep (not NBD) since S0 (2026-11-26).
+    ok('…another solo rep\'s text to the same homeowner does not (reaches the sender gate: no_own_sender)',
+      b.res.statusCode === 403 && b.res.body && b.res.body.reason === 'no_own_sender' && b.w.twilioCalls.length === 0, JSON.stringify(b.res.body));
     const c = await tenantAct([logRow({ uid: UID, companyId: UID, status: 'received', date: QT + MIN })], {}, solo);
     ok('…a reply routed to their lead (uid = lead.userId) does', held(c.res, 'recent_inbound'), JSON.stringify(c.res.body));
   }

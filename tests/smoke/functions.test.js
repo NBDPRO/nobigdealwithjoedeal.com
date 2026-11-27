@@ -564,7 +564,7 @@ section('Slack alerts');
 section('Turnstile');
 {
   const src = read(path.join(FUNCTIONS, 'integrations/turnstile.js'));
-  assert('verifyTurnstile exported', /module\.exports\s*=\s*\{\s*verifyTurnstile\s*\}/.test(src));
+  assert('verifyTurnstile exported', /module\.exports\s*=\s*\{\s*verifyTurnstile\s*[,}]/.test(src));
   assert('fails closed on verifier error',
     /Fail CLOSED/i.test(src) && /'verify-error'/.test(src));
   const idx = readFunctionsIndex();

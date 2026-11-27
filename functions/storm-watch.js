@@ -260,7 +260,7 @@ async function runStormWatch() {
 <ul>${events.map((ev) => `<li><b>${esc(eventLabel(ev))}</b> near ${esc(ev.city || ev.county)}, ${esc(ev.st)} — ${esc(StormTime.whenTextEt(ev.valid))} <span style="color:#6b7280">(${ev.lat.toFixed(2)}, ${ev.lon.toFixed(2)})</span></li>`).join('')}</ul>
 <p><b>${affected.length}</b> subscriber${affected.length === 1 ? '' : 's'} within ${SUBSCRIBER_RADIUS_MI} mi${unknownZips ? ` (+${unknownZips} with unmappable zips, not texted)` : ''}: ${esc(Object.entries(zipCounts).map(([z, n]) => `${z}×${n}`).join(', ')) || '—'}</p>
 <p>${textEnabled ? 'Subscriber texts are GOING OUT now.' : '<b>Subscriber texting is OFF</b> (STORM_TEXT_ENABLED not set) — this is the list that WOULD have been texted.'}</p>
-<p>Go time: <a href="https://nobigdealwithjoedeal.com/storm-check">storm-check</a> traffic usually follows within hours.</p>
+<p>Go time: <a href="https://nobigdealwithjoedeal.com/roof-check">roof-check</a> traffic usually follows within hours.</p>
 </body></html>`;
     await resend.emails.send({
       from: process.env.EMAIL_FROM || 'noreply@nobigdealwithjoedeal.com',
@@ -291,11 +291,12 @@ async function runStormWatch() {
         tz: a.tz,
         recipient: { zip: a.zip },
         serverTimestamp: () => FieldValue.serverTimestamp(),
-        send: () => client.messages.create({
+        // w = the guard's own window answer ({ nowMs, companyProfile }) for guardTwilio.
+        send: (w) => client.messages.create({
           to: a.to,
           from: TWILIO_PHONE_NUMBER.value(),
           body: `No Big Deal Home Solutions Storm Alert: ${eventLabel(a.event)} reported near ${a.event.city || 'your area'}. If your roof took it, Joe documents damage free before you call insurance: nobigdealwithjoedeal.com/storm-check or call/text (859) 420-7382. Reply STOP to opt out.`,
-        }),
+        }, Object.assign({ recipient: { zip: a.zip, tz: a.tz } }, w)),
       });
       if (result.status === 'sent') texted++;
       else skipped[result.status] = (skipped[result.status] || 0) + 1;

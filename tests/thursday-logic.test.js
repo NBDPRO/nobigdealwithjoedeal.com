@@ -213,8 +213,11 @@ console.log('\nTHURSDAY — routing');
 {
   const none = { confidence: 'none', lead: null, strong: [], possible: [] };
   const strong = { confidence: 'strong', lead: { leadId: 'L1', name: 'A', reasons: ['phone'] }, strong: [{}], possible: [] };
+  // 2026-11-22 audit: spam is log-only only at high confidence (ex() is high)
+  // from a number on no CRM lead, test only from the company's own number
+  // (owner_call); the other cases are pinned in tests/ai-fence-2026-11-22.test.js §7.
   for (const t of ['spam', 'test', 'silent']) {
-    const r = T.decideRoute(ex({ caller_type: t }), strong);
+    const r = T.decideRoute(Object.assign(ex({ caller_type: t }), t === 'test' ? { owner_call: true } : {}), t === 'spam' ? none : strong);
     ok(t + ' → log only, no notifications, no task', r.action === 'log_only' && !r.notifyEmail && !r.notifyPush && !r.notifySms && !r.createTask);
   }
   const js = T.decideRoute(ex({ caller_type: 'job_seeker' }), none);

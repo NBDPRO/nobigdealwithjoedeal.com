@@ -30,6 +30,7 @@
 const { phoneDigits10 } = require('./phone-utils');
 const SW = require('./schedule-window');
 const TCT = require('./task-call-text');
+const { FENCE_CLAUSE, fence } = require('./ai-fence');
 
 const DIRECTION = { '↗': 'outbound', '↙': 'inbound' };
 
@@ -37,8 +38,10 @@ const DIRECTION = { '↗': 'outbound', '↙': 'inbound' };
 // The number is either "(+1 812-…)" / "(1 877-…)" after a label, or a bare
 // "+1 800-…" when the caller isn't a saved contact.
 const NAME_RE = /^(\d{4}-\d{2}-\d{2}) (\d{2})-(\d{2})-(\d{2}) \(([^)]*)\)\s*(.*?)\s*([↗↙])?\.(m4a|mp3|amr|ogg|wav|aac|3gp|opus)$/i;
-const TRAILING_NUMBER_RE = /^(.*?)\s*\(\s*(\+?[\d][\d\s\-().]{6,})\)$/;
-const BARE_NUMBER_RE = /^\+?[\d][\d\s\-().]{6,}$/;
+// A number may start with "(" (US format "(513) 555-0199", 2026-11-18).
+const TRAILING_NUMBER_RE = /^(.*?)\s*\(\s*(\+?[\d(][\d\s\-().]{6,})\)$/;
+const BARE_NUMBER_RE = /^\+?[\d(][\d\s\-().]{6,}$/;
+const RAW_NAME_RE = /^phone_(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})_(_?)(\d{7,15})\.(m4a|mp3|amr|ogg|wav|aac|3gp|opus)$/i;
 
 // Jo's own contact-name tags. Kept as tags, stripped from the display name.
 const TAGS = [
@@ -54,9 +57,22 @@ const CARRIER_RE = /\b(allstate|state\s*farm|progressive|liberty\s*mutual|nation
 
 /** Parse a Cube ACR file name. Returns null for anything that isn't one. */
 function parseCubeAcrName(name) {
-  const m = NAME_RE.exec(String(name || '').trim());
-  if (!m) return null;
-  const [, ymd, hh, mi, ss, source, rest, arrow, ext] = m;
+  const s = String(name || '').trim();
+  const m = NAME_RE.exec(s);
+  let ymd, hh, mi, ss, source, rest, arrow, ext;
+  if (m) [, ymd, hh, mi, ss, source, rest, arrow, ext] = m;
+  else {
+    // The phone's own name for a recording (hand-uploaded, 2026-11-18):
+    // "phone_YYYYMMDD-HHMMSS_<number>"; a "+" in the number became a second "_".
+    // No contact label and no direction arrow.
+    const r = RAW_NAME_RE.exec(s);
+    if (!r) return null;
+    ymd = r[1] + '-' + r[2] + '-' + r[3];
+    [hh, mi, ss] = [r[4], r[5], r[6]];
+    source = 'phone';
+    rest = (r[7] ? '+' : '') + r[8];
+    ext = r[9];
+  }
   if (+hh > 23 || +mi > 59 || +ss > 59) return null;
 
   let label = '';
@@ -444,10 +460,11 @@ const factsSystemText = (intro, us) => [
   intro,
   'Return ONE JSON object and nothing else: {"caller_name": ..., "street": ..., "town": ..., "service": ...}',
   callerFactRules(us),
+  FENCE_CLAUSE,
 ].join('\n');
 const FACTS_SYSTEM = factsSystemText('You read a transcript of a phone call taken or made by Jo, who runs No Big Deal Home Solutions, a small roofing / gutters / siding contractor in the Cincinnati / Northern Kentucky area.', 'Jo');
 function buildFactsPrompt({ transcript }) {
-  return 'Transcript:\n' + String(transcript || '').slice(0, 30000);
+  return 'Transcript:\n' + fence('transcript', String(transcript || '').slice(0, 30000));
 }
 // Bump when the fact rules change: calls extracted under an older version
 // are re-read (bounded) by call-center.js reextractFacts.
@@ -491,6 +508,7 @@ const notesSystemText = (intro, us, extra) => [
   'Rules: only promises actually made on the call, at most 6. Resolve relative dates ("Thursday", "next week") against the call date given. ',
   'A call about family, friends or anything not business is "personal": then summary is "Personal call." and promises is [].',
   'Never invent prices, names or dates that were not said.',
+  FENCE_CLAUSE,
 ]).join('\n') + '\n' + callerFactRules(us);
 const NOTES_SYSTEM = notesSystemText('You read transcripts of phone calls made or taken by Jo, who runs No Big Deal Home Solutions, a small roofing / gutters / siding contractor in the Cincinnati area.', 'Jo');
 
@@ -569,11 +587,12 @@ function buildNotesPrompt({ call, transcript, leadName, tenant }) {
   return [
     'Call date (Eastern): ' + when,
     'Direction: ' + (call.direction === 'outbound' ? (tenant ? 'The contractor' : 'Jo') + ' called them' : call.direction === 'inbound' ? 'They called ' + us : 'unknown'),
-    'Other party (from ' + (tenant ? 'the phone\'s' : 'Jo\'s phone') + ' contacts): ' + (call.contactName || 'not a saved contact'),
-    leadName ? 'CRM customer this number belongs to: ' + leadName : 'Not matched to a CRM customer.',
+    // Names are outside text too (a lead's name arrives from a web form): fenced.
+    'Other party (from ' + (tenant ? 'the phone\'s' : 'Jo\'s phone') + ' contacts): ' + (call.contactName ? fence('contact_name', call.contactName) : 'not a saved contact'),
+    leadName ? 'CRM customer this number belongs to: ' + fence('lead_name', leadName) : 'Not matched to a CRM customer.',
     '',
     'Transcript:',
-    String(transcript || '').slice(0, 60000),
+    fence('transcript', String(transcript || '').slice(0, 60000)),
   ].join('\n');
 }
 
@@ -588,16 +607,23 @@ function clip(s, n) {
   return t.length > n ? t.slice(0, n - 1) + '…' : t;
 }
 
-/** The model's JSON → the stored shape. Anything malformed is dropped, never trusted. */
-function sanitizeNotes(raw) {
+/**
+ * The model's JSON → the stored shape. Anything malformed is dropped, never trusted.
+ * opts.matched: the call is on an existing lead. A "personal" verdict there is
+ * only a suggestion (audit 2026-11-22): personalSuggested: true, and the
+ * caller keeps the CRM audio and holds the call for review instead of
+ * deleting it. Nothing private is kept either way (same shape as personal).
+ */
+function sanitizeNotes(raw, opts) {
   const r = raw && typeof raw === 'object' ? raw : {};
   const callType = CALL_TYPES.includes(r.call_type) ? r.call_type : 'other';
+  const personalSuggested = callType === 'personal' && !!(opts && opts.matched);
   const personal = callType === 'personal';
   const promises = personal ? [] : (Array.isArray(r.promises) ? r.promises : [])
     .filter((p) => p && typeof p.text === 'string' && p.text.trim())
     .slice(0, 6)
     .map((p) => ({ who: p.who === 'jo' ? 'jo' : 'them', text: clip(p.text, 160), due: ymdOrNull(p.due) }));
-  return {
+  const out = {
     callType,
     summary: personal ? 'Personal call.' : clip(r.summary || '', 700),
     promises,
@@ -606,6 +632,8 @@ function sanitizeNotes(raw) {
     // Optional; a reply without them (older prompt, drift) → all null.
     callerFacts: personal ? sanitizeCallerFacts(null) : sanitizeCallerFacts(r),
   };
+  if (personalSuggested) out.personalSuggested = true;
+  return out;
 }
 
 /** leads/{id}/activity/cube-{docId} — the customer timeline entry. */

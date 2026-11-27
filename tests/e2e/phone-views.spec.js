@@ -519,10 +519,21 @@ test.describe('phone views: Settings panels @audit', () => {
         const saveBar = page.locator('#pipelineBuilderRoot .pb-savebar [data-pb-action="save"]');
         const edited = await order();
         await expect(saveBar, 'the ▼ left unsaved edits').toBeVisible();
-        const asked = [];
-        let accept = false;
-        const onDialog = (d) => { asked.push(d.message()); (accept ? d.accept() : d.dismiss()).catch(() => {}); };
-        page.on('dialog', onDialog);
+        // The leave prompt is an in-tab dialog (nbd-dialog / standalone-compat.js), not a native
+        // confirm(): an observer in the page records its message and clicks Cancel (or OK once accept).
+        await page.evaluate(() => {
+          window.__pvDlg = { asked: [], accept: false };
+          window.__pvDlgObs = new MutationObserver(() => {
+            const d = document.getElementById('nbd-dialog');
+            if (!d || d.dataset.pvSeen) return;
+            d.dataset.pvSeen = '1';
+            window.__pvDlg.asked.push(d.innerText);
+            setTimeout(() => { const b = document.getElementById(window.__pvDlg.accept ? 'nbd-dialog-confirm' : 'nbd-dialog-cancel'); if (b) b.click(); }, 0);
+          });
+          window.__pvDlgObs.observe(document.body, { childList: true });
+        });
+        const askedN = () => page.evaluate(() => window.__pvDlg.asked.length);
+        const askedAt = (i) => page.evaluate((k) => window.__pvDlg.asked[k], i);
         const tapTab = async (tab) => {
           const b = page.locator(`#stab-${tab}`);
           await b.scrollIntoViewIfNeeded();
@@ -535,15 +546,15 @@ test.describe('phone views: Settings panels @audit', () => {
         try {
           // Another Settings tab → Cancel: still on Pipelines, edit intact.
           await tapTab('profile');
-          await expect.poll(() => asked.length, { message: 'switching tabs asks' }).toBe(1);
-          expect(asked[0]).toMatch(/unsaved pipeline changes/i);
+          await expect.poll(askedN, { message: 'switching tabs asks' }).toBe(1);
+          expect(await askedAt(0)).toMatch(/unsaved pipeline changes/i);
           await expect(page.locator('#stab-panel-pipelines')).toBeVisible();
           await expect(page.locator('#stab-panel-profile')).toBeHidden();
           expect(await order(), 'Cancel keeps the reorder').toEqual(edited);
 
           // The bottom nav → Cancel: still in Settings, edit intact.
           await page.locator('#mni-dash').tap();
-          await expect.poll(() => asked.length, { message: 'leaving the view asks' }).toBe(2);
+          await expect.poll(askedN, { message: 'leaving the view asks' }).toBe(2);
           expect(await page.evaluate(() => (document.querySelector('.view.active') || {}).id)).toBe('view-settings');
           expect(await order(), 'Cancel keeps the reorder').toEqual(edited);
           await expect(saveBar).toBeVisible();
@@ -596,18 +607,18 @@ test.describe('phone views: Settings panels @audit', () => {
               else delete window.nbdConfirm;
             });
           }
-          expect(asked.length, 'the installed-app prompt stood in for confirm()').toBe(2);
+          expect(await askedN(), 'the installed-app prompt stood in for confirm()').toBe(2);
 
           // Tapping Pipelines again while it is open keeps the working copy.
           await tapTab('pipelines');
           await page.waitForTimeout(400);
-          expect(asked.length, 're-selecting Pipelines does not ask').toBe(2);
+          expect(await askedN(), 're-selecting Pipelines does not ask').toBe(2);
           expect(await order(), 're-selecting Pipelines keeps the reorder').toEqual(edited);
 
           // OK discards: Profile opens, and Pipelines comes back as saved.
-          accept = true;
+          await page.evaluate(() => { window.__pvDlg.accept = true; });
           await tapTab('profile');
-          await expect.poll(() => asked.length).toBe(3);
+          await expect.poll(askedN).toBe(3);
           await expect(page.locator('#stab-panel-profile')).toBeVisible();
           await openSettingsTab(page, 'pipelines');
           await expect.poll(async () => (await order()).slice(0, 2), { message: 'the discarded ▼ is undone' }).toEqual([edited[1], edited[0]]);
@@ -616,9 +627,9 @@ test.describe('phone views: Settings panels @audit', () => {
           // Nothing unsaved: leaving asks nothing.
           await tapTab('profile');
           await expect(page.locator('#stab-panel-profile')).toBeVisible();
-          expect(asked.length, 'a clean editor never asks').toBe(3);
+          expect(await askedN(), 'a clean editor never asks').toBe(3);
         } finally {
-          page.off('dialog', onDialog);
+          await page.evaluate(() => { if (window.__pvDlgObs) window.__pvDlgObs.disconnect(); });
         }
       });
     }

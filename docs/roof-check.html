@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<script defer src="/assets/js/ga-loader.js" data-gtag="https://www.googletagmanager.com/gtag/js?id=G-8PG7N9Q3DL"></script>
+<script defer src="/assets/js/storm-check-ga.js"></script>
+<title>Free Roof Check: Did the Storm Hit Your Roof? | NBD</title>
+<meta name="description" content="Free roof check for Greater Cincinnati, N. Kentucky and Lexington homes: see 5 years of official NOAA/NWS storm records for your address, then get Joe&#8217;s straight take on whether your roof needs a look.">
+<link rel="canonical" href="https://nobigdealwithjoedeal.com/roof-check">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Free Roof Check: Did the Storm Hit Your Roof? | NBD">
+<meta property="og:description" content="See 5 years of official storm records for your address, free, then get Joe&#8217;s straight take on your roof. Greater Cincinnati &amp; N. Kentucky.">
+<meta property="og:url" content="https://nobigdealwithjoedeal.com/roof-check">
+<meta property="og:image" content="https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Free Roof Check: Did the Storm Hit Your Roof? | NBD">
+<meta name="twitter:image" content="https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/images/home-icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/assets/images/home-icon-512.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="No Big Deal">
+<link rel="stylesheet" href="/assets/css/nbd-fonts.css">
+<link rel="preload" href="/assets/fonts/bebas-neue-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/montserrat-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"NBD Roof Check","applicationCategory":"BusinessApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"provider":{"@id":"https://nobigdealwithjoedeal.com/#org"}}
+</script>
+<style>
+/* CLS fix (T3e): metric-adjusted local fallbacks so the intro doesn't grow/
+   shrink when the self-hosted webfonts swap in. Values measured against Arial
+   via canvas TextMetrics. */
+@font-face{font-family:'Bebas Neue Fallback';src:local('Arial'),local('Liberation Sans'),local('Helvetica Neue'),local('Roboto');size-adjust:75.53%;ascent-override:119.16%;descent-override:39.72%;line-gap-override:0%}
+@font-face{font-family:'Montserrat Fallback';src:local('Arial'),local('Liberation Sans'),local('Helvetica Neue'),local('Roboto');size-adjust:112.49%;ascent-override:86.23%;descent-override:22.22%;line-gap-override:0%}
+@font-face{font-family:'Dancing Script Fallback';src:local('Arial'),local('Liberation Sans'),local('Helvetica Neue'),local('Roboto');size-adjust:82.12%;ascent-override:112.03%;descent-override:34.10%;line-gap-override:0%}
+:root{--navy:#1a3057;--navy-dark:#12223d;--orange:#bd5728;--orange-light:#dd875f;--orange-dark:#a14a22;--gray-sub:#4a4a4a;--white:#fff;--off-white:#f5f3ef;--gray:#5d6673;--light-gray:#e8e5e0;--success:#22a06b}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Montserrat','Montserrat Fallback',sans-serif;color:var(--navy-dark);background:var(--off-white);line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+/* intro */
+.rc-intro{background:var(--navy-dark);color:#fff;text-align:center;padding:34px 20px 30px}
+.rc-intro h1{font-family:'Bebas Neue','Bebas Neue Fallback',sans-serif;font-size:2.1rem;line-height:1.05;letter-spacing:.01em;max-width:720px;margin:0 auto}
+.rc-intro h1 span{color:#BD5728}
+.rc-intro p{color:rgba(255,255,255,.75);font-size:.92rem;max-width:560px;margin:12px auto 0}
+.rc-intro .rc-script{font-family:'Dancing Script','Dancing Script Fallback',cursive;color:var(--orange-light);font-size:1.2rem;margin-top:8px}
+/* shell */
+.rc-shell{max-width:640px;margin:-18px auto 0;padding:0 16px 60px}
+.rc-card{background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(18,34,61,.12);padding:26px 22px;border:1px solid var(--light-gray)}
+/* progress */
+.rc-progress{height:6px;background:var(--light-gray);border-radius:100px;overflow:hidden;margin-bottom:24px}
+.rc-progress-fill{height:100%;background:linear-gradient(90deg,var(--orange),var(--orange-light));width:0;transition:width .4s ease}
+/* steps */
+.rc-step{display:none;animation:rcFade .4s ease}
+.rc-step.active{display:block}
+@keyframes rcFade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.rc-step h2{font-family:'Bebas Neue','Bebas Neue Fallback',sans-serif;font-size:1.6rem;color:var(--navy-dark);letter-spacing:.01em;margin-bottom:4px}
+.rc-sub{color:var(--gray);font-size:.85rem;margin-bottom:18px}
+.rc-label{display:block;font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--gray-sub);margin:18px 0 8px}
+.rc-opt{font-weight:600;color:var(--gray);text-transform:none;letter-spacing:0}
+/* input */
+.rc-input-wrap{position:relative}
+.rc-input{width:100%;padding:14px 16px;border:2px solid var(--light-gray);border-radius:10px;font-size:1rem;font-family:inherit;color:var(--navy-dark)}
+.rc-input:focus{outline:none;border-color:var(--orange)}
+.rc-input:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+.rc-acdrop{display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--light-gray);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.12);z-index:20;max-height:240px;overflow:auto}
+.rc-ac-item{padding:11px 14px;font-size:.85rem;cursor:pointer;border-bottom:1px solid var(--off-white)}
+.rc-ac-item:hover,.rc-ac-item.kb-active{background:var(--off-white)}
+.rc-hint{display:none;font-size:.78rem;color:#A14A22;margin-top:8px}
+/* tiles */
+.rc-tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rc-tiles.one{grid-template-columns:1fr}
+.rc-tile{background:var(--off-white);border:2px solid var(--light-gray);border-radius:10px;padding:14px 12px;font-size:.9rem;font-weight:600;color:var(--navy-dark);cursor:pointer;text-align:left;font-family:inherit;transition:border-color .15s,background .15s}
+.rc-tile:hover{border-color:var(--orange-light)}
+.rc-tile.selected{border-color:var(--orange);background:rgba(189,87,40,.08);box-shadow:inset 0 0 0 1px var(--orange)}
+/* nav buttons */
+.rc-btns{display:flex;gap:10px;margin-top:24px}
+.rc-next{flex:1;background:#BD5728;color:#fff;border:none;border-radius:10px;padding:15px;font-size:1rem;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:.02em}
+.rc-next:hover{background:#A14A22}
+.rc-back{background:none;border:2px solid var(--light-gray);border-radius:10px;padding:15px 20px;font-weight:700;color:var(--gray-sub);cursor:pointer;font-family:inherit}
+.rc-back:hover{border-color:var(--gray)}
+.rc-btn-retry{width:100%;background:#fff;color:var(--navy-dark);border:2px solid var(--navy-dark);border-radius:10px;padding:13px;font-size:.95rem;font-weight:800;cursor:pointer;font-family:inherit;margin-top:14px}
+.rc-btn-retry:hover{background:var(--off-white)}
+.rc-btn-retry[hidden]{display:none}
+/* free storm history */
+.rc-chips{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 4px}
+.rc-chip{background:var(--off-white);border:1px solid var(--light-gray);border-radius:100px;padding:7px 13px;font-size:.82rem;font-weight:700;color:var(--navy-dark)}
+.rc-softbox{margin-top:20px;padding-top:18px;border-top:1px dashed var(--light-gray)}
+.rc-softbox .rc-lead{font-weight:800;color:var(--navy-dark);margin-bottom:2px}
+.rc-softbox .rc-btns{margin-top:4px}
+.rc-soft{font-size:.84rem;color:var(--gray-sub);text-align:center;margin-top:14px;line-height:1.55}
+.rc-soft a{color:#A14A22;font-weight:700}
+/* consent + err */
+.rc-consent{display:flex;gap:10px;align-items:flex-start;margin-top:16px;font-size:.78rem;color:var(--gray-sub);line-height:1.4}
+.rc-consent input{margin-top:2px;width:18px;height:18px;flex-shrink:0;accent-color:var(--orange)}
+.rc-consent a{color:inherit;text-decoration:underline}
+/* trust line above Submit; rating hydrated live by google-reviews-widget.js */
+.nbd-trust-line{margin:4px 0 10px;font-size:.78rem;font-weight:600;color:#5b6572;text-align:center;line-height:1.4}
+.nbd-trust-line span[aria-hidden]{color:#b07d00}
+.rc-err{color:#b91c1c;font-size:.82rem;margin-top:10px;min-height:1em}
+/* loading */
+.rc-spin{width:42px;height:42px;border:4px solid var(--light-gray);border-top-color:var(--orange);border-radius:50%;animation:rcSpin 1s linear infinite;margin:30px auto 18px}
+@keyframes rcSpin{to{transform:rotate(360deg)}}
+/* result */
+.rc-details{margin:6px 0 18px;padding-top:16px;border-top:1px solid rgba(26,48,87,.15);min-width:0}
+.rc-details[hidden]{display:none}
+.rc-details h3{font-size:1rem;font-weight:800;color:var(--navy-dark);margin-bottom:4px}
+.rc-details .rc-sub{margin-bottom:12px}
+.rc-details input[type=file]{max-width:100%;min-width:0}
+button.rc-cta{width:100%;font:inherit;font-weight:800;cursor:pointer}
+button.rc-cta:disabled{opacity:.6;cursor:wait}
+.rc-details-status{font-size:.85rem;margin-top:8px;color:var(--gray-sub)}
+.rc-details-status.error{color:#7f1d1d}
+.rc-details-status a{color:inherit;font-weight:700}
+.rc-result-headline{font-family:'Bebas Neue','Bebas Neue Fallback',sans-serif;font-size:1.9rem;color:var(--navy-dark);text-align:center;line-height:1.1;margin:8px 0 14px}
+.rc-result-data{background:rgba(34,160,107,.1);border:1px solid rgba(34,160,107,.35);border-radius:10px;padding:12px 14px;font-size:.86rem;color:#14663f;font-weight:600;margin-bottom:14px}
+.rc-result-detail{font-size:.95rem;color:var(--gray-sub);margin-bottom:18px}
+.rc-take{background:var(--navy-dark);color:#fff;border-radius:12px;padding:18px;font-size:.92rem;line-height:1.55;margin-bottom:20px;position:relative}
+.rc-take b{display:block;color:var(--orange-light);font-family:'Dancing Script','Dancing Script Fallback',cursive;font-size:1.15rem;margin-bottom:4px}
+.rc-take .rc-take-ai{display:block;font-size:.74rem;color:rgba(255,255,255,.72);margin-bottom:8px}
+.rc-cta{display:block;text-align:center;text-decoration:none;font-weight:800;border-radius:10px;padding:15px;margin-bottom:10px;letter-spacing:.02em}
+.rc-cta-primary{background:#BD5728;color:#fff}
+.rc-cta-primary:hover{background:#A14A22}
+.rc-cta-phone{background:#fff;color:var(--navy-dark);border:2px solid var(--navy-dark)}
+.rc-warn{display:none;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.3);border-radius:8px;padding:11px 13px;font-size:.82rem;color:#7f1d1d;margin-bottom:14px}
+/* storm history on the result */
+.rc-report{margin-top:22px;padding-top:6px;border-top:1px solid rgba(26,48,87,.15)}
+.rc-summary{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px}
+.rc-stat{flex:1;min-width:84px;background:var(--off-white);border:1px solid var(--light-gray);border-radius:10px;padding:12px 8px;text-align:center}
+.rc-stat b{display:block;font-family:'Bebas Neue','Bebas Neue Fallback',sans-serif;font-size:1.7rem;color:#A14A22;line-height:1}
+.rc-stat span{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:var(--gray);font-weight:700}
+#rc-map{height:280px;border-radius:12px;overflow:hidden;margin-bottom:8px;border:1px solid var(--light-gray);background:var(--light-gray)}
+.rc-maplegend{font-size:.7rem;color:var(--gray);margin-bottom:18px;text-align:center}
+.rc-table-wrap{border:1px solid var(--light-gray);border-radius:12px;overflow:hidden;margin-bottom:6px}
+table.rc-table{width:100%;border-collapse:collapse;font-size:.84rem}
+.rc-table th{background:var(--off-white);text-align:left;padding:10px 12px;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-sub)}
+.rc-table td{padding:9px 12px;border-top:1px solid var(--off-white)}
+.rc-tag{font-size:.68rem;font-weight:800;text-transform:uppercase;padding:2px 7px;border-radius:4px;color:#fff}
+.rc-hail{background:#2563eb}.rc-wind{background:#16a34a}.rc-tornado{background:#dc2626}
+.rc-source{font-size:.72rem;color:var(--gray);margin:8px 0 20px;line-height:1.5}
+.rc-gusts{background:var(--off-white);border:1px solid var(--light-gray);border-radius:12px;padding:12px 14px;margin:0 0 20px;overflow-wrap:anywhere}
+.rc-gusts[hidden]{display:none}
+.rc-gust-list{margin:6px 0 8px;padding-left:18px;font-size:.88rem;color:var(--navy-dark);line-height:1.5}
+.rc-gust-list li+li{margin-top:4px}
+.rc-gust-note{font-size:.78rem;color:var(--gray-sub);line-height:1.5}
+.rc-gust-source{font-size:.72rem;color:var(--gray);margin-top:6px;line-height:1.5}
+.rc-cta-row{display:flex;gap:10px}
+.rc-cta-row .rc-ghost{flex:1;background:none;border:2px solid var(--light-gray);border-radius:10px;padding:13px;font-weight:700;color:var(--gray-sub);cursor:pointer;font-family:inherit;font-size:.85rem}
+.rc-disc{font-size:.72rem;color:var(--gray);text-align:center;margin-top:14px;line-height:1.5}
+.rc-guide{font-size:.86rem;color:var(--gray-sub,#4a4a4a);text-align:center;margin-top:14px;line-height:1.55}.rc-guide a{color:#A14A22;font-weight:700}
+/* footer */
+.foot-slim{background:var(--navy-dark);color:rgba(255,255,255,.7);text-align:center;padding:26px 20px;font-size:.8rem;line-height:1.7}
+.foot-slim .ph{font-family:'Bebas Neue','Bebas Neue Fallback',sans-serif;font-size:1.5rem;color:#fff;letter-spacing:.03em;display:block;margin-bottom:6px}
+@media(max-width:480px){.rc-intro h1{font-size:1.7rem}.rc-card{padding:22px 16px}}
+@media print{.rc-intro,.foot-slim,.rc-cta,.rc-cta-row,.rc-disc,.rc-guide,.rc-details,.rc-take,.rc-progress,.reviews-strip,.mobile-cta-strip,nav{display:none!important}.rc-shell{margin:0;max-width:100%}.rc-card{box-shadow:none;border:none}#rc-map{height:340px}}
+</style>
+<link rel="stylesheet" href="/assets/css/nbd-mobile.css"><link rel="stylesheet" href="/assets/css/mobile-cta.css"><link rel="stylesheet" href="/assets/css/nbd-nav-logo-mobile.css">
+<style>/* iOS-zoom fix (conversion audit): 16px inputs prevent Safari auto-zoom on focus */@media(max-width:600px){input,select,textarea{font-size:16px!important}}</style>
+<style>.nbd-skip{position:absolute;left:-9999px;top:0;z-index:100000;background:#BD5728;color:#fff;padding:10px 16px;font-weight:700;text-decoration:none;border-radius:0 0 6px 0}.nbd-skip:focus{left:0}</style>
+<style>
+/* typography normalize (injected) */
+body{font-family:'Montserrat','Segoe UI',-apple-system,sans-serif;color:#1a1a1a;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:'Bebas Neue','Montserrat',sans-serif;letter-spacing:.03em;line-height:1.1}
+h1{font-size:clamp(2.5rem,4.8vw,4.5rem);line-height:1.04;letter-spacing:.02em}
+h2{font-size:clamp(1.8rem,3.1vw,2.75rem)}
+h3{font-size:clamp(1.05rem,1.4vw,1.3rem);line-height:1.25}
+p{font-size:.95rem;line-height:1.72;color:#4a4a4a}
+.prose p,.post-body p,article p{font-size:.95rem;line-height:1.72}
+.nav-links > li > a,.nav-links a{font-size:.8rem;letter-spacing:.08em;font-weight:600}
+a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weight:700!important;white-space:nowrap!important;display:inline-flex!important;align-items:center;gap:6px}
+nav{gap:clamp(18px,2.2vw,40px)}
+nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
+</style>
+<style>
+/* tool-nav minimal chrome (injected) */
+nav.tool-nav{position:sticky;top:0;z-index:1000;background:var(--navy-dark,#12223d);border-bottom:3px solid var(--orange,#bd5728);padding:0 40px;display:flex;align-items:center;justify-content:space-between;height:70px;box-shadow:0 2px 20px rgba(0,0,0,.4)}
+nav.tool-nav .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+nav.tool-nav .nav-logo-text .brand{font-size:1rem;font-weight:800;color:#fff}
+nav.tool-nav .nav-logo-text .sub{font-size:.7rem;color:rgba(255,255,255,.6);font-weight:600}
+nav.tool-nav .tool-nav-right{display:flex;align-items:center;gap:24px}
+nav.tool-nav .tool-nav-home{color:rgba(255,255,255,.85);font-size:.76rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;transition:color .2s;display:inline-flex;align-items:center;min-height:24px}
+nav.tool-nav .tool-nav-home:hover{color:var(--orange-light,#dd875f)}
+nav.tool-nav .nav-cta{background:#BD5728;color:#fff!important;padding:10px 22px;border-radius:6px;font-weight:700;font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;transition:background .2s}
+nav.tool-nav .nav-cta:hover{background:#A14A22}
+@media(max-width:560px){
+  /* Hide the top-nav Back/Call cluster on small phones — it collided with the
+     hamburger (~10px overflow). The sticky bottom call/text bar covers calling. */
+  nav.tool-nav .tool-nav-right{display:none}
+}
+</style>
+<style>
+/* slim funnel footer (shared) — replaces the .sc-foot / .sr-foot / .fr-foot
+   forks, which carried the same declarations under three names. */
+.foot-slim{background:var(--navy-dark,#12223d);color:rgba(255,255,255,.7);text-align:center;padding:26px 20px;font-size:.8rem;line-height:1.7}
+.foot-slim a{color:var(--orange-light,#dd875f);text-decoration:none}
+.foot-slim a:hover{color:#dd875f}
+.foot-slim .ph{font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:#fff;letter-spacing:.03em;display:block;margin-bottom:6px}
+.foot-slim .ph a{color:#fff}
+</style>
+<link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nobigdealwithjoedeal.com/"},{"@type":"ListItem","position":2,"name":"Roof Check","item":"https://nobigdealwithjoedeal.com/roof-check"}]}</script>
+<!-- nbd:partial schema-entity -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "RoofingContractor",
+      "@id": "https://nobigdealwithjoedeal.com/#org",
+      "name": "No Big Deal Home Solutions",
+      "alternateName": "No Big Deal with Joe Deal",
+      "url": "https://nobigdealwithjoedeal.com",
+      "telephone": "+18594207382",
+      "email": "jd@nobigdealwithjoedeal.com",
+      "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
+      "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
+      "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
+      "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
+      "priceRange": "$$",
+      "openingHoursSpecification": [
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+          "opens": "07:00",
+          "closes": "18:00"
+        }
+      ],
+      "founder": {"@id": "https://nobigdealwithjoedeal.com/#joe"},
+      "sameAs": [
+        "https://g.page/r/CXzIjLwvtRPdEBM",
+        "https://www.facebook.com/people/No-Big-Deal-Home-Solutions/61577416645584/",
+        "https://www.instagram.com/nbdhomesolutions",
+        "https://www.yelp.com/biz/no-big-deal-home-solutions-cincinnati",
+        "https://www.gaf.com/en-us/roofing-contractors/residential/usa/oh/goshen/no-big-deal-home-solutions-1162011",
+        "https://www.youtube.com/@nobigdealhomesolutions",
+        "https://www.tiktok.com/@nobigdealhomesolutions",
+        "https://www.pinterest.com/nobigdealhomesolutions/",
+        "https://www.threads.com/@nbdhomesolutions",
+        "https://www.houzz.com/pro/webuser_74770817020",
+        "https://nextdoor.com/pages/no-big-deal-home-solutions-cincinnati-oh/",
+        "https://x.com/NBDHomeSolution",
+        "https://bsky.app/profile/nbdhomesolutions.bsky.social"
+      ],
+      "hasCredential": [
+        {
+          "@type": "EducationalOccupationalCredential",
+          "credentialCategory": "certification",
+          "name": "GAF Certified Residential Roofing Contractor",
+          "recognizedBy": {"@type": "Organization", "name": "GAF Materials LLC", "url": "https://www.gaf.com"},
+          "identifier": "1162011"
+        },
+        {
+          "@type": "EducationalOccupationalCredential",
+          "credentialCategory": "certification",
+          "name": "TAMKO Pro Gold Certified Roofing Contractor",
+          "recognizedBy": {"@type": "Organization", "name": "TAMKO Building Products LLC", "url": "https://www.tamko.com"},
+          "identifier": "181382"
+        }
+      ],
+      "memberOf": [
+        {"@type": "Organization", "name": "James Hardie Alliance"},
+        {"@type": "Organization", "name": "American Operator", "url": "https://www.americanoperator.com", "description": "Locally Owned & Operated member badge"}
+      ],
+      "areaServed": [
+        {"@type": "City", "name": "Amelia", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Anderson Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Batavia", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Bethel", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Blanchester", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Blue Ash", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Cincinnati", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Clarksville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Fairfield", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Fayetteville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Franklin", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Mason", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Miamisburg", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Milford", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Monroe", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Montgomery", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Mt. Orab", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "New Richmond", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Newtown", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Norwood", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Sharonville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Springboro", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Sycamore Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "West Chester", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Wilmington", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Covington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Erlanger", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Richmond", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Union", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Versailles", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Winchester", "containedInPlace": {"@type": "State", "name": "Kentucky"}}
+      ],
+      "hasOfferCatalog": {
+        "@type": "OfferCatalog",
+        "name": "Home Services",
+        "itemListElement": [
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Roof Replacement"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Roof Repair"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Commercial Roofing"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Siding Replacement"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Gutter Replacement"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Storm Damage Inspection & Documentation"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Interior Drywall and Ceiling Repair"}}
+        ]
+      }
+    },
+    {
+      "@type": "Person",
+      "@id": "https://nobigdealwithjoedeal.com/#joe",
+      "name": "Joe Deal",
+      "jobTitle": "Owner & Operator, No Big Deal Home Solutions",
+      "url": "https://nobigdealwithjoedeal.com/about",
+      "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
+      "telephone": "+18594207382",
+      "email": "jd@nobigdealwithjoedeal.com",
+      "description": "Joe Deal is the owner and operator of No Big Deal Home Solutions in Greater Cincinnati. Raised in eastern Kentucky near the Red River Gorge; lived in Lexington before Cincinnati. 7+ years in insurance restoration roofing and 300+ roofs in his career, most of them with other roofing companies before he started No Big Deal Home Solutions in 2026. Every customer dealt with personally.",
+      "worksFor": {"@id": "https://nobigdealwithjoedeal.com/#org"},
+      "knowsAbout": [
+        "Roofing",
+        "Commercial Roofing",
+        "Insurance Restoration Roofing",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
+        "Xactimate Estimating",
+        "GAF Shingle Installation",
+        "TAMKO Impact-Resistant Shingle Installation",
+        "Impact-Resistant Shingle Installation",
+        "Siding Replacement",
+        "Gutter Installation",
+        "Interior Drywall and Ceiling Repair",
+        "Insurance Claim Damage Documentation",
+        "Storm Damage Assessment"
+      ],
+      "memberOf": [{"@type": "Organization", "name": "James Hardie Alliance"}]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://nobigdealwithjoedeal.com/#website",
+      "url": "https://nobigdealwithjoedeal.com/",
+      "name": "No Big Deal Home Solutions",
+      "inLanguage": "en-US",
+      "publisher": {"@id": "https://nobigdealwithjoedeal.com/#org"}
+    }
+  ]
+}
+</script>
+<!-- /nbd:partial schema-entity -->
+<script defer src="/assets/js/clarity-loader.js"></script>
+<link rel="stylesheet" href="/assets/css/nbd-nav.css">
+</head>
+<body><a class="nbd-skip" href="#main">Skip to content</a>
+<!-- nbd:partial nav-tool -->
+<nav id="mainNav" class="nav tool-nav">
+  <a href="/" class="nav-logo">
+    <picture class="nbd-pic"><source type="image/webp" srcset="/assets/images/nbd-logo-150w.webp 1x, /assets/images/nbd-logo-300w.webp 2x, /assets/images/nbd-logo-450w.webp 3x"><img src="/assets/images/nbd-logo.png" width="600" height="308" alt="No Big Deal Home Solutions" style="height:60px;width:auto;border-radius:6px;"></picture>
+  </a>
+  <div class="tool-nav-right">
+    <a href="/" class="tool-nav-home">
+      <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;margin-right:4px"><polyline points="15 18 9 12 15 6"/></svg>Back to site
+    </a>
+    <a href="tel:+18594207382" class="nav-cta">
+      <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor;vertical-align:-2px;margin-right:6px"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.36 2.3.56 3.6.56.55 0 1 .45 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.56 3.6a1 1 0 0 1-.25 1z"/></svg>Call Joe
+    </a>
+  </div>
+  <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="mobileNav"><span></span><span></span><span></span></button>
+  <script defer src="/assets/js/nbd-nav.js"></script>
+</nav>
+<!-- /nbd:partial nav-tool -->
+
+<!-- nbd:partial mobile-nav-standard cta_href="/inspect" -->
+<div class="mobile-nav" id="mobileNav">
+  <a href="tel:+18594207382" style="color:#bd5728;font-weight:800;">Active leak? Call or text Joe 24/7</a>
+  <div class="mnav-group">Services</div>
+  <a href="/services/emergency-roof-tarping" style="color:#dd875f;font-weight:800;">Emergency Roof Tarping</a>
+  <a href="/services/roof-replacement">Roof Replacement</a>
+  <a href="/services/roof-repair">Roof Repair</a>
+  <a href="/services/roof-inspection">Roof Inspection</a>
+  <a href="/services/storm-damage">Storm Damage &amp; Insurance</a>
+  <a href="/services/siding-replacement">Siding</a>
+  <a href="/services/gutter-replacement">Gutters</a>
+  <a href="/services/interior-repair">Interior Repair</a>
+  <a href="/services/commercial-roofing">Commercial Roofing</a>
+  <a href="/services/financing">Financing</a>
+  <a href="/the-pledge" style="color:#dd875f;font-weight:800;">The NBD Pledge</a>
+  <div class="mnav-group">Company</div>
+  <a href="/about">About Joe</a>
+  <a href="/review">Reviews</a>
+  <a href="/our-work">Our Work</a>
+  <a href="/areas">Service Areas</a>
+  <div class="mnav-group">Tools</div>
+  <a href="/estimate" style="color:#dd875f">Instant Estimate</a>
+  <a href="/free-tools" style="color:#dd875f">All Free Tools</a>
+  <a href="/inspect" style="color:#bd5728;font-weight:800;">Book Inspection &rarr;</a>
+</div>
+<!-- /nbd:partial mobile-nav-standard -->
+
+<main id="main">
+<section class="rc-intro">
+  <h1>Did the storm hit <span>your roof?</span> Check your address free.</h1>
+  <p>Type your address and I'll pull 5 years of official NOAA / NWS storm records for it, free, no phone number needed. Want my take on your roof after that? Answer a few quick questions.</p>
+  <div class="rc-script">— Joe Deal</div>
+</section>
+
+<div class="rc-shell">
+  <div class="rc-card">
+    <div class="rc-progress"><div class="rc-progress-fill" id="rc-progress-fill"></div></div>
+
+    <!-- STEP 1: address -->
+    <div class="rc-step active" id="rc-step1">
+      <h2>Where's the home?</h2>
+      <div class="rc-sub">I pull storm records for your exact location. No phone number needed for this part.</div>
+      <div class="rc-input-wrap">
+        <input type="text" class="rc-input" id="rc-address" aria-label="Property address" placeholder="Start typing your address…" autocomplete="off">
+        <div class="rc-acdrop" id="rc-acdrop"></div>
+      </div>
+      <div class="rc-hint" id="rc-addr-hint"></div>
+      <div class="rc-btns"><button class="rc-next" data-action="generate">Check my address →</button></div>
+    </div>
+
+    <!-- LOADING: storm lookup -->
+    <div class="rc-step" id="rc-loading">
+      <div class="rc-spin"></div>
+      <h2 style="text-align:center">Pulling storm records…</h2>
+      <div class="rc-sub" style="text-align:center">Checking 5 years of NOAA / NWS reports for your address.</div>
+    </div>
+
+    <!-- STEP 2: free storm history -->
+    <div class="rc-step" id="rc-teaser">
+      <h2 id="rc-teaser-headline"></h2>
+      <div class="rc-sub" id="rc-teaser-sub"></div>
+      <div class="rc-chips" id="rc-teaser-chips"></div>
+      <button class="rc-btn-retry" id="rc-retry" data-action="retry" hidden>Try the lookup again</button>
+      <div class="rc-softbox">
+        <div class="rc-lead">Want Joe's take on your roof?</div>
+        <div class="rc-sub">Three quick questions, then he tells you straight whether it's worth a free inspection.</div>
+        <div class="rc-btns"><button class="rc-next" data-step="3">Get Joe's take →</button></div>
+        <p class="rc-soft">Rather just have Joe look? <a href="/inspect">Book a free inspection</a> or call <a href="tel:+18594207382">(859) 420-7382</a>.</p>
+      </div>
+    </div>
+
+    <!-- STEP 3: about the roof -->
+    <div class="rc-step" id="rc-step3">
+      <h2>About your roof</h2>
+      <div class="rc-sub">Age matters most. Pick your best guess.</div>
+      <span class="rc-label">How old is the roof?</span>
+      <div class="rc-tiles" data-group="roofAge" role="group" aria-label="How old is the roof?">
+        <button class="rc-tile" data-value="<5">Under 5 years</button>
+        <button class="rc-tile" data-value="5-10">5–10 years</button>
+        <button class="rc-tile" data-value="10-15">10–15 years</button>
+        <button class="rc-tile" data-value="15-20">15–20 years</button>
+        <button class="rc-tile" data-value="20+">20+ years</button>
+        <button class="rc-tile" data-value="unsure">Not sure</button>
+      </div>
+      <span class="rc-label">Roof material</span>
+      <div class="rc-tiles" data-group="roofType" role="group" aria-label="Roof material">
+        <button class="rc-tile" data-value="asphalt">Asphalt shingle</button>
+        <button class="rc-tile" data-value="metal">Metal</button>
+        <button class="rc-tile" data-value="other">Other / not sure</button>
+      </div>
+      <span class="rc-label">Notice any of these? <span class="rc-opt">(pick any)</span></span>
+      <div class="rc-tiles one" data-group="signs" role="group" aria-label="Notice any of these?">
+        <button class="rc-tile" data-value="missing">Missing, cracked or curling shingles</button>
+        <button class="rc-tile" data-value="granules">Granules collecting in gutters/downspouts</button>
+        <button class="rc-tile" data-value="dents">Dents on gutters, vents or AC fins</button>
+        <button class="rc-tile" data-value="leak">Water stains on a ceiling or wall inside</button>
+        <button class="rc-tile" data-value="neighbors">Neighbors getting new roofs</button>
+        <button class="rc-tile" data-value="none">None / not sure</button>
+      </div>
+      <div class="rc-btns"><button class="rc-back" data-step="2">← Back</button><button class="rc-next" data-step="4">Continue →</button></div>
+    </div>
+
+    <!-- STEP 4: contact -->
+    <div class="rc-step" id="rc-step4">
+      <h2>Where should Joe send his take?</h2>
+      <div class="rc-sub">No spam, no pressure. Joe reaches out personally, usually same day.</div>
+      <span class="rc-label">First name</span>
+      <input type="text" class="rc-input" id="rc-firstName" aria-label="First name" placeholder="John" autocomplete="given-name">
+      <span class="rc-label">Mobile phone</span>
+      <input type="tel" class="rc-input" id="rc-phone" aria-label="Mobile phone" placeholder="(859) 555-1234" autocomplete="tel" inputmode="tel">
+      <span class="rc-label">Email <span class="rc-opt">(optional, for a copy of your storm report)</span></span>
+      <input type="email" class="rc-input" id="rc-email" aria-label="Email (optional)" placeholder="you@email.com" autocomplete="email" inputmode="email" maxlength="200">
+      <div id="rc-intake"></div>
+      <label class="rc-consent"><input type="checkbox" id="rc-consent"><span>I agree to receive text messages and calls from No Big Deal Home Solutions (No Big Deal Solutions LLC) at the number above about my request, including my results, appointment confirmations and reminders, estimate and project updates, and replies to my questions. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></span></label>
+      <div class="rc-err" id="rc-contact-err" role="alert"></div>
+      <p class="nbd-trust-line"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating-wrap hidden><span data-nbd-gr-rating></span> on Google</span><span data-nbd-gr-rating-fallback>Real Google reviews</span> &middot; Fully insured &middot; Joe on every roof</p>
+      <div class="rc-btns"><button class="rc-back" data-step="3">← Back</button><button class="rc-next" id="rc-submit" data-action="submit">See Joe's take →</button></div>
+    </div>
+
+    <!-- STEP 5: loading -->
+    <div class="rc-step" id="rc-step5">
+      <div class="rc-spin"></div>
+      <h2 style="text-align:center">Writing up your result…</h2>
+      <div class="rc-sub" style="text-align:center">Putting your storm records and answers together.</div>
+    </div>
+
+    <!-- RESULT -->
+    <div class="rc-step" id="rc-result">
+      <div class="rc-result-headline" id="rc-result-headline"></div>
+      <div class="rc-warn" id="rc-result-warn"></div>
+      <div id="rc-intake-after"></div>
+      <div class="rc-result-data" id="rc-result-data" style="display:none"></div>
+      <div class="rc-result-detail" id="rc-result-detail"></div>
+      <div class="rc-take"><b>Quick note</b><span class="rc-take-ai">AI-drafted from your answers. Joe hasn&#8217;t seen your roof yet.</span><span id="rc-result-take"></span></div>
+      <a class="rc-cta rc-cta-primary" id="rc-book" href="https://cal.com/nobigdeal/roof-inspection" target="_blank" rel="noopener">Book my free inspection (opens in a new tab) →</a>
+      <a class="rc-cta rc-cta-phone" href="tel:+18594207382">Or call Joe now — (859) 420-7382</a>
+      <!-- Optional details (best time, insurance, how you heard, photos): shown once the lead is saved and
+           the gateway has handed back its one-time grant; roof-check.js saves them with updatePublicLeadIntake. -->
+      <div class="rc-details" id="rc-details" hidden>
+        <h3>Add details <span class="rc-opt">(optional)</span></h3>
+        <p class="rc-sub">Your request is already with Joe. Anything here helps him show up ready, or skip it.</p>
+        <div id="rc-x-intake"></div>
+        <button type="button" class="rc-cta rc-cta-phone" id="rc-details-save" data-action="saveDetails">Send to Joe</button>
+        <div class="rc-details-status" id="rc-details-status" role="status" aria-live="polite"></div>
+      </div>
+
+      <div class="rc-report" id="rc-report">
+        <span class="rc-label">Your storm history</span>
+        <div class="rc-summary" id="rc-rep-summary"></div>
+        <div id="rc-map"></div>
+        <div class="rc-maplegend" id="rc-map-legend">Blue: hail &middot; Green: wind &middot; Red: tornado &middot; Orange: your property</div>
+        <span class="rc-label">Notable storm events near you</span>
+        <div class="rc-table-wrap">
+          <table class="rc-table"><thead><tr><th>Date</th><th>Type</th><th>Size/Speed</th><th>Distance</th></tr></thead><tbody id="rc-rep-rows"></tbody></table>
+        </div>
+        <div class="rc-source" id="rc-rep-source"></div>
+        <div class="rc-gusts" id="rc-rep-gusts" hidden>
+          <span class="rc-label">Wind measured nearby</span>
+          <ul class="rc-gust-list" id="rc-rep-gust-list"></ul>
+          <div class="rc-gust-note" id="rc-rep-gust-note"></div>
+          <div class="rc-gust-source" id="rc-rep-gust-source"></div>
+        </div>
+        <div class="rc-cta-row"><button class="rc-ghost" data-action="print">Save as PDF</button><button class="rc-ghost" data-action="restart">Check another address</button></div>
+      </div>
+      <p class="rc-guide">Thinking about a claim? Read my free <a href="/guides/kentucky-ohio-storm-claim-guide">Kentucky &amp; Ohio storm-claim guide</a>: how claims and adjuster visits work, and your rights when you sign.</p>
+      <div class="rc-disc">Storm data from NOAA/NWS public reports. This is a free guide, not an insurance determination. Whether a claim is approved is up to your insurer; I document the damage and meet your adjuster.</div>
+    </div>
+  </div>
+</div>
+<!-- nbd:partial reviews-strip -->
+<!-- Recent Google reviews with their dates, on every homeowner page (2026-10-24).
+     Cards come from google-reviews-widget.js; no rating or count is written here. -->
+<link rel="stylesheet" href="/assets/css/reviews-strip.css">
+<section class="reviews-strip" aria-labelledby="reviews-strip-title">
+  <div class="reviews-strip-inner">
+    <div class="reviews-strip-head">
+      <p class="reviews-strip-eyebrow">What homeowners say</p>
+      <h2 id="reviews-strip-title" class="reviews-strip-title">Recent Google reviews</h2>
+      <p class="reviews-strip-lede">The newest reviews from our Google Business Profile, each with its date. Nothing is picked or edited.</p>
+    </div>
+    <div data-nbd-google-reviews></div>
+    <div class="reviews-strip-more">
+      <a href="/review" class="reviews-strip-all">Read all our Google reviews &rarr;</a>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/google-reviews-widget.js" defer></script>
+<!-- /nbd:partial reviews-strip -->
+</main>
+
+<!-- nbd:partial footer-slim link1_href="/services/storm-damage" link1_name="Storm Damage" link2_href="/areas" link2_name="Service Areas" -->
+<footer class="foot-slim">
+  <span class="ph"><a href="tel:+18594207382">(859) 420-7382</a></span>
+  Owner-operated roofing &amp; storm restoration &middot; Greater Cincinnati, N. Kentucky &amp; the Lexington area<br>
+  <a href="/">Home</a> &middot; <a href="/services/storm-damage">Storm Damage</a> &middot; <a href="/areas">Service Areas</a> &middot; <a href="/review">Reviews</a> &middot; <a href="/privacy" data-nbd-privacy="1">Privacy</a> &middot; <a href="/terms" data-nbd-terms="1">Terms</a> &middot; <a href="/sms-program">Text Messages</a><br>
+  &copy; 2026 No Big Deal Home Solutions. No Big Deal Home Solutions is a d/b/a of No Big Deal Solutions LLC.
+</footer>
+<!-- /nbd:partial footer-slim -->
+
+<script defer src="/assets/js/public-lead-submit.js"></script>
+<script defer src="/assets/js/intake-extras.js?v=2"></script>
+<script defer src="/pro/js/storm-time.js?v=1"></script>
+<script defer src="/assets/js/roof-check.js?v=2"></script>
+<!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
+<!-- nbd:partial mobile-cta book_href="/inspect" -->
+<div class="mobile-cta-strip mobile-cta-bookfirst" role="region" aria-label="Quick contact options">
+  <a href="/inspect" class="mobile-cta-book">Book free inspection</a>
+  <a href="tel:+18594207382" class="mobile-cta-call mobile-cta-icon" aria-label="Call Joe"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg><span>Call</span></a>
+  <a href="sms:+18594207382" class="mobile-cta-text mobile-cta-icon" aria-label="Text Joe"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg><span>Text</span></a>
+</div>
+<!-- /nbd:partial mobile-cta -->
+</body>
+</html>

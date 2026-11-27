@@ -47,12 +47,12 @@ const CONSENT_FIELD = 'tcpaConsent';
  * decorative, so treat this list as the audit trail it is.
  */
 // 2026-09-04: inspect_leads joins. Three of its four forms (/storm-check,
-// /roof-score, /storm-report) present the disclosure, gate submission on it and
+// /roof-score, /storm-report; merged into /roof-check 2026-11-25) present the disclosure, gate submission on it and
 // post the value; the fourth (/inspect) has no checkbox, posts nothing, and its
 // documents therefore fail hasWrittenConsent — they are never texted. That is
 // the point of reading consent from the document rather than the collection.
 // 2026-10-15 (Twilio A2P reapply): the box is now OPTIONAL on /inspect,
-// /estimate, /storm-check, /roof-score and /storm-report. Every form presents
+// /estimate and the storm tools (now /roof-check). Every form presents
 // it unchecked and posts its real value; a lead without it is saved and Joe
 // is alerted, and smsAckGate (hasWrittenConsent) is what keeps the
 // homeowner from being texted. The collection is still only half the test.
@@ -141,7 +141,7 @@ const V3_HEAD = 'I agree to receive text messages and calls from No Big Deal Hom
 const V3_TAIL = 'Message frequency varies. Message & data rates may apply. '
   + 'Reply STOP to opt out, HELP for help. Consent is not a condition of purchase.';
 const CONSENT_TEXTS = Object.freeze({
-  // /storm-check, /roof-score, /storm-report, and (from 2026-10-03) /inspect,
+  // /storm-check, /roof-score, /storm-report (all /roof-check since 2026-11-25), and (from 2026-10-03) /inspect,
   // /storm-alerts, the homepage form and the on-page quick form.
   'tcpa-v1-2026-10-03':
     'I agree to receive my results and follow-up communication from No Big Deal Home Solutions '
@@ -190,8 +190,9 @@ const STORM_ALERTS_CONSENT_VERSION = 'tcpa-storm-alerts-v3-2026-10-15';
 
 /**
  * Which disclosure a submission of this public-lead kind was shown. Kind
- * 'inspect' is posted by /inspect AND by /storm-check, /roof-score and
- * /storm-report, so the form's own source tag picks /inspect's wording.
+ * 'inspect' is posted by /inspect AND by /roof-check (which replaced
+ * /storm-check, /roof-score and /storm-report on 2026-11-25), so the form's own
+ * source tag picks /inspect's wording.
  */
 function consentVersionForKind(kind, source) {
   if (kind === 'estimate') return ESTIMATE_CONSENT_VERSION;

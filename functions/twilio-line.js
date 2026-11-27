@@ -207,6 +207,9 @@ async function handleSms(req, res, deps) {
       serverTimestamp: () => FieldValue.serverTimestamp(),
       onError: (e) => logger.error('[twilioLine] dnc_stop_reply_copy_failed', { sid, err: e && e.message }),
     });
+    // S3: a STOP to a recent review text counts toward that company's carrier health
+    // (review-ask-health.js; dark = nothing written; never throws).
+    await require('./review-ask-health').noteStop(db, { from, messageSid: sid, toNbdLine: true });   // this number is NBD's
   } else if (kind === 'start') {
     // R6-3-5: only what THIS number was told (its register record, the
     // stop_reply copies of its STOPs, NBD's own owner-phone STOP). Another

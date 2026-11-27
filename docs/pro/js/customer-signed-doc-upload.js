@@ -19,6 +19,43 @@ function uploadSignedDoc(mode) {
   }
 }
 
+function _signedDocPaperCertOn() {
+  try { return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('docClauseSetV1')); }
+  catch (_) { return false; }
+}
+
+// The form lives in paper-cert.js, loaded here on demand (ScriptLoader.load) so no page's boot path carries it.
+// 'unavailable' = it could not be loaded: the upload is NOT made (never falls back to "signed").
+async function _signedDocLoadPaperCert() {
+  if (!window.NBDPaperCert && window.ScriptLoader && typeof window.ScriptLoader.load === 'function') {
+    await window.ScriptLoader.load('js/paper-cert.js?v=1');
+  }
+}
+
+async function _signedDocCollectPaper(file) {
+  try {
+    await _signedDocLoadPaperCert();
+    if (!window.NBDPaperCert || typeof window.NBDPaperCert.collect !== 'function') return 'unavailable';
+    return await window.NBDPaperCert.collect(file);
+  } catch (e) {
+    console.warn('Paper certification form failed:', e && e.message);
+    return 'unavailable';
+  }
+}
+
+// "Certify" on a waiting upload (customer-documents.js row button). Same on-demand load.
+async function certifyPaperDoc(docId) {
+  if (window.NBDRole && !window.NBDRole.guard()) return;
+  try {
+    await _signedDocLoadPaperCert();
+    if (!window.NBDPaperCert) throw new Error('form did not load');
+    await window.NBDPaperCert.certify(docId);
+  } catch (e) {
+    console.warn('certifyPaperDoc failed:', e && e.message);
+    if (typeof showToast === 'function') showToast('Could not open the certification form. Try again.', 'error');
+  }
+}
+
 async function handleSignedDocUpload(input) {
   const file = input.files && input.files[0];
   if (!file) return;
@@ -35,6 +72,20 @@ async function handleSignedDocUpload(input) {
   if (file.size > maxSize) {
     if (typeof showToast === 'function') showToast('File too large (max 20MB)', 'error');
     return;
+  }
+
+  // Paper certification (flag docClauseSetV1, default off): the rep says what the paper is, which generated
+  // document it is the signed copy of, and the date it was signed. The row then WAITS ('wet_signed_uploaded',
+  // "Uploaded, not certified") until the attestWetSigned callable certifies it. Flag off: nothing below runs
+  // and the record is exactly what it always was.
+  let paper = null;
+  if (_signedDocPaperCertOn()) {
+    paper = await _signedDocCollectPaper(file);
+    if (paper === 'unavailable') {
+      if (typeof showToast === 'function') showToast('The paper-signed form did not load. Try again in a moment.', 'error');
+      return;
+    }
+    if (!paper) return; // cancelled
   }
 
   if (typeof showToast === 'function') showToast('Uploading ' + file.name + '...', 'info');
@@ -58,7 +109,11 @@ async function handleSignedDocUpload(input) {
       source: 'signed_upload',
       // Already an executed document the rep is attaching, not something
       // moving through draft/sent — status starts (and stays) 'signed'.
-      status: 'signed'
+      // Paper certification on: it waits as 'wet_signed_uploaded' until the server certifies it.
+      status: paper ? 'wet_signed_uploaded' : 'signed',
+      ...(paper ? Object.assign({ wetSignedDocType: paper.docType, wetSignedOn: paper.signedOn, storagePath: path },
+        paper.originalDocId ? { originalDocId: paper.originalDocId } : {},
+        paper.witnessName ? { witnessName: paper.witnessName } : {}) : {})
     });
 
     if (typeof showToast === 'function') showToast('Document uploaded successfully', 'success');

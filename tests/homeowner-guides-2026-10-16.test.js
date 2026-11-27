@@ -113,14 +113,14 @@ const REQUIRED = {
 
 // Pages that must link each guide (the audit's "lives on" list).
 const LINKED_FROM = {
-  'kentucky-ohio-storm-claim-guide': ['docs/services/storm-damage.html', 'docs/services/hail-damage-insurance-claim.html', 'docs/storm-report.html', 'docs/storm-check.html', 'docs/blog/hail-season-prep-checklist.html', 'docs/free-tools/index.html'],
+  'kentucky-ohio-storm-claim-guide': ['docs/services/storm-damage.html', 'docs/services/hail-damage-insurance-claim.html', 'docs/roof-check.html', 'docs/blog/hail-season-prep-checklist.html', 'docs/free-tools/index.html'],
   'hail-photo-baseline-sheet': ['docs/blog/hail-season-prep-checklist.html', 'docs/services/storm-damage.html', 'docs/free-tools/index.html'],
   'compare-roofing-quotes-checklist': ['docs/services/roof-replacement.html', 'docs/estimate.html', 'docs/blog/how-to-choose-a-roofer-after-a-storm.html', 'docs/free-tools/index.html'],
   // The CRM's Job done hand-off card (docs/pro/js/review-handoff.js) is
   // multi-tenant and pinned to a single "Open review page" link, so the card
   // is not linked from there yet (noted for Jo in the PR).
   'home-care-warranty-card': ['docs/review.html', 'docs/services/roof-care-plan.html', 'docs/free-tools/index.html'],
-  'roof-financing-explained': ['docs/services/financing.html', 'docs/blog/how-roof-financing-actually-works.html', 'docs/guides/compare-roofing-quotes-checklist.html', 'docs/free-tools/index.html'],
+  'roof-financing-explained': ['docs/services/financing.html', 'docs/blog/roof-financing-cincinnati-explained.html', 'docs/guides/compare-roofing-quotes-checklist.html', 'docs/free-tools/index.html'],
   'siding-gutter-buyers-guide': ['docs/services/siding-replacement.html', 'docs/services/gutter-replacement.html', 'docs/free-tools/index.html'],
 };
 

@@ -121,7 +121,7 @@
   .pr-filter.active .pr-filter-count { background: rgba(255,255,255,.22); }
 
   /* ── Body / grid ─────────────────────────────────────────────── */
-  .pr-body { padding: 16px; padding-bottom: 100px; user-select: none; }
+  .pr-body { padding: 16px; padding-bottom: 100px; -webkit-user-select: none; user-select: none; }
   .pr-empty {
     text-align: center; padding: 60px 20px; color: var(--m);
     font-size: 14px;
@@ -505,7 +505,8 @@
 <!-- Phase 5: portal-link helpers power the "Share" bulk action so a
      rep can mark selected photos shared + open the SMS/copy/email
      share flow with one click. -->
-<script src="js/portal-link-helpers.js?v=3"></script>
+<script src="/pro/js/nbd-dialog.js?v=1" defer></script>
+<script src="js/portal-link-helpers.js?v=4"></script>
 
 <script src="/pro/js/toast.js?v=1"></script>
 <!-- The ONE vocabulary for /photos.damageType (window.NBD_PHOTO_DAMAGE).

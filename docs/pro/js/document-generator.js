@@ -123,7 +123,18 @@ window.NBDDocGen = {
   _jurisdiction(data) {
     const J = (typeof window !== 'undefined') && window.NBDJurisdiction;
     if (!J) return null;
-    const d = data || {};
+    let d = data || {};
+    // "Preview blank template" fills empty fields with bracket placeholders ('[Claim #]', '[Carrier]', '[123 Main St,
+    // City, State]'). They are display text, not facts: read as facts they made every blank preview an insurance job of
+    // unknown state. Blank them here so the lead's own facts (window._leadDoc below: state, address, job type, claim)
+    // decide, so a Kentucky cash lead previews as Kentucky cash; no facts at all = unknown.
+    if (d._isBlankPreview) {
+      d = Object.assign({}, d, { jurisdiction: null });
+      ['address', 'homeownerAddress', 'propertyAddress', 'projectAddress', 'state', 'zip', 'jobType', 'claimNumber',
+        'insCarrier', 'insuranceCarrier', 'insuranceCompany'].forEach((k) => {
+        if (/^\s*\[[^\]]*\]\s*$/.test(String(d[k] == null ? '' : d[k]))) d[k] = '';
+      });
+    }
     let lead = {};
     try {
       const leadId = d.leadId || (d.customer && d.customer.id) || null;
@@ -171,6 +182,223 @@ window.NBDDocGen = {
   },
 
   /**
+   * Feature flag docEvidenceFoundation (default OFF, per person): the fail-closed
+   * send check below, and the server evidence write for an in-person signing.
+   */
+  _docEvidenceOn() {
+    return !!(typeof window !== 'undefined' && window.NBDFlags && typeof window.NBDFlags.enabled === 'function'
+      && window.NBDFlags.enabled('docEvidenceFoundation'));
+  },
+
+  /**
+   * Feature flag docAtticAckV1 (default OFF, per person): the attic acknowledgment and its gate.
+   */
+  _atticOn() {
+    return !!(typeof window !== 'undefined' && window.NBDAtticAck && window.NBDFlags && typeof window.NBDFlags.enabled === 'function'
+      && window.NBDFlags.enabled('docAtticAckV1'));
+  },
+
+  /**
+   * Client side of the re-roof gate (UX only: functions/attic-gate.js decide() is the gate). A re-roof contract is
+   * not generated for signing until the signed attic form, the signed not-inspected page or an owner override exists.
+   * What the browser cannot read (an override it may not list) counts as "unknown", never as a refusal: the server decides.
+   * Returns true when clear to go.
+   */
+  async _atticGate(type, data) {
+    if (!this._atticOn() || (data && data._isBlankPreview)) return true;
+    if (['contract', 'proposal', 'work_authorization'].indexOf(type) === -1) return true;
+    const AA = window.NBDAtticAck;
+    const leadId = (data && (data.leadId || (data.customer && data.customer.id))) || window._customerId || null;
+    if (!leadId || !window.db || !window.getDocs || !window.collection || !window.query || !window.where) return true;
+    const lead = (window._leadDoc && window._leadDoc.id === leadId) ? window._leadDoc : (window._leadDoc || {});
+    let est = null;
+    try {
+      if (lead.primaryEstimateId && window.getDoc && window.doc) {
+        const es = await window.getDoc(window.doc(window.db, 'estimates', lead.primaryEstimateId));
+        est = es && es.exists && es.exists() ? es.data() : null;
+      }
+    } catch (_) { est = null; }
+    const scope = AA.effectiveScope(lead, est);
+    if (!AA.needsForm(scope)) {
+      if (scope === 'repair' && typeof showToast === 'function') showToast('A repair does not need the attic form, but it can be offered. Use Attic check in the document menu.', 'warning');
+      return true;
+    }
+    let signedForm = false;
+    try {
+      for (const t of AA.DOC_TYPES) {
+        const snap = await window.getDocs(window.query(window.collection(window.db, 'leads', leadId, 'documents'), window.where('type', '==', t)));
+        snap.forEach((d) => { const r = d.data(); if (AA.isSignedForm(r) && r.atticAckResult && r.atticAckResult.complete === true) signedForm = true; });
+      }
+    } catch (_) { return true; /* unreadable: the server gate decides */ }
+    let override = false;
+    if (!signedForm) {
+      try {
+        const ov = await window.getDocs(window.query(window.collection(window.db, 'attic_overrides'), window.where('leadId', '==', leadId)));
+        override = !ov.empty;
+      } catch (_) { override = true; /* a rep cannot list overrides: the server decides */ }
+    }
+    const g = AA.gate({ scope, signedForm, override });
+    if (g.satisfied) return true;
+    if (typeof showToast === 'function') showToast(g.message + ' Open Attic check in the document menu.', 'error'); else console.error(g.message);
+    return false;
+  },
+
+  /**
+   * Warranty certificate (flag docAtticAckV1): when the signed attic form shows a declined recommendation, or the attic was
+   * not inspected, the certificate prints the packet's WAR-2 attic line with the form date. Only that line.
+   */
+  async _atticWarrantyLine(data) {
+    try {
+      if (!this._atticOn() || !data || data._isBlankPreview) return;
+      const AA = window.NBDAtticAck;
+      const leadId = data.leadId || window._customerId || null;
+      if (!leadId || !window.db || !window.getDocs || !window.collection || !window.query || !window.where) return;
+      let res = null;
+      for (const t of AA.DOC_TYPES) {
+        const snap = await window.getDocs(window.query(window.collection(window.db, 'leads', leadId, 'documents'), window.where('type', '==', t)));
+        snap.forEach((d) => { const r = d.data(); if (AA.isSignedForm(r) && r.atticAckResult && r.atticAckResult.complete === true && !res) res = r.atticAckResult; });
+      }
+      let when = res && res.formDateMs ? new Date(res.formDateMs) : null;
+      const lead = window._leadDoc || {};
+      if (!res && lead.atticCheck && lead.atticCheck.status === 'not_inspected') { res = { notInspected: true }; when = lead.atticCheck.recordedAt ? new Date(lead.atticCheck.recordedAt) : null; }
+      if (!res || !AA.needsWarrantyExclusion(res)) return;
+      const day = when && !isNaN(when.getTime()) ? when.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+      if (day) data.atticExclusionLine = AA.warrantyLine(day);
+    } catch (_) { /* a missing line is never a reason to stop the certificate */ }
+  },
+
+  /**
+   * Fail-closed send check (flag docEvidenceFoundation): a contract-class document with
+   * a blank price, address, homeowner name, mailing address, legal entity name, start or
+   * completion, or a leftover [Placeholder] / {{token}} is refused with a plain list of
+   * what is missing (the rules live in doc-send-checks.js, shared with the server).
+   * `html` is the rendered document when there is one. Returns true when clear to go.
+   */
+  _docSendGate(type, data, html) {
+    const C = (typeof window !== 'undefined') && window.NBDDocSendChecks;
+    // The attic form prints Company Profile's atticFreeCheckDays; an unset number refuses it (never an invented number).
+    if (html && (type === 'attic_acknowledgment' || type === 'attic_not_inspected') && String(html).indexOf('{{atticFreeCheckDays}}') !== -1) {
+      const m = 'Set atticFreeCheckDays in Company Profile.';
+      if (typeof showToast === 'function') showToast(m, 'error'); else console.error(m);
+      return false;
+    }
+    // Either flag turns the check on: a contract that prints the clause set v1 is refused while a clause number is unset.
+    // Flag docClauseSetV1 on but the clause wording (or the cancel packet module) did not load: refuse a contract-class
+    // document with a clear message. The render fell back to the full legacy text; nothing goes out unchecked.
+    if (this._clauseV1Wanted() && !this._clauseV1On() && !(data && data._isBlankPreview)
+        && ['contract', 'proposal', 'work_authorization', 'estimate_esign'].indexOf(type) !== -1) {
+      const m = 'The clause wording did not load. Reload the page and try again. Nothing was sent.';
+      if (typeof showToast === 'function') showToast(m, 'error'); else console.error(m);
+      return false;
+    }
+    if ((!this._docEvidenceOn() && !this._clauseV1On()) || (data && data._isBlankPreview)) return true;
+    if (!C) {
+      // Flag ON but the checks module did not load (review 2026-11-18): do NOT let a contract through
+      // unchecked. The server runs the same check, but a clear message here beats a late refusal.
+      if (['contract', 'proposal', 'work_authorization', 'estimate_esign'].indexOf(type) === -1) return true;
+      const miss = 'The pre-send document check did not load. Reload the page and try again.';
+      if (typeof showToast === 'function') showToast(miss, 'error'); else console.error(miss);
+      return false;
+    }
+    if (!C.isContractClass(type)) return true;
+    const d = data || {};
+    const J = window.NBDJurisdiction;
+    const brand = (window._brand ? window._brand() : null) || {};
+    const rawPrice = d.contractPrice || d.totalPrice || d.total || d.jobTotal || (d.estimate && d.estimate.grandTotal);
+    const n = Number(String(rawPrice == null ? '' : rawPrice).replace(/[^0-9.\-]/g, ''));
+    const priceCents = Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
+    // A key the form never set falls back to the template's own wording ("Upon contract
+    // execution", "5-7 business days"), which prints; only a key set to blank prints a blank.
+    const set = (k) => (Object.prototype.hasOwnProperty.call(d, k) ? d[k] : 'template default');
+    const gaps = C.contractGaps({
+      type, priceCents,
+      address: d.homeownerAddress || d.address || d.propertyAddress || (d.customer && d.customer.address),
+      homeownerName: d.homeownerName || d.customerName || (d.customer && d.customer.name),
+      mailingAddress: this._contractorPhysicalAddress(d.companyProfile),
+      needsMailingAddress: type === 'contract' || type === 'proposal' || !!(J && html && J.hasCancelPacket && J.hasCancelPacket(html)),
+      entityName: brand.entityName,
+      state: (() => { try { const jj = this._jurisdiction(d); return (jj && jj.state) || ''; } catch (_) { return ''; } })(),
+      startDate: set('startDate'), estimatedCompletion: set('estimatedCompletion'),
+      text: html || '',
+      clauseConfigMissing: this._clauseV1On() && window.NBDClauseSet.PT_FIELDS.filter((f) => String(html || '').indexOf('{{' + f + '}}') !== -1),
+      // Co-owners (flag docClauseSetV1, Q52): when the lead lists a second owner, the signers must include the co-owner.
+      // Checked once the signers are known (the pre-flight asks the generator before it attaches them).
+      ...(this._signEaseOn() && Array.isArray(d.signers)
+        ? { secondOwnerName: d.secondOwnerName || ((window._currentLead || window._leadDoc || {}).secondOwnerName) || '',
+            signerRoles: d.signers.map((s) => s && s.role) } : {}),
+    });
+    if (!gaps.length) return true;
+    const msg = C.describeGaps(gaps);
+    if (typeof showToast === 'function') showToast(msg, 'error'); else console.error(msg);
+    return false;
+  },
+
+  /**
+   * In-person consent (flag docClauseSetV1, Jo's decision Q62): the tick the homeowner makes before drawing on a
+   * contract-class document, with the registry's ESIGN-1 sentence. null = not asked (flag off, not contract class, no
+   * homeowner signer, or the wording did not load), and then nothing about signing changes.
+   */
+  _inPersonConsentFor(type, signers) {
+    if (!this._paperFooterWanted(type)) return null;
+    if (!Array.isArray(signers) || !signers.some((s) => s && s.role === 'homeowner')) return null;
+    const CS = window.NBDClauseSet;
+    if (!CS || typeof CS.esignConsentText !== 'function') return null;
+    let isNbd = true;
+    try { isNbd = this._nbdGate().isNbd !== false; } catch (_) { isNbd = true; }
+    const t = CS.esignConsentText(isNbd);
+    return t ? { label: 'I agree to sign electronically', text: t } : null;
+  },
+
+  /** Flag docClauseSetV1 (Q51): the homeowner signature and release lines on the documents that had static ones. */
+  _signEaseOn() {
+    try { return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('docClauseSetV1')); }
+    catch (_) { return false; }
+  },
+
+  /**
+   * Paper copies (flag docClauseSetV1, default off; Jo's decision Q49): a printed contract-class document carries its
+   * document id and a short digest in a footer line, so a paper-signed copy can be linked back to the original it
+   * came from. The digest is the SHA-256 of the stored document (the one the signing paths record), which is why the
+   * footer is added to the copy the viewer shows and prints, never to the stored original.
+   */
+  _paperFooterWanted(type) {
+    try {
+      if (!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('docClauseSetV1'))) return false;
+      const C = window.NBDDocSendChecks;
+      return !!(C && typeof C.isContractClass === 'function' && C.isContractClass(type));
+    } catch (_) { return false; }
+  },
+
+  /** The footer line, added before </body>. docId is sanitised; sha is the full hex digest (12 characters print). */
+  _withPaperFooter(html, docId, sha) {
+    const id = String(docId || '').replace(/[^A-Za-z0-9_-]/g, '');
+    const short = String(sha || '').replace(/[^a-f0-9]/g, '').slice(0, 12);
+    if (!id || short.length !== 12) return html;
+    // A style block, not a style attribute: this is the printed document's own sheet (the reskin ratchet counts attributes).
+    const line = '<style>[data-nbd-paper-footer]{margin:18px 0 0;padding-top:6px;border-top:1px solid #DFE2E7;font:9px/1.3 Lato,Arial,sans-serif;color:#4C4C4D;text-align:center;}</style>'
+      + '<div data-nbd-paper-footer="1">Document ID ' + id + ' &middot; Digest ' + short + '</div>';
+    const s = String(html || '');
+    const at = s.toLowerCase().lastIndexOf('</body>');
+    return at === -1 ? s + line : s.slice(0, at) + line + s.slice(at);
+  },
+
+  /** For a stored, unsigned document being reopened: its html with the footer, or '' when the flag is off or the type does not carry one. */
+  async paperFooterForStored(html, docId, type) {
+    if (!this._paperFooterWanted(type)) return '';
+    const sha = await this._sha256Hex(html);
+    return sha ? this._withPaperFooter(html, docId, sha) : '';
+  },
+
+  /** SHA-256 hex of a string (the digest of the document as presented), or null when unavailable. */
+  async _sha256Hex(text) {
+    try {
+      if (!window.crypto || !window.crypto.subtle || typeof TextEncoder === 'undefined') return null;
+      const buf = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(text)));
+      return Array.prototype.map.call(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
+    } catch (_) { return null; }
+  },
+
+  /**
    * Inputs for ky-insurance-law.js cancelPacketHtml: the tenant's name and
    * mailing address (the address the law requires on the form — never the
    * letterhead address), the homeowner and property, the property state for
@@ -184,15 +412,26 @@ window.NBDDocGen = {
     const d = data || {};
     const co = this._resolveCompany();
     const B = (typeof window !== 'undefined' && typeof window._brand === 'function') ? (() => { try { return window._brand() || {}; } catch (_) { return {}; } })() : {};
+    // Clause set v1 (flag docClauseSetV1): the notice names the same legal party as the contract ("<entity> d/b/a <name>"),
+    // from the brand's entityName / dbaName (NBD's own by default, a tenant's only if it set them; a tenant with no
+    // entityName keeps its own legalName). Only the seller name token changes; the statutory wording does not.
+    let sellerName = (B && B.legalName) || co.name || '';
+    if (this._clauseV1On()) {
+      try {
+        const g = this._nbdGate();
+        const pn = window.NBDClauseSet.partyFor(g.brand || {}, g.isNbd).nameLine;
+        if (pn) sellerName = pn;
+      } catch (_) { /* keep the legalName */ }
+    }
     return {
       transactionDate: d.contractDate || new Date(),
       timeZone: J ? J.resolveTimeZone(cp) : undefined,
-      sellerName: (B && B.legalName) || co.name || '',
+      sellerName,
       sellerAddress: this._contractorPhysicalAddress(cp),
       email: co.email || '',
       fax: String((cp && cp.businessFax) || '').trim(),
-      homeownerName: d.homeownerName || (d.customer && d.customer.name) || '',
-      propertyAddress: d.address || d.homeownerAddress || d.propertyAddress || '',
+      homeownerName: this._noTok(d.homeownerName || (d.customer && d.customer.name) || ''),
+      propertyAddress: this._noTok(d.address || d.homeownerAddress || d.propertyAddress || ''),
       state: (j && j.state) || '',
       kyInsurance: !!(j && j.kyInsurance),
       // renderContract / renderProposal print the KRS 367.624(3) notices
@@ -247,6 +486,101 @@ window.NBDDocGen = {
       '<strong>Mailing Address:</strong> ' + (addr ? this._escHtml(addr) : '<em>(not set — add it in Company Profile)</em>') + '<br/>' +
       (fax ? '<strong>Fax:</strong> ' + this._escHtml(fax) + '<br/>' : '');
     return out;
+  },
+
+  /**
+   * Feature flag docClauseSetV1 (default OFF, per person): print the clause set v1 (clause-set.js) on
+   * the contract. Off, or the registry did not load: false, and the contract renders exactly as before.
+   */
+  _clauseV1Wanted() {
+    return !!(typeof window !== 'undefined' && window.NBDFlags && typeof window.NBDFlags.enabled === 'function'
+      && window.NBDFlags.enabled('docClauseSetV1'));
+  },
+
+  // On only when the registry AND its wording AND the cancel packet module are all there (review 2026-11-18,
+  // items 1 and 5): a half-loaded set would drop legacy sections and print nothing in their place.
+  _clauseV1On() {
+    if (!this._clauseV1Wanted()) return false;
+    const T = window.NBDClauseText;
+    return !!(window.NBDClauseSet && typeof window.NBDClauseSet.renderV1 === 'function'
+      && T && T.CLAUSES && Object.keys(T.CLAUSES).length
+      && window.NBDJurisdiction && typeof window.NBDJurisdiction.cancelPacketHtml === 'function');
+  },
+
+  /** A user-supplied string with its "{{" separated (zero-width space): it cannot be read as an unfilled token or merged later. */
+  _noTok(v) { return String(v == null ? '' : v).split('{{').join('{\u200b{'); },
+
+  /** Clause text to HTML: escaped, with the packet's **bold** lead-ins. */
+  _clauseHtml(text) {
+    return this._escHtml(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  },
+
+  _clauseItemsHtml(items) {
+    return (items || []).filter(function (i) { return !i.byRef; }).map((i) => i.paragraphs.map((p) =>
+      // The id stays as the data-clause attribute (the evidence reads it); it is not printed to the customer.
+      '<div class="nbd-clause" data-clause="' + i.id + '">' + this._clauseHtml(p) + '</div>').join('')).join('');
+  },
+
+  _clauseSectionHtml(title, inner) {
+    return inner ? '<div class="section"><div class="section-title">' + this._escHtml(title) + '</div>' + inner + '</div>' : '';
+  },
+
+  /**
+   * The clause set v1 for a contract, as HTML slots the template drops in. Which clauses print follows
+   * the property state and payment source (clause-set.js renderV1; unknown = strict Kentucky insurance).
+   * Statutory text stays the shipped module's: the Payment section and the KY lien sentence are the
+   * blocks the contract already prints (stat), unchanged.
+   */
+  _clauseSetV1(data, merged, cp, stat) {
+    const CS = window.NBDClauseSet;
+    const g = this._nbdGate();
+    const j = stat.j || {};
+    const J = window.NBDJurisdiction;
+    const lead = window._leadDoc || {};
+    const jt = J && typeof J.normJobType === 'function' ? J.normJobType(merged.jobType || lead.jobType) : '';
+    const state = j.state || '';
+    const source = state ? (j.insurance ? 'insurance' : (jt === 'finance' ? 'financed' : 'cash')) : '';
+    const party = CS.partyFor(g.brand || {}, g.isNbd);
+    // Review 2026-11-18, item 1: a by-reference clause is recorded only when its block is in this document. The cancel
+    // packet is how a v1 contract carries CANC-1; with no packet the contract is not built.
+    if (!stat.cancelPacket) throw new Error('The cancellation notice did not load. Reload the page and try again.');
+    const printed = {
+      'PAY-2': String(merged.paymentSchedule == null ? '' : merged.paymentSchedule).trim() !== '',
+      'WAR-4': this._jobWarrantyText(merged) !== '',
+      'INS-1': !!stat.paymentClause, 'INS-3': !!stat.notices, 'INS-4': !!(stat.cancelPacket && j.kyInsurance),
+      'LIEN-3': !!stat.lien, 'CANC-1': !!stat.cancelPacket
+    };
+    const r = CS.renderV1({
+      state: state, paymentSource: source, party: party, printed: printed,
+      terms: CS.paymentTermsFor(cp && cp.paymentTerms, g.isNbd),
+      facts: { ownerNames: '{{homeownerName}}', propertyAddress: '{{address}}', date: '{{date}}', companyPhone: merged.contractorPhone || '' },
+      hasWarranty: this._jobWarrantyText(merged) !== ''
+    });
+    const by = {};
+    r.sections.forEach((s) => { by[s.title] = s; });
+    const html = (t) => (by[t] ? this._clauseItemsHtml(by[t].items) : '');
+    const sec = (t) => this._clauseSectionHtml(t, html(t));
+    let liens = html("Mechanic's Liens");
+    if (stat.lien) {
+      // Kentucky insurance: the shipped lien sentence (LIEN-3) exactly as the contract printed it, then LIEN-4 and 5.
+      liens = '<div class="nbd-clause-lead">' + this._escHtml(stat.lien) + '</div>' + liens;
+    }
+    return {
+      refs: r.refs, missing: r.missing, party: party, set: r, variant: r.variant,
+      css: '<style>.nbd-clause{margin:.05in 0;font-size:9px}.nbd-sig-caption,.sig-caption{font-size:9px;color:#444;margin:.02in 0 .15in}.sig-role{font-size:10px;font-weight:bold;margin:.1in 0 .02in}.nbd-clause-lead{margin:.1in 0;font-size:10px}</style>',
+      // The marker lists every clause this document printed; the server reads it back for the signing evidence.
+      partyHtml: '<!-- nbd:clause-set ' + CS.CLAUSE_SET_VERSION + ' ' + r.refs.join(',') + ' -->' + (r.party ? '<div class="section"><div class="section-title">Parties</div><div class="nbd-clause nbd-clause-lead" data-clause="PARTY-1">' +
+        this._clauseHtml(r.party.paragraphs[0]) + '</div></div>' : ''),
+      terms: '<div class="nbd-clauses">' + html('Terms of Payment') + '</div>',
+      slotChange: sec('Warranty Terms') + sec('Change Orders and Hidden Conditions') + sec('Schedule, Access and Permits') + sec('Materials, Special Orders and Restocking'),
+      slotInsAndLiens: sec('Insurance Jobs') + this._clauseSectionHtml("Mechanic's Liens", liens),
+      slotDispute: sec('Subcontractors') + sec('Dispute Resolution and General Terms') + sec('E-Signature, Contact and Photos'),
+      signers: (list) => list.map((s) => {
+        const lbl = s && typeof s === 'object' ? (s.label || s.role) : s;
+        if (lbl !== 'Contractor - NBD Home Solutions' && lbl !== this._contractorSignerLabel()) return s;
+        return s && typeof s === 'object' ? Object.assign({}, s, { label: party.signerLabel }) : party.signerLabel;
+      })
+    };
   },
 
   /**
@@ -434,9 +768,9 @@ window.NBDDocGen = {
                                { role: 'homeowner', label: 'Homeowner',                       required: true },
                                { role: 'rep',       label: 'Authorized NBD Representative',   required: true },
                              ] },
-    // 2026-09-15 (Paperwork Filing) — a permit is filed with a jurisdiction,
-    // not signed by the homeowner in-app, so deliberately no defaultSigners.
-    permit:                { name: 'Permit Application',              template: 'renderPermitApplication' },
+    // 'permit' (Permit Application) was unregistered 2026-11-17: no renderer
+    // ever existed, so it printed the generic key-and-value page. Old saved
+    // docs of that type still open through LEGACY_DOCUMENT_TYPES below.
     supplement_request:    { name: 'Supplement Request',              template: 'renderSupplementRequest' },
     scope_of_work:         { name: 'Scope of Work',                   template: 'renderScopeOfWork',
                              defaultSigners: [
@@ -471,6 +805,14 @@ window.NBDDocGen = {
     testimonial_sheet:     { name: 'Testimonial Sheet',               template: 'renderTestimonialSheet' }
   },
 
+  // Types that are no longer offered in the picker (not in DOCUMENT_TYPES) but
+  // may still sit in a customer's saved documents. getHTML() and
+  // renderGenericDoc() read this so an old doc of the type opens instead of
+  // returning null.
+  LEGACY_DOCUMENT_TYPES: {
+    permit: { name: 'Permit Application', template: 'renderGenericDoc' }
+  },
+
   // 2026-09-15 (Paperwork Filing) — auto-derives a lead's *FiledAt gate field
   // (crm-stages.js's REQUIRED_FIELDS_BY_TYPE) the moment its document is
   // signed, so a rep who already e-signed a contract/AOB/COC never has to
@@ -483,6 +825,31 @@ window.NBDDocGen = {
   FILED_FIELD_BY_DOC_TYPE: {
     contract:                  'contractFiledAt',
     certificate_of_completion: 'cocFiledAt',
+  },
+
+  // Signers added by flag docClauseSetV1 (Jo's decision Q51, 2026-11-18) to documents that printed static lines or none.
+  // Flag off, defaultSignersFor() answers exactly DOCUMENT_TYPES[type].defaultSigners, so nothing changes.
+  // The homeowner labels name what the signature is for; the wording each one sits under is in the template
+  // (DRAFTER WORDING: attorney to confirm).
+  FLAG_ON_SIGNERS: {
+    supplement_request:   [ { role: 'homeowner', label: 'Homeowner authorization', required: true },
+                            { role: 'rep',       label: 'Authorized NBD Representative', required: true } ],
+    inspectionInsurance:  [ { role: 'homeowner', label: 'Homeowner release', required: true } ],
+    warranty_certificate: [ { role: 'homeowner', label: 'Homeowner', required: true },
+                            { role: 'rep',       label: 'Authorized NBD Representative', required: true } ],
+    before_after_report:  [ { role: 'homeowner', label: 'Homeowner', required: true } ],
+  },
+
+  /** The signers the pre-flight seeds for a document type. */
+  defaultSignersFor(type) {
+    const entry = (this.DOCUMENT_TYPES && this.DOCUMENT_TYPES[type]) || {};
+    try {
+      if (window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('docClauseSetV1')
+          && this.FLAG_ON_SIGNERS[type] && !Array.isArray(entry.defaultSigners)) {
+        return this.FLAG_ON_SIGNERS[type];
+      }
+    } catch (_) { /* flag unreadable: today's signers */ }
+    return Array.isArray(entry.defaultSigners) ? entry.defaultSigners : [];
   },
 
   // ============================================================================
@@ -536,6 +903,11 @@ window.NBDDocGen = {
       ? _profileSrc
       : (window.NBD_COMPANY_PROFILE_DEFAULTS || {});
 
+    // Phase 3 (flag docAtticAckV1, default OFF): a re-roof contract is not generated for signing until the attic form is
+    // signed (the server is the gate); the warranty certificate reads the signed result for its WAR-2 attic line.
+    if (!(await this._atticGate(type, data))) return;
+    if (type === 'warranty_certificate') await this._atticWarrantyLine(data);
+
     // ─── Retired: Assignment of Benefits AND Direction to Pay (2026-09-27) ───
     // An AOB is void in Kentucky (KRS 304.20-105); Jo retired it and every
     // co-payee / direction-to-pay instrument in both states. A stale caller
@@ -570,6 +942,8 @@ window.NBDDocGen = {
         showToast('Add your mailing address in Settings → Company Profile ("Mailing Address (one line)") so the 3-day cancellation forms print it.', 'warning');
       }
     }
+    // Fail-closed send check, fields first (flag docEvidenceFoundation; no-op while it is off).
+    if (!this._docSendGate(type, data, '')) return;
 
     // ─── QA fix: reconcile single-total docs against their rendered lines ───
     // The invoice + proposal fill-forms collect ONE rep-entered total
@@ -641,6 +1015,8 @@ window.NBDDocGen = {
       if(typeof showToast==='function') showToast('Document type not found','error'); else console.error('Document type not found:', type);
       return;
     }
+    // Fail-closed send check on the rendered text: a [Bracket] or {{token}} left in the document.
+    if (!this._docSendGate(type, data, html)) return;
     // Blank-preview watermark. Set by _blankifyDocData() on
     // customer.html when the rep uses the "Preview blank template"
     // escape hatch (either from the doc-template ⓘ icon or the
@@ -651,6 +1027,27 @@ window.NBDDocGen = {
       html = html.replace(/<\/body>/i, wm + '</body>');
     }
     const typeName = this.DOCUMENT_TYPES[type]?.name || type;
+    // Digest of the document exactly as presented (the HTML uploaded below as the unsigned
+    // original). Sent with the in-person signing so the server can record it beside its own
+    // digest of the signed copy; flag docEvidenceFoundation only.
+    const _evidenceOn = this._docEvidenceOn();
+    const _presentedSha = _evidenceOn ? await this._sha256Hex(html) : null;
+    // Paper copy footer (flag docClauseSetV1, contract class): the document's id is minted now, so the printed copy can
+    // carry it; the row is saved under that id below. _viewHtml is what the viewer shows and prints; the stored original
+    // (and so every digest) stays exactly `html`. Flag off: _viewHtml === html and the row is created by addDoc as before.
+    let _paperRef = null;
+    let _viewHtml = html;
+    {
+      const _lid = data.leadId || (data.customer && data.customer.id) || window._customerId || null;
+      if (_lid && !data._isBlankPreview && window.db && window.collection && window.doc && window.setDoc && this._paperFooterWanted(type)) {
+        try {
+          const ref = window.doc(window.collection(window.db, 'leads', _lid, 'documents'));
+          const sha = await this._sha256Hex(html);
+          const withFooter = (ref && ref.id && sha) ? this._withPaperFooter(html, ref.id, sha) : html;
+          if (withFooter !== html) { _paperRef = ref; _viewHtml = withFooter; }
+        } catch (_) { _paperRef = null; _viewHtml = html; }
+      }
+    }
     // Route through the Universal Document Viewer so the user
     // can Save / Email / Print / PDF / Close without being dumped
     // into a blank popup with no way to persist the doc.
@@ -715,8 +1112,7 @@ window.NBDDocGen = {
             console.warn('Document HTML upload failed:', e && e.message);
           }
           try {
-            _docMetaRef = await window.addDoc(
-              window.collection(window.db, 'leads', _leadIdEarly, 'documents'),
+            const _docRow =
               {
                 type: type,
                 typeName: typeName,
@@ -735,12 +1131,16 @@ window.NBDDocGen = {
                 signers: Array.isArray(data.signers)
                   ? data.signers.map(s => ({ role: s.role, label: s.label, required: !!s.required }))
                   : null,
+                // The estimate an attic form was generated for (flag docAtticAckV1; attic types only, so every other row is unchanged).
+                ...((type === 'attic_acknowledgment' || type === 'attic_not_inspected') && typeof data.estimateId === 'string' && data.estimateId ? { estimateId: data.estimateId } : {}),
                 snapshot: {
                   total: (data.estimate && data.estimate.grandTotal) || data.total || null,
                   address: (data.customer && data.customer.address) || null
                 }
-              }
-            );
+              };
+            // Flag on + contract class: created under the id the printed footer carries. Otherwise addDoc, as always.
+            if (_paperRef) { await window.setDoc(_paperRef, _docRow); _docMetaRef = _paperRef; }
+            else { _docMetaRef = await window.addDoc(window.collection(window.db, 'leads', _leadIdEarly, 'documents'), _docRow); }
           } catch (e) {
             console.warn('Document metadata persist failed:', e && e.message);
           }
@@ -762,19 +1162,32 @@ window.NBDDocGen = {
           }
         })();
       }
+      // Flag docClauseSetV1 (Q51): a document only the company signs (a lien waiver) is never sent to the homeowner for
+      // signature: "Send for signature" is not offered, the rep signs it in the viewer. The server refuses it too.
+      const _repOnly = this._signEaseOn() && Array.isArray(data.signers) && data.signers.length > 0
+        && data.signers.every((s) => s && s.role === 'rep');
+      // Flag docClauseSetV1 (Q62): the homeowner ticks "I agree to sign electronically" before drawing. null = not asked.
+      const _consent = (!_repOnly && !data._isBlankPreview) ? this._inPersonConsentFor(type, data.signers) : null;
+      // The tick bar lives in paper-cert.js, loaded now (on demand, never on a page's boot path). _consentState is the live
+      // { agreed } the bar updates; with the module missing it stays "not agreed" and nothing is saved as signed.
+      let _consentState = null;
+      if (_consent && !window.NBDPaperCert && window.ScriptLoader && typeof window.ScriptLoader.load === 'function') {
+        try { await window.ScriptLoader.load('js/paper-cert.js?v=1'); } catch (_) { /* fail closed below */ }
+      }
       // PR3b: load this lead's saved signatures (if any) so the viewer
       // can hand them to the widget for one-tap "Use saved" reuse. Only
       // fetched when the doc actually has signers — zero cost otherwise.
       const _savedSigs = hasSigners ? await this._fetchSavedSignatures(_leadIdEarly) : null;
       window.NBDDocViewer.open({
-        html: html,
+        html: _viewHtml,
         title: typeName + (customerName ? ' — ' + customerName : ''),
         filename: _filename,
         savedSigs: _savedSigs,
+        ...(_consent ? { consent: _consent } : {}),
         // Signatures PR4: remote signing. Only for signable docs tied to a
         // lead. Awaits the doc's persist (so it has a real docId/htmlPath),
         // then mints + emails a doc_sign_tokens link via createSignRequest.
-        onSendForSignature: (hasSigners && _leadIdEarly) ? (async (signerEmail) => {
+        onSendForSignature: (hasSigners && _leadIdEarly && !_repOnly) ? (async (signerEmail, sendOpts) => {
           if (_persistPromise) { try { await _persistPromise; } catch (_) {} }
           const docId = _docMetaRef && _docMetaRef.id;
           if (!docId) throw new Error('Document is still saving — try again in a moment.');
@@ -784,10 +1197,17 @@ window.NBDDocGen = {
             window._httpsCallable = window._httpsCallable || mod.httpsCallable;
           }
           const fn = window._httpsCallable(window._functions, 'createSignRequest');
-          const res = await fn({ leadId: _leadIdEarly, docId, signerEmail, signerName: (data.customer && data.customer.name) || '' });
+          const payload = { leadId: _leadIdEarly, docId, signerEmail, signerName: (data.customer && data.customer.name) || '' };
+          // Flag docSignPanelV1: the panel asks for a link with no email. Only then does the call carry sendEmail.
+          if (sendOpts && sendOpts.sendEmail === false) payload.sendEmail = false;
+          const res = await fn(payload);
           return res && res.data;
         }) : null,
         signerEmailDefault: (data.customer && data.customer.email) || '',
+        signerPhoneDefault: (data.customer && data.customer.phone) || '',
+        signerNameDefault: (data.customer && data.customer.name) || '',
+        docLabel: typeName,
+        leadId: _leadIdEarly,
         onSave: async () => {
           // Persistence already kicked off in the background via
           // _persistPromise above \u2014 wait for it (no-op if already
@@ -818,6 +1238,11 @@ window.NBDDocGen = {
         // Storage path so reopening the doc shows the embedded sigs,
         // and stamps signedAt + signedSigners on the Firestore doc.
         onPersistFinalized: async (signedHtml, signedSigners) => {
+          // In-person consent (flag docClauseSetV1, Q62): a document that asked for the tick is not saved as signed without it.
+          if (_consent && !(_consentState && _consentState.agreed === true)) {
+            if (typeof showToast === 'function') showToast('Not saved as signed: the homeowner must tick "I agree to sign electronically" first.', 'error');
+            return;
+          }
           if (_persistPromise) { try { await _persistPromise; } catch (_) {} }
           let _signedSaved = false;
           // The Notice of Right to Cancel is dated the day the homeowner
@@ -934,7 +1359,11 @@ window.NBDDocGen = {
           // already saved above: a failure here never blocks signing, it only
           // logs and tells the rep to move the card by hand.
           if (type === 'contract' && _signedSaved && _docMetaRef && _leadIdEarly) {
-            await this._recordInPersonSignature(_leadIdEarly, _docMetaRef.id);
+            await this._recordInPersonSignature(_leadIdEarly, _docMetaRef.id, _consent ? { presentedSha256: _presentedSha, consentTick: true } : { presentedSha256: _presentedSha });
+          } else if ((_evidenceOn || _consent) && _signedSaved && _docMetaRef && _leadIdEarly) {
+            // Any other signed document (flag docEvidenceFoundation): the server records the
+            // signing evidence only; it never moves the card for a non-contract.
+            await this._recordInPersonSignature(_leadIdEarly, _docMetaRef.id, _consent ? { presentedSha256: _presentedSha, evidenceOnly: true, consentTick: true } : { presentedSha256: _presentedSha, evidenceOnly: true });
           }
           // Repaint so the row picks up its '✓ Signed' state immediately.
           if (window.NBDCustomerDocs) {
@@ -972,6 +1401,12 @@ window.NBDDocGen = {
           }
         }
       });
+      // In-person consent bar (flag docClauseSetV1, Q62), mounted over the viewer that just opened.
+      if (_consent) {
+        _consentState = (window.NBDPaperCert && typeof window.NBDPaperCert.mountConsent === 'function')
+          ? window.NBDPaperCert.mountConsent(document, document.getElementById('nbdv-iframe'), _consent)
+          : { agreed: false };
+      }
       return;
     }
     // Fallback: legacy popup if the doc viewer isn't loaded
@@ -1003,7 +1438,8 @@ window.NBDDocGen = {
    * Never throws and never blocks the signing UX: the contract is already
    * saved when this runs. Resolves to the callable's result, or null.
    */
-  async _recordInPersonSignature(leadId, docId) {
+  async _recordInPersonSignature(leadId, docId, extra) {
+    const opts = extra || {};
     try {
       if (!window._functions || !window._httpsCallable) {
         const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
@@ -1011,13 +1447,16 @@ window.NBDDocGen = {
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
       const fn = window._httpsCallable(window._functions, 'recordInPersonSignature');
-      const res = await fn({ leadId, docId });
+      const payload = opts.presentedSha256 ? { leadId, docId, presentedSha256: opts.presentedSha256 } : { leadId, docId };
+      // In-person consent (flag docClauseSetV1, Q62): the homeowner ticked "I agree to sign electronically" in the viewer.
+      if (opts.consentTick === true) payload.consentTick = true;
+      const res = await fn(payload);
       const out = (res && res.data) || null;
       if (out && out.moved && typeof showToast === 'function') showToast('✓ Contract signed — card moved to Contract Signed', 'success');
       return out;
     } catch (e) {
       console.warn('recordInPersonSignature failed:', e && e.message);
-      if (typeof showToast === 'function') showToast('Contract saved — but the card did not move. Move it to Contract Signed by hand.', 'warning');
+      if (!opts.evidenceOnly && typeof showToast === 'function') showToast('Contract saved — but the card did not move. Move it to Contract Signed by hand.', 'warning');
       return null;
     }
   },
@@ -1413,6 +1852,10 @@ window.NBDDocGen = {
     if (!template && this.DOCUMENT_TYPES[type]) {
       template = this.renderGenericDoc; // fallback
     }
+    if (!template && this.LEGACY_DOCUMENT_TYPES[type]) {
+      template = this.renderGenericDoc; // unregistered type, old saved doc
+      data = Object.assign({}, data, { _documentType: type });
+    }
     if (!template) {
       console.error(`Unknown document type: ${type}`);
       return null;
@@ -1542,16 +1985,14 @@ window.NBDDocGen = {
       ...data
     };
 
-    let result = template;
-    Object.keys(mergedData).forEach(key => {
-      const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
-      // Escape values: placeholders carry scalar lead/company data into an HTML
-      // template, so values are text. (Line-items/signature blocks are built
-      // separately, not via {{placeholders}}.)
-      result = result.replace(regex, this._escHtml(mergedData[key]));
-    });
-
-    return result;
+    // ONE pass (review 2026-11-18, item 7): a value is inserted once and never rescanned, so a homeowner named
+    // "{{address}}" cannot expand to the address, and "$&" prints as typed (function replacer). A "{{" inside a value
+    // is separated with a zero-width space so the pre-send placeholder scan does not read it as an unfilled token.
+    // Escape values: placeholders carry scalar lead/company data into an HTML
+    // template, so values are text. (Line-items/signature blocks are built
+    // separately, not via {{placeholders}}.)
+    return String(template).replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (m, key) => (Object.prototype.hasOwnProperty.call(mergedData, key)
+      ? this._escHtml(mergedData[key]).split('{{').join('{\u200b{') : m));
   },
 
   // ============================================================================
@@ -2131,8 +2572,10 @@ window.NBDDocGen = {
   _injectSignatureAssets(html) {
     if (typeof html !== 'string' || !html.length) return html;
     const scriptSrc = this._assetOrigin() + '/pro/js/signature-widget.js';
-    const css =
-      '<style id="nbd-sig-styles">' +
+    // The CSS text is the twinned module's constant when it is loaded (functions/attic-gate.js holds the same text and accepts this
+    // block in a stored attic form only when it equals it); the literal below is that same text, for a page without attic-ack.js.
+    const AA = (typeof window !== 'undefined' && window.NBDAtticAck) || null;
+    const sigCss = AA && typeof AA.SIG_STYLES_CSS === 'string' ? AA.SIG_STYLES_CSS :
       '.nbd-sig-block{margin:0.2in 0 0.4in;padding:0;page-break-inside:avoid;}' +
       '.nbd-sig-label{font-size:11px;font-weight:700;color:#1A3057;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;}' +
       '.nbd-sig-canvas{display:block;width:100%;height:120px;border:1px dashed #999;border-radius:6px;background:#fafafa;cursor:crosshair;box-sizing:border-box;touch-action:none;}' +
@@ -2143,8 +2586,8 @@ window.NBDDocGen = {
       '.nbd-sig-state{font-size:10px;color:#2d7a2d;font-weight:600;margin-left:auto;}' +
       '.nbd-sig-date{margin-top:4px;font-size:10px;color:#666;font-style:italic;}' +
       '.nbd-sig-print-name{margin-top:8px;font-size:10px;color:#666;}' +
-      '@media print{.nbd-sig-controls,.nbd-sig-state{display:none!important;}.nbd-sig-canvas{border:1px solid #333;background:#fff;}}' +
-      '</style>';
+      '@media print{.nbd-sig-controls,.nbd-sig-state{display:none!important;}.nbd-sig-canvas{border:1px solid #333;background:#fff;}}';
+    const css = '<style id="nbd-sig-styles">' + sigCss + '</style>';
     const scriptTag = '<script src="' + scriptSrc + '" defer></' + 'script>';
     let out = html;
     if (/<\/head>/i.test(out)) {
@@ -2314,7 +2757,17 @@ window.NBDDocGen = {
    * @param {array} signers - Array of signer names/titles
    * @returns {string} HTML
    */
-  renderSignatureBlock(signers = ['Homeowner', 'Contractor']) {
+  renderSignatureBlock(signers = ['Homeowner', 'Contractor'], opts) {
+    // Clause set v1 (flag docClauseSetV1, contract only): each label sits ABOVE its own signature line, the contractor
+    // line is labelled "Contractor" and the legal-party caption ("<entity> d/b/a <name> - By: <signer>, <title>") sits
+    // directly under that line; a second "Homeowner" is the co-owner. The data-nbd-sig attributes are not touched.
+    const v1p = opts && opts.v1party;
+    let homeCount = 0;
+    const shown = (raw) => {
+      if (v1p && raw === v1p.signerLabel) return { label: 'Contractor', caption: v1p.signerLabel };
+      if (v1p && raw === 'Homeowner') { homeCount++; if (homeCount > 1) return { label: 'Homeowner (co-owner)', caption: '' }; }
+      return { label: raw, caption: '' };
+    };
     // Signers may be strings (legacy: static sig-line + printed label)
     // or config objects (new: interactive canvas widget). Object shape:
     //   { role: 'homeowner', label: 'Homeowner', required: true }
@@ -2334,10 +2787,13 @@ window.NBDDocGen = {
         const role = escRole(isObj ? signer.role : String(signer).toLowerCase().replace(/[^a-z0-9]+/g, '-'));
         const label = escAttr(this._deBrandSignerLabel(isObj ? (signer.label || signer.role) : signer));
         const required = isObj ? signer.required !== false : true;
+        const sh = v1p ? shown(this._deBrandSignerLabel(isObj ? (signer.label || signer.role) : signer)) : null;
+        const shownLabel = sh ? escAttr(sh.label) : label;
+        const capHtml = sh && sh.caption ? '<div class="sig-caption">' + escAttr(sh.caption) + '</div>' : '';
         html += `
           <div class="nbd-sig-block" data-nbd-sig="${role}" data-label="${label}" data-required="${required ? 'true' : 'false'}">
-            <div class="nbd-sig-label">${label}${required ? '' : ' <span style="font-weight:400;color:#888;text-transform:none;letter-spacing:0;">(optional)</span>'}</div>
-            <canvas class="nbd-sig-canvas"></canvas>
+            <div class="nbd-sig-label">${shownLabel}${required ? '' : ' <span style="font-weight:400;color:#888;text-transform:none;letter-spacing:0;">(optional)</span>'}</div>
+            <canvas class="nbd-sig-canvas"></canvas>${capHtml}
             <div class="nbd-sig-controls">
               <button type="button" data-nbd-sig-action="clear">Clear</button>
               <button type="button" data-nbd-sig-action="undo">Undo last stroke</button>
@@ -2349,6 +2805,23 @@ window.NBDDocGen = {
       });
     } else {
       signers.forEach(signer => {
+        if (v1p) {
+          const sh = shown(this._deBrandSignerLabel(signer));
+          html += `
+          <div class="sig-role">${this._escHtml(sh.label)}</div>
+          <div class="signature-line">
+            <div class="sig-field">
+              <div class="sig-underline"></div>
+              <div class="sig-label">Signature</div>
+            </div>
+            <div class="sig-field">
+              <div class="sig-underline"></div>
+              <div class="sig-label">Date</div>
+            </div>
+          </div>${sh.caption ? '<div class="sig-caption">' + this._escHtml(sh.caption) + '</div>' : ''}
+        `;
+          return;
+        }
         html += `
           <div class="signature-line">
             <div class="sig-field">
@@ -2422,7 +2895,7 @@ window.NBDDocGen = {
    * @param {object} [data] - the document's merge data (line items, extended warranty)
    * @returns {string} HTML
    */
-  renderWarrantyBadge(tier = 'better', data) {
+  renderWarrantyBadge(tier = 'better', data, opts) {
     const cfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
     const TR = (typeof window !== 'undefined') ? window.NBDTenantRules : null;
     const tenant = !!(TR && typeof TR.isPlatformTenant === 'function' && TR.isPlatformTenant() === false);
@@ -2458,9 +2931,17 @@ window.NBDDocGen = {
           : (yrs ? yrs + '-year written workmanship (labor) warranty.' : 'Written workmanship (labor) warranty per your package — see your estimate.'));
       const work = yrs ? (yrs + '-Year Workmanship') : 'Workmanship';
       const pledge = lines.pledge || (cfg && cfg.PLEDGE_PROMISE) || 'NBD Pledge: for as long as you own the home, we\'ll come back and make it right.';
-      head = label + ': NBD Pledge + ' + work;
-      strong = '<div><strong>' + work + ' Warranty (written, labor)</strong></div>';
-      workText = e(pledge) + '<br>' + warrantyText + '<br>';
+      if (opts && opts.v1) {
+        // Clause set v1 (flag docClauseSetV1): WAR-6 is the one definition of the NBD Pledge, so the old broad sentence
+        // does not print in this box. The tier, labor and manufacturer lines stay.
+        head = label + ': ' + work;
+        strong = '<div><strong>' + work + ' Warranty (written, labor)</strong></div>';
+        workText = warrantyText + '<br>';
+      } else {
+        head = label + ': NBD Pledge + ' + work;
+        strong = '<div><strong>' + work + ' Warranty (written, labor)</strong></div>';
+        workText = e(pledge) + '<br>' + warrantyText + '<br>';
+      }
     }
 
     return `
@@ -2492,9 +2973,9 @@ window.NBDDocGen = {
   },
 
   /** The Warranty Coverage body: the job-type sentence, else the tier badge. */
-  renderWarrantyFor(data) {
+  renderWarrantyFor(data, opts) {
     const text = this._jobWarrantyText(data);
-    if (text === null) return this.renderWarrantyBadge(data.warrantyTier, data);
+    if (text === null) return this.renderWarrantyBadge(data.warrantyTier, data, opts);
     const years = Number(data.workmanshipWarrantyYears);
     const headline = (Number.isFinite(years) && years > 0)
       ? years + '-Year Workmanship Warranty'
@@ -2756,9 +3237,9 @@ window.NBDDocGen = {
         const unitPrice = (it.unitPrice != null ? it.unitPrice : (it.rate != null ? it.rate : it.price)) || 0;
         const total = (it.total != null ? it.total : (Number(it.qty) || 0) * unitPrice) || 0;
         return `<tr>
-          <td>${this._escHtml(it.description || it.item)}</td>
+          <td>${this._escHtml(this._noTok(it.description || it.item))}</td>
           <td style="text-align:center;">${this._escHtml(it.qty != null ? it.qty : '')}</td>
-          <td style="text-align:center;">${this._escHtml(it.unit || '')}</td>
+          <td style="text-align:center;">${this._escHtml(this._noTok(it.unit || ''))}</td>
           <td style="text-align:right;">${_money(unitPrice)}</td>
           <td style="text-align:right;">${_money(total)}</td>
         </tr>`;
@@ -2789,6 +3270,9 @@ window.NBDDocGen = {
     const stat = this._statutoryBlocks(Object.assign({}, data, merged), cp);
     const _J = window.NBDJurisdiction;
     const paymentMethodsText = _J ? _J.stripAssignmentSentences(cp.paymentMethodsNoCash) : cp.paymentMethodsNoCash;
+    // Clause set v1 (flag docClauseSetV1, default off): null when off, and every slot below prints the original markup.
+    const v1 = this._clauseV1On() ? this._clauseSetV1(data, merged, cp, stat) : null;
+    this._lastClauseSet = v1 ? { refs: v1.refs, missing: v1.missing, variant: v1.variant } : null;
 
     const contractHTML = `
       <!DOCTYPE html>
@@ -2798,7 +3282,7 @@ window.NBDDocGen = {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>${this._docTitleCompany()} - Roofing Contract</title>
         ${this.getSharedCSS()}
-        ${stat.css}
+        ${stat.css}${v1 ? v1.css : ''}
       </head>
       <body>
         <div class="print-button-container">
@@ -2811,11 +3295,11 @@ window.NBDDocGen = {
           <div class="document-title">Roofing Contract</div>
 
           <div class="document-content" style="font-size: 10px; line-height: 1.5;">
-            <!-- PARTIES -->
+            <!-- PARTIES -->${v1 ? v1.partyHtml : ''}
             <div class="section">
               <div class="section-title">Parties to Agreement</div>
               <div style="margin: 0.1in 0;">
-                <strong>Contractor:</strong> ${merged.contractorName}<br/>
+                <strong>Contractor:</strong> ${v1 ? this._escHtml(v1.party.nameLine) : merged.contractorName}<br/>
                 ${stat.partiesExtra}<strong>Phone:</strong> ${merged.contractorPhone}<br/>
                 <strong>Email:</strong> ${this._resolveCompany().email}
               </div>
@@ -2848,40 +3332,40 @@ window.NBDDocGen = {
               <div style="margin: 0.1in 0;">
                 {{paymentSchedule}}
               </div>
-              <div style="margin: 0.1in 0; margin-top: 0.08in; font-size: 9px;">
+              ${v1 ? v1.terms : `<div style="margin: 0.1in 0; margin-top: 0.08in; font-size: 9px;">
                 ${this._escClause(paymentMethodsText)}
-              </div>
+              </div>`}
             </div>
 
             ${this._jobWarrantyText(merged) === '' ? '' : `<!-- WARRANTY -->
             <div class="section">
               <div class="section-title">Warranty Coverage</div>
-              ${this.renderWarrantyFor(merged)}
+              ${this.renderWarrantyFor(merged, v1 ? { v1: true } : undefined)}
             </div>`}
 
-            <!-- CHANGE ORDERS -->
+            ${v1 ? v1.slotChange : `<!-- CHANGE ORDERS -->
             <div class="section">
               <div class="section-title">Change Orders & Scope Modifications</div>
               <div style="margin: 0.1in 0; font-size: 9px;">
                 ${this._escClause(cp.changeOrderClause)}
               </div>
-            </div>
+            </div>`}
 
-            <!-- CANCELLATION CLAUSE -->
+            ${v1 ? '' : `<!-- CANCELLATION CLAUSE -->
             <div class="section">
               <div class="section-title">Cancellation & Rescission Rights</div>
               <div style="margin: 0.1in 0; font-size: 9px;">
                 ${this._escClause(cp.cancellationContractClause)}
               </div>
-            </div>
+            </div>`}
 
-            <!-- DISPUTE RESOLUTION -->
+            ${v1 ? v1.slotDispute : `<!-- DISPUTE RESOLUTION -->
             <div class="section">
               <div class="section-title">Dispute Resolution</div>
               <div style="margin: 0.1in 0; font-size: 9px;">
                 ${this._escClause(cp.disputeResolutionClause)}
               </div>
-            </div>
+            </div>`}
 
             ${stat.paymentClause ? `<!-- PAYMENT (every contract; ky-insurance-law.js PAYMENT_CLAUSE) -->
             <div class="section">
@@ -2891,21 +3375,21 @@ window.NBDDocGen = {
               </div>
             </div>` : ''}
 
-            ${stat.lien ? `<!-- MECHANIC'S LIENS — KRS 367.628(2)(g) -->
+            ${v1 ? v1.slotInsAndLiens : (stat.lien ? `<!-- MECHANIC'S LIENS — KRS 367.628(2)(g) -->
             <div class="section">
               <div class="section-title">Mechanic's Liens</div>
               <div style="margin: 0.1in 0; font-size: 10px;">
                 ${this._escHtml(stat.lien)}
               </div>
-            </div>` : ''}
+            </div>` : '')}
 
-            <!-- ENTIRE AGREEMENT -->
+            ${v1 ? '' : `<!-- ENTIRE AGREEMENT -->
             <div class="section">
               <div class="section-title">Entire Agreement</div>
               <div style="margin: 0.1in 0; font-size: 9px;">
                 ${this._escClause(cp.entireAgreementClause)}
               </div>
-            </div>
+            </div>`}
 
             ${stat.notices ? `<!-- KRS 367.624(3) NOTICES — before the signature block -->
             <div class="section">
@@ -2918,10 +3402,12 @@ window.NBDDocGen = {
               <div class="section-title">Contract Execution</div>
               ${stat.ftcStatement}
               <div style="margin-top: 0.15in;">
-                ${this.renderSignatureBlock(
-                  (Array.isArray(data.signers) && data.signers.length)
+                ${this.renderSignatureBlock(v1
+                  ? v1.signers((Array.isArray(data.signers) && data.signers.length) ? data.signers : ['Homeowner', this._contractorSignerLabel()])
+                  : ((Array.isArray(data.signers) && data.signers.length)
                     ? data.signers
-                    : ['Homeowner', this._contractorSignerLabel()]
+                    : ['Homeowner', this._contractorSignerLabel()]),
+                  v1 ? { v1party: v1.party } : undefined
                 )}
               </div>
             </div>
@@ -3066,9 +3552,6 @@ window.NBDDocGen = {
             <!-- NEXT STEPS -->
             <div class="section" style="background-color: ${this._resolveCompany().colors.lightGray}; border-left: 3px solid ${this._resolveCompany().colors.primary}; padding: 0.15in;">
               <div class="section-title">Next Steps</div>
-              <div class="summary-text">
-                Based on this assessment, we recommend immediate attention to the roof and gutters to prevent further water damage. Contact us to schedule a free estimate and discuss financing options for recommended repairs.
-              </div>
               <div style="margin-top: 0.1in; font-weight: bold; color: ${this._resolveCompany().colors.primary};">
                 ${this._resolveCompany().phone} | ${this._resolveCompany().email}
               </div>
@@ -3080,7 +3563,7 @@ window.NBDDocGen = {
               ${this.renderSignatureBlock(
                 (Array.isArray(data.signers) && data.signers.length)
                   ? data.signers
-                  : ['Certified NBD Inspector']
+                  : ['Inspector']
               )}
             </div>
           </div>
@@ -3221,8 +3704,17 @@ window.NBDDocGen = {
               <div style="font-size: 9px; margin: 0.1in 0;">
                 I certify that I have personally inspected the subject property and that the damages, measurements, and repair estimates contained in this report are accurate to the best of my knowledge and belief.
               </div>
-              ${this.renderSignatureBlock(['Certified NBD Damage Assessor'])}
-            </div>
+              ${this.renderSignatureBlock(['Damage Assessor'])}
+            </div>${this._signEaseOn() ? `
+            <!-- HOMEOWNER RELEASE (flag docClauseSetV1) -->
+            <div class="section" data-nbd-auth="release">
+              <div class="section-title">Homeowner release</div>
+              <style>.nbd-release-text{font-size:9px;margin:0.1in 0;}</style>
+              <div class="nbd-release-text">
+                ${/* DRAFTER WORDING: attorney to confirm. Neutral: permission to send the report, nothing about coverage, outcome or payment. */''}I authorize ${this._escHtml(this._resolveCompany().name || '')} to send a copy of this inspection report to my insurance company.
+              </div>
+              ${this.renderSignatureBlock((Array.isArray(data.signers) && data.signers.length) ? data.signers : ['Homeowner release'])}
+            </div><!--end-auth-->` : ''}
           </div>
 
           ${this.renderFooter({ pageNumber: '1' })}
@@ -3252,7 +3744,7 @@ window.NBDDocGen = {
   // ═══════════════════════════════════════════════════════════
   renderGenericDoc(data = {}) {
     const type = data._documentType || 'document';
-    const typeName = this.DOCUMENT_TYPES[type]?.name || type.replace(/_/g, ' ');
+    const typeName = this.DOCUMENT_TYPES[type]?.name || this.LEGACY_DOCUMENT_TYPES[type]?.name || type.replace(/_/g, ' ');
     const d = { ...data };
     const name = d.homeownerName || d.customerName || '';
     const addr = d.address || '';
@@ -3339,10 +3831,6 @@ ${name || addr ? `<h2>Customer Information</h2>
 ${fieldRows ? '<h2>Details</h2><table>' + fieldRows + '</table>' : ''}
 ${desc ? '<h2>Description</h2><div class="desc">' + this._escHtml(desc) + '</div>' : ''}
 ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:12px;color:#666;">Total:</span> <span style="font-family:\'Barlow Condensed\',sans-serif;font-size:32px;font-weight:800;color:var(--orange,#bd5728);">' + (String(price).startsWith('$') ? price : '$' + price) + '</span></div>' : ''}
-<div class="sig-block">
-  <div><div class="sig-line">Homeowner Signature</div><div style="margin-top:16px;"><div class="sig-line">Date</div></div></div>
-  <div><div class="sig-line">Contractor Signature</div><div style="margin-top:16px;"><div class="sig-line">Date</div></div></div>
-</div>
 <div class="footer"><span>${[c.name, c.phone, c.website].filter(Boolean).map((x) => this._escHtml(x)).join(' · ')}</span></div>
 </body></html>`;
   },
@@ -3911,8 +4399,7 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
       claim_guide: [],
       door_hanger: [],
       neighborhood_mailer: [
-        { name: 'neighborhoodName', label: 'Neighborhood Name', required: true },
-        { name: 'projectAddress', label: 'Nearby Project Address', required: false }
+        { name: 'neighborhoodName', label: 'Neighborhood Name', required: true }
       ],
       testimonial_sheet: [],
       thank_you: [

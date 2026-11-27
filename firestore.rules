@@ -235,6 +235,8 @@ service cloud.firestore {
         'referralCodeInvalid', 'referralRewardJobCount', 'referralRewardPaidAt',
         // Roof Care Plan mirror (functions/care-plan.js) — server-written only.
         'carePlan',
+        // The attic gate's re-roof floor (functions/attic-gate.js, admin SDK).
+        'atticScopeFloor',
         // Intake provenance (functions/integrations/calcom.js, lead-bridge.js,
         // thumbtack.js — admin SDK). lead-alert.js decides whether to page
         // someone from these, so a client must not be able to assert them
@@ -627,7 +629,40 @@ service cloud.firestore {
     // CREATE/UPDATE ONLY — see the delete note on warrantyClaimWriteOk().
     function documentStatusWriteOk() {
       let status = request.resource.data.get('status', null);
-      return status == null || status in ['draft', 'sent', 'signed'];
+      return status == null || status in ['draft', 'sent', 'signed', 'wet_signed_uploaded'];
+    }
+    // Paper certification (2026-11-18, flag docClauseSetV1): an uploaded paper-signed document waits as
+    // 'wet_signed_uploaded' until the attestWetSigned callable (admin SDK) certifies it. A client may create
+    // the row in that status, but cannot move an existing one out of it: the move to 'signed' is the server's.
+    // Security review 2026-11-18 (HIGH1): with docClauseSetV1 on for the writer (their own flag over the default, boolean true
+    // only), a client cannot create a signed_upload row that already claims to be signed (status 'signed', or any signedAt), and
+    // cannot update one into that state. Only attestWetSigned (admin SDK, no rules) certifies. The flag docs are read only when
+    // the row is a signed_upload, so every other document write costs nothing extra. Flag off for the writer: the old paper
+    // upload (status 'signed') keeps working exactly as before.
+    function clauseFlagOnForWriter() {
+      let mine = /databases/$(database)/documents/feature_flags/$(request.auth.uid);
+      let dflt = /databases/$(database)/documents/feature_flags/_default;
+      return exists(mine) && get(mine).data.get('docClauseSetV1', null) != null
+        ? get(mine).data.get('docClauseSetV1', null) == true
+        : (exists(dflt) && get(dflt).data.get('docClauseSetV1', null) == true);
+    }
+    function claimsSigned(d) {
+      return d.get('status', '') == 'signed' || d.get('signedAt', null) != null;
+    }
+    function signedUploadCreateOk() {
+      return request.resource.data.get('source', '') != 'signed_upload'
+        || !claimsSigned(request.resource.data)
+        || !clauseFlagOnForWriter();
+    }
+    function signedUploadUpdateOk() {
+      return request.resource.data.get('source', '') != 'signed_upload'
+        || !claimsSigned(request.resource.data)
+        || claimsSigned(resource.data)
+        || !clauseFlagOnForWriter();
+    }
+    function wetStatusUpdateOk() {
+      return resource.data.get('status', null) != 'wet_signed_uploaded'
+        || request.resource.data.get('status', null) == 'wet_signed_uploaded';
     }
 
     // 2026-10-05 (security review) — htmlPath names the Storage object that
@@ -685,6 +720,23 @@ service cloud.firestore {
     }
     function documentSaveFlagUpdateOk() {
       return request.resource.data.get('signedSaveFailed', null) == resource.data.get('signedSaveFailed', null);
+    }
+    // signatureEvidence (2026-11-18, evidence and clause foundation) is server-owned: the
+    // record of who signed from where (IP, user agent), the clause-set version, the
+    // document digest and the consent shown. submitSignature and recordInPersonSignature
+    // (admin SDK) write it; no client creates a row carrying it or changes or removes it
+    // later, so the rep, an interested party to the contract, cannot forge or rewrite it.
+    // Review 2 (2026-11-18): signedStampFailed / signedStampFailedAt (the "signed but the row was
+    // not stamped" warning) and evidenceRefused (the in-person evidence gate refused the row) are
+    // server-owned the same way, so a rep cannot clear or forge them on a not-yet-signed row.
+    // linkSeq / linkMintedAt (sign-link panel, 2026-11-18): createSignRequest's per-document link sequence number and mint stamp, server-owned
+    // so a rep cannot reset the counter and keep an old signing link alive when making a new one.
+    function documentEvidenceCreateOk() {
+      return !request.resource.data.keys().hasAny(['signatureEvidence', 'wetSignedAttestation', 'wetSignedEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused', 'atticAckResult', 'atticGateUnverified', 'linkSeq', 'linkMintedAt']);
+    }
+    function documentEvidenceUpdateOk() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['signatureEvidence', 'wetSignedAttestation', 'wetSignedEvidence', 'signedStampFailed', 'signedStampFailedAt', 'evidenceRefused', 'atticAckResult', 'atticGateUnverified', 'linkSeq', 'linkMintedAt'])
+        && wetStatusUpdateOk();
     }
     function signedDocumentUpdateOk(leadId) {
       let keys = request.resource.data.diff(resource.data).affectedKeys();
@@ -825,6 +877,19 @@ service cloud.firestore {
             && d.get('archivedBy', null) == null);
     }
 
+    // Attic acknowledgment (docAtticAckV1, review 2026-11-18, finding 1): a lead's scope (reroof, repair, siding, gutters,
+    // other) may be RAISED by the client but never lowered, and a re-roof is never turned into something the gate ignores. The
+    // server reads the highest of this field, the estimates in play and its own atticScopeFloor (server-owned, never written
+    // here). Lowering goes through the owner/admin callable recordAtticOverride (kind scope_lowered, with a reason).
+    function atticScopeRank(s) {
+      return s == 'reroof' ? 3 : (s == 'repair' ? 2 : (s in ['siding', 'gutters'] ? 1 : 0));
+    }
+    function atticScopeNotLowered() {
+      return didNotChange(['scope'])
+        || (request.resource.data.get('scope', '') is string
+            && atticScopeRank(request.resource.data.get('scope', '')) >= atticScopeRank(resource.data.get('scope', '')));
+    }
+
     // CREATE (2026-11-14 review): a lead may not be born hidden by someone who
     // could not hide it by an update. Live markers (absent, or false / null)
     // are fine for anyone who may create (the CSV import writes deleted:false);
@@ -928,12 +993,18 @@ service cloud.firestore {
           // (functions/jobs-mirror.js). Server-owned in phase 1: a client
           // re-saving the same value is fine, changing it is not.
           && didNotChange(['activeJobId'])
+          // The second owner a contract needs a co-signer for (docClauseSetV1, re-review 2026-11-19): the lead's owner or a company
+          // admin writes it; a manager cannot pin a wrong name that only an admin could then clear.
+          && (isOwner(resource.data.userId) || isCompanyAdmin() || didNotChange(['secondOwnerName']))
           // paymentBackfill is set once at create by the owner side, never toggled after.
           && didNotChange(['paymentBackfill'])
           // leads/{id}.carePlan mirrors the Roof Care Plan membership
           // (functions/care-plan.js webhook). It drives the member badge, the
           // 10% repair discount and storm priority, so only the server sets it.
           && didNotChange(['carePlan'])
+          // The server's re-roof floor and the scope that cannot be lowered (attic acknowledgment, review 2026-11-18).
+          && didNotChange(['atticScopeFloor'])
+          && atticScopeNotLowered()
           // stripeCustomerId outranks email/phone/address in the Stripe ledger's match and is billed by
           // mintCrmStripeInvoice, so a rep setting it could pull another customer's payments onto their
           // lead. Server-only: the ledger and CRM Stripe invoices (admin SDK) — 2026-11-14.
@@ -942,6 +1013,9 @@ service cloud.firestore {
           // bridge, admin SDK). A rep must not be able to write it onto a lead to unlock texting a cold
           // number (messaging hardening 2026-10-19; sms-consent-declined.js consentBasis reads these).
           && didNotChange(['tcpaConsent', 'tcpaConsentAt', 'tcpaConsentText', 'tcpaConsentSource', 'tcpaConsentIp', 'tcpaConsentVersion'])
+          // Intake provenance is server-only on create (the lead create denylist); frozen on update too, so a
+          // rep cannot stamp a hand-typed lead as a website / Cal.com / bridge intake afterwards (S0, 2026-11-26).
+          && didNotChange(['webLead', 'publicLeadKind', 'publicLeadCollection', 'publicLeadId', 'calcomBookingId', 'backfilledBy'])
           // customerId is the key the PUBLIC referral resolver matches on, so
           // a lead whose customerId can be repointed can be aimed at another
           // tenant's customer. Write-once rather than frozen because the
@@ -1348,7 +1422,9 @@ service cloud.firestore {
               || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
           && documentStatusWriteOk()
           && documentHtmlPathOk(leadId)
-          && documentSaveFlagCreateOk();
+          && documentSaveFlagCreateOk()
+          && documentEvidenceCreateOk()
+          && signedUploadCreateOk();
         // Split from create (2026-09-29): an update reads `resource`, which a
         // create does not have. A signed row is locked — see documentIsSigned().
         allow update: if isAuth() && notViewer()
@@ -1357,6 +1433,8 @@ service cloud.firestore {
           && documentStatusWriteOk()
           && documentHtmlPathOk(leadId)
           && documentSaveFlagUpdateOk()
+          && documentEvidenceUpdateOk()
+          && signedUploadUpdateOk()
           && (!documentIsSigned() || signedDocumentUpdateOk(leadId));
         allow delete: if isAuth() && notViewer()
           && (isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
@@ -2474,10 +2552,12 @@ service cloud.firestore {
     match /documents/{docId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
       allow update: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
-        && (!documentIsSigned() || legacySignedDocumentUpdateOk());
+        && (!documentIsSigned() || legacySignedDocumentUpdateOk())
+        && documentEvidenceUpdateOk();
       allow delete: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
         && !documentIsSigned();
-      allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid
+        && documentEvidenceCreateOk();
     }
 
     // ── NOTES ─────────────────────────────────────────
@@ -2578,13 +2658,24 @@ service cloud.firestore {
                   'mime', 'sizeBytes', 'status', 'leadId', 'source', 'consentMode',
                   'appointmentId', 'audioPath', 'uploadedAtMs', 'chunkCount',
                   'backgroundSec', 'partOf', 'disclosureAckedAtMs', 'recoveredAtMs',
-                  'attachedAtMs', 'discardedAtMs', 'createdAtMs'];
+                  'attachedAtMs', 'discardedAtMs', 'createdAtMs',
+                  // Bin and Keep (2026-11-20). legalHold / holdBy / holdAtMs are NOT here: server-owned.
+                  'keptAtMs', 'binnedAtMs', 'hardDeleteAtMs', 'binnedFrom', 'binnedLeadId'];
         }
         function vcNum(d, k, lo, hi) {
           return d.get(k, null) == null || (d[k] is number && d[k] >= lo && d[k] <= hi);
         }
         function vcStr(d, k, max) {
           return d.get(k, null) == null || (d[k] is string && d[k].size() <= max);
+        }
+        // The Bin (2026-11-20): a recording is in the Bin while binnedAtMs is set. The deadline is pinned: hardDeleteAtMs must be exactly
+        // binnedAtMs + 30 days and binnedAtMs within a day of the server clock, so a phone cannot set a past deadline (the daily job would
+        // purge it) or a far-future one (it would never expire). Restore clears them (null).
+        function vcBinOk(d) {
+          return d.get('binnedAtMs', null) == null
+            || (d.get('hardDeleteAtMs', null) == d.binnedAtMs + 2592000000
+                && d.binnedAtMs <= request.time.toMillis() + 86400000
+                && d.binnedAtMs >= request.time.toMillis() - 86400000);
         }
         // The per-field checks, valid for a whole doc that may ALSO carry
         // server-owned fields (PR 2: transcript, notes, suggestions, pipelineStatus,
@@ -2610,6 +2701,12 @@ service cloud.firestore {
             && vcNum(d, 'attachedAtMs', 0, 99999999999999)
             && vcNum(d, 'discardedAtMs', 0, 99999999999999)
             && vcNum(d, 'createdAtMs', 0, 99999999999999)
+            && vcNum(d, 'keptAtMs', 0, 99999999999999)
+            && vcNum(d, 'binnedAtMs', 0, 99999999999999)
+            && vcNum(d, 'hardDeleteAtMs', 0, 99999999999999)
+            && (d.get('binnedFrom', null) == null || d.binnedFrom in ['unfiled', 'attached'])
+            && vcStr(d, 'binnedLeadId', 128)
+            && vcBinOk(d)
             && vcStr(d, 'mime', 64)
             && (d.get('mime', null) == null || d.mime.matches('^audio/.*'))
             && vcStr(d, 'appointmentId', 128)
@@ -2644,6 +2741,8 @@ service cloud.firestore {
           && vcFieldsOk(request.resource.data)
           && request.resource.data.startedAtMs == resource.data.startedAtMs
           && request.resource.data.consentMode == resource.data.consentMode
+          // a binned recording is deleted for good only by the server (the admin callable / the daily Bin job), never by a phone write
+          && !(resource.data.get('binnedAtMs', null) != null && request.resource.data.status == 'discarded')
           && vcLeadOk(request.resource.data);
         allow delete: if (isOwner(uid) && notViewer()) || isAdmin();
       }
@@ -2748,13 +2847,35 @@ service cloud.firestore {
       function cpTzOk(d) {
         return !('timeZone' in d) || (d.timeZone is string && d.timeZone.size() <= 64);
       }
+      // paymentTerms (clause set v1, review 2026-11-18, item 3): the numbers the printed clauses carry. Sanity bounds only
+      // (never the legal ceilings): a real number per field, null/absent = unset, nothing else (no strings, booleans,
+      // arrays, NaN or a stray key). The same bounds live in clause-set.js numOk.
+      function ptInt(t, k, lo, hi) {
+        return !(k in t) || t[k] == null || (t[k] is int && t[k] >= lo && t[k] <= hi);
+      }
+      function ptNum(t, k, lo, hi) {
+        return !(k in t) || t[k] == null || ((t[k] is int || t[k] is float) && t[k] >= lo && t[k] <= hi);
+      }
+      function cpPtOk(d) {
+        return !('paymentTerms' in d) || d.paymentTerms == null || (d.paymentTerms is map
+          && d.paymentTerms.keys().hasOnly(['lateGraceDays', 'lateInterestPct', 'disputeDays', 'finalPaymentDays', 'punchListDays',
+            'pauseNoticeDays', 'restockPct', 'cardFeePct', 'deckingPerSheetCents', 'deckingSheetsBeforeChangeOrder',
+            'atticFreeCheckDays', 'claimNoticeDays'])
+          && ptInt(d.paymentTerms, 'lateGraceDays', 0, 365) && ptNum(d.paymentTerms, 'lateInterestPct', 0, 100)
+          && ptInt(d.paymentTerms, 'disputeDays', 0, 365) && ptInt(d.paymentTerms, 'finalPaymentDays', 0, 365)
+          && ptInt(d.paymentTerms, 'punchListDays', 0, 365) && ptInt(d.paymentTerms, 'pauseNoticeDays', 0, 365)
+          && ptNum(d.paymentTerms, 'restockPct', 0, 100) && ptNum(d.paymentTerms, 'cardFeePct', 0, 10)
+          && ptInt(d.paymentTerms, 'deckingPerSheetCents', 0, 100000) && ptInt(d.paymentTerms, 'deckingSheetsBeforeChangeOrder', 1, 200)
+          && ptInt(d.paymentTerms, 'atticFreeCheckDays', 1, 365) && ptInt(d.paymentTerms, 'claimNoticeDays', 0, 365));
+      }
       // create: a client may NOT seed a docPrefix/seal — those come from the
       // reserveCompanyPrefix callable only (both must be absent/null here).
       allow create: if cpCanWrite()
         && brandPrefix(request.resource.data) == null
         && brandSeal(request.resource.data) == null
         && cpCoachAiOk(request.resource.data)
-        && cpTzOk(request.resource.data);
+        && cpTzOk(request.resource.data)
+        && cpPtOk(request.resource.data);
       // update: an owner/admin may write anything EXCEPT introducing or changing
       // docPrefix/seal. A deep-merge that doesn't touch them carries the existing
       // value forward (request == resource) and passes; only the admin SDK (which
@@ -2763,7 +2884,8 @@ service cloud.firestore {
         && brandPrefix(request.resource.data) == brandPrefix(resource.data)
         && brandSeal(request.resource.data) == brandSeal(resource.data)
         && cpCoachAiOk(request.resource.data)
-        && cpTzOk(request.resource.data);
+        && cpTzOk(request.resource.data)
+        && cpPtOk(request.resource.data);
       // delete: owner/admin only (deleting does NOT release the docPrefixes/{PREFIX}
       // reservation, which is admin-SDK-only, so no prefix-collision abuse).
       allow delete: if cpCanWrite();
@@ -2833,6 +2955,16 @@ service cloud.firestore {
     // ── ACCESS CODES ──────────────────────────────────
     // Admin-SDK-only. Clients can neither read nor write.
     match /access_codes/{codeId} {
+      allow read, write: if false;
+    }
+
+    // ── MAIL FEED (2026-11-25, functions/mail-feed.js) ───────────
+    // Read-only server copy of inbox mail (masked) + its cursor. Admin SDK
+    // only: no client reads or writes either, ever.
+    match /mail_feed/{companyId}/{rest=**} {
+      allow read, write: if false;
+    }
+    match /mail_feed_state/{companyId} {
       allow read, write: if false;
     }
 
@@ -3019,10 +3151,12 @@ service cloud.firestore {
     // The company's price book (price-book.js, 2026-10-02): what it actually
     // paid per store SKU, learned from receipts (Home Depot import) and later
     // manual entries. COST data, so the same tenant scoping and the same
-    // owner / company_admin write split as catalogCosts — a sales_rep reads
-    // it (the materials list shows last-paid prices) but cannot rewrite it.
+    // owner / company_admin write split as catalogCosts. A sales_rep reads
+    // NOTHING here since 2026-11-18 (Jo: reps never read a supplier price; the
+    // supplier price ledger's offers went owner / admin / manager the same day).
     match /priceBook/{companyId} {
-      allow read: if isAuth() && (companyId == myCompanyId() || ownsTenantByUid(companyId));
+      allow read: if isAuth() && (companyId == myCompanyId() || ownsTenantByUid(companyId))
+        && request.auth.token.get('role', '') != 'sales_rep';
       allow write: if isAdmin()
         || (ownsTenantByUid(companyId) && notViewer())
         || (isCompanyAdmin() && companyId == myCompanyId());
@@ -3031,8 +3165,11 @@ service cloud.firestore {
     // ── PRICE LEDGER (2026-11, flag supplierPricing) ───────────────────
     // Dated, sourced price history under priceBook/{companyId}/…. Every write
     // is a Cloud Function (admin SDK). A browser only reads.
-    // Offers (and their latest summary): the owner, company_admin, manager,
-    // sales_rep. Observations and meters: owner / company_admin / manager.
+    // Offers (and their latest summary) and supplier accounts: the owner,
+    // company_admin, manager (Jo, 2026-11-18: a sales_rep never reads a supplier
+    // price; this was plMember, rep included, until then). Observations and
+    // meters: owner / company_admin / manager. productLinks (photos, the last
+    // approved cost marker) stay readable by a sales_rep too.
     // Audit: owner / company_admin. A viewer, the access-code role `member`,
     // a token with no role, another tenant: nothing.
     // The claim branch is an ALLOWLIST of roles, read with .get('role','') so
@@ -3060,11 +3197,11 @@ service cloud.firestore {
             || (plClaim(companyId) && plRole() == 'company_admin'));
     }
     match /priceBook/{companyId}/supplierAccounts/{supplierId} {
-      allow read: if plMember(companyId);
+      allow read: if plStaff(companyId);
       allow write: if false;
     }
     match /priceBook/{companyId}/priceOffers/{offerId} {
-      allow read: if plMember(companyId);
+      allow read: if plStaff(companyId);
       allow write: if false;
     }
     match /priceBook/{companyId}/priceObservations/{obsId} {
@@ -3077,6 +3214,24 @@ service cloud.firestore {
     }
     match /priceBook/{companyId}/priceAudit/{auditId} {
       allow read: if plAdmin(companyId);
+      allow write: if false;
+    }
+    // Slice 3: the shared 'seen' marks for on-screen alerts (priceLedgerSave markSeen).
+    match /priceBook/{companyId}/priceConfig/{docId} {
+      allow read: if plAdmin(companyId);
+      allow write: if false;
+    }
+    // Slice 4: per-product extras. applied.<tier> is the last cost approved into the
+    // cost book (priceLedgerSave approveCost / undoCost); every device of the company
+    // reads it to pick the change up. Read like offers; only the server writes.
+    // Slice 9 (2026-11-18): supplier documents read by priceDocRead (the read lines,
+    // the file name, where the original is stored). Owner / company_admin only, like audit.
+    match /priceBook/{companyId}/priceDocs/{docId} {
+      allow read: if plAdmin(companyId);
+      allow write: if false;
+    }
+    match /priceBook/{companyId}/productLinks/{productId} {
+      allow read: if plMember(companyId);
       allow write: if false;
     }
 
@@ -3180,6 +3335,8 @@ service cloud.firestore {
     // decided item stays decided.
     // Bot keys (hashed) and the bot audit trail — server only (agent-mcp.js).
     match /agent_keys/{keyId}   { allow read, write: if false; }
+    // Filing dedupe locks (agent-mcp.js fileItemOnce, 2026-11-22) — server only.
+    match /agent_inbox_keys/{lockId} { allow read, write: if false; }
     // Social Studio media index (key → social-media/ Storage path of a
     // re-encoded copy). Server only: functions/social-studio.js.
     match /social_media/{key}   { allow read, write: if false; }
@@ -4020,6 +4177,40 @@ service cloud.firestore {
         }
       }
 
+      // ── SUB JOBS (agreed sub pay, 2026-11-19, flag subJobBoard) ──
+      // companies/{companyId}/subJobs/{leadId}: what the company agreed to pay the
+      // sub on ONE job (pay basis, rate, quantity, agreed total, all in cents), the
+      // "no sub needed" toggle and a short note. This is COST DATA: it lives here,
+      // not on the lead, so the customer-facing lead record never carries it and
+      // the lead update rule (at Firestore's 1000-expression limit) is untouched.
+      // Read AND write: the solo owner or the company's company_admin / manager.
+      // Never a viewer, never a sales_rep, never another tenant. The doc id is the
+      // lead id. No other key may ride along; a tax ID in the note is refused.
+      match /subJobs/{leadId} {
+        function subJobAccess() {
+          return isAuth() && notViewer()
+            && (ownsTenantByUid(companyId)
+                || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId));
+        }
+        function subJobOk() {
+          let d = request.resource.data;
+          return leadId.matches('^[A-Za-z0-9_-]{1,128}$')
+            && d.keys().hasOnly(['subId', 'basis', 'rateCents', 'qty', 'agreedCents', 'noSubNeeded', 'note', 'updatedAt', 'updatedBy'])
+            && d.keys().hasAll(['updatedAt', 'updatedBy'])
+            && d.updatedBy == request.auth.uid
+            && d.updatedAt is timestamp
+            && (!('subId' in d) || d.subId == null || (d.subId is string && d.subId.size() > 0 && d.subId.size() <= 128))
+            && (!('basis' in d) || d.basis in ['sq', 'job', 'hour', 'day'])
+            && (!('rateCents' in d) || (d.rateCents is int && d.rateCents >= 0 && d.rateCents <= 9999999))
+            && (!('qty' in d) || (d.qty is number && d.qty >= 0 && d.qty <= 100000))
+            && (!('agreedCents' in d) || (d.agreedCents is int && d.agreedCents >= 0 && d.agreedCents <= 99999999))
+            && (!('noSubNeeded' in d) || d.noSubNeeded is bool)
+            && _subTextOk(d, 'note', 300);
+        }
+        allow read, delete: if subJobAccess();
+        allow create, update: if subJobAccess() && subJobOk();
+      }
+
       // ── COMPANY DOCUMENTS (own-document expiry, 2026-10-18) ──
       // companies/{companyId}/companyDocs/{docId}: the company's OWN papers that
       // expire (GL certificate, workers' comp, licenses, manufacturer certs,
@@ -4181,6 +4372,17 @@ service cloud.firestore {
       allow create, update, delete: if false;
       allow read: if isAdmin();
     }
+
+    // Homeowner "email me this guide" requests (2026-11-26), gateway-only.
+    match /guide_copy_requests/{reqId} {
+      allow create, update, delete: if false;
+      allow read: if isAdmin();
+    }
+
+    // Storm-tips email state (2026-11-26): server-only (stormTipsAdmin / stormTipsSweep).
+    match /storm_tips_state/{id} { allow read, write: if false; }
+    match /storm_tips_settings/{id} { allow read, write: if false; }
+    match /storm_tips_sends/{id} { allow read, write: if false; }
 
     match /contact_leads/{leadId} {
       allow create, update, delete: if false;
@@ -4534,12 +4736,21 @@ service cloud.firestore {
     function dealIsClosed(d) {
       return d.get('status', '') in ['accepted', 'signed', 'scheduled'];
     }
+    // Review 2026-11-18: the acceptance fields are written ONLY by the admin SDK
+    // (submitDealAcceptance). Nothing a client sends, on a deal that is open or one
+    // that is closed, creates or changes them, and no client creates a deal room that
+    // already carries them: a rep is an interested party and must not be able to
+    // forge the homeowner's acceptance, signature or evidence.
+    function dealAcceptanceKeys() {
+      return ['acceptedTier', 'acceptedPrice', 'acceptedFinancing',
+              'acceptedSignature', 'acceptedAt', 'acceptedVia', 'acceptedEvidence'];
+    }
     function dealAcceptanceIntact() {
-      return !dealIsClosed(resource.data)
-        || (dealIsClosed(request.resource.data)
-            && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-              'acceptedTier', 'acceptedPrice', 'acceptedFinancing',
-              'acceptedSignature', 'acceptedAt', 'acceptedVia']));
+      return (!dealIsClosed(resource.data) || dealIsClosed(request.resource.data))
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(dealAcceptanceKeys());
+    }
+    function dealCreateHasNoAcceptance() {
+      return !request.resource.data.keys().hasAny(dealAcceptanceKeys());
     }
     // deal_rooms.leadId (2026-10-05): a deal names only the writer's own lead
     // or one in the writer's company. The accepted deal writes to that lead
@@ -4566,6 +4777,7 @@ service cloud.firestore {
       allow delete: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
         && !dealIsClosed(resource.data);
       allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid
+        && dealCreateHasNoAcceptance()
         && dealLeadOk(request.resource.data);
     }
 
@@ -4575,6 +4787,21 @@ service cloud.firestore {
     // touches this collection — same lockdown as doc_sign_tokens.
     match /deal_accept_tokens/{token} {
       allow read, write: if false;
+    }
+
+    // Co-owners (docClauseSetV1, security review 2026-11-18, HIGH2): the second owner a lead was first sent with, recorded by the
+    // server (admin SDK) so clearing the lead's own secondOwnerName cannot lower the signer requirement. No client touches it.
+    match /second_owner_records/{leadId} {
+      allow read, write: if false;
+    }
+
+    // Phase 3 (docAtticAckV1, 2026-11-18): the owner/admin "proceed without a signed attic page" event (Q18). Written by
+    // recordAtticOverride only (admin SDK): name, uid, time, reason. A rep cannot forge it; the tenant's own people can read it.
+    match /attic_overrides/{id} {
+      allow read: if isAuth() && (isAdmin()
+        || (resource.data.companyId == myCompanyId() && isCompanyReader())
+        || resource.data.byUid == request.auth.uid);
+      allow write: if false;
     }
 
     // Inspection report sharing. createReportShareToken mints these; the

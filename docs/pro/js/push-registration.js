@@ -270,7 +270,26 @@
     if (perm === 'granted') {
       registerAndMint({ requestPermission: false }); // refresh existing opt-in
     } else if (perm === 'default' && !snoozed()) {
-      setTimeout(showOptInCard, 4000); // defer past first paint
+      showWhenCalm(Date.now());
+    }
+  }
+
+  // Calm moment (2026-11-19): the card used to land 4 s after load, on top of
+  // the first screen and the Record visit button. Now it waits for 15 s after
+  // load, 3 s with no touch/key/scroll, the tab visible, and no dialog, tour or
+  // layout offer up; it re-checks every 1.5 s for 10 minutes, then gives up
+  // until the next load.
+  var _lastIn = Date.now();
+  ['pointerdown', 'keydown', 'scroll'].forEach(function (t) {
+    document.addEventListener(t, function () { _lastIn = Date.now(); }, { capture: true, passive: true });
+  });
+  function showWhenCalm(t0) {
+    var now = Date.now();
+    if (!document.hidden && now - t0 > 15000 && now - _lastIn > 3000 &&
+        !document.querySelector('[aria-modal="true"]:not([hidden]), .modal-bg.open, .modal.open, .nbd-onb-skip, .lo-banner:not([hidden]), #toastContainer .toast')) {
+      showOptInCard();
+    } else if (now - t0 < 600000) {
+      setTimeout(function () { showWhenCalm(t0); }, 1500);
     }
   }
 

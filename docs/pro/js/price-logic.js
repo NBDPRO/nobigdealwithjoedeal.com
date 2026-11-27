@@ -5,8 +5,8 @@
  * The block between the SHARED markers is a byte-for-byte copy of the same block in
  * functions/price-logic.js. tests/price-logic-2026-11.test.js fails if the two drift
  * apart, so units, money, the evidence ladder, the ranking and the sanitizers behave
- * the same on the server and on the phone. Edit the server file first, then copy
- * the block here.
+ * the same on the server and on the phone. Edit the server file first, then run
+ * node scripts/sync-price-logic.js.
  *
  * Nothing here reads or writes anything, and no price is ever invented: a missing
  * conversion is null, never a guess.
@@ -68,7 +68,7 @@ var PL_UOM_ALIASES = {
   SF: ['SF', 'SQFT', 'SQ FT', 'SQUARE FOOT', 'SQUARE FEET'],
   GAL: ['GAL', 'GALLON', 'GALLONS', 'GA'],
   PAIL: ['PAIL', 'PAILS', 'PL'],
-  TUBE: ['TUBE', 'TUBES', 'TB'],
+  TUBE: ['TUBE', 'TUBES', 'TB', 'TUB', 'TUBS'],
   BAG: ['BAG', 'BAGS', 'BG'],
   CTN: ['CTN', 'CARTON', 'CARTONS'],
   PLT: ['PLT', 'PALLET', 'PALLETS', 'PAL'],
@@ -487,9 +487,18 @@ function sanitizeObservation(row, ctx) {
   row = row || {}; ctx = ctx || {};
   if (typeof row.offerId !== 'string' || !/^[A-Za-z0-9_-]{1,120}$/.test(row.offerId)) return plBad('bad_offer');
   if (CALLER_KINDS.indexOf(row.kind) === -1) return plBad('bad_kind');
+  // A supplier file (slice 3) is paperwork: paid, quote, contract or price sheet only.
+  if (ctx.channel === 'csv_import' && PL_IMPORT_KINDS.indexOf(row.kind) === -1) return plBad('bad_kind');
   if (!plIsPosInt(row.priceMicros) || row.priceMicros > PL_MAX_PRICE_MICROS) return plBad('bad_price');
-  var uom = normaliseUom(row.statedUnit != null && row.statedUnit !== '' ? row.statedUnit : row.uomRaw);
-  if (!uom || !uom.unit) return plBad('needs_unit');
+  // A store export has no unit column. On those channels only, a row with no unit
+  // is kept as "price as stated": it has no per-catalog-unit price until the
+  // offer's pack is confirmed (catalogMicrosFor).
+  var nullUnitOk = plNullUnitChannel(ctx.channel);
+  var unitText = row.statedUnit != null && row.statedUnit !== '' ? row.statedUnit : row.uomRaw;
+  // A supplier file keeps unit text nobody knows in uomRaw and sends no unit: kept as stated.
+  var noUnit = unitText == null || unitText === '' || (ctx.channel === 'csv_import' && (row.statedUnit == null || row.statedUnit === ''));
+  var uom = (nullUnitOk && noUnit) ? { unit: null, per: 1 } : normaliseUom(unitText);
+  if (!uom || (!uom.unit && !(nullUnitOk && noUnit))) return plBad('needs_unit');
   var per = row.per == null ? uom.per : row.per;
   if (per !== 1 && per !== 100 && per !== 1000) return plBad('bad_per');
   if (PL_PRICE_TYPES.indexOf(row.priceType) === -1) return plBad('bad_price_type');
@@ -502,6 +511,7 @@ function sanitizeObservation(row, ctx) {
     if (plDateMs(row.validThroughOn) === null) return plBad('bad_valid_through');
     through = row.validThroughOn;
   }
+  if (ctx.channel === 'csv_import' && row.kind === 'quote' && through === null) return plBad('quote_needs_date');
   var qty = null;
   if (row.qty != null) {
     if (typeof row.qty !== 'number' || !isFinite(row.qty) || row.qty <= 0) return plBad('bad_qty');
@@ -518,14 +528,121 @@ function sanitizeObservation(row, ctx) {
     loc = row.locationId;
   }
   var doc = row.doc || {};
+  // A file row's id is hashed from its document reference, so it must have one.
+  if (ctx.channel === 'csv_import' && !plText(doc.ref, 80)) return plBad('needs_doc_ref');
+  // The store number and the offer stub travel only on the store-export channels.
+  var storeNumber = null, stub = null;
+  if (nullUnitOk) {
+    storeNumber = plTextOrNull(row.storeNumber, 20);
+    if (row.offer != null) {
+      stub = sanitizeStub(row.offer);
+      if (stub === null) return plBad('bad_offer');
+    }
+  }
   return { ok: true, value: {
     offerId: row.offerId, kind: row.kind, priceMicros: row.priceMicros, per: per, statedUnit: uom.unit,
     uomRaw: plText(row.uomRaw != null ? row.uomRaw : row.statedUnit, 20), qty: qty, extCents: ext,
     priceType: row.priceType, taxIncluded: row.taxIncluded, delivered: typeof row.delivered === 'boolean' ? row.delivered : null,
     locationId: loc, observedOn: row.observedOn, validThroughOn: through,
-    doc: { type: PL_DOC_TYPES.indexOf(doc.type) !== -1 ? doc.type : 'none', ref: plText(doc.ref, 80) },
-    note: plText(row.note, 200)
+    doc: { type: PL_DOC_TYPES.indexOf(doc.type) !== -1 ? doc.type : 'none', ref: plText(doc.ref, 80),
+      importId: (ctx.channel === 'csv_import' && typeof doc.importId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(doc.importId)) ? doc.importId : null },
+    note: plText(row.note, 200), storeNumber: storeNumber, offer: stub
   } };
+}
+
+// Channels whose rows may arrive with no unit (a store's purchase export, and the
+// one-time copy of the legacy price book, which was built from the same exports).
+// A supplier file (csv_import, slice 3) may lack a unit column too.
+var NULL_UNIT_CHANNELS = ['hd_csv', 'legacy_pricebook', 'csv_import'];
+function plNullUnitChannel(ch) { return NULL_UNIT_CHANNELS.indexOf(ch) !== -1; }
+
+/** The few fields of an offer a receipt line can state: { supplierId, sku, title, internetSku }, or null. */
+function sanitizeStub(s) {
+  if (!s || typeof s !== 'object' || !plOkSupplierId(s.supplierId)) return null;
+  var sku = s.sku == null ? '' : String(s.sku).replace(/^\s+|\s+$/g, '');
+  if (!sku || sku.length > 40 || /[\u0000-\u001F\u007F]/.test(sku)) return null;
+  return { supplierId: s.supplierId, sku: sku, title: plText(s.title, 160) || sku, internetSku: plTextOrNull(s.internetSku, 40) };
+}
+
+/**
+ * A minimal, unlinked offer built from a receipt line. sanitizePack refuses a pack
+ * with no purchase unit, so the unknown pack is written out here.
+ */
+function stubOffer(stub) {
+  var s = sanitizeStub(stub);
+  if (s === null) return null;
+  var reg = supplierOf(s.supplierId);
+  return {
+    v: 1, supplierId: s.supplierId, sku: s.sku, skuKind: reg.skuKinds.length ? reg.skuKinds[0] : 'item_number',
+    altIds: { upc: null, model: null, internetSku: s.internetSku, mfrPart: null },
+    title: s.title, brand: null, url: null, productId: null,
+    variant: { color: null, size: null, style: null },
+    tiers: ['good'], match: 'exact',
+    pack: { purchaseUnit: null, catalogUnit: null, num: null, den: null, status: 'unknown', basis: null, verified: false, verifiedBy: null, verifiedAtMs: null, note: '' },
+    watch: false, active: true
+  };
+}
+
+/**
+ * The price of one catalog unit for a stored row: { micros, flag }. A row with a
+ * unit goes through toCatalogMicros. A row with no unit (a store export) is read as
+ * priced per the offer's purchase unit, and only when the supplier is a retail
+ * store and a person has confirmed the pack; otherwise it has no per-unit price.
+ */
+function catalogMicrosFor(row, offer) {
+  row = row || {}; offer = offer || {};
+  var pack = offer.pack;
+  if (row.statedUnit != null) return toCatalogMicros(row.priceMicros, row.per, row.statedUnit, pack);
+  var ch = (row.source && row.source.channel) || row.channel;
+  var sup = supplierOf(offer.supplierId);
+  if (plNullUnitChannel(ch) && sup && sup.type === 'retail' && validPack(pack) && pack.verified === true) {
+    return toCatalogMicros(row.priceMicros, row.per, pack.purchaseUnit, pack);
+  }
+  return { micros: null, flag: null };
+}
+
+/**
+ * One legacy price-book purchase ({ store, sku, desc, cents, qty, date, ref }) as a
+ * ledger row, or null when it can not be one (no SKU, no price, a bad date, a store
+ * the registry does not know). The offer id equals the legacy keyFor(store, sku).
+ */
+function legacyPurchaseToRow(p) {
+  p = p || {};
+  var stub = plLegacyStub(p.store, p.sku, p.desc);
+  var cents = Math.round(Number(p.cents));
+  if (stub === null || !plIsPosInt(cents) || plDateMs(p.date) === null) return null;
+  var micros = centsToMicros(cents);
+  if (!Number.isSafeInteger(micros) || micros > PL_MAX_PRICE_MICROS) return null;
+  var qty = Number(p.qty);
+  return {
+    offerId: offerIdFor(stub.supplierId, stub.sku), kind: 'paid', priceMicros: micros,
+    priceType: 'net', taxIncluded: false, observedOn: String(p.date),
+    qty: (isFinite(qty) && qty > 0) ? qty : null,
+    doc: { type: 'receipt', ref: plText(p.ref, 80) },
+    offer: stub
+  };
+}
+
+/** The legacy key's two halves as a stub (store and SKU cleaned exactly as the legacy keyFor cleans them), or null. */
+function plLegacyStub(store, sku, desc) {
+  var s = String(store == null ? '' : store).toLowerCase().replace(/[^a-z0-9]/g, '');
+  var k = String(sku == null ? '' : sku).replace(/^\s+|\s+$/g, '').replace(/[^A-Za-z0-9-]/g, '');
+  if (!s || !k || k.length > 40 || !plOkSupplierId(s)) return null;
+  return { supplierId: s, sku: k, title: plText(desc, 160) || k, internetSku: null };
+}
+
+/** One legacy price-book item as { offerId, offer, rows }: an unlinked stub and one paid row per history entry. */
+function legacyItemToLedger(key, item) {
+  item = item || {};
+  var stub = plLegacyStub(item.store, item.sku, item.desc);
+  if (stub === null) return { offerId: null, offer: null, rows: [] };
+  var rows = [], hist = Array.isArray(item.history) ? item.history : [];
+  for (var i = 0; i < hist.length; i++) {
+    var h = hist[i] || {};
+    var r = legacyPurchaseToRow({ store: item.store, sku: item.sku, desc: item.desc, cents: h.cents, qty: h.qty, date: h.date, ref: h.ref });
+    if (r) rows.push(r);
+  }
+  return { offerId: offerIdFor(stub.supplierId, stub.sku), offer: stubOffer(stub), rows: rows };
 }
 
 function plPoint(r, cm) {
@@ -551,7 +668,7 @@ function summarize(offer, rows, nowMs, quoteValidDays) {
     if (!all[i] || all[i].voided === true) continue;
     var copy = {}, src = all[i];
     for (var key in src) if (Object.prototype.hasOwnProperty.call(src, key)) copy[key] = src[key];
-    copy.catalogMicros = toCatalogMicros(src.priceMicros, src.per, src.statedUnit, pack).micros;
+    copy.catalogMicros = catalogMicrosFor(src, offer).micros;
     live.push(copy);
   }
   var best = bestForOffer(live, nowMs, quoteValidDays, false);
@@ -573,12 +690,761 @@ function summarize(offer, rows, nowMs, quoteValidDays) {
   return {
     best: best ? plPoint(best, best.catalogMicros) : null,
     bestComparable: bestCmp ? plPoint(bestCmp, bestCmp.catalogMicros) : null,
-    lastPaid: lastPaid ? { obsId: lastPaid.obsId, priceMicros: lastPaid.priceMicros, per: lastPaid.per, statedUnit: lastPaid.statedUnit, catalogMicros: lastPaid.catalogMicros, observedAtMs: lastPaid.observedAtMs, locationId: lastPaid.locationId == null ? null : lastPaid.locationId } : null,
+    lastPaid: lastPaid ? { obsId: lastPaid.obsId, priceMicros: lastPaid.priceMicros, per: lastPaid.per, statedUnit: lastPaid.statedUnit, catalogMicros: lastPaid.catalogMicros, taxIncluded: lastPaid.taxIncluded === true, observedAtMs: lastPaid.observedAtMs, locationId: lastPaid.locationId == null ? null : lastPaid.locationId } : null,
     shelf: null, prevBest: prevBest, lastCheck: null, recent: recent,
     count: live.length, countCapped: capped,
     unitState: validPack(pack) ? 'ok' : 'needs_unit',
     nextReviewMs: next, updatedAtMs: nowMs
   };
+}
+
+// ---- Slice 3 (Jo, 2026-11-17): supplier files, side-by-side prices, on-screen alerts ----
+
+/**
+ * A CSV file's text as rows of cells. Quoted cells may hold commas, line breaks and
+ * doubled quotes; a byte-order mark and blank lines are dropped. No row is guessed.
+ */
+function parseCsv(text) {
+  var s = String(text == null ? '' : text);
+  if (s.charCodeAt(0) === 0xFEFF) s = s.slice(1);
+  var rows = [], row = [], cell = '', quoted = false, i;
+  for (i = 0; i < s.length; i++) {
+    var ch = s.charAt(i);
+    if (quoted) {
+      if (ch === '"') { if (s.charAt(i + 1) === '"') { cell += '"'; i++; } else quoted = false; }
+      else cell += ch;
+    } else if (ch === '"' && cell.replace(/\s+/g, '') === '') { quoted = true; cell = ''; }
+    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && s.charAt(i + 1) === '\n') i++;
+      row.push(cell); rows.push(row); row = []; cell = '';
+    } else cell += ch;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  var out = [];
+  for (i = 0; i < rows.length; i++) if (rows[i].join('').replace(/\s+/g, '') !== '') out.push(rows[i]);
+  return out;
+}
+
+function plHeaderWords(h) { return String(h == null ? '' : h).toLowerCase().replace(/#/g, ' no ').replace(/[^a-z0-9]+/g, ' ').replace(/^\s+|\s+$/g, ''); }
+var PL_COLUMN_WORDS = {
+  sku: /^(item|item no|item number|item num|item code|item id|sku|sku no|part|part no|part number|product code|product no|product number|product id|catalog no|catalog number|mfr part|mfr part no|material|material no|material number)$/,
+  title: /^(description|desc|item description|product description|product name|product|item name|name|material description)$/,
+  price: /^(unit price|price|net price|net|your price|unit cost|cost|each|price each|net each|sell price|contract price|quote price|account price|live price)$/,
+  unit: /^(uom|u m|um|unit|units|unit of measure|sell uom|price uom|pricing uom)$/,
+  per: /^(per|price per|priced per|pricing unit|price unit|c m)$/,
+  qty: /^(qty|quantity|qty ordered|qty shipped|ship qty|order qty|shipped|ordered)$/
+};
+var PL_COLUMNS = ['sku', 'title', 'price', 'unit', 'per', 'qty'];
+
+/** The column index of each field by its header words, or -1. A person can change every pick. */
+function guessColumns(headers) {
+  var out = {}, used = {}, h = (headers || []).map(plHeaderWords);
+  for (var c = 0; c < PL_COLUMNS.length; c++) {
+    var key = PL_COLUMNS[c];
+    out[key] = -1;
+    for (var i = 0; i < h.length; i++) if (!used[i] && PL_COLUMN_WORDS[key].test(h[i])) { out[key] = i; used[i] = true; break; }
+  }
+  return out;
+}
+
+/** The first of the top 20 rows that names an item-number column and a price column; else 0. */
+function guessHeaderRow(table) {
+  for (var i = 0; i < Math.min(20, (table || []).length); i++) {
+    var g = guessColumns(table[i]);
+    if (g.sku !== -1 && g.price !== -1) return i;
+  }
+  return 0;
+}
+
+// A supplier file's three kinds (Jo): what each is stored as.
+var IMPORT_DOC_KINDS = { quote: { kind: 'quote', docType: 'quote', priceType: 'account' }, price_sheet: { kind: 'price_sheet', docType: 'price_sheet', priceType: 'account' }, invoice: { kind: 'paid', docType: 'invoice', priceType: 'net' } };
+var PL_IMPORT_KINDS = ['paid', 'quote', 'contract', 'price_sheet'];
+var PL_IMPORT_MAX_ROWS = 5000;
+
+/** A "per" cell: '' or 1 or EA is per one, C or 100 is per hundred, M or 1000 per thousand; else null. */
+function plPerText(text) {
+  var t = String(text == null ? '' : text).toUpperCase().replace(/[\s.\/]+/g, '').replace(/^PER/, '');
+  if (t === '' || t === '1' || t === 'EA' || t === 'EACH') return 1;
+  if (t === 'C' || t === '100') return 100;
+  if (t === 'M' || t === '1000') return 1000;
+  return null;
+}
+function plCell(row, i) { return (i == null || i < 0 || !row || i >= row.length) ? '' : String(row[i] == null ? '' : row[i]).replace(/^\s+|\s+$/g, ''); }
+
+/**
+ * One supplier file into ledger rows and a preview. opts: { supplierId, docKind
+ * (quote | price_sheet | invoice), docDateOn, validThroughOn (a quote needs it),
+ * taxIncluded (true or false, no default), docRef, fileName, locationId, headerRow,
+ * map: { sku, title, price, unit, per, qty } (column indexes, -1 for none),
+ * knownOfferIds (an object of ids already in the ledger), nowMs }.
+ * Answers { ok: false, reason } for a bad setup, or { ok: true, rows, lines, counts }.
+ * A row with no unit, or a unit nobody knows, is sent as stated with no unit and
+ * counted as needing one; nothing is guessed. Only the file's name is kept.
+ */
+function buildImport(table, opts) {
+  // A document read by the reader (slice 9): its id rides on every row, so the rows can be found and voided with it.
+  var importId = (opts && typeof opts.importId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(opts.importId)) ? opts.importId : null;
+  opts = opts || {};
+  var dk = Object.prototype.hasOwnProperty.call(IMPORT_DOC_KINDS, opts.docKind) ? IMPORT_DOC_KINDS[opts.docKind] : null;
+  if (!plOkSupplierId(opts.supplierId)) return plBad('bad_supplier');
+  if (!dk) return plBad('bad_kind');
+  if (typeof opts.taxIncluded !== 'boolean') return plBad('tax_required');
+  var onMs = plDateMs(opts.docDateOn);
+  if (onMs === null || onMs < PL_MIN_DATE_MS || (typeof opts.nowMs === 'number' && onMs > opts.nowMs + PL_DAY_MS)) return plBad('bad_date');
+  var through = null;
+  if (dk.kind === 'quote') {
+    if (opts.validThroughOn == null || opts.validThroughOn === '') return plBad('quote_needs_date');
+    var thMs = plDateMs(opts.validThroughOn);
+    if (thMs === null || thMs < onMs) return plBad('bad_valid_through');
+    through = opts.validThroughOn;
+  }
+  var map = opts.map || {};
+  if (!(map.sku >= 0) || !(map.price >= 0)) return plBad('map_required');
+  var head = (opts.headerRow >= 0) ? opts.headerRow : 0;
+  var data = (table || []).slice(head + 1);
+  if (data.length > PL_IMPORT_MAX_ROWS) return plBad('too_many_rows');
+  var loc = (typeof opts.locationId === 'string' && /^[a-z0-9-]{1,24}$/.test(opts.locationId)) ? opts.locationId : null;
+  var fileName = plText(opts.fileName, 80);
+  var ref = plText(opts.docRef, 80) || fileName || (opts.docKind + '-' + opts.docDateOn + '-' + (loc || 'all'));
+  var note = fileName ? plText('Imported from ' + fileName, 200) : '';
+  var known = opts.knownOfferIds || {}, seenNew = {};
+  var rows = [], lines = [], counts = { rows: data.length, send: 0, ok: 0, needsUnit: 0, rejected: 0, newItems: 0 };
+  for (var i = 0; i < data.length; i++) {
+    var r = data[i], line = { line: head + 2 + i, sku: plCell(r, map.sku), title: plText(plCell(r, map.title), 160), status: 'ok', reason: null };
+    lines.push(line);
+    var reject = plImportCheck(line, r, map);
+    if (reject) { line.status = 'rejected'; line.reason = reject; counts.rejected++; continue; }
+    var unitText = plCell(r, map.unit), perCol = plPerText(plCell(r, map.per));
+    var uom = unitText ? normaliseUom(unitText) : null;
+    var unit = uom ? uom.unit : null, per = (uom && uom.per !== 1) ? uom.per : perCol;
+    var qtyText = plCell(r, map.qty), qty = null;
+    if (qtyText && /^\d{1,7}(\.\d{1,4})?$/.test(qtyText) && Number(qtyText) > 0) qty = Number(qtyText);
+    var offerId = offerIdFor(opts.supplierId, line.sku);
+    line.offerId = offerId; line.priceMicros = moneyTextToMicros(plCell(r, map.price)); line.per = per; line.statedUnit = unit; line.uomRaw = plText(unitText, 20);
+    line.isNew = !known[offerId];
+    if (line.isNew && !seenNew[offerId]) { seenNew[offerId] = true; counts.newItems++; }
+    if (unit === null) { line.status = 'needs_unit'; counts.needsUnit++; } else counts.ok++;
+    counts.send++;
+    rows.push({
+      offerId: offerId, kind: dk.kind, priceMicros: line.priceMicros, per: per, statedUnit: unit, uomRaw: line.uomRaw, qty: qty,
+      priceType: dk.priceType, taxIncluded: opts.taxIncluded, observedOn: opts.docDateOn, validThroughOn: through, locationId: loc,
+      doc: { type: dk.docType, ref: ref, importId: importId }, note: note,
+      offer: { supplierId: opts.supplierId, sku: line.sku, title: line.title || line.sku }
+    });
+  }
+  return { ok: true, rows: rows, lines: lines, counts: counts };
+}
+
+/** Why one file row can not be sent, or null. */
+function plImportCheck(line, r, map) {
+  if (!line.sku) return 'no_item_number';
+  if (line.sku.length > 40 || /[\u0000-\u001F\u007F]/.test(line.sku)) return 'bad_item_number';
+  if (!plIsPosInt(moneyTextToMicros(plCell(r, map.price)))) return 'bad_price';
+  if (plPerText(plCell(r, map.per)) === null) return 'bad_per';
+  return null;
+}
+
+function applyTaxMicros(m, bps) { return Math.round(m * (10000 + bps) / 10000); }
+function removeTaxMicros(m, bps) { return Math.round(m * 10000 / (10000 + bps)); }
+function plPctToBps(v, min, max) {
+  if (typeof v !== 'number' || !isFinite(v) || v < min || v > max) return null;
+  return Math.round(v * 100);
+}
+
+/**
+ * The company's comparison settings (companyProfile.pricing.supplierCompare), as
+ * basis points. Off unless set: a company that never set them gets nulls, never
+ * another company's numbers. A tax rate of 0 is a real choice.
+ */
+function supplierCompareSettings(profile) {
+  var s = (profile && profile.pricing && profile.pricing.supplierCompare) || {};
+  return { taxBps: plPctToBps(s.purchaseTaxPct, 0, 25), alertBps: plPctToBps(s.alertPct, 0.1, 100) };
+}
+
+/**
+ * A quote's good-through state against today's date (UTC midnight of the local day):
+ * 'none', 'ok', 'warn' (7 days or fewer left, the last day included) or 'expired'.
+ */
+var PL_QUOTE_WARN_DAYS = 7;
+function quoteExpiryState(validThroughMs, todayMs) {
+  if (typeof validThroughMs !== 'number' || !isFinite(validThroughMs)) return { state: 'none', daysLeft: null };
+  var endDay = validThroughMs - 36 * 3600000;
+  var left = Math.round((endDay - todayMs) / PL_DAY_MS);
+  if (left < 0) return { state: 'expired', daysLeft: left };
+  return { state: left <= PL_QUOTE_WARN_DAYS ? 'warn' : 'ok', daysLeft: left };
+}
+
+function plAccountOf(accounts, supplierId) {
+  for (var i = 0; i < (accounts || []).length; i++) {
+    var a = accounts[i];
+    if (a && (a.supplierId === supplierId || a.id === supplierId)) return a;
+  }
+  return null;
+}
+function plFresh(point, nowMs, account) {
+  return evidenceLevel(point, nowMs, account && account.terms && account.terms.quoteValidDays) <= 2;
+}
+
+/**
+ * One product's suppliers side by side, per catalog unit. ctx: { nowMs, accounts,
+ * taxBps, alertBps }. Only each offer's `bestComparable` row is read. A row is fresh
+ * at evidence level 1 or 2; an older one is shown and never alerts. An offer with no
+ * confirmed pack for this product's unit is counted in needsPack and not compared.
+ * Prices are compared tax-included: a before-tax price gets the company's rate;
+ * with no rate, prices with and without tax are not compared at all (needsTaxRate).
+ */
+function compareProduct(product, offers, ctx) {
+  ctx = ctx || {};
+  var pid = product && product.id, unit = product && product.unit, rows = [], needsPack = 0, i;
+  var taxBps = (typeof ctx.taxBps === 'number') ? ctx.taxBps : null;
+  for (i = 0; i < (offers || []).length; i++) {
+    var o = offers[i];
+    if (!o || o.productId !== pid || o.active === false) continue;
+    var acct = plAccountOf(ctx.accounts, o.supplierId);
+    var row = { offerId: o.id, supplierId: o.supplierId, terms: (acct && acct.terms) || null, compareMicros: null, fresh: false };
+    if (!validPack(o.pack) || o.pack.catalogUnit !== unit) { needsPack++; row.state = 'needs_pack'; rows.push(row); continue; }
+    var p = o.latest && o.latest.bestComparable;
+    if (!p || !plIsPosInt(p.catalogMicros)) { row.state = 'no_price'; rows.push(row); continue; }
+    row.obsId = p.obsId; row.kind = p.kind; row.catalogMicros = p.catalogMicros; row.taxIncluded = p.taxIncluded === true;
+    row.observedAtMs = p.observedAtMs; row.validThroughMs = typeof p.validThroughMs === 'number' ? p.validThroughMs : null;
+    row.fresh = plFresh(p, ctx.nowMs, acct); row.state = row.fresh ? 'fresh' : 'stale';
+    rows.push(row);
+  }
+  var anyIn = false, anyOut = false;
+  for (i = 0; i < rows.length; i++) if (rows[i].fresh) { if (rows[i].taxIncluded) anyIn = true; else anyOut = true; }
+  var needsTaxRate = taxBps === null && anyIn && anyOut;
+  for (i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (!plIsPosInt(r.catalogMicros) || needsTaxRate) continue;
+    r.compareMicros = (r.taxIncluded || taxBps === null) ? r.catalogMicros : applyTaxMicros(r.catalogMicros, taxBps);
+  }
+  var usual = plUsualSupplier(product, offers, rows, ctx.accounts);
+  var usualRow = null, other = null;
+  for (i = 0; i < rows.length; i++) {
+    var x = rows[i];
+    if (!x.fresh || x.compareMicros === null) continue;
+    if (x.supplierId === usual) { if (!usualRow || x.compareMicros < usualRow.compareMicros) usualRow = x; }
+    else if (!other || x.compareMicros < other.compareMicros) other = x;
+  }
+  var alert = null, alertBps = ctx.alertBps;
+  if (usualRow && other && plIsPosInt(alertBps) && other.compareMicros < usualRow.compareMicros
+    && (usualRow.compareMicros - other.compareMicros) * 10000 >= alertBps * usualRow.compareMicros) {
+    var newer = other.observedAtMs >= usualRow.observedAtMs ? other : usualRow;
+    alert = { id: 'cheaper_' + pid, type: 'cheaper', productId: pid, offerId: other.offerId, supplierId: other.supplierId, usualSupplierId: usual,
+      usualOfferId: usualRow.offerId, obsId: newer.obsId, newMicros: other.compareMicros, oldMicros: usualRow.compareMicros,
+      downBps: Math.round((usualRow.compareMicros - other.compareMicros) * 10000 / usualRow.compareMicros) };
+  }
+  return { productId: pid, unit: unit, rows: rows, usualSupplierId: usual, usualMicros: usualRow ? usualRow.compareMicros : null, needsPack: needsPack, needsTaxRate: needsTaxRate, alert: alert };
+}
+
+/**
+ * The usual supplier for a product: an active account whose preferredFor names the
+ * product's category and that has an item for it, else the one paid most recently.
+ */
+function plUsualSupplier(product, offers, rows, accounts) {
+  var have = {}, i, pid = product && product.id;
+  for (i = 0; i < rows.length; i++) have[rows[i].supplierId] = true;
+  var accts = (accounts || []).slice().sort(function (a, b) { return String(a && (a.supplierId || a.id)) < String(b && (b.supplierId || b.id)) ? -1 : 1; });
+  for (i = 0; i < accts.length; i++) {
+    var a = accts[i], sid = a && (a.supplierId || a.id);
+    if (a && a.active !== false && have[sid] && (a.preferredFor || []).indexOf(product && product.category) !== -1) return sid;
+  }
+  var usual = null, newest = -1;
+  for (i = 0; i < (offers || []).length; i++) {
+    var o = offers[i], lp = o && o.productId === pid && o.active !== false && o.latest && o.latest.lastPaid;
+    if (lp && typeof lp.observedAtMs === 'number' && lp.observedAtMs > newest) { newest = lp.observedAtMs; usual = o.supplierId; }
+  }
+  return usual;
+}
+
+/**
+ * Price move on one item: its current price is at least the threshold above what was
+ * last paid that supplier for it. Both sides on one basis: the per-catalog-unit price
+ * when both have one, else the stated price when both state the same unit; tax as in
+ * compareProduct. ctx: { nowMs, accounts, taxBps, alertBps }. Answers an alert or null.
+ */
+function priceMoveAlert(offer, ctx) {
+  ctx = ctx || {};
+  var lt = (offer && offer.latest) || {}, b = lt.best, lp = lt.lastPaid, alertBps = ctx.alertBps;
+  if (!b || !lp || !plIsPosInt(alertBps) || b.obsId === lp.obsId || offer.active === false) return null;
+  if (!(b.observedAtMs >= lp.observedAtMs) || !plFresh(b, ctx.nowMs, plAccountOf(ctx.accounts, offer.supplierId))) return null;
+  var nw, old;
+  if (plIsPosInt(b.catalogMicros) && plIsPosInt(lp.catalogMicros)) { nw = b.catalogMicros; old = lp.catalogMicros; }
+  else if (b.statedUnit != null && b.statedUnit === lp.statedUnit && b.per === lp.per && plIsPosInt(b.priceMicros) && plIsPosInt(lp.priceMicros)) { nw = b.priceMicros; old = lp.priceMicros; }
+  else return null;
+  if (typeof lp.taxIncluded !== 'boolean') return null;
+  var bIn = b.taxIncluded === true, lpIn = lp.taxIncluded;
+  if (bIn !== lpIn) {
+    if (typeof ctx.taxBps !== 'number') return null;
+    if (!bIn) nw = applyTaxMicros(nw, ctx.taxBps); else old = applyTaxMicros(old, ctx.taxBps);
+  }
+  if (nw <= old || (nw - old) * 10000 < alertBps * old) return null;
+  return { id: 'move_' + offer.id, type: 'move', productId: offer.productId || null, offerId: offer.id, supplierId: offer.supplierId,
+    obsId: b.obsId, newMicros: nw, oldMicros: old, upBps: Math.round((nw - old) * 10000 / old) };
+}
+
+/** A "seen" mark as the save op takes it: { alertId, obsId }. */
+function sanitizeSeenMark(d) {
+  d = d || {};
+  if (typeof d.alertId !== 'string' || !/^(move|cheaper)_[A-Za-z0-9_-]{1,140}$/.test(d.alertId)) return plBad('bad_alert');
+  if (typeof d.obsId !== 'string' || !/^[A-Za-z0-9_-]{1,140}$/.test(d.obsId)) return plBad('bad_alert');
+  return { ok: true, value: { alertId: d.alertId, obsId: d.obsId } };
+}
+
+/**
+ * Every alert for the company, worked out from the stored offers. input: { products,
+ * offers, accounts, settings: { taxBps, alertBps }, seen: { alertId: obsId }, nowMs }.
+ * An alert is seen while its mark names its newest price; a newer price brings it back.
+ */
+function supplierAlerts(input) {
+  input = input || {};
+  var st = input.settings || {}, seen = input.seen || {}, offers = input.offers || [], i;
+  var ctx = { nowMs: input.nowMs, accounts: input.accounts, taxBps: st.taxBps, alertBps: st.alertBps };
+  var alerts = [], comparisons = [], needsPack = 0, needsTaxRate = false, linked = {};
+  for (i = 0; i < offers.length; i++) if (offers[i] && offers[i].productId && offers[i].active !== false) linked[offers[i].productId] = true;
+  var products = input.products || [];
+  for (i = 0; i < products.length; i++) {
+    var p = products[i];
+    if (!p || !linked[p.id]) continue;
+    var c = compareProduct(p, offers, ctx);
+    comparisons.push(c);
+    needsPack += c.needsPack;
+    if (c.needsTaxRate) needsTaxRate = true;
+    if (c.alert) alerts.push(c.alert);
+  }
+  for (i = 0; i < offers.length; i++) { var m = priceMoveAlert(offers[i], ctx); if (m) alerts.push(m); }
+  var open = 0;
+  for (i = 0; i < alerts.length; i++) { alerts[i].seen = seen[alerts[i].id] === alerts[i].obsId; if (!alerts[i].seen) open++; }
+  return { alerts: alerts, open: open, needsPack: needsPack, needsTaxRate: needsTaxRate, comparisons: comparisons };
+}
+
+var PL_STOP_WORDS = ['the', 'and', 'for', 'with', 'per', 'in', 'ft', 'lf', 'sq', 'ea', 'each', 'pc', 'pcs', 'box', 'bx', 'bdl', 'roll', 'rl'];
+function plTokens(s) {
+  var raw = String(s == null ? '' : s).toLowerCase().split(/[^a-z0-9]+/), out = [];
+  for (var i = 0; i < raw.length; i++) if (raw[i].length >= 2 && PL_STOP_WORDS.indexOf(raw[i]) === -1 && out.indexOf(raw[i]) === -1) out.push(raw[i]);
+  return out;
+}
+function plSkuKey(s) { return String(s == null ? '' : s).toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+
+/**
+ * A suggested product for an unlinked item: its SKU (or an alternate id) equal to a
+ * product's SKU first ('sku'), else the closest name by shared words ('name', at
+ * least two shared and a Dice score of 0.3). Archived products are never suggested.
+ * Only a suggestion: nothing links until a person taps it.
+ */
+function suggestLink(offer, products) {
+  offer = offer || {};
+  var alt = offer.altIds || {}, keys = [], i, ids = [offer.sku, alt.mfrPart, alt.model, alt.internetSku, alt.upc];
+  for (i = 0; i < ids.length; i++) { var k = plSkuKey(ids[i]); if (k.length >= 3) keys.push(k); }
+  var live = [];
+  for (i = 0; i < (products || []).length; i++) if (products[i] && products[i].id && products[i].isActive !== false) live.push(products[i]);
+  for (i = 0; i < live.length; i++) { var ps = plSkuKey(live[i].sku); if (ps.length >= 3 && keys.indexOf(ps) !== -1) return { productId: live[i].id, kind: 'sku', score: 1 }; }
+  var a = plTokens(offer.title), best = null;
+  if (!a.length) return null;
+  for (i = 0; i < live.length; i++) {
+    var b = plTokens(live[i].name), shared = 0;
+    for (var j = 0; j < a.length; j++) if (b.indexOf(a[j]) !== -1) shared++;
+    var score = (2 * shared) / (a.length + b.length);
+    if (shared >= 2 && score >= 0.3 && (!best || score > best.score)) best = { productId: live[i].id, kind: 'name', score: Math.round(score * 1000) / 1000 };
+  }
+  return best;
+}
+
+// ---- Slice 4 (Jo, 2026-11-17): approve a supplier price into the cost book ----
+
+/**
+ * Money at the cost book boundary (design 5.1). The cost book holds dollars as
+ * floats; this system writes whole cents only. bookMicros is a price as the cost
+ * book would hold it, so "has it changed" is always asked in whole cents.
+ */
+function microsToCostBookDollars(m) { return Math.round(m / 10000) / 100; }
+function dollarsToMicros(d) { return Math.round(d * 1000000); }
+function bookMicros(m) { return dollarsToMicros(microsToCostBookDollars(m)); }
+function plDollarsToCents(d) { return (typeof d === 'number' && isFinite(d)) ? Math.round(d * 100) : null; }
+function plCentsToDollars(c) { return c / 100; }
+
+/**
+ * The company's margin floor for a cost change, in tenths of a percent, or null
+ * when none is set: the estimate floor (companyProfile.pricing.marginFloor.floorPct,
+ * Jo 2026-11-17). Above 0 and under 95, one decimal, as margin-floor.js reads it.
+ */
+function marginFloorTenths(profile) {
+  var f = profile && profile.pricing && profile.pricing.marginFloor;
+  var v = f ? f.floorPct : null;
+  if (v === null || v === undefined || v === '') return null;
+  var n = Number(v);
+  if (!isFinite(n) || n <= 0 || n >= 95) return null;
+  return Math.round(n * 10);
+}
+
+/** Margin after labor, (sell - cost - labor) / sell, in whole tenths of a percent (rounded down). Null with no sell. */
+function marginAfterLabor(sellCents, costCents, laborCents) {
+  if (!plIsPosInt(sellCents) || typeof costCents !== 'number') return null;
+  return Math.floor((sellCents - costCents - (laborCents || 0)) * 1000 / sellCents);
+}
+
+var PL_APPROVE_KINDS = ['paid', 'quote', 'contract', 'price_sheet', 'portal_read', 'api_account'];
+var PL_APPROVE_PRICE_TYPES = ['net', 'account'];
+
+/**
+ * Can this price row be approved into the cost book? (Jo, 2026-11-17: fresh own
+ * paperwork only.) row: the observation, with observedAtMs and validThroughMs as
+ * numbers. Answers { ok: true } or { ok: false, reason }.
+ */
+function approvalSource(row, nowMs, quoteValidDays) {
+  if (!row) return plBad('no_price');
+  if (row.voided === true) return plBad('changed');
+  if (PL_APPROVE_KINDS.indexOf(row.kind) === -1) return plBad('not_paperwork');
+  if (row.attested !== true) return plBad('not_paperwork');
+  if (PL_APPROVE_PRICE_TYPES.indexOf(row.priceType) === -1) return plBad('price_type');
+  if (row.delivered === true) return plBad('delivered');
+  if (row.compare !== true) return plBad('not_comparable');
+  var flags = row.flags || [];
+  if (flags.indexOf('unit_suspect') !== -1 || flags.indexOf('unit_mismatch') !== -1) return plBad('unit_suspect');
+  if (evidenceLevel(row, nowMs, quoteValidDays) > 2) return plBad('stale');
+  return { ok: true };
+}
+
+/**
+ * The lines a person can approve for one product from one offer's price, one per
+ * tier the item is for. input: {
+ *   product: { id, unit, pricing: { <tier>: { sell } } }  (dollars, as the library holds them)
+ *   offer, row (the observation, its catalogMicros from the offer's current pack),
+ *   book: the catalogCosts document or null, taxBps, floorTenths, nowMs, quoteValidDays }
+ * Answers { blocked, lines: [{ tier, fromCents, toCents, created, blocked,
+ *   guard: { sellCents, laborCents, laborKnown, marginBefore, marginAfter, belowFloor, aboveSell } }] }.
+ * blocked (for every line): no_price, not_paperwork, price_type, delivered,
+ * not_comparable, unit_suspect, stale, needs_pack, unit_changed, needs_tax_rate,
+ * no_cost_book. A line's own: below_one_cent, no_change. A blocked line can not be approved.
+ */
+function proposalLines(input) {
+  input = input || {};
+  var product = input.product || {}, offer = input.offer || {}, row = input.row, book = input.book;
+  var blocked = null;
+  var src = approvalSource(row, input.nowMs, input.quoteValidDays);
+  if (!src.ok) blocked = src.reason;
+  else if (!validPack(offer.pack) || offer.pack.verified !== true) blocked = 'needs_pack';
+  else if (offer.pack.catalogUnit !== product.unit) blocked = 'unit_changed';
+  else if (!plIsPosInt(row.catalogMicros)) blocked = 'needs_pack';
+  else if (typeof input.taxBps !== 'number') blocked = 'needs_tax_rate';
+  var costs = book && book.costs && typeof book.costs === 'object' ? book.costs : null;
+  if (!blocked && (!costs || !Object.keys(costs).length)) blocked = 'no_cost_book';
+  var entry = (costs && costs[product.id] && typeof costs[product.id] === 'object') ? costs[product.id] : null;
+  var laborC = entry && entry.labor ? plDollarsToCents(entry.labor.perUnit) : null;
+  var laborKnown = laborC !== null && laborC > 0;
+  if (laborC === null || laborC < 0) laborC = 0;
+  var toCents = null;
+  if (!blocked) toCents = microsToCents(bookMicros(row.taxIncluded === true ? row.catalogMicros : applyTaxMicros(row.catalogMicros, input.taxBps)));
+  var tiers = (offer.tiers && offer.tiers.length) ? offer.tiers : ['good'], lines = [];
+  for (var i = 0; i < tiers.length; i++) {
+    var t = tiers[i];
+    if (PL_TIERS.indexOf(t) === -1) continue;
+    var fromC = entry && entry.cost ? plDollarsToCents(entry.cost[t]) : null;
+    var tierP = product.pricing && product.pricing[t];
+    var sellC = tierP ? plDollarsToCents(tierP.sell) : null;
+    if (sellC !== null && sellC <= 0) sellC = null;
+    var line = { tier: t, fromCents: fromC, toCents: toCents, created: fromC === null, blocked: blocked,
+      guard: { sellCents: sellC, laborCents: laborC, laborKnown: laborKnown, marginBefore: fromC === null ? null : marginAfterLabor(sellC, fromC, laborC),
+        marginAfter: toCents === null ? null : marginAfterLabor(sellC, toCents, laborC), belowFloor: false, aboveSell: false } };
+    if (!line.blocked && toCents < 1) line.blocked = 'below_one_cent';
+    if (!line.blocked && fromC === toCents) line.blocked = 'no_change';
+    if (!line.blocked && sellC !== null) {
+      line.guard.aboveSell = toCents > sellC;
+      line.guard.belowFloor = typeof input.floorTenths === 'number' && (sellC - toCents - laborC) * 1000 < input.floorTenths * sellC;
+    }
+    lines.push(line);
+  }
+  return { blocked: blocked, lines: lines };
+}
+
+/** Does this line need a confirm the call did not carry? Answers null or 'confirm_floor' / 'confirm_above_sell'. */
+function costGuardRefusal(line, confirm) {
+  confirm = confirm || {};
+  if (line.guard.aboveSell && confirm.confirmAboveSell !== true) return 'confirm_above_sell';
+  if (line.guard.belowFloor && confirm.confirmBelowFloor !== true) return 'confirm_floor';
+  return null;
+}
+
+/** The change from one cost to another in tenths of a percent (rounded), or null with no old cost. */
+function changeTenths(fromCents, toCents) {
+  if (!plIsPosInt(fromCents) || typeof toCents !== 'number') return null;
+  return Math.round((toCents - fromCents) * 1000 / fromCents);
+}
+/** Tenths of a percent as text: 574 -> '57.4%', -25 -> '-2.5%'. */
+function tenthsText(t) {
+  if (typeof t !== 'number' || !isFinite(t)) return '';
+  var a = Math.abs(Math.round(t));
+  return (t < 0 ? '-' : '') + Math.floor(a / 10) + '.' + (a % 10) + '%';
+}
+
+// ---- Slice 7 (Jo, 2026-11-18): the materials list reads real supplier prices ----
+
+/**
+ * Which library products an estimate line can be, by its catalog sub-category
+ * (and, for underlayment, its code): [category, section] pairs of the product
+ * library. Conservative on purpose: a sub that is not listed is never priced.
+ */
+var PL_MATERIAL_SECTIONS = {
+  'shingles-3tab': [['roofing_shingles', 'Standard']],
+  'shingles-arch': [['roofing_shingles', 'Architectural']],
+  'shingles-impact': [['roofing_shingles', 'Impact-Resistant']],
+  'shingles-designer': [['roofing_shingles', 'Designer']],
+  starter: [['roofing_flashing', 'Starter']],
+  ridge: [['roofing_flashing', 'Ridge']],
+  hip: [['roofing_flashing', 'Ridge']],
+  'drip-edge': [['roofing_flashing', 'Drip Edge']],
+  rake: [['roofing_flashing', 'Drip Edge']],
+  'gutter-apron': [['roofing_flashing', 'Drip Edge']],
+  valley: [['roofing_flashing', 'Valley']],
+  transition: [['roofing_flashing', 'Transition']],
+  decking: [['roofing_decking', 'OSB'], ['roofing_decking', 'Plywood']],
+  fasteners: [['roofing_flashing', 'Fasteners']],
+  gutters: [['gutters', 'Gutters']],
+  downspout: [['gutters', 'Downspouts']],
+  guards: [['gutters', 'Guards']]
+};
+var PL_UNDERLAYMENT_BY_CODE = [[/^RFG (SYN|VB-SYN)/, 'Synthetic'], [/^RFG (IWS|RNB-MEM)/, 'Ice & Water'], [/^RFG (15F|30F)/, 'Felt']];
+
+/** The active library products an estimate line (its code and catalog sub-category) can be. */
+function materialProductsFor(code, sub, products) {
+  var pairs = PL_MATERIAL_SECTIONS[sub] || null, i;
+  if (sub === 'underlayment') {
+    for (i = 0; i < PL_UNDERLAYMENT_BY_CODE.length; i++) if (PL_UNDERLAYMENT_BY_CODE[i][0].test(String(code || ''))) { pairs = [['roofing_underlayment', PL_UNDERLAYMENT_BY_CODE[i][1]]]; break; }
+  }
+  if (!pairs) return [];
+  var out = [];
+  for (i = 0; i < (products || []).length; i++) {
+    var p = products[i];
+    if (!p || !p.id || p.isActive === false) continue;
+    for (var j = 0; j < pairs.length; j++) if (p.category === pairs[j][0] && p.section === pairs[j][1]) { out.push(p); break; }
+  }
+  return out;
+}
+
+/**
+ * One material line at the company's suppliers. line: { qty, unit } (the estimate's
+ * quantity and unit); product: the one library product it is. ctx: { nowMs, accounts,
+ * taxBps }. The store is the supplier whose account names the product's category as
+ * usual (preferredFor), else the cheapest fresh price; only fresh prices count, per
+ * catalog unit, tax added as on Compare suppliers. The quantity is bought in whole
+ * purchase units from the item's confirmed pack size, rounded up.
+ * Answers { state: 'priced', ... } or { state: 'unit' | 'no_price' }.
+ */
+function priceMaterialLine(line, product, offers, ctx) {
+  ctx = ctx || {};
+  if (!line || !product || typeof line.qty !== 'number' || !(line.qty > 0)) return { state: 'no_price' };
+  if (String(line.unit || '').toUpperCase() !== product.unit) return { state: 'unit' };
+  var c = compareProduct(product, offers, { nowMs: ctx.nowMs, accounts: ctx.accounts, taxBps: ctx.taxBps });
+  var fresh = [], i;
+  for (i = 0; i < c.rows.length; i++) if (c.rows[i].fresh && plIsPosInt(c.rows[i].compareMicros)) fresh.push(c.rows[i]);
+  if (!fresh.length) return { state: 'no_price' };
+  var preferred = [];
+  for (i = 0; i < fresh.length; i++) {
+    var acct = plAccountOf(ctx.accounts, fresh[i].supplierId);
+    if (acct && acct.active !== false && (acct.preferredFor || []).indexOf(product.category) !== -1) preferred.push(fresh[i]);
+  }
+  var pool = preferred.length ? preferred : fresh, best = null;
+  for (i = 0; i < pool.length; i++) if (!best || pool[i].compareMicros < best.compareMicros) best = pool[i];
+  var offer = null;
+  for (i = 0; i < (offers || []).length; i++) if (offers[i] && offers[i].id === best.offerId) offer = offers[i];
+  if (!offer || !validPack(offer.pack)) return { state: 'no_price' };
+  var pack = offer.pack;
+  var buyQty = Math.ceil(line.qty * pack.den / pack.num - 1e-9);
+  var total = best.compareMicros * buyQty * pack.num;
+  if (!Number.isSafeInteger(total)) return { state: 'no_price' };
+  return { state: 'priced', productId: product.id, offerId: offer.id, supplierId: offer.supplierId, preferred: preferred.length > 0,
+    buyQty: buyQty, purchaseUnit: pack.purchaseUnit, perPurchaseMicros: Math.round(best.compareMicros * pack.num / pack.den),
+    totalMicros: Math.round(total / pack.den), kind: best.kind, observedAtMs: best.observedAtMs,
+    taxIncluded: best.taxIncluded || typeof ctx.taxBps === 'number' };
+}
+
+/**
+ * Every line of a materials list at the company's suppliers. lines: [{ code, qty,
+ * unit }]; products: the library; offers: the company's items; codeMap: lineCodeMap
+ * of the company's product links. A line is priced only from the ONE product its
+ * estimate code is linked to (Jo, 2026-11-18): it never borrows another product's
+ * price. States: 'code_unlinked' (no product has the code), 'code_conflict' (two
+ * products claim it), 'not_linked' (the product has no supplier item yet), 'unit',
+ * 'no_price', 'priced'. Answers one result per line, in order.
+ */
+function materialsPricing(lines, products, offers, ctx, codeMap, ratios) {
+  var linked = {}, byId = {}, i, out = [];
+  for (i = 0; i < (offers || []).length; i++) if (offers[i] && offers[i].productId && offers[i].active !== false) linked[offers[i].productId] = true;
+  for (i = 0; i < (products || []).length; i++) if (products[i] && products[i].id && products[i].isActive !== false) byId[products[i].id] = products[i];
+  var map = codeMap || {};
+  for (i = 0; i < (lines || []).length; i++) {
+    var l = lines[i] || {}, code = String(l.code || '').toUpperCase();
+    if (!Object.prototype.hasOwnProperty.call(map, code)) { out.push({ state: 'code_unlinked' }); continue; }
+    if (map[code] === null) { out.push({ state: 'code_conflict' }); continue; }
+    var p = byId[map[code]];
+    if (!p) { out.push({ state: 'code_unlinked' }); continue; }
+    if (!linked[p.id]) { out.push({ state: 'not_linked', productId: p.id }); continue; }
+    // A code saved with a ratio (1 product unit = num/den estimate units) is priced in the
+    // product's unit; without one, a line in another unit stays 'unit'.
+    var rt = ratios && ratios[code], qty = l.qty, unit = l.unit;
+    if (rt && String(unit || '').toUpperCase() !== p.unit && plIsPosInt(rt.num) && plIsPosInt(rt.den) && typeof qty === 'number') { qty = qty * rt.den / rt.num; unit = p.unit; }
+    var res = priceMaterialLine({ qty: qty, unit: unit }, p, offers, ctx);
+    if (unit !== l.unit && rt) res.ratio = { num: rt.num, den: rt.den };
+    out.push(res);
+  }
+  return out;
+}
+
+// ---- Exact estimate-line links (Jo, 2026-11-18): an estimate code points at one product ----
+
+/**
+ * The starter list: estimate codes that clearly name exactly one published
+ * catalog product (codes and product ids only, both public; no price). A company
+ * changes a product's codes on its Stores & prices sheet (productLinks/{id}
+ * .estimateCodes); its list then replaces the starter codes for that product.
+ * Left out on purpose because more than one product fits: RFG SYN, RFG NAIL-C,
+ * RFG RIDG, RFG SKY-STD, RFG PWR, RFG SOLAR, RFG TURB, ridge vents, GTR GG-MESH.
+ */
+var PL_LINE_STARTER = {
+  'RFG 240-GAF-HDZ': 'shingle_001', 'RFG 240-GAF-HD': 'shingle_002', 'RFG 240-OC-DUR': 'shingle_003', 'RFG 240-OC-TRU': 'shingle_004',
+  'RFG 240-CT-LM': 'shingle_005', 'RFG 240-CT-LMP': 'shingle_006', 'RFG CAM2-GAF': 'shingle_007', 'RFG BK-OC': 'shingle_008',
+  'RFG 240-IKO': 'shingle_009', 'RFG 3T20': 'shingle_010', 'RFG 3T25': 'shingle_010', 'RFG 240-TAMKO-HERITAGE': 'shingle_011',
+  'RFG 240-TAMKO-TITAN': 'shingle_012', 'RFG 240-TAMKO-SFFLEX': 'shingle_013', 'RFG 240-TAMKO-HAIL': 'shingle_014',
+  'RFG SYN-TAMKO': 'under_007', 'RFG IWS-TAMKO': 'under_008', 'RFG 15F': 'under_005', 'RFG IWS': 'under_006',
+  'RFG STRT-TAMKO': 'flash_010', 'RFG STRT': 'flash_008', 'RFG RIDG-TAMKO': 'flash_009', 'RFG RIDG-ARC': 'flash_007', 'RFG HIPC': 'flash_007',
+  'RFG DRPE-AL': 'flash_003', 'RFG VLY-W': 'flash_004', 'RFG STPF-AL': 'flash_001', 'RFG CHIM-STD': 'acc_001', 'RFG CHIM-SAD': 'chim_004',
+  'RFG PIPE-STD': 'flash_002', 'RFG PIPE-LD': 'flash_016', 'RFG BOX-STD': 'vent_002', 'RFG SFT-C': 'vent_005', 'RFG SFT-I': 'acc_007',
+  'RFG OSB716': 'rdeck_001', 'RFG PLY12': 'rdeck_002', 'RFG PLY58': 'rdeck_003', 'RFG CLIPS': 'rdeck_004', 'RFG NAIL-CAP': 'acc_027',
+  'GTR 5K-AL': 'gutter_001', 'GTR 6K-AL': 'gutter_002', 'GTR HR-CU': 'gutter_003', 'GTR DSP23-AL': 'gutter_005', 'GTR DSP34-AL': 'gutter_006',
+  'GTR GG-MIC': 'gut_001'
+};
+var PL_CODE_RE = /^[A-Z0-9][A-Z0-9 .\/-]{1,39}$/;
+var PL_CODES_MAX = 40;
+
+/** A product's estimate codes as a person typed them: trimmed, upper case, unique, at most 40. */
+function sanitizeEstimateCodes(list) {
+  if (!Array.isArray(list) || list.length > PL_CODES_MAX) return plBad('bad_codes');
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    var c = String(list[i] == null ? '' : list[i]).replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '').toUpperCase();
+    if (!PL_CODE_RE.test(c)) return plBad('bad_codes');
+    if (out.indexOf(c) === -1) out.push(c);
+  }
+  return { ok: true, value: out };
+}
+
+/**
+ * One product's estimate codes: the company's own list when it set one on the
+ * product (links: the productLinks docs, each { id, estimateCodes, estimateCodesSet }),
+ * else the starter codes for that product.
+ */
+function productEstimateCodes(productId, links) {
+  var i;
+  for (i = 0; i < (links || []).length; i++) {
+    var l = links[i];
+    if (l && l.id === productId && l.estimateCodesSet === true && Array.isArray(l.estimateCodes)) return l.estimateCodes.slice();
+  }
+  var out = [];
+  for (var code in PL_LINE_STARTER) if (Object.prototype.hasOwnProperty.call(PL_LINE_STARTER, code) && PL_LINE_STARTER[code] === productId) out.push(code);
+  return out;
+}
+
+/**
+ * Every estimate code to its one product: { code: productId }, or { code: null }
+ * when two products claim the code (that code is unlinked until a person fixes it,
+ * never a guess). The starter list, with each product's own list replacing its
+ * starter codes.
+ */
+function lineCodeMap(links) {
+  var owned = {}, claims = {}, i, k, code, pid;
+  for (i = 0; i < (links || []).length; i++) {
+    var l = links[i];
+    if (l && l.id && l.estimateCodesSet === true && Array.isArray(l.estimateCodes)) owned[l.id] = l.estimateCodes;
+  }
+  var add = function (c, p) { if (!claims[c]) claims[c] = []; if (claims[c].indexOf(p) === -1) claims[c].push(p); };
+  for (code in PL_LINE_STARTER) {
+    if (!Object.prototype.hasOwnProperty.call(PL_LINE_STARTER, code)) continue;
+    pid = PL_LINE_STARTER[code];
+    if (!Object.prototype.hasOwnProperty.call(owned, pid)) add(code, pid);
+  }
+  for (pid in owned) if (Object.prototype.hasOwnProperty.call(owned, pid)) for (k = 0; k < owned[pid].length; k++) add(owned[pid][k], pid);
+  var out = {};
+  for (code in claims) if (Object.prototype.hasOwnProperty.call(claims, code)) out[code] = claims[code].length === 1 ? claims[code][0] : null;
+  return out;
+}
+
+// ---- Code ratios (Jo, 2026-11-18): an estimate code in another unit than its product ----
+
+var PL_RATIO_NUM_MAX = 1000000, PL_RATIO_DEN_MAX = 10000;
+
+/**
+ * "How many estimate units one product unit is", typed as a decimal with up to
+ * four places ("10", "33.3", "0.5"), as an exact fraction { num, den } in lowest
+ * terms, by digits (never a float parse). Null for anything else or zero.
+ */
+function parseRatioText(text) {
+  var t = String(text == null ? '' : text).replace(/^\s+|\s+$/g, '');
+  var m = /^(\d{1,6})(?:\.(\d{1,4}))?$/.exec(t);
+  if (!m) return null;
+  var frac = m[2] || '', den = 1, k;
+  for (k = 0; k < frac.length; k++) den = den * 10;
+  var num = Number(m[1] + frac);
+  if (!plIsPosInt(num) || num > PL_RATIO_NUM_MAX || den > PL_RATIO_DEN_MAX) return null;
+  var g = plGcd(num, den);
+  return { num: num / g, den: den / g };
+}
+/** A fraction as short decimal text: { num: 333, den: 10 } -> '33.3'. */
+function ratioText(r) {
+  if (!r || !plIsPosInt(r.num) || !plIsPosInt(r.den)) return '';
+  var whole = Math.floor(r.num / r.den), rest = r.num % r.den;
+  if (!rest) return String(whole);
+  var s = String(whole) + '.', i = 0;
+  while (rest && i < 4) { rest = rest * 10; s += String(Math.floor(rest / r.den)); rest = rest % r.den; i++; }
+  return s;
+}
+
+/** One product's code ratios as saved: { code: { num, den } }, at most 40, each a valid fraction. */
+function sanitizeCodeRatios(map) {
+  if (map == null) return { ok: true, value: {} };
+  if (typeof map !== 'object' || Array.isArray(map)) return plBad('bad_ratio');
+  var out = {}, n = 0;
+  for (var code in map) {
+    if (!Object.prototype.hasOwnProperty.call(map, code)) continue;
+    var r = map[code];
+    if (!PL_CODE_RE.test(code) || !r || !plIsPosInt(r.num) || !plIsPosInt(r.den) || r.num > PL_RATIO_NUM_MAX || r.den > PL_RATIO_DEN_MAX) return plBad('bad_ratio');
+    if (++n > PL_CODES_MAX) return plBad('bad_ratio');
+    var g = plGcd(r.num, r.den);
+    out[code] = { num: r.num / g, den: r.den / g };
+  }
+  return { ok: true, value: out };
+}
+
+var PL_RATIO_UNIT_WORDS = { LF: ['LF', 'FT', 'FEET', 'FOOT'], SF: ['SF', 'SQ FT'], SQ: ['SQ', 'SQUARES', 'SQUARE'], EA: ['EA', 'EACH', 'PIECES', 'PIECE', 'PCS', 'CLIPS', 'CAPS', 'NAILS'] };
+/**
+ * A suggested ratio for a product priced per one unit and an estimate line in
+ * another, read from the product's coverage: sqPerRoll for a roll against squares,
+ * else a number printed right before the estimate unit in coverage.perUnit ("105 LF
+ * per bundle", "32 SF per sheet", "100 pieces per box", "~2 SQ"). Only a suggestion:
+ * nothing is used until a person saves it. Null when nothing fits.
+ */
+function suggestCodeRatio(product, estimateUnit) {
+  var u = String(estimateUnit || '').toUpperCase(), cov = product && product.coverage;
+  if (!product || !u || u === product.unit || !cov) return null;
+  if (product.unit === 'RL' && u === 'SQ' && typeof cov.sqPerRoll === 'number' && cov.sqPerRoll > 0) return parseRatioText(String(cov.sqPerRoll));
+  var text = String(typeof cov === 'string' ? cov : (cov.perUnit || '')).toUpperCase();
+  var words = PL_RATIO_UNIT_WORDS[u] || [u];
+  for (var i = 0; i < words.length; i++) {
+    var m = new RegExp('(\\d+(?:\\.\\d+)?)\\s*' + words[i].replace(/ /g, '\\s*') + '\\b').exec(text);
+    if (m) return parseRatioText(m[1]);
+  }
+  return null;
+}
+
+/** Every estimate code's ratio, from the product that holds it: { code: { num, den } }. */
+function lineCodeRatios(links) {
+  var out = {};
+  for (var i = 0; i < (links || []).length; i++) {
+    var l = links[i], r = l && l.codeRatios;
+    if (!r || typeof r !== 'object') continue;
+    for (var code in r) if (Object.prototype.hasOwnProperty.call(r, code) && r[code] && plIsPosInt(r[code].num) && plIsPosInt(r[code].den)) out[code] = { num: r[code].num, den: r[code].den, productId: l.id };
+  }
+  return out;
 }
 
 /** Is the ledger switched on for this person? Only the boolean true turns it on. */
@@ -599,7 +1465,18 @@ function flagOn(flagsDefault, flagsMine) {
     KINDS: KINDS, CALLER_KINDS: CALLER_KINDS, evidenceLevel: evidenceLevel, currentRows: currentRows, bestForOffer: bestForOffer,
     offerIdFor: offerIdFor, obsIdFor: obsIdFor, urlAllowedFor: urlAllowedFor,
     sanitizeSupplierAccount: sanitizeSupplierAccount, sanitizePack: sanitizePack, sanitizeOffer: sanitizeOffer,
-    sanitizeObservation: sanitizeObservation, summarize: summarize, flagOn: flagOn
+    sanitizeObservation: sanitizeObservation, summarize: summarize, flagOn: flagOn,
+    NULL_UNIT_CHANNELS: NULL_UNIT_CHANNELS, stubOffer: stubOffer, catalogMicrosFor: catalogMicrosFor,
+    legacyPurchaseToRow: legacyPurchaseToRow, legacyItemToLedger: legacyItemToLedger,
+    parseCsv: parseCsv, guessColumns: guessColumns, guessHeaderRow: guessHeaderRow, IMPORT_DOC_KINDS: IMPORT_DOC_KINDS, buildImport: buildImport,
+    applyTaxMicros: applyTaxMicros, removeTaxMicros: removeTaxMicros, supplierCompareSettings: supplierCompareSettings, quoteExpiryState: quoteExpiryState,
+    compareProduct: compareProduct, priceMoveAlert: priceMoveAlert, sanitizeSeenMark: sanitizeSeenMark, supplierAlerts: supplierAlerts, suggestLink: suggestLink,
+    microsToCostBookDollars: microsToCostBookDollars, dollarsToMicros: dollarsToMicros, bookMicros: bookMicros, marginFloorTenths: marginFloorTenths,
+    marginAfterLabor: marginAfterLabor, approvalSource: approvalSource, proposalLines: proposalLines, costGuardRefusal: costGuardRefusal,
+    changeTenths: changeTenths, tenthsText: tenthsText,
+    materialProductsFor: materialProductsFor, priceMaterialLine: priceMaterialLine, materialsPricing: materialsPricing,
+    PL_LINE_STARTER: PL_LINE_STARTER, sanitizeEstimateCodes: sanitizeEstimateCodes, productEstimateCodes: productEstimateCodes, lineCodeMap: lineCodeMap,
+    parseRatioText: parseRatioText, ratioText: ratioText, sanitizeCodeRatios: sanitizeCodeRatios, suggestCodeRatio: suggestCodeRatio, lineCodeRatios: lineCodeRatios
   };
   root.NBDPriceLogic = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

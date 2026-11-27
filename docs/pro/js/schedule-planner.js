@@ -442,8 +442,38 @@
     if (window.NBDScheduleCalendar || !window.ScriptLoader || typeof window.ScriptLoader.load !== 'function') return;
     window.ScriptLoader.load('/pro/js/schedule-calendar-panel.js?v=2');
   }
+  // Sub job board (flag subJobBoard, 2026-11-19, js/sub-job-board.js): fetched ONLY when the flag is on, so
+  // with it off nothing loads. It needs the payments rules first, then its own rules, then the panel.
+  let _boardP = null;
+  function loadBoardPanel() {
+    const F = window.NBDFlags, SL = window.ScriptLoader;
+    if (window.NBDSubJobBoard || _boardP || !SL || typeof SL.load !== 'function') return;
+    if (!F || typeof F.enabled !== 'function' || !F.enabled('subJobBoard')) return;
+    _boardP = SL.load('/pro/js/sub-payments-logic.js?v=2')
+      .then(() => SL.load('/pro/js/sub-job-board-logic.js?v=1'))
+      .then(() => SL.load('/pro/js/sub-job-board.js?v=1'))
+      .then(() => { _boardP = null; });
+  }
+  // Labor hours book (flag laborHoursBook, 2026-11-19, js/labor-book.js): fetched ONLY when the flag is on.
+  // It needs the company book and the labor catalog; a page that already has them is not asked twice.
+  let _hoursP = null;
+  function loadHoursPanel() {
+    const F = window.NBDFlags, SL = window.ScriptLoader;
+    if (window.NBDLaborBook || _hoursP || !SL || typeof SL.load !== 'function') return;
+    if (!F || typeof F.enabled !== 'function' || !F.enabled('laborHoursBook')) return;
+    _hoursP = Promise.resolve()
+      .then(() => (window.NBDCatalogCosts ? null : SL.load('/pro/js/catalog-costs.js?v=5')))
+      .then(() => (window.NBD_LABOR ? null : SL.load('/pro/js/estimate-labor-catalog.js?v=2')))
+      .then(() => SL.load('/pro/js/labor-hours-logic.js?v=1'))
+      .then(() => SL.load('/pro/js/job-hours-logic.js?v=1'))
+      .then(() => SL.load('/pro/js/labor-book-logic.js?v=1'))
+      .then(() => SL.load('/pro/js/labor-book.js?v=1'))
+      .then(() => { _hoursP = null; });
+  }
   function maybeRender() {
     if (!/schedule/.test(location.hash || '')) return;
+    loadBoardPanel();
+    loadHoursPanel();
     loadCalendarPanel();
     clearTimeout(_timer); _tries = 0;
     const tick = () => {

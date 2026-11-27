@@ -20,4 +20,21 @@ First of five queued tracker features (queue brief from the Calendar/tracker pla
 - Separate key rather than folding into `nbd_ds_reviews`: review-ui rewrites that store as `{goal, weeks}` and would drop an
   extra field.
 - The prompt hour (17) lives in `PROMPT_HOUR`; tests fake `Date`, never the real clock.
-- Not done on purpose: surfacing "tomorrow's non-negotiable" on the next day's page. Cheap follow-up if Jo wants it.
+- ~~Not done on purpose: surfacing "tomorrow's non-negotiable" on the next day's page. Cheap follow-up if Jo wants it.~~
+  **Built 2026-11-09** (flow batch 3, audit Q12). See the update below.
+
+## Update 2026-11-18: carry-forward is built
+
+Found stale while planning the next Daily Success builds; checked in a phone-sized browser with a fixed clock (Wed 7:30 am, last
+night's answer seeded), not only in the source.
+
+- `NBDEod.carryForward(map, todayDk)` (`js/eod-logic.js`) returns yesterday's answered "tomorrow" text, or '' (only yesterday counts as
+  last night; a skipped night has nothing to carry).
+- On today's page, when the "Today's non-negotiable" box is empty, `carryHint` (`js/eod-ui.js`) shows "From last night: ..." with a
+  **Use it** button. It never fills the box by itself; Use types it in and saves it like typing (the box is marked dirty, saved after
+  800 ms).
+- The Next-Up strip also queues it: `carry: From last night: ...` comes second, right after the Morning check-in, and its button fills the
+  box even while the hint is hidden. Without a carried answer the queue has one item fewer.
+- Shipped in [flow batch 3](SESSION-2026-11-09-ds-flow-batch-3.md) (#3032); the test is `tests/ds-flow-batch-3-2026-11-09.test.js`.
+- One quirk, not a bug: the hint sits in the Mindset section, which is collapsed by default on a phone, so it is only visible after opening
+  that section. The Next-Up strip is the path that surfaces it without opening anything.

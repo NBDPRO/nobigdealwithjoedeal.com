@@ -29,6 +29,9 @@
     .sp-msg p { color:var(--muted); font-size:14px; line-height:1.5; }
     .sp-foot { flex:0 0 auto; background:#fff; border-top:1px solid var(--br); padding:14px 16px; display:none; gap:12px; align-items:center; }
     .sp-foot .hint { font-size:12px; color:var(--muted); }
+    .sp-consent { flex:1 1 100%; font-size:12px; line-height:1.4; color:var(--ink); }
+    .sp-consent[hidden] { display:none; }
+    .sp-foot { flex-wrap:wrap; }
     .sp-btn { margin-left:auto; background:var(--orange); color:#fff; border:0; border-radius:9px; padding:13px 24px; font-size:15px; font-weight:800; cursor:pointer; -webkit-tap-highlight-color:transparent; }
     .sp-btn:disabled { opacity:.55; cursor:default; }
     .spin { width:18px;height:18px;border:2px solid rgba(0,0,0,.15);border-top-color:var(--orange);border-radius:50%;display:inline-block;animation:sp 0.7s linear infinite;vertical-align:middle; }
@@ -52,6 +55,9 @@
   </div>
   <div class="sp-foot" id="spFoot">
     <span class="hint">Draw your signature in the box above, then tap Submit.</span>
+    <!-- Hidden until the server asks for it (feature flag docEvidenceFoundation): the same
+         e-sign consent sentence the e-sign envelope page shows, set from the server's copy. -->
+    <label class="sp-consent" id="spConsent" hidden><input type="checkbox" id="spConsentBox"> <span id="spConsentText"></span></label>
     <button class="sp-btn" id="spSubmit" type="button">✍️ Submit Signature</button>
   </div>
   <!-- Shared toast provider. Loads before sign-page.js so signature and
@@ -60,6 +66,7 @@
   <!-- Phone reading layout for the document (shared with the portal and the
        rep's doc viewer, 2026-09-25). Before sign-page.js, which reads it. -->
   <script defer src="js/doc-phone-layout.js?v=1"></script>
-  <script defer src="js/sign-page.js?v=5"></script>
+  <script defer src="js/doc-phone-layout-letterhead.js?v=1"></script>
+  <script defer src="js/sign-page.js?v=7"></script>
 </body>
 </html>

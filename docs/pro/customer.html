@@ -5,11 +5,11 @@
 <!-- Sample account (Pro demo phase 2, 2026-10-06): inert on this real page;
      under /pro/explore/ it arms the browser-only sample account. First and
      synchronous so its network tripwire is in place before any other script. -->
-<script src="/pro/js/demo-mode.js?v=7"></script>
+<script src="/pro/js/demo-mode.js?v=8"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="var(--bg)">
+<meta name="theme-color" content="#0A0C0F">
 <!-- Preconnect hints — warm TCP+TLS for the origins this page hits hardest.
      Saves ~100-300ms on first paint by parallelizing connection setup with HTML parse.
      `crossorigin` is required for fetched origins (font binaries, Firebase SDK, photos). -->
@@ -40,7 +40,7 @@
 <link rel="manifest" href="/pro/manifest.json">
 <link rel="modulepreload" href="js/stage-write.js">
 <!-- W151: mobile polish sweep -->
-<link rel="stylesheet" href="/pro/css/mobile-polish.css?v=5">
+<link rel="stylesheet" href="/pro/css/mobile-polish.css?v=8">
 <title>Customer Details — NBD Pro</title>
 <meta name="robots" content="noindex, nofollow">
 <script defer src="js/console-quiet.js?v=1"></script>
@@ -487,7 +487,7 @@ header {
   font-family:'Barlow Condensed',sans-serif; letter-spacing:.06em;
   background:var(--s2); border:1px solid var(--br);
   border-radius:20px; cursor:pointer; color:var(--m);
-  transition:background var(--t-mid),border-color var(--t-mid),color var(--t-mid); user-select:none;
+  transition:background var(--t-mid),border-color var(--t-mid),color var(--t-mid); -webkit-user-select:none;user-select:none;
 }
 .tl-pill:hover { border-color:var(--orange); color:var(--t); }
 .tl-pill.active { background:var(--orange); border-color:var(--orange); color:var(--accent-fg,#fff); }
@@ -518,7 +518,7 @@ header {
 .photo-item img {
   width:100%; height:100%; object-fit:cover;
   pointer-events:none; /* let drag events bubble to the parent tile */
-  -webkit-user-drag:none; user-select:none;
+  -webkit-user-drag:none; -webkit-user-select:none;user-select:none;
 }
 
 /* Reorder mode — drag handle visible, click-to-edit suppressed */
@@ -1610,10 +1610,10 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 }
 
 </style>
-<link rel="stylesheet" href="css/ui-primitives.css?v=16">
+<link rel="stylesheet" href="css/ui-primitives.css?v=18">
 <link rel="stylesheet" href="css/care-plan.css?v=1">
 <link rel="stylesheet" href="css/job-closeout.css?v=1">
-<link rel="stylesheet" href="css/promise.css?v=1">
+<link rel="stylesheet" href="css/promise.css?v=2">
 <link rel="stylesheet" href="css/customer-header.css?v=1">
 <link rel="stylesheet" href="css/invoice-pipeline.css?v=8">
 <link rel="stylesheet" href="css/supplement.css?v=1">
@@ -1626,22 +1626,22 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <link rel="stylesheet" href="css/estimate-preview-view.css?v=1">
 <link rel="stylesheet" href="css/templates-library-view.css?v=2">
 <link rel="stylesheet" href="css/profit-tracker-view.css?v=1">
-<link rel="stylesheet" href="css/claim-core-view.css?v=1">
+<link rel="stylesheet" href="css/claim-core-view.css?v=2">
 <link rel="stylesheet" href="css/insurance-claim-view.css?v=1">
 <link rel="stylesheet" href="css/quick-capture-view.css?v=2">
 <link rel="stylesheet" href="css/quick-capture-inbox-view.css?v=1">
 <link rel="stylesheet" href="css/job-templates-view.css?v=1">
-<link rel="stylesheet" href="css/my-skin.css?v=6">
+<link rel="stylesheet" href="css/my-skin.css?v=7">
   <meta property="og:url" content="https://nobigdealwithjoedeal.com/pro/customer">
-<link rel="stylesheet" href="css/photo-editor.css?v=6">
+<link rel="stylesheet" href="css/photo-editor.css?v=7">
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
-<link rel="stylesheet" href="css/phone-calls.css?v=15">
+<link rel="stylesheet" href="css/phone-calls.css?v=18">
 <link rel="stylesheet" href="css/google-calendar.css?v=6">
-<link rel="stylesheet" href="css/production.css?v=1">
+<link rel="stylesheet" href="css/production.css?v=2">
 <link rel="stylesheet" href="css/stage-gate-sheet.css?v=1">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
 <!-- Numbers panel + required lost-reason sheet (2026-10-04). -->
-<link rel="stylesheet" href="css/numbers.css?v=3">
+<link rel="stylesheet" href="css/numbers.css?v=4">
 <link rel="stylesheet" href="css/offline-sync.css?v=1">
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
 <!-- Roof-day action row, phone order, folds, 44px targets (2026-10-08). Last,
@@ -2889,7 +2889,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      html2pdf (~1.1 MB combined) no longer load at boot — they fetch via the
      `pdfexport` bundle on the first PDF export (exportCustomer* handlers +
      NBDDocViewer.handlePdf, which already load-then-runs the bundle). -->
-<script defer src="js/script-loader.js?v=229"></script>
+<script defer src="js/script-loader.js?v=274"></script>
 <script defer src="js/icons.js"></script>
 <!-- Canonical modal driver — window.nbdModal owns open/close + Esc/backdrop
      for every .modal-bg on this page (batch-4 modal consolidation). Loaded
@@ -2916,8 +2916,8 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- Stage gate bottom sheet: progressStage asks for missing required fields here (2026-10-03). -->
 <script defer src="js/stage-gate-sheet.js?v=1"></script>
 <!-- Calls + texts from the Call Center on the timeline (NBDCallTimeline; loadTimeline reads it). -->
-<script defer src="js/call-timeline.js?v=7"></script>
-<script type="module" src="js/customer-bootstrap.module.js?v=37"></script>
+<script defer src="js/call-timeline.js?v=9"></script>
+<script type="module" src="js/customer-bootstrap.module.js?v=40"></script>
 <!-- My Skin (my-skin-logic.js + my-skin.js) is the lazy myskin bundle since 2026-11-08: my-skin-boot.js loads it for an account with a skin, or when Settings opens. -->
 <script defer src="js/my-skin-boot.js?v=1"></script>
 <!-- Island Dock layout (2026-10-12): a no-op unless the rep resolved to it; then the hero image of the house. -->
@@ -2934,31 +2934,31 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      loss or a storm lead; an open lead paints nothing from it). -->
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/customer-numbers.js?v=2"></script>
-<script defer src="js/customer-tasks-ui.js?v=48"></script>
+<script defer src="js/customer-tasks-ui.js?v=57"></script>
 <!-- Promise capture (2026-10-12): the Promise button below opens the sheet. -->
 <script defer src="js/promise-logic.js?v=2"></script>
 <script defer src="js/promise-ui.js?v=4"></script>
-<script defer src="js/nbd-comms.js?v=6"></script>
-<script defer src="js/sms-outbox.js?v=2"></script>
+<script defer src="js/nbd-comms.js?v=7"></script>
+<script defer src="js/sms-outbox.js?v=3"></script>
 <script defer src="js/stage-checklist.js?v=2"></script>
 <script defer src="js/paperwork-write.js?v=1"></script>
 <script defer src="js/warranty-claim.js?v=3"></script>
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <script defer src="js/email_system.js?v=5"></script>
-<script defer src="js/customer-gallery-share.js?v=4"></script>
+<script defer src="js/customer-gallery-share.js?v=5"></script>
 <!-- Documents store — the SINGLE source of truth for every documents
      surface on this page (Overview list, Generated, Uploaded, nav count).
      Reads leads/{leadId}/documents and publishes window.loadDocuments, which
      the bootstrap calls from loadCustomerData once the lead resolves. Must
      load before the upload modules that call NBDCustomerDocs.refresh(). -->
-<script defer src="js/feature-flags.js?v=2"></script>
+<script defer src="js/feature-flags.js?v=3"></script>
 <script defer src="js/doc-link-copy.js?v=1"></script>
-<script defer src="js/customer-documents.js?v=11"></script>
+<script defer src="js/customer-documents.js?v=21"></script>
 <!-- Send for review (2026-10-03): the share sheet + the message copy. -->
-<script defer src="js/phone-share.js?v=3"></script>
+<script defer src="js/phone-share.js?v=9"></script>
 <script defer src="js/estimate-followups.js?v=3"></script>
-<script defer src="js/customer-signed-doc-upload.js?v=3"></script>
-<script defer src="js/customer-portal.js?v=6"></script>
+<script defer src="js/customer-signed-doc-upload.js?v=9"></script>
+<script defer src="js/customer-portal.js?v=7"></script>
 <script defer src="js/clipboard-fix.js?v=2"></script>
 <!-- Stripe ledger (2026-09-29): pure display rules, then the Stripe Payments
      section; the rules also draw the "From Stripe" chip in the invoice list. -->
@@ -2977,7 +2977,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      doc-phone-layout.js (2026-09-25) is its phone reading layout for a
      generated document, shared with sign.html and the portal. -->
 <script defer src="js/doc-phone-layout.js?v=1"></script>
-<script defer src="js/nbd-doc-viewer.js?v=6"></script>
+<script defer src="js/nbd-doc-viewer.js?v=12"></script>
 <!-- Photo system Phase 2: client-side EXIF + heading-to-slope inference.
      Loaded BEFORE upload code so analyze() is available at upload time. -->
 <script defer src="js/photo-smart-ingest.js?v=2"></script>
@@ -3018,7 +3018,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/schedule-window.js?v=2"></script>
 <script defer src="js/claim-core.js?v=6"></script>
 <script defer src="js/insurance-claim.js?v=8"></script>
-<script defer src="js/offline-manager.js?v=8"></script>
+<script defer src="js/offline-manager.js?v=10"></script>
 <script defer src="js/customer-dnd-upload.js?v=3"></script>
 <script defer src="js/customer-quick-action-bar.js?v=5"></script>
 <!-- Wave 35/36: lead-snooze must load before the banner since the
@@ -3032,11 +3032,11 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      buttons on this page and by the kanban context menu on the
      dashboard. Loading on customer.html so _resolvePortalUrl can
      delegate to the shared module without a fallback. -->
-<script defer src="js/portal-link-helpers.js?v=3"></script>
+<script defer src="js/portal-link-helpers.js?v=4"></script>
 <!-- Wave 52: last-shared chip in the customer header. Mirrors the
      W44 kanban badge so both surfaces show the same cue. -->
 <script defer src="js/customer-last-shared-chip.js?v=2"></script>
-<script defer src="js/customer-calls.js?v=13"></script>
+<script defer src="js/customer-calls.js?v=16"></script>
 <script defer src="js/customer-viewed-chip.js?v=2"></script>
 <script defer src="js/customer-sibling-snooze.js?v=2"></script>
 <script defer src="js/customer-engagement-score.js?v=3"></script>
@@ -3066,7 +3066,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      billing link in the header. After tenant-rules.js (isPlatformTenant). -->
 <script defer src="js/care-plan-crm.js?v=2"></script>
 <script defer src="js/photo-editor.js?v=8"></script>
-<script defer src="js/company-profile.js?v=11"></script>
+<script defer src="js/company-profile.js?v=14"></script>
 <!-- 2026-09-06 boot weight: the doc-generation cluster (nbd-logo-asset,
      document-generator, document-generator-templates, doc-preflight —
      498.7 KiB raw) was eager here while dashboard.html has shipped it
@@ -3153,7 +3153,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 
 <!-- Edit Customer Modal -->
 <div id="editCustomerModal" class="modal-bg" role="dialog" aria-modal="true" style="background:rgba(0,0,0,.75);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
-  <div style="background:var(--s2);border-radius:16px;width:90%;max-width:480px;max-height:85vh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:24px;border:1px solid var(--br);">
+  <div style="background:var(--s2);border-radius:16px;width:90%;max-width:480px;max-height:85vh;max-height:min(85vh, calc(100dvh - 2 * env(safe-area-inset-top, 0px) - 16px));overflow-y:auto;-webkit-overflow-scrolling:touch;padding:24px;border:1px solid var(--br);">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t);">Edit Customer</div>
       <button data-action="closeEditCustomerModal" style="background:none;border:none;color:var(--m);cursor:pointer;font-size:20px;padding:4px 8px;">✕</button>
@@ -3296,7 +3296,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- W133: Cmd+K command palette — fuzzy search leads, actions, views -->
 <script defer src="/pro/js/command-palette.js?v=9"></script>
 <!-- Visit recorder launcher (2026-10-13): Record visit + do-not-record toggle. -->
-<script defer src="/pro/js/visit-recorder-launcher.js?v=5"></script>
+<script defer src="/pro/js/visit-recorder-launcher.js?v=7"></script>
 <!-- W149: FAB stack coordinator — hides voice/inbox FABs when a
      modal is open so they don't float over the modal content. -->
 <script defer src="/pro/js/fab-stack-coordinator.js?v=3"></script>

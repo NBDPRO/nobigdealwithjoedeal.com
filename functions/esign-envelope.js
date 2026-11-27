@@ -317,7 +317,19 @@ exports.createEsignEnvelope = onCall(
     if (!pages.length) throw new HttpsError('invalid-argument', 'That PDF has no pages');
     if (pages.length > 100) throw new HttpsError('invalid-argument', 'That PDF has more than 100 pages');
 
-    const { companyName } = await resolveCompanyName(db, lead);
+    const { companyName, profile } = await resolveCompanyName(db, lead);
+
+    // Fail closed (flag docEvidenceFoundation, default OFF; review 2026-11-18 finding 2): an uploaded
+    // PDF is opaque to the server, so what is checked is what the server CAN see of the parties: the
+    // property address and homeowner name on the lead, the company mailing address and legal entity
+    // name on the profile. A flag read that FAILS refuses (retryable) rather than reading "off".
+    const DE = require('./doc-evidence');
+    if (await DE.flagForGate(db, uid, HttpsError)) {
+      const gaps = DE.serverContractGaps({
+        type: 'work_authorization', lead, profile, tenantKey: lead.companyId || lead.userId, KyLaw: require('./ky-insurance-law'), html: '',
+      });
+      if (gaps.length) throw new HttpsError('failed-precondition', DE.describeGaps(gaps));
+    }
 
     await db.doc(`esign_envelopes/${envelopeId}`).set({
       ownerUid: uid,
@@ -669,6 +681,35 @@ exports.sendEstimateEnvelope = onCall(
     const address = est.addr || est.address || lead.address || '';
     const title = ('Roofing Contract — ' + (address || signers[0].name)).slice(0, 200);
 
+    // Fail-closed send check (flag docEvidenceFoundation, default OFF): no blank price,
+    // address, homeowner name, mailing address or legal entity name goes out on a contract.
+    const DE = require('./doc-evidence');
+    // Phase 3 (flag docAtticAckV1, strict read): a re-roof contract is not sent for e-signature without the signed attic form.
+    if (await DE.atticGateOn(db, uid, lead, HttpsError)) {
+      const AG = require('./attic-gate');
+      let dec;
+      try { dec = await AG.decide(db, leadId, lead, { estimate: est, estimateId }); } catch (_) { throw new HttpsError('unavailable', 'Could not check the attic acknowledgment just now. Nothing was sent. Try again in a moment.'); }
+      if (!dec.satisfied) throw new HttpsError('failed-precondition', dec.message);
+    }
+    const clauseOn = await DE.clauseFlagForGate(db, uid, HttpsError);
+    const checkSend = (await DE.flagForGate(db, uid, HttpsError)) || clauseOn;
+    const entityName = DE.entityNameFor(profile, lead.companyId || lead.userId);
+    // Clause set v1 (flag docClauseSetV1): the clauses this contract prints, from this tenant's own numbers.
+    // A number it needs and lacks refuses the send with the field's name; flag off, none of this runs.
+    const clauseSet = clauseOn ? DE.buildClauseSetFor(HttpsError, KyLaw, lead, est, profile, lead.companyId || lead.userId, {
+      ownerNames: signers.map((s) => s.name).join(' and '), propertyAddress: address,
+      date: KyLaw.formatDay(KyLaw.todayIn(timeZone)),
+    }, DE.pdfByRef(!!safeDepositPlan(est))) : null;
+    if (checkSend) {
+      const gaps = DE.serverGaps({
+        type: 'estimate_esign', priceCents: Math.round(price * 100), address,
+        homeownerName: signers.map((s) => s.name).join(' & '),
+        mailingAddress: KyLaw.contractorMailingAddress(profile), needsMailingAddress: true, entityName,
+        clauseConfigMissing: clauseSet ? clauseSet.missing : [],
+      });
+      if (gaps.length) throw new HttpsError('failed-precondition', DE.describeGaps(gaps));
+    }
+
     let pdf;
     try {
       pdf = await require('./estimate-esign-pdf').buildEstimateContractPdf({
@@ -684,8 +725,13 @@ exports.sendEstimateEnvelope = onCall(
         totalCents: Math.round(price * 100),
         depositPlan: safeDepositPlan(est),
         signers: signers.map((s) => ({ id: s.id, name: s.name })),
+        failClosed: checkSend, entityName, clauseSet,
+        // NBD Document Standard navy + orange, for NBD's own contracts only; another
+        // company prints in the neutral look until its own colours are passed here.
+        brand: sellerName === 'No Big Deal Home Solutions' ? { primary: '#1A3057', accent: '#BD5728' } : null,
       });
     } catch (e) {
+      if (e && e.gaps) throw new HttpsError('failed-precondition', DE.describeGaps(e.gaps));
       logger.error('[sendEstimateEnvelope] contract PDF build failed', { estimateId, err: e.message });
       throw new HttpsError('internal', 'Could not build the contract PDF. Try again.');
     }
@@ -733,6 +779,9 @@ exports.sendEstimateEnvelope = onCall(
       sourcePath,
       sourceSha256: sha256(buf),
       sourceBytes: buf.length,
+      // Evidence parity (2026-11-18): the clause set this contract carries, stamped on
+      // the envelope and copied onto every signer's evidence when they sign.
+      ...DE.stampFor(KyLaw, lead, est, { refs: pdf.clauseRefs }),
       pages: pdf.pages,
       pageCount: pdf.pages.length,
       fields: pdf.fields,
@@ -857,6 +906,13 @@ exports.getEsignEnvelope = onRequest(
     } catch (e) {
       logger.error('[getEsignEnvelope] source download failed', { envelopeId: tok.envelopeId, err: e.message });
       res.status(500).json({ error: 'Could not load the document. Please try again shortly.' }); return;
+    }
+    // Serve only the exact document the fields were placed on — the same
+    // digest submitEsignEnvelope checks. A source.pdf replaced after send
+    // would otherwise be SHOWN to the homeowner and then 409 at Sign.
+    if (env.sourceSha256 && sha256(buf) !== env.sourceSha256) {
+      logger.error('[getEsignEnvelope] SOURCE PDF CHANGED SINCE PLACEMENT — refusing', { envelopeId: tok.envelopeId });
+      res.status(409).json({ error: 'This document changed since it was sent. Please ask your rep for a new link.', reason: 'changed' }); return;
     }
 
     // First view wins: the old path's fire-and-forget stamp recorded the LAST
@@ -1012,7 +1068,9 @@ exports.submitEsignEnvelope = onRequest(
     const evidence = ESL.buildSignerEvidence({
       typedName: (typeof signerName === 'string' ? signerName : '') || signer.name,
       ip, ua, consent: true, consentText: ESL.CONSENT_TEXT, at: when,
+      ipSource: require('./doc-evidence').requestFacts(req).ipSource,
       valuesSha256: sha256(valuesJson),
+      clauseSetVersion: env.clauseSetVersion, clauseIds: env.clauseIds, documentSha256: env.sourceSha256,
       fieldIds: Object.keys(mine),
       viewedAt: env.viewedBy && env.viewedBy[signer.id],
     });

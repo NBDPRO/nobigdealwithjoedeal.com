@@ -753,6 +753,11 @@ async function complianceGate(db, decoded, a) {
   if (a.knockId) {
     const refusal = knockConsentRefusal(a.knock, decoded, a.to);
     if (refusal) return { respond: { status: 403, body: refusal } };
+    // The knock's own company must be NBD too: a platform admin can open any company's knock,
+    // and that homeowner must never get a text on NBD's number (S0, 2026-11-26).
+    if (TextingGate.tenantKeyOfRecord(a.knock) !== TextingGate.NBD_OWNER_UID) {
+      return { respond: { status: 403, body: TextingGate.refusalBody({ reason: 'no_own_sender' }) } };
+    }
     company = await knockCompanyName(db, a.knock, status.isNbd);
     if (!company) {
       return { respond: { status: 403, body: {
@@ -1211,11 +1216,13 @@ async function handleSendSMS(req, res, queuedEndpoint) {
     // construction, a secret read, a bad number) never reached Twilio.
     let twilioAttempted = false;
     try {
-      // Initialize Twilio client (guarded: kill switch + canary at the send)
+      // Initialize Twilio client (guarded: kill switch + canary at the send).
+      // A rep's own text: exempt from the automations' send window; this
+      // handler keeps its own TCPA hours.
       const client = MessagingControls.guardTwilio(db, _twilio()(
         TWILIO_ACCOUNT_SID.value(),
         TWILIO_AUTH_TOKEN.value()
-      ));
+      ), { sendWindow: 'exempt:manual' });
 
       const formattedTo = formatPhoneNumber(to);
       const fromPhone = TWILIO_PHONE_NUMBER.value();
@@ -1562,10 +1569,11 @@ exports.sendD2DSMS = onRequest(
       // outer 500.
       let message;
       try {
+        // A rep's door-knock text: exempt from the automations' send window.
         const client = MessagingControls.guardTwilio(db, _twilio()(
           TWILIO_ACCOUNT_SID.value(),
           TWILIO_AUTH_TOKEN.value()
-        ));
+        ), { sendWindow: 'exempt:manual' });
         message = await client.messages.create({
           body,
           from: TWILIO_PHONE_NUMBER.value(),
@@ -1739,6 +1747,12 @@ exports.incomingSMS = onRequest(
         // enforces it). Best-effort and bounded: a failure here never undoes
         // the opt-out or delays the confirmation.
         await copyStopToTenantLists(db, fromPhone);
+        // S3: a STOP to a recent review text counts toward that company's carrier health
+        // (review-ask-health.js; dark = nothing written; never throws, never delays the confirmation much).
+        await require('./review-ask-health').noteStop(db, {
+          from: fromPhone, messageSid: req.body.MessageSid,
+          toNbdLine: OptOut.optOutKey(req.body.To) !== '' && OptOut.optOutKey(req.body.To) === OptOut.optOutKey(secretValue(TWILIO_PHONE_NUMBER) || ''),
+        });
         // TwiML reply confirming opt-out. Twilio sends this back. It names
         // the BUSINESS the homeowner texted (sms-keyword-replies.js), never
         // the CRM product. Resolved AFTER the opt-out is recorded: a lookup
@@ -2348,11 +2362,12 @@ async function runCheckStormAlerts(event) {
             tz: sub.tz,
             recipient: { zip: sub.zip, state: sub.state },
             serverTimestamp: () => FieldValue.serverTimestamp(),
-            send: () => client.messages.create({
+            // w = the guard's own window answer ({ nowMs, companyProfile }) for guardTwilio.
+            send: (w) => client.messages.create({
               body: body.substring(0, 1600),
               from: fromPhone,
               to: phone,
-            }),
+            }, Object.assign({ recipient: { zip: sub.zip, state: sub.state, tz: sub.tz } }, w)),
           });
           alreadySent.add(dedupKey);
 
@@ -2644,7 +2659,8 @@ exports.onAiDraftApproved = onDocumentUpdated(
     let client;
     let formattedTo;
     try {
-      client = MessagingControls.guardTwilio(db, _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value()));
+      // The rep approved this reply: exempt from the automations' send window.
+      client = MessagingControls.guardTwilio(db, _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value()), { sendWindow: 'exempt:manual' });
       formattedTo = formatPhoneNumber(to);
     } catch (e) {
       await fail('twilio_error', e && e.message); return; // nothing was requested

@@ -588,6 +588,10 @@ exports.visualizerImageGen = onRequest(
       // Replicate credit. Counted only for a valid request, just before the
       // paid call. Override: VISUALIZER_IMAGEGEN_DAILY_CAP. A limiter-store
       // failure refuses (503): unknown spend on a public endpoint is "no".
+      // First the one AI gate (functions/ai-gate.js aiGate, 2026-11-25): no
+      // plan (public), but the platform spend breaker and stop-all switch.
+      const gate = await require('./ai-gate').aiGate(require('firebase-admin/firestore').getFirestore(), { publicCaller: true, feature: 'visualizer-image' });
+      if (!gate.ok) { res.status(gate.status).json({ error: gate.reason }); return; }
       try {
         const cap = require('./env-number').envCap(process.env.VISUALIZER_IMAGEGEN_DAILY_CAP, 60);
         await require('./integrations/upstash-ratelimit').enforceRateLimit('visualizerImageGen:global', 'GLOBAL_DAILY', cap, 86_400_000);

@@ -99,7 +99,7 @@
       // Full packet / Paperwork only (2026-10-04) — also in the estimates
       // bundle; the loader runs it once.
       'js/deal-packet.js?v=1',
-      'js/close-board.js?v=17'
+      'js/close-board.js?v=18'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
     // expense-config.js (the shared category/money source of truth) MUST load
@@ -133,13 +133,18 @@
       'css/receipt-health.css?v=1', 'js/receipt-health.js?v=3',
       // Home Depot Pro Xtra CSV import (2026-09-29) — the header button only
       // renders when this has loaded.
-      'js/hd-import.js?v=4',
+      'js/hd-import.js?v=5',
       'css/lowes-import.css?v=1', 'js/lowes-import.js?v=1', // Lowe's (flag lowesImport)
       // The company price book (2026-10-02) — hd-import.js records each
       // receipt's SKU prices into it; loads after, read at call time.
       'js/price-book.js?v=2',
+      // Supplier price history (2026-11-17, flag supplierPricing): hd-import.js
+      // sends each receipt line to it as well. Same files and keys as the
+      // estimates bundle; they do nothing while the flag is off.
+      'js/price-logic.js?v=9',
+      'js/price-ledger.js?v=9',
       // Receipt import search / filter + type-ahead job picker (2026-10-19): inert until the receiptSorterQueue flag is on.
-      'css/receipt-review.css?v=1', 'js/receipt-filter-logic.js?v=1', 'js/receipt-review-ui.js?v=1',
+      'css/receipt-review.css?v=2', 'js/receipt-filter-logic.js?v=1', 'js/receipt-review-ui.js?v=1',
       // Receipt sorter queue (2026-10-18): inert until the receiptSorterQueue flag is on.
       'css/receipt-sorter.css?v=1', 'js/receipt-sorter-logic.js?v=1', 'js/receipt-sorter.js?v=1',
       // Receipt inbox (2026-11-04): inert until the receiptInbox flag is on. Loads after the sorter (it ranks jobs with it).
@@ -167,7 +172,7 @@
     // then the view. Nothing is sent without the rep tapping Send.
     winback: [
       'js/winback-logic.js?v=2',
-      'css/winback-view.css?v=1',
+      'css/winback-view.css?v=2',
       'js/winback.js?v=2'
     ],
     // Roof Care Plan members view (#/careplan, 2026-10-05). Its stylesheet
@@ -216,19 +221,35 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=24',
-      'js/document-generator-templates.js?v=19',
-      'js/document-generator-library.js?v=5', // 2026-10-04 template library; needs -templates' _tpl
-      'js/doc-preflight.js?v=15',
+      'js/document-generator.js?v=44',
+      'js/document-generator-templates.js?v=33',
+      'js/document-generator-library.js?v=20', // 2026-10-04 template library; needs -templates' _tpl
+      'js/doc-preflight.js?v=29',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
       // fetch/normalize logic. Version matches customer.html's own tag.
-      'js/customer-documents.js?v=11',
+      'js/customer-documents.js?v=21',
       // Same tab's "scan/upload a signed document" rows (2026-09-17) —
       // uploadSignedDoc/handleSignedDocUpload are the exact functions
       // customer.html's Documents tab uses; no second upload path.
-      'js/customer-signed-doc-upload.js?v=3'
+      'js/customer-signed-doc-upload.js?v=9',
+      // 2026-11-18: the fail-closed contract check (flag docEvidenceFoundation); the generator
+      // reads window.NBDDocSendChecks at call time, so load order does not matter.
+      'js/doc-send-checks.js?v=11',
+      // 2026-11-18 clause set v1 (flag docClauseSetV1): the wording, then the registry (reads window.NBDClauseText and
+      // window.NBDJurisdiction, loaded eagerly by the page). Last in the group (the smoke test reads the head of it for
+      // customer-documents.js); the generator reads window.NBDClauseSet at call time. Same group, so both always load together.
+      'js/clause-set-text.js?v=3',
+      'js/clause-set.js?v=14',
+      // 2026-11-18 attic acknowledgment (flag docAtticAckV1): wording, then logic. Same group, loaded together.
+      'js/attic-ack-text.js?v=1',
+      'js/attic-ack.js?v=5',
+      'js/attic-panel.js?v=6',
+      // 2026-11-18 card fee v1 (flag docCardFeeV1): pure fee rules, read by the invoice and receipt at call time. No fee is charged.
+      'js/card-fee.js?v=1',
+      // 2026-11-19 phase 5 forms (flag docClauseSetV1): wording + specs shared with the server. Read at render time.
+      'js/p5-forms.js?v=1'
     ],
     // Estimate engine (PR 2c). The revenue-critical builder + its product/
     // catalog data. Only needed when the rep builds an estimate, opens the
@@ -269,28 +290,34 @@
       'js/nbd-logo-asset.js?v=3',
       'js/product-data.js?v=6',
       'js/roofivent-catalog.js?v=2',
-      'js/catalog-costs.js?v=4',
-      'js/product-library.js?v=18',
+      'js/catalog-costs.js?v=5',
+      'js/product-library.js?v=25',
       // Price book viewer (2026-10-02): the Product Library's "Price book"
       // button. Same file the expenses bundle loads for the HD import.
       'css/price-book.css?v=1',
       'js/price-book.js?v=2',
       // Supplier price ledger (2026-11-17, flag supplierPricing): the
       // "Stores & prices" sheet on each product card. Dark unless the flag is on.
-      'js/price-logic.js?v=1',
-      'css/price-ledger.css?v=1',
-      'js/price-ledger.js?v=1',
-      'js/price-offers-ui.js?v=1',
+      'js/price-logic.js?v=9',
+      'css/price-ledger.css?v=5',
+      'js/price-ledger.js?v=9',
+      'js/price-offers-ui.js?v=8',
+      // Slice 3: Import prices and Compare suppliers (owner / company admins).
+      'js/price-import.js?v=4',
+      'js/price-compare-ui.js?v=2',
       'js/estimate-labor-catalog.js?v=2',
-      'js/estimate-builder-v2.js?v=13',
+      'js/estimate-builder-v2.js?v=15',
       'js/estimate-catalog-xactimate.js?v=4',
-      'js/estimate-logic-engine.js?v=9',
+      'js/estimate-logic-engine.js?v=10',
       // Roof Care Plan member discount (2026-10-05): pure rules the V2/V3
       // builder and the Job Templates engine call at price time — before both.
       'js/care-plan-discount.js?v=1',
+      // Estimate margin floor (2026-11-17): the tax-free job margin and the
+      // company's floor / target bands. Pure; off unless the company sets a floor.
+      'js/margin-floor.js?v=3',
       // Classic review step's layout (reskin 2026-10-03), before the script.
       'css/estimates-review.css?v=1',
-      'js/estimates.js?v=13',
+      'js/estimates.js?v=15',
       // Rock 2 PR 6: the New-Estimate front door (chooser) split out of
       // estimates.js. Loads after it — showNewEstimateChooser falls back to
       // estimates.js's showEstimateTypeSelector when V2 is missing.
@@ -298,10 +325,10 @@
       // Rock 2 PR 6: the estimates-list row actions (Firestore CRM ops, no
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
-      'js/estimate-finalization.js?v=11',
+      'js/estimate-finalization.js?v=12',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=42',
+      'js/estimate-v2-ui.js?v=49',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=6',
@@ -317,9 +344,9 @@
       // entity-resolver.js (the lead search/quick-create picker) must load
       // before job-templates-ui.js, which calls it from paintModal.
       'js/job-templates-data.js?v=7',
-      'js/job-templates.js?v=9',
+      'js/job-templates.js?v=11',
       'js/entity-resolver.js?v=2',
-      'js/job-templates-ui.js?v=14',
+      'js/job-templates-ui.js?v=19',
       // Upgrades & Add-ons (2026-09-25): the retail upgrade library, then the
       // pure pricing core that reads it, then Settings → Upgrade prices,
       // which needs both. The Estimates settings tab loads this bundle
@@ -345,7 +372,7 @@
     // load-then-run stubs in dashboard-actions.js, so a click before the bundle
     // loads still works.
     photos: [
-      'js/photo-engine.js?v=12',
+      'js/photo-engine.js?v=13',
       // photo-queue-store.js + photo-queue-recovery.js were static-tagged
       // only on dashboard.html until 2026-09-14 — customer.html's own
       // uploadSinglePhoto never enqueued a photo into the durable IndexedDB
@@ -375,8 +402,8 @@
       'js/lead-events.js?v=1',
       // Door-list CSV import (2026-10-16), read by the Routes tab and the shim.
       'js/d2d-door-import.js?v=1',
-      'js/d2d-tracker-core-2026b.js?v=18',
-      'js/d2d-tracker-ui-2026b.js?v=12',
+      'js/d2d-tracker-core-2026b.js?v=19',
+      'js/d2d-tracker-ui-2026b.js?v=13',
       'js/d2d-tracker-2026b.js?v=6'
     ],
     // PDF export libs (PR 2b2). Consumers: the doc-viewer's "Download PDF"
@@ -392,7 +419,7 @@
     ],
     // Warranty cert wizard — opened from the Docs view only.
     warranty: [
-      'js/warranty-cert.js?v=10'
+      'js/warranty-cert.js?v=11'
     ],
     // Theme engine cluster (2026-08-07). The 189-theme engine (162 KB) + its
     // four cosmetic companions were eager on every boot; they are a Settings/
@@ -474,9 +501,9 @@
     // rep turns that on. Stylesheet first, so the bar is styled the moment
     // the JS builds it. This file's own ?v re-bumped 9 -> 10.
     drawtool: [
-      'css/maps-routing-view.css?v=2',
+      'css/maps-routing-view.css?v=3',
       'js/draw-geom.js?v=2',
-      'js/maps-routing.js?v=10',
+      'js/maps-routing.js?v=11',
       'css/draw-reticle.css?v=1',
       'js/draw-reticle.js?v=1',
       // Instant Roofer cross-check card + the V3 wizard's "Draw it" hand-off
@@ -493,9 +520,9 @@
     ],
     // Call Center (2026-10-01): one view, goTo('calls') only.
     callcenter: [
-      'js/call-center-filters-logic.js?v=4',
+      'js/call-center-filters-logic.js?v=5',
       'js/call-center-loop-logic.js?v=1',
-      'js/call-center-view.js?v=31'
+      'js/call-center-view.js?v=35'
     ],
     // Tenant-ready settings (2026-10-05, #2152 boot budget): the Business
     // Rules editor (Settings → Estimates) and the logo upload / company export
@@ -508,7 +535,7 @@
     // under Settings → AI Texting. Hooks the tab, and paints a tab already open.
     tenantsettings: [
       'js/tenant-rules-settings.js?v=1',
-      'js/tenant-account-ui.js?v=2',
+      'js/tenant-account-ui.js?v=17',
       'js/sms-compliance-settings.js?v=2',
       'js/away-mode-settings.js?v=1',
       'js/prod-flags-panel.js?v=1'
@@ -533,7 +560,7 @@
     // menu, and the owner's Canvassers panel (Settings → Team). Kicked by
     // dashboard-bootstrap.module.js once the claims are known (no boot <script> tag).
     canvasser: [
-      'css/canvasser.css?v=1',
+      'css/canvasser.css?v=2',
       'js/canvasser-logic.js?v=2',
       'js/canvasser-ui.js?v=1'
     ],
@@ -571,8 +598,8 @@
     // Mission Control on a computer at night (never switches by itself), plus
     // its Settings > Appearance panel. Kicked by today-home.js at Home boot.
     layoutoffer: [
-      'css/layout-offer.css?v=1',
-      'js/layout-offer.js?v=2'
+      'css/layout-offer.css?v=2',
+      'js/layout-offer.js?v=3'
     ],
     // Call back now + Needs you (2026-10-16): the speed-to-lead strip in Field
     // and Focus and the money-and-momentum chips in Field and Mission. Kicked by
@@ -587,11 +614,11 @@
     // Messaging Control Center (2026-10-19): read-only owner/admin view, dark behind the messagingControlCenter flag.
     messaging: [
       'css/messaging-center.css?v=1',
-      'js/messaging-center.js?v=1'
+      'js/messaging-center.js?v=2'
     ],
     homestrips: [
       'css/home-strips.css?v=1',
-      'js/home-strips.js?v=1'
+      'js/home-strips.js?v=2'
     ],
     // Storm strip (2026-10-16): Home (Classic, Bento, Island) and Field, only
     // when a warning or hail touches the territory or a customer. Kicked by

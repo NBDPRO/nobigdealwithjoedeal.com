@@ -417,6 +417,37 @@ async function spineAfterRemoteSign(db, info, deps) {
 }
 
 /**
+ * A paper-signed document the rep certified (paper-cert.js attestWetSigned, flag docClauseSetV1). The same two
+ * steps as spineAfterRemoteSign, from the same FILED_FIELD_BY_DOC_TYPE: stamp the lead's "filed" field, then (a
+ * contract only) contract_signed. The uploaded row's own `type` is a MIME type, so the kind comes from the caller
+ * (the certified wetSignedDocType). sourceId uses the ORIGINAL's document id when one is linked, so a contract
+ * signed on paper and also signed digitally counts once. info = { leadId, docId, sourceDocId, docType, signerName }.
+ */
+async function spineAfterWetSign(db, info, deps) {
+  const { logger, now } = _deps(deps);
+  try {
+    if (!info || !info.leadId || !info.docId) return { skipped: 'no_doc' };
+    const type = String(info.docType || '');
+    const filedField = L.FILED_FIELD_BY_DOC_TYPE[type] || null;
+    if (filedField) {
+      await db.collection('leads').doc(String(info.leadId)).update({ [filedField]: new Date(now()).toISOString() })
+        .catch((e) => logger.warn('[jobSpine] filed stamp failed', { leadId: info.leadId, filedField, err: e && e.message }));
+    }
+    if (type !== 'contract') return { filedField, skipped: 'not_a_contract' };
+    const r = await recordJobEvent(db, {
+      leadId: String(info.leadId), event: 'contract_signed', sourceId: 'doc_' + String(info.sourceDocId || info.docId),
+      actor: 'paper signing (certified)', meta: {
+        docId: String(info.docId), detail: (info.signerName ? info.signerName + ' signed' : 'signed') + ' on paper, certified by the rep',
+      },
+    }, deps);
+    return { filedField, spine: r };
+  } catch (e) {
+    logger.warn('[jobSpine] paper-sign adapter failed', { leadId: info && info.leadId, err: e && e.message });
+    return { error: String((e && e.message) || e) };
+  }
+}
+
+/**
  * E-sign envelope completed (esign-envelope.js submitEsignEnvelope). An
  * envelope is an uploaded PDF with only a title, so it counts as THE contract
  * only when its title says so (job-spine-logic envelopeIsContract). Then the
@@ -478,4 +509,4 @@ async function spineAfterBooking(db, { leadId, companyId, bookingId, startTime, 
   }, deps);
 }
 
-module.exports = { recordJobEvent, undoJobEvent, requestReviewTaskIfPaid, spineAfterRemoteSign, spineAfterEsign, spineAfterDealAccept, spineAfterBooking };
+module.exports = { recordJobEvent, undoJobEvent, requestReviewTaskIfPaid, spineAfterRemoteSign, spineAfterWetSign, spineAfterEsign, spineAfterDealAccept, spineAfterBooking };

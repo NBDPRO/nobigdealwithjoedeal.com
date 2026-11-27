@@ -266,7 +266,7 @@ exports.submitInboxReceipt = onCall({
   // Settle the reservation to the real cost FIRST, so a failing spend log cannot leave the call unmetered.
   await settleMeter(callCostUsd - RESERVE_USD, 0);
   const aiSpend = require('./ai-spend');
-  try { await aiSpend.recordAiSpend(aiSpend.rowFromAnthropic('receipt-inbox', MODEL, data), { log: logger }); }
+  try { await aiSpend.recordAiSpend(aiSpend.rowFromAnthropic('receipt-inbox', MODEL, data), { log: logger, companyId }); }
   catch (e) { logger.warn('receipt-inbox.ai_spend_failed', { code: 'ai-spend' }); }
   const spentAfter = reserved.spentUsd + callCostUsd;
 
@@ -334,3 +334,4 @@ exports.onInboxReceiptDropped = onDocumentUpdated(
     return handleDropped(before, after, event.params.inboxId, { db: getFirestore(), bucket: () => getStorage().bucket(), logger });
   });
 exports._handleDropped = handleDropped;
+exports._MODEL = MODEL; // functions/ai-models.js cross-checks its receipt-inbox row

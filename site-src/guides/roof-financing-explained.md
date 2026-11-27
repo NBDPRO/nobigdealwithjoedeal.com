@@ -85,7 +85,7 @@ Rates and terms depend on your credit and on the lender you pick. Any ad that pr
 
 # Insurance and financing together
 
-If you have covered storm damage, your insurer pays its share under your policy and you pay the deductible. Some homeowners use financing for the deductible or for upgrades the policy doesn't cover, like a better shingle. Whether insurance covers it depends on your policy and the damage. I'll tell you honestly if it's worth a claim. Our free [storm-claim guide](https://nobigdealwithjoedeal.com/guides/kentucky-ohio-storm-claim-guide) walks through the claim side step by step.
+If you have covered storm damage, your insurer pays its share under your policy and you pay the deductible. Some homeowners use financing for the deductible or for upgrades the policy doesn't cover, like a better shingle. Whether insurance covers it depends on your policy and the damage. I document the damage with photos so you can decide whether to file a claim. Our free [storm-claim guide](https://nobigdealwithjoedeal.com/guides/kentucky-ohio-storm-claim-guide) walks through the claim side step by step.
 
 > [!KY] Kentucky insurance jobs
 > On our Kentucky insurance jobs, nothing is due at signing. Your deductible and the insurer's first payment are due after the insurer's written decision and the five-business-day cancellation window.

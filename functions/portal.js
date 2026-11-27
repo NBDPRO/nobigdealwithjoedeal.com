@@ -117,12 +117,12 @@ const { awaitBriefly } = require('./await-briefly');
 const PORTAL_NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 
 /**
- * The Google review link the portal shows: the rep's own http(s) link
- * (W134: never a javascript: URL), else NBD's for an NBD job, else null.
+ * The Google review link the portal shows: NBD's own for an NBD job (Jo,
+ * 2026-11-26, R12: "Always NBD's link"), else the rep's link when it is a
+ * Google review / Maps page (W134: never a javascript: URL), else null.
  */
 function portalReviewUrl(raw, isNbd) {
-  if (typeof raw === 'string' && /^https?:\/\//i.test(raw.trim())) return raw.trim().slice(0, 500);
-  return isNbd ? require('./review-ask-auto-logic').NBD_REVIEW_URL : null;
+  return require('./review-ask-auto-logic').portalReviewUrlFor(raw, isNbd);
 }
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 function otherJobsFor(lead, jobs) {
@@ -1340,8 +1340,8 @@ exports.getHomeownerPortalView = onRequest(
         // javascript: URL into the portal's <a href>. esc() in the
         // portal HTML doesn't strip schemes — only escapes characters.
         // 2026-10-15 (Joe): the card links STRAIGHT to the review page for
-        // everyone, before and without a rating (no review gating). The rep's
-        // own link, else NBD's (review-ask-auto-logic.js NBD_REVIEW_URL).
+        // everyone, before and without a rating (no review gating). NBD's own
+        // link for NBD; another company's rep link only if Google's (portalReviewUrl).
         googleReviewUrl: (isQuietBackfill(lead) || backfillBlocksRating(lead, tenantInvoices, paidInFullFor)) ? null : portalReviewUrl(rep.googleReviewUrl, _portalIsNbd),
       },
     };

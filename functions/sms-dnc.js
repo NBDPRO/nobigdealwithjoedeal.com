@@ -132,8 +132,9 @@ async function handleManageSmsCompliance(request) {
     const s = await TextingGate.textingStatus(db, caller.companyId, { ignoreGlobal: true });
     return {
       allowed: s.allowed, reason: s.reason, registered: s.registered, enabled: s.enabled,
-      // The CRM shows "needs registration — coming soon" from this.
-      needsRegistration: !s.registered,
+      // The CRM shows "needs registration — coming soon" from this. A registered company that is
+      // not NBD has no own sender yet (S0, 2026-11-26): it still needs registration.
+      needsRegistration: !s.registered || !s.isNbd,
     };
   }
 
@@ -144,7 +145,8 @@ async function handleManageSmsCompliance(request) {
     const s = await TextingGate.textingStatus(db, caller.companyId, { ignoreGlobal: true });
     // Turning OFF is always allowed. Turning ON cannot get past registration:
     // `registered` is admin-SDK only and this callable never writes it.
-    if (data.enabled && !s.registered) {
+    // A registered company that is not NBD has no own sender yet (S0, 2026-11-26): same refusal.
+    if (data.enabled && (!s.registered || !s.isNbd)) {
       throw new HttpsError('failed-precondition', 'Texting needs registration for your company — coming soon.');
     }
     await db.doc(TextingGate.SETTINGS_COLLECTION + '/' + caller.companyId).set({

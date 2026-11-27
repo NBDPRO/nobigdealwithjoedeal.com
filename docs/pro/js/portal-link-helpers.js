@@ -325,7 +325,7 @@
           return;
         }
       } else {
-        const smsUrl = `sms:${phone}?body=${encodeURIComponent(body)}`;
+        const smsUrl = `sms:${phone}?&body=${encodeURIComponent(body)}`;
         window.location.href = smsUrl;
         _toast(firstName ? `Opening SMS to ${firstName}…` : 'Opening SMS…', 'success');
         _recordShare(lead.id, 'sms');

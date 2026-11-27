@@ -142,7 +142,7 @@ html.nbd-vr-bar-on #view-home .view-scroll{ padding-bottom:calc(74px + env(safe-
   background:rgba(0,0,0,.6); display:flex; align-items:flex-end; justify-content:center;
 }
 .nbd-vr-sheet{
-  width:100%; max-width:480px; max-height:88vh; overflow-y:auto;
+  width:100%; max-width:480px; max-height:88vh; max-height: min(88vh, calc(100dvh - 2 * env(safe-area-inset-top, 0px) - 16px)); overflow-y:auto;
   background:var(--s2, #181C22); color:var(--t, #E8EAF0);
   border-radius:18px 18px 0 0; border:1px solid var(--br, rgba(255,255,255,.12)); border-bottom:0;
   padding:18px 16px calc(18px + env(safe-area-inset-bottom, 0px));
@@ -224,3 +224,22 @@ html.nbd-vr-bar-on #view-home .view-scroll{ padding-bottom:calc(74px + env(safe-
   background:var(--s2, #181C22); color:var(--t, #E8EAF0); border:2px solid var(--t, #E8EAF0);
   font:600 15px system-ui, -apple-system, "Segoe UI", sans-serif;
 }
+
+/* Record visit TAB (flag recordVisitTab, 2026-11-19; js/visit-recorder-tab.js puts html.nbd-vr-tab on
+   while #mobile-nav holds #mni-record). On a phone the round button is then drawn invisible: its wrapper
+   only anchors the menu, which opens leftwards over the tab (the script sets the wrapper's left to the
+   tab's centre). Home no longer reserves the button's 74px. The tab's own look is below. */
+@media (max-width:768px){
+  html.nbd-vr-tab .nbd-vr-fab{ pointer-events:none; }
+  html.nbd-vr-tab .nbd-vr-fabbtn{ opacity:0; }
+  html.nbd-vr-tab .nbd-vr-menu, html.nbd-vr-tab .nbd-vr-dim{ pointer-events:auto; }
+  html.nbd-vr-tab .nbd-vr-menu{ left:auto; right:0; align-items:flex-end; transform-origin:100% 100%; }
+  html.nbd-vr-tab.nbd-vr-bar-on .view-scroll,
+  html.nbd-vr-tab.nbd-vr-bar-on #view-home .view-scroll{ padding-bottom:calc(80px + env(safe-area-inset-bottom, 0px)) !important; }
+}
+.mn-recdot{ width:22px; height:22px; border-radius:50%; background:#fff; display:inline-grid; place-items:center; transition:transform var(--ui-dur-press) var(--ui-ease); }
+.mn-recdot::after{ content:""; width:11px; height:11px; border-radius:50%; background:var(--red); }
+#mni-record.is-recording .mn-lbl{ color:var(--red); }
+#mni-record.is-recording .mn-recdot::after{ animation:nbd-vr-pulse 1.2s ease-in-out infinite; }
+#mni-record.is-armed .mn-recdot{ box-shadow:0 0 0 4px var(--red); transform:scale(1.15); }
+@media (prefers-reduced-motion: reduce){ #mni-record.is-recording .mn-recdot::after{ animation:none; } }

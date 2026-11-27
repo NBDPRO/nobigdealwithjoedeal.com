@@ -311,6 +311,10 @@ const OWNER_KEYED_DOCS = [
 // owner erases their own account; a team member's erasure leaves them alone.
 // `priceBook` is the supplier price ledger (2026-11-17) and the legacy price book doc.
 const COMPANY_KEYED_TREES = ['priceBook'];
+// The Storage side of the same rule: `<prefix>/{companyId}/…`, erased with the tree.
+// `product-photos` is the supplier price ledger's product and item photos (2026-11-18).
+// `price-docs` is the supplier documents read by priceDocRead (2026-11-18): the originals.
+const COMPANY_KEYED_STORAGE_PREFIXES = ['product-photos', 'price-docs'];
 
 // ─── NESTED-LEADS SUBTREE ───────────────────────────────────
 // Vestigial `leads/{uid}/leads/{leadId}` path from an old schema
@@ -330,5 +334,6 @@ module.exports = {
   ERASURE_STORAGE_PREFIXES,
   OWNER_KEYED_DOCS,
   COMPANY_KEYED_TREES,
+  COMPANY_KEYED_STORAGE_PREFIXES,
   NESTED_LEADS_PATH,
 };

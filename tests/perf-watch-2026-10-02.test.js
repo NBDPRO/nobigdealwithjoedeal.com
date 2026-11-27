@@ -47,14 +47,15 @@ v = L.verdict([good, L.summarisePage('/down', [])]);
 ok('an unmeasured page is a note, never red', v.red === false && v.unmeasured.join() === '/down' && /not measured \(infra\)/.test(v.summary));
 
 console.log('\n3. Pages + wiring');
-ok('watches the money pages', ['/', '/book', '/estimate', '/our-work', '/storm-check'].every((p) => L.PAGES.includes(p)));
+ok('watches the money pages', ['/', '/inspect', '/estimate', '/our-work', '/roof-check'].every((p) => L.PAGES.includes(p)));
 ok('live site by default', L.BASE === 'https://nobigdealwithjoedeal.com' || !!process.env.PERF_BASE);
 const wf = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'perf-watch.yml'), 'utf8');
 ok('workflow is scheduled weekly and runnable by hand', /schedule:/.test(wf) && /cron: '[^']+'/.test(wf) && /workflow_dispatch:/.test(wf));
 ok('workflow runs the runner with a pinned Lighthouse CLI', /lighthouse@12/.test(wf) && /LIGHTHOUSE_CLI:/.test(wf) && /node scripts\/perf-watch\.mjs/.test(wf));
 ok('workflow is read-only', /permissions:\s*\n\s*contents: read/.test(wf));
-const book = fs.readFileSync(path.join(__dirname, '..', 'docs', 'book', 'index.html'), 'utf8');
-ok('/book preloads its two above-the-fold fonts (the CLS fix)', /rel="preload" href="\/assets\/fonts\/bebas-neue-400-latin\.woff2" as="font"/.test(book) && /rel="preload" href="\/assets\/fonts\/montserrat-400-latin\.woff2" as="font"/.test(book));
+// /book was folded into /inspect (2026-11-25); /inspect carries the same preload fix.
+const book = fs.readFileSync(path.join(__dirname, '..', 'docs', 'inspect.html'), 'utf8');
+ok('/inspect (was /book) preloads its two above-the-fold fonts (the CLS fix)', /rel="preload" href="\/assets\/fonts\/bebas-neue-400-latin\.woff2" as="font"/.test(book) && /rel="preload" href="\/assets\/fonts\/montserrat-400-latin\.woff2" as="font"/.test(book));
 
 // marketing-1 (2026-10-26): the /book fix was never generalised, so ~290 pages swapped fonts after first paint
 // (hero text and buttons jumped ~35px, CLS 0.10-0.29 at phone width). Every public page that links nbd-fonts.css
@@ -68,7 +69,7 @@ const lacking = linked.filter((r) => { const h = fs.readFileSync(path.join(DOCS,
 ok('the sweep reaches the public pages (guards against the walker matching nothing)', linked.length > 250, linked.length + ' pages');
 ok('every public page linking nbd-fonts.css preloads both fonts (' + linked.length + ' pages)', lacking.length === 0, lacking.length + ' lack them, e.g. ' + lacking.slice(0, 4).join(', '));
 ok('the only exemption (the offline fallback) names a real page', FP.NOT_MARKETING.every((r) => fs.existsSync(path.join(DOCS, r))));
-ok('the money pages perf-watch measures (/estimate, /storm-check) are in the sweep, not exempt', ['estimate.html', 'storm-check.html'].every((r) => pages.includes(r)));
+ok('the money pages perf-watch measures (/estimate, /roof-check) are in the sweep, not exempt', ['estimate.html', 'roof-check.html'].every((r) => pages.includes(r)));
 ok('docs/pro, admin, dev and sites stay out of the sweep', pages.every((r) => !/^(pro|admin|dev|sites)\//.test(r)));
 const LINK = '<link rel="stylesheet" href="/assets/css/nbd-fonts.css">';
 const stamped = FP.stamp('<head>\n  ' + LINK + '\n<style></style>\n');

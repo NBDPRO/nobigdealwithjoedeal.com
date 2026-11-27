@@ -1,0 +1,478 @@
+/**
+ * functions/doc-evidence.js — the server's side of the evidence and clause
+ * foundation (Jo, 2026-11-18, template/liability overhaul, phase 1). See
+ * documentation/projects/CLAUSE-EVIDENCE-FOUNDATION-2026-11-18.md.
+ *
+ * What a signed record must carry, on EVERY signing path: the clause-set version
+ * (clause-set.js), a SHA-256 digest of the exact document that was presented, the
+ * consent text shown, the signing time, and the signer's IP and user agent. The
+ * IP and user agent are read here, on the server, from the request — never taken
+ * from a value the client sent.
+ *
+ * No npm packages (db is injected, crypto is built in), so the authed E2E and
+ * the unit tests load it without functions/node_modules.
+ *
+ *   FLAG_NAME      the per-person feature flag docEvidenceFoundation (default OFF):
+ *                  the fail-closed send checks, the in-person evidence write and
+ *                  the remote-link consent checkbox. The stamps the existing
+ *                  server writes already make (clause set, digest) are additive
+ *                  and not gated.
+ *   buildEvidence  one record shape for every path: every key present, null when unknown.
+ *   stampFor       { clauseSetVersion, clauseIds } for a lead (+ estimate).
+ *   serverGaps     the shared contract-gap check (doc-send-checks.js) for a server caller.
+ */
+'use strict';
+
+const crypto = require('crypto');
+const ClauseSet = require('./clause-set');
+const Checks = require('./doc-send-checks');
+
+const FLAG_NAME = 'docEvidenceFoundation';
+const FLAG_DEFAULT = false;
+// Phase 2 (2026-11-18): print the clause set v1 on the contract-class paths. Per person, default OFF.
+const CLAUSE_FLAG_NAME = 'docClauseSetV1';
+// Phase 3 (2026-11-18): the attic acknowledgment and the gate behind it. Per person, default OFF.
+const ATTIC_FLAG_NAME = 'docAtticAckV1';
+// Signing-ease lane (2026-11-18, Q48/Q59/Q60): a sign link without an email (QR / text / copy panel), 14-day expiry. Per person, default OFF.
+const SIGN_PANEL_FLAG_NAME = 'docSignPanelV1';
+
+// The platform tenant's legal entity (company-profile.js brand.entityName default,
+// the same string). A tenant key-less record, or the NBD owner's, is NBD's; any
+// other tenant must set its own — never inherited.
+const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
+const NBD_ENTITY_NAME = 'No Big Deal Solutions LLC';
+const NBD_PHONE = '(859) 420-7382';
+
+/** Only the boolean true turns the flag on; per-person overrides the default doc. */
+function flagOn(flagsDefault, flagsMine, name) {
+  const merged = Object.assign({}, flagsDefault || {}, flagsMine || {});
+  return merged[name || FLAG_NAME] === true;
+}
+
+/**
+ * Is the flag on for this person? feature_flags/_default merged with the
+ * person's own doc. An unreadable flag reads OFF: this ships dark, and a read
+ * failure must never switch new behaviour on.
+ */
+async function flagForUid(db, uid, opts) {
+  // opts.strict (review 2026-11-18, finding 7): a SEND GATE must not read "off" because the
+  // read failed. With strict the error is thrown (the gate turns it into a retryable refusal);
+  // without it the old best-effort "unreadable reads OFF" holds, for the parts that only add.
+  const strict = !!(opts && opts.strict === true);
+  try {
+    const flagDocId = String(uid || '');
+    const reads = [db.doc('feature_flags/_default').get()];
+    if (flagDocId) reads.push(strict ? db.doc('feature_flags/' + flagDocId).get() : db.doc('feature_flags/' + flagDocId).get().catch(() => null));
+    const snaps = await Promise.all(reads);
+    const docs = snaps.map((s) => (s && s.exists ? (s.data() || {}) : {}));
+    return flagOn(docs[0], docs[1], opts && opts.flag);
+  } catch (e) { if (strict) throw e; return false; }
+}
+
+const FLAG_UNREADABLE_MSG = 'Could not run the pre-send document check just now. Nothing was sent. Try again in a moment.';
+
+/**
+ * The flag as a SEND GATE reads it: true / false, or a retryable 'unavailable' error when the
+ * flag could not be read at all (fail closed: a read error never switches a control off).
+ * HttpsError is passed in so this module stays free of npm packages.
+ */
+async function flagForGate(db, uid, HttpsError) {
+  try { return await flagForUid(db, uid, { strict: true }); }
+  catch (_) { throw new HttpsError('unavailable', FLAG_UNREADABLE_MSG); }
+}
+
+function sha256Hex(data) {
+  return crypto.createHash('sha256').update(data).digest('hex');
+}
+
+/**
+ * { ip, ua } of an HTTP request, read from the request itself (never the body).
+ * Lazy and guarded: a request with no readable address yields nulls, never a throw.
+ */
+function requestFacts(req) {
+  let ip = null;
+  let ipSource = null;
+  try {
+    const rl = require('./integrations/upstash-ratelimit');
+    if (typeof rl.clientIpInfo === 'function') { const info = rl.clientIpInfo(req || {}); ip = info.ip || null; ipSource = info.source || null; }
+    else { ip = rl.clientIp(req || {}) || null; ipSource = ip ? 'unreported' : null; }
+  } catch (_) { ip = null; ipSource = null; }
+  // clientIp's "no usable address" marker is not evidence: null, and the source says so (review 2, item 9),
+  // the same on every path (deal-acceptance.js uses this reading too).
+  if (!ip || ip === 'unknown') { ip = null; ipSource = 'unknown'; }
+  let ua = null;
+  try { ua = String((req && typeof req.get === 'function' && req.get('user-agent')) || '').slice(0, 300) || null; } catch (_) { ua = null; }
+  return { ip, ua, ipSource };
+}
+
+function _s(v, max) { return typeof v === 'string' && v ? v.slice(0, max) : null; }
+
+/**
+ * One evidence record, the same shape on every path. Every key is always
+ * present: a fact we do not have reads null, never an absent key a reader skips.
+ *   path            'esign_envelope' | 'deal_room' | 'in_person' | 'remote_link'
+ *   documentSha256  digest of the document as presented (the bytes the signer saw)
+ *   signedSha256    digest of the executed record, when there is one
+ *   consent         { agreed: true | false | null, text, at } — null = no consent step on this path
+ */
+const DELIVERY_CHANNELS = ['email', 'link_only'];
+
+function buildEvidence(input) {
+  const i = input || {};
+  const at = Number.isFinite(Number(i.signedAtMs)) ? Number(i.signedAtMs) : Date.now();
+  const c = i.consent || {};
+  return {
+    path: _s(i.path, 40),
+    clauseSetVersion: _s(i.clauseSetVersion, 60),
+    clauseIds: Array.isArray(i.clauseIds) ? i.clauseIds.slice(0, 60).map(String) : [],
+    // true when the stored document's clause-set marker did not match the refs the server recomputed (review 2026-11-18, item 4).
+    clauseRefsMismatch: i.clauseRefsMismatch === true,
+    documentSha256: _s(i.documentSha256, 64),
+    signedSha256: _s(i.signedSha256, 64),
+    consent: {
+      agreed: c.agreed === true ? true : (c.agreed === false ? false : null),
+      text: _s(c.text, 600),
+      at: c.agreed === true ? (Number.isFinite(Number(c.at)) ? Number(c.at) : at) : null,
+    },
+    signedAtMs: at,
+    ip: _s(i.ip, 64),
+    // How the address was derived ('xff:hops=1:chain=3' or 'socket'): the address is only as good as the
+    // proxy-hop count it assumes (functions/rate-limit.js NBD_TRUSTED_PROXY_HOPS, default 1).
+    ipSource: _s(i.ipSource, 80),
+    ua: _s(i.ua, 300),
+    recordedByUid: _s(i.recordedByUid, 128),
+    // Security review 2026-11-18, item 3 (flag docSignPanelV1 only; absent otherwise, so the earlier shape is untouched): how the
+    // signing link reached the signer and who minted it. A link-only link has no email on it: this records that the rep held the link.
+    ...(DELIVERY_CHANNELS.indexOf(i.deliveryChannel) !== -1 ? { deliveryChannel: i.deliveryChannel, mintedBy: _s(i.mintedBy, 128) } : {}),
+  };
+}
+
+/**
+ * Which by-reference clauses (statutory blocks the registry does not retype) a document's TEXT actually carries
+ * (review 2026-11-18, item 1). PAY-2 and WAR-4 are the template's own sections and cannot be read back from text: the
+ * caller that built the document attests them. -> { 'CANC-1': bool, 'INS-1': bool, 'INS-3': bool, 'INS-4': bool, 'LIEN-3': bool, 'PAY-2': false, 'WAR-4': false }
+ */
+function printedByRef(KyLaw, html) {
+  const raw = html == null ? '' : String(html);
+  const text = Checks.visibleText(raw).replace(/\s+/g, ' ');
+  const has = (s) => typeof s === 'string' && s.trim() !== '' && text.indexOf(s.replace(/\s+/g, ' ').trim()) !== -1;
+  return {
+    'CANC-1': !!(KyLaw && typeof KyLaw.hasCancelPacket === 'function' && KyLaw.hasCancelPacket(raw)),
+    'INS-1': has(KyLaw && KyLaw.PAYMENT_CLAUSE),
+    'INS-3': has(KyLaw && KyLaw.KY_NOTICE_CANCEL) && has(KyLaw && KyLaw.KY_NOTICE_NO_ASSIGNMENT),
+    'INS-4': /data-nbd-noc="ky"/.test(raw),
+    'LIEN-3': has(KyLaw && KyLaw.KY_LIEN_CLAUSE),
+    'PAY-2': false,
+    'WAR-4': false,
+  };
+}
+
+// Refs a document may carry or omit without that being a disagreement: the template's own payment schedule and
+// warranty section (a contract with no warranty tier prints no WAR-4).
+const OPTIONAL_REFS = ['PAY-2_V1', 'WAR-4_V1'];
+
+/**
+ * The v1 refs a document of this lead's kind can carry, recomputed on the server from the lead (state, payment
+ * source) and the registry's CURRENT wording versions; never read from the document. By-reference blocks are
+ * included only when printed (html given: read from the text; html null: all, for a server-built document).
+ */
+function expectedV1Refs(KyLaw, lead, est, html) {
+  const ctx = clauseContextFor(KyLaw, lead, est);
+  const byRef = html == null
+    ? { 'INS-1': true, 'INS-3': true, 'INS-4': true, 'LIEN-3': true, 'CANC-1': true }
+    : printedByRef(KyLaw, html);
+  const r = ClauseSet.renderV1({
+    state: ctx.state, paymentSource: ctx.paymentSource,
+    terms: ClauseSet.paymentTermsFor({}, true), party: ClauseSet.partyFor({}, true), facts: {},
+    printed: Object.assign({}, byRef, { 'PAY-2': true, 'WAR-4': true }),
+  });
+  return r.refs;
+}
+
+const _core = (list) => list.filter((x) => OPTIONAL_REFS.indexOf(x) === -1).slice().sort().join(',');
+
+/**
+ * { clauseSetVersion, clauseIds [, clauseRefsMismatch: true] } for a lead (+ estimate), through the one Kentucky classifier.
+ * opts.refs: refs a SERVER-built document reports (e-sign PDF, deal page); only refs the registry would print for this
+ *   lead are kept.
+ * opts.html + opts.v1: a stored document from the rep's browser. Its marker comment is only a HINT (a rep can write
+ *   anything into stored HTML): the refs are recomputed here from the lead and the document text, the marker must agree
+ *   with them, the version must be the registry's current one, and the clause flag must have been on (opts.v1 === true).
+ *   Anything else records the legacy statutory refs only and sets clauseRefsMismatch.
+ */
+function stampFor(KyLaw, lead, est, opts) {
+  let j = null;
+  try { j = KyLaw.classifyLead(lead || {}, est || {}); } catch (_) { j = null; }
+  let source = '';
+  // An unreadable state keeps the payment source unknown too: the strict set (fail closed).
+  if (j && j.state) {
+    const jt = typeof KyLaw.normJobType === 'function' ? KyLaw.normJobType((lead || {}).jobType) : '';
+    source = j.insurance ? 'insurance' : (jt === 'finance' ? 'financed' : 'cash');
+  }
+  const d = ClauseSet.describeFor({ state: j ? j.state : '', paymentSource: source });
+  const out = { clauseSetVersion: d.clauseSetVersion, clauseIds: d.clauses.map((c) => c.ref) };
+  const o = opts || {};
+  const add = (refs) => refs.forEach((r) => { if (out.clauseIds.indexOf(r) === -1) out.clauseIds.push(r); });
+  if (Array.isArray(o.refs)) {
+    let exp = [];
+    try { exp = expectedV1Refs(KyLaw, lead, est, null); } catch (_) { exp = []; }
+    const keep = o.refs.map(String).filter((r) => exp.indexOf(r) !== -1);
+    if (keep.length) add(keep);
+  } else if (typeof o.html === 'string') {
+    const m = /<!-- nbd:clause-set (CS-[0-9.-]+) ([A-Za-z0-9_,-]{1,2000}) -->/.exec(o.html);
+    if (m) {
+      let exp = null;
+      try { exp = expectedV1Refs(KyLaw, lead, est, o.html); } catch (_) { exp = null; }
+      const claimed = m[2].split(',');
+      const same = !!exp && o.v1 === true && m[1] === ClauseSet.CLAUSE_SET_VERSION
+        && claimed.every((r) => exp.indexOf(r) !== -1) && _core(claimed) === _core(exp);
+      if (same) add(claimed); else out.clauseRefsMismatch = true;
+    }
+  }
+  return out;
+}
+
+/** Is this tenant key the NBD platform tenant (or key-less, which reads as NBD like entityNameFor)? */
+function isNbdTenant(tenantKey) { return !tenantKey || String(tenantKey) === NBD_OWNER_UID; }
+
+/** { state, paymentSource } the clause set reads for a lead (+ estimate): unreadable state keeps the source unknown (strict). */
+function clauseContextFor(KyLaw, lead, est) {
+  let j = null;
+  try { j = KyLaw.classifyLead(lead || {}, est || {}); } catch (_) { j = null; }
+  if (!j || !j.state) return { state: '', paymentSource: '' };
+  const jt = typeof KyLaw.normJobType === 'function' ? KyLaw.normJobType((lead || {}).jobType) : '';
+  return { state: j.state, paymentSource: j.insurance ? 'insurance' : (jt === 'finance' ? 'financed' : 'cash') };
+}
+
+/**
+ * The clause set v1 for a server-built document (flag docClauseSetV1): renderV1 with this tenant's numbers
+ * (NBD's own only for the NBD tenant), its party block and the job facts. Pure; the caller reads the flag.
+ */
+function buildClauseSet(KyLaw, lead, est, profile, tenantKey, facts, printed) {
+  // Review 2026-11-18, item 9: a lead with neither companyId nor userId is nobody's. It never reads as NBD (NBD's numbers
+  // and party names); the v1 build is refused instead.
+  if (!tenantKey) {
+    const err = new Error('This lead has no company on it, so the clause set cannot be built. Open the lead, check its company, and try again.');
+    err.clauseRefused = true;
+    throw err;
+  }
+  const nbd = isNbdTenant(tenantKey);
+  const p = profile || {};
+  const brand = p.brand || {};
+  const ctx = clauseContextFor(KyLaw, lead, est);
+  const phone = String(((brand.contact || {}).phone) || '').trim() || (nbd ? NBD_PHONE : '');
+  return ClauseSet.renderV1({
+    state: ctx.state, paymentSource: ctx.paymentSource,
+    terms: ClauseSet.paymentTermsFor(p.paymentTerms, nbd),
+    party: ClauseSet.partyFor(brand, nbd),
+    // Review 2026-11-18, item 7: user-supplied facts carry no scannable {{token}} into the document.
+    facts: Object.assign({ companyPhone: ClauseSet.plain(phone) }, safeFacts(facts)),
+    printed: printed || undefined,
+  });
+}
+
+/** The job facts with every string made token-safe (ClauseSet.plain); non-strings (milestones) pass through. */
+function safeFacts(facts) {
+  const out = {};
+  Object.keys(facts || {}).forEach((k) => {
+    const v = facts[k];
+    out[k] = typeof v === 'string' ? ClauseSet.plain(v) : (Array.isArray(v) ? v.map((x) => (typeof x === 'string' ? ClauseSet.plain(x) : x)) : v);
+  });
+  return out;
+}
+
+/** The by-reference blocks the server e-sign estimate PDF actually prints: the Payment clause, the FTC cancellation forms and, when the estimate has a deposit plan, its schedule. */
+function pdfByRef(hasDepositPlan) {
+  return { 'PAY-2': !!hasDepositPlan, 'INS-1': true, 'CANC-1': true, 'WAR-4': false, 'INS-3': false, 'INS-4': false, 'LIEN-3': false };
+}
+
+/** buildClauseSet for a callable: a refusal becomes a failed-precondition HttpsError (HttpsError is passed in). */
+function buildClauseSetFor(HttpsError, KyLaw, lead, est, profile, tenantKey, facts, printed) {
+  try { return buildClauseSet(KyLaw, lead, est, profile, tenantKey, facts, printed); }
+  catch (e) {
+    if (e && e.clauseRefused) throw new HttpsError('failed-precondition', e.message);
+    throw e;
+  }
+}
+
+const _esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+/** The clause set as the HTML block the deal page carries: escaped, ids shown, bold lead-ins. */
+function clauseSetHtml(cs) {
+  const para = (t) => _esc(t).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  const items = (list) => (list || []).filter((x) => !x.byRef).map((x) => x.paragraphs.map((p) =>
+    '<p style="margin:6px 0;"><span style="color:#777;font-size:10px;">' + _esc(x.id) + '</span> ' + para(p) + '</p>').join('')).join('');
+  const parts = [];
+  if (cs.party) parts.push('<h3 style="margin:10px 0 4px;font-size:13px;">Parties</h3><p style="margin:6px 0;"><span style="color:#777;font-size:10px;">PARTY-1</span> ' + para(cs.party.paragraphs[0]) + '</p>');
+  (cs.sections || []).forEach((s) => {
+    const inner = items(s.items);
+    if (inner) parts.push('<h3 style="margin:10px 0 4px;font-size:13px;">' + _esc(s.title) + '</h3>' + inner);
+  });
+  if (cs.partyBlock) parts.push('<p style="margin:10px 0 4px;font-size:12px;"><strong>' + _esc(cs.partyBlock.nameLine) + '</strong><br>' + _esc(cs.partyBlock.byLine) + '</p>');
+  return '<div data-nbd-clause-set="' + _esc(cs.clauseSetVersion) + '" style="background:#fff;color:#111;border-radius:10px;padding:14px;margin:16px 0;font-size:12px;line-height:1.5;">' + parts.join('') + '</div>';
+}
+
+/** Put the clause block before the page's Sign & Schedule section (else the signature box, else the end). */
+function injectClauseBlock(html, block) {
+  const h = String(html == null ? '' : html);
+  if (!block) return h;
+  const marks = ['<div class="section-title">Sign & Schedule</div>', '<div class="section-title">Sign &amp; Schedule</div>', '<div class="sign-section">', '</body>'];
+  for (let k = 0; k < marks.length; k++) {
+    const at = h.indexOf(marks[k]);
+    if (at >= 0) return h.slice(0, at) + block + h.slice(at);
+  }
+  return h + block;
+}
+
+/** The flag as a send gate reads it (a read error is a retryable refusal, never "off"). */
+async function clauseFlagForGate(db, uid, HttpsError) {
+  try { return await flagForUid(db, uid, { strict: true, flag: CLAUSE_FLAG_NAME }); }
+  catch (_) { throw new HttpsError('unavailable', FLAG_UNREADABLE_MSG); }
+}
+
+/** The sign-link panel flag as createSignRequest reads it (a read error is a retryable refusal, never "off"). */
+async function signPanelFlagForGate(db, uid, HttpsError) {
+  try { return await flagForUid(db, uid, { strict: true, flag: SIGN_PANEL_FLAG_NAME }); }
+  catch (_) { throw new HttpsError('unavailable', FLAG_UNREADABLE_MSG); }
+}
+
+/**
+ * The sign-link panel flag for a caller that did NOT ask for a link-only mint (security review 2026-11-18, item 1): a loose read, a
+ * failed read is "off", so flag-off behaviour (and any outage) is exactly what it was before the flag existed.
+ */
+async function signPanelFlagLoose(db, uid) {
+  return flagForUid(db, uid, { flag: SIGN_PANEL_FLAG_NAME });
+}
+
+/** The attic flag as a send gate reads it (a read error is a retryable refusal, never "off"). */
+async function atticFlagForGate(db, uid, HttpsError) {
+  try { return await flagForUid(db, uid, { strict: true, flag: ATTIC_FLAG_NAME }); }
+  catch (_) { throw new HttpsError('unavailable', FLAG_UNREADABLE_MSG); }
+}
+
+/**
+ * Review 2026-11-18, finding 3: the attic gate is ON when the acting user's flag OR the tenant owner's flag (the lead's
+ * companyId, an owner's own uid) is on, so a rep without the flag cannot sign a re-roof freely under an owner who has it.
+ * Both reads are strict: a read that fails is a retryable refusal, never "off".
+ */
+async function atticGateOn(db, uid, lead, HttpsError) {
+  try {
+    if (await flagForUid(db, uid, { strict: true, flag: ATTIC_FLAG_NAME })) return true;
+    const co = lead && typeof lead.companyId === 'string' ? lead.companyId : '';
+    if (co && co !== String(uid || '') && /^[A-Za-z0-9_-]{1,128}$/.test(co)) return await flagForUid(db, co, { strict: true, flag: ATTIC_FLAG_NAME });
+    return false;
+  } catch (_) { throw new HttpsError('unavailable', FLAG_UNREADABLE_MSG); }
+}
+
+/** The legal entity a tenant's contracts name: its own, else NBD's for the NBD tenant only. */
+function entityNameFor(profile, tenantKey) {
+  const own = String(((profile || {}).brand || {}).entityName || '').trim();
+  if (own) return own;
+  return (!tenantKey || String(tenantKey) === NBD_OWNER_UID) ? NBD_ENTITY_NAME : '';
+}
+
+/** The shared contract-gap check (doc-send-checks.js) for a server caller. */
+function serverGaps(facts) {
+  return Checks.contractGaps(facts);
+}
+
+/**
+ * The full gap check as the SERVER can run it (review 2026-11-18, finding 2): from the stored
+ * document, the lead, the tenant profile and the price, never from anything the browser claims.
+ * The browser check is only UX; this is the gate.
+ *   o = { type, html, lead, profile, tenantKey, KyLaw, priceCents, address, homeownerName }
+ * Start date and estimated completion live in the generator's form data, which the server never
+ * sees (the stored HTML prints them as free text), so those two are not checked here: they are
+ * marked present, and the [placeholder] scan still catches an unfilled token for them.
+ */
+function serverContractGaps(o) {
+  const x = o || {};
+  const lead = x.lead || {};
+  const KyLaw = x.KyLaw;
+  const name = x.homeownerName != null ? x.homeownerName
+    : [lead.firstName, lead.lastName].filter(Boolean).join(' ') || lead.name || lead.fullName;
+  return Checks.contractGaps({
+    type: x.type || 'contract',
+    priceCents: x.priceCents,
+    address: x.address != null ? x.address : lead.address,
+    homeownerName: name,
+    mailingAddress: KyLaw && typeof KyLaw.contractorMailingAddress === 'function' ? KyLaw.contractorMailingAddress(x.profile || {}) : '',
+    needsMailingAddress: !(Checks.isP5 && Checks.isP5(x.type)),   // a phase 5 form carries no cancellation forms, so no mailing address is printed on it
+    entityName: entityNameFor(x.profile, x.tenantKey),
+    state: (() => { try { return String((KyLaw && KyLaw.classifyLead ? KyLaw.classifyLead(lead, {}) : {}).state || ''); } catch (_) { return ''; } })(),
+    startDate: 'not observable on the server', estimatedCompletion: 'not observable on the server',
+    text: x.html == null ? '' : x.html,
+    clauseConfigMissing: x.clauseConfigMissing,
+    // Co-owners (flag docClauseSetV1): the caller passes these only when the flag is on.
+    secondOwnerName: x.secondOwnerName, signerRoles: x.signerRoles,
+  });
+}
+
+/**
+ * The signature blocks a signed copy carries as finalized: [{ role, label, signedAt }], in document order.
+ * Read from the stored copy by the server (never from the call). Linear: one pass over the opening tags.
+ */
+function signedRoles(html) {
+  const s = html == null ? '' : String(html);
+  const out = [];
+  const re = /<div\b[^>]*\bdata-nbd-sig\s*=\s*"([^"]{1,64})"[^>]*>/gi;
+  let m;
+  while ((m = re.exec(s)) !== null && out.length < 12) {
+    const tag = m[0];
+    if (!/data-nbd-sig-finalized\s*=\s*"1"/i.test(tag)) continue;
+    const at = /data-nbd-sig-signed-at\s*=\s*"([^"]{0,40})"/i.exec(tag);
+    const lb = /data-label\s*=\s*"([^"]{0,80})"/i.exec(tag);
+    out.push({ role: m[1].replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40), label: lb ? lb[1] : null, signedAt: at ? at[1] : null });
+  }
+  return out;
+}
+
+/**
+ * Every signature block a stored document carries, finalized or not: the roles, in order. The co-owner gate reads THIS (the
+ * stored document's own blocks), not the row's `signers` list, which a client writes (security review 2026-11-18, HIGH2).
+ */
+function sigBlockRoles(html) {
+  const s = html == null ? '' : String(html);
+  const out = [];
+  const re = /<div\b[^>]*\bdata-nbd-sig\s*=\s*"([^"]{1,64})"/gi;
+  let m;
+  while ((m = re.exec(s)) !== null && out.length < 24) out.push(m[1].replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40));
+  return out;
+}
+
+/**
+ * The second owner this lead has (flag docClauseSetV1, Q52), from a place a rep cannot rewrite. The lead's own secondOwnerName
+ * is client-writable, so the first time the gate sees one the SERVER records it (second_owner_records/{leadId}, admin-only in
+ * firestore.rules); from then on the recorded name wins, and clearing the lead's field cannot lower the requirement.
+ * A record that cannot be read or written throws an error with code 'unavailable' (the caller refuses, retryable): it never
+ * reads as "no second owner". Residual: removing a recorded second owner needs an admin to delete that document.
+ */
+async function secondOwnerFor(db, leadId, lead) {
+  const unavailable = (e) => { const er = new Error('Could not check the co-owner record just now. Try again in a moment.'); er.code = 'unavailable'; er.cause = e; return er; };
+  const ref = db.doc('second_owner_records/' + leadId);
+  let rec = null;
+  try { const snap = await ref.get(); rec = snap && snap.exists ? (snap.data() || {}) : null; } catch (e) { throw unavailable(e); }
+  const recorded = rec && typeof rec.name === 'string' ? rec.name.trim().slice(0, 80) : '';
+  const own = lead && typeof lead.secondOwnerName === 'string' ? lead.secondOwnerName.trim().slice(0, 80) : '';
+  if (!recorded && own) {
+    try { await ref.set({ name: own, recordedAt: Date.now() }); } catch (e) { throw unavailable(e); }
+  }
+  return recorded || own;
+}
+
+/** Cents from an estimate document (grandTotal, else total), or null. */
+function estimateCents(est) {
+  const n = Number(est && (est.grandTotal != null ? est.grandTotal : est.total));
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
+}
+
+/** Is the clause-set v1 flag on for this person? An unreadable flag reads OFF (it only adds text; the send gate is the other flag). */
+function clauseFlagForUid(db, uid) { return flagForUid(db, uid, { flag: CLAUSE_FLAG_NAME }); }
+
+module.exports = {
+  CLAUSE_FLAG_NAME, clauseFlagForUid, ATTIC_FLAG_NAME, atticFlagForGate, atticGateOn,
+  FLAG_NAME, FLAG_DEFAULT, NBD_ENTITY_NAME, CLAUSE_SET_VERSION: ClauseSet.CLAUSE_SET_VERSION,
+  NBD_OWNER_UID_FOR_TESTS: NBD_OWNER_UID, clauseSetHtml, injectClauseBlock, isNbdTenant, clauseContextFor, buildClauseSet, buildClauseSetFor, clauseFlagForGate, signPanelFlagForGate, signPanelFlagLoose, DELIVERY_CHANNELS, printedByRef, expectedV1Refs, pdfByRef, flagOn, flagForUid, flagForGate, FLAG_UNREADABLE_MSG, sha256Hex, requestFacts, buildEvidence, stampFor, entityNameFor, serverGaps,
+  serverContractGaps, signedRoles, sigBlockRoles, secondOwnerFor, estimateCents, isContractClass: Checks.isContractClass,
+  describeGaps: Checks.describeGaps,
+};

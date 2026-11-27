@@ -23,13 +23,14 @@
  */
 'use strict';
 
-const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler
+const { onSchedule, softFail } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler; softFail = a caught main failure still fails the run
 const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const MessagingControls = require('./messaging-controls');
 const { getStorage } = require('firebase-admin/storage');
 const L = require('./call-center-logic');
 const MG = require('./call-merge-logic');
+const TPL = require('./thursday-projection-logic'); // one call record (roadmap step 17C)
 const PR = require('./promise-logic');
 const TCT = require('./task-call-text'); // a call task's call text, off the viewer-readable task (Q11)
 const CL = require('./contact-labels');
@@ -44,11 +45,13 @@ const { defineSecret: _defineSecret } = require('firebase-functions/params');
 const TWILIO_ACCOUNT_SID = _defineSecret('TWILIO_ACCOUNT_SID');
 const TWILIO_AUTH_TOKEN = _defineSecret('TWILIO_AUTH_TOKEN');
 const TWILIO_PHONE_NUMBER = _defineSecret('TWILIO_PHONE_NUMBER');
-async function sendAutoText({ to, body }) {
+// recipient / companyProfile / nowMs: the missed-call plan's own window answer,
+// handed to guardTwilio so the central check agrees with it (send-window.js).
+async function sendAutoText({ to, body, recipient, companyProfile, nowMs }) {
   const { secretValue: sv } = require('./integrations/_shared');
   const sid = sv(TWILIO_ACCOUNT_SID), tok = sv(TWILIO_AUTH_TOKEN), from = sv(TWILIO_PHONE_NUMBER);
   if (!sid || !tok || !from) throw new Error('twilio-not-configured');
-  return MessagingControls.guardTwilio(getFirestore(), require('twilio')(sid, tok)).messages.create({ to, from, body });
+  return MessagingControls.guardTwilio(getFirestore(), require('twilio')(sid, tok)).messages.create({ to, from, body }, { recipient, companyProfile, nowMs });
 }
 const CONFIG = 'integrations/callCenter';
 const COLLECTION = 'phone_calls';
@@ -150,7 +153,7 @@ async function runIngest({ db, bucket, live, nowMs, feed }) {
   // moved since the cursor was built, the scan restarts at it once.
   const floor = L.historyFloor(cfg.backfillFrom);
   const startCursor = L.scanCursor(cfg, floor);
-  const days = await listAll("'" + root + "' in parents and mimeType = '" + FOLDER_MIME + "' and trashed = false", 'id, name');
+  const days = await listAll("'" + root + "' in parents and mimeType = '" + FOLDER_MIME + "' and trashed = false", 'id, name, createdTime');
   const scan = L.foldersToScan(days, startCursor, floor);
 
   const index = L.buildPhoneIndex(await ownerLeads(db, fd));
@@ -160,26 +163,56 @@ async function runIngest({ db, bucket, live, nowMs, feed }) {
   const counts = { folders: scan.length, seen: 0, fresh: 0, stored: 0, skipped: 0, failed: 0, buckets: {} };
   let cursor = startCursor;
   let budget = MAX_FILES_PER_RUN;
+  // A re-upload (Cube ACR "Force backup") is a new Drive id for a call already
+  // filed: matched by file name for this owner and day. One read per day, only
+  // when that day has a fresh file. A failed read files it (never lose a call).
+  // The phone's own name for the same call (hand upload) differs, so a call is
+  // also matched by start second + number (callKey).
+  const callKey = (startedAtMs, digits) => 't:' + startedAtMs + '|' + (digits || '');
+  const namesByDay = new Map();
+  async function filedNames(ymd) {
+    if (!namesByDay.has(ymd)) {
+      const set = new Set();
+      try {
+        (await db.collection(COLLECTION).where('userId', '==', fd.owner).where('ymd', '==', ymd).get())
+          .forEach((s) => {
+            const d = s.data() || {};
+            if (d.fileName) set.add(d.fileName);
+            if (d.startedAtMs && d.phoneDigits) set.add(callKey(d.startedAtMs, d.phoneDigits));
+          });
+      } catch (_) { /* no guard this run */ }
+      namesByDay.set(ymd, set);
+    }
+    return namesByDay.get(ymd);
+  }
 
   // One day folder: file what's new; true when every recording in it is done.
-  async function fileDay(day) {
-    const files = await listAll("'" + day.id + "' in parents and trashed = false", 'id, name, size, mimeType, createdTime');
+  // loose = the top folder itself (2026-11-18: Cube ACR started uploading
+  // there instead of into day folders): its subfolders are not files, and its
+  // recordings are held to the history floor by the date in their name.
+  async function fileDay(day, loose) {
+    const files = await listAll("'" + day.id + "' in parents" + (loose ? " and mimeType != '" + FOLDER_MIME + "'" : '') + ' and trashed = false', 'id, name, size, mimeType, createdTime');
     files.sort((a, b) => String(a.name).localeCompare(String(b.name)));
     let finishedDay = true;
-    // One batched read per day folder for "already filed?".
+    // Batched reads for "already filed?" (the top folder keeps growing, so in chunks).
     // Sidecars (.json, Cube ACR's per-call metadata) by name: duration only.
     const sidecars = new Map(files.filter((f) => /\.json$/i.test(f.name || '')).map((f) => [f.name, f]));
     const refs = files.map((f) => db.collection(COLLECTION).doc(L.callDocId(f.id)));
     const have = new Set();
-    if (refs.length) (await db.getAll(...refs)).forEach((s) => { if (s.exists) have.add(s.id); });
+    for (let i = 0; i < refs.length; i += 300) (await db.getAll(...refs.slice(i, i + 300))).forEach((s) => { if (s.exists) have.add(s.id); });
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
+      if (loose && f.mimeType === FOLDER_MIME) continue;
       if (sidecars.has(f.name)) continue; // read alongside its recording
       const parsed = L.parseCubeAcrName(f.name);
       if (!parsed) { counts.skipped++; continue; }
+      if (loose && parsed.ymd < floor) continue;
       counts.seen++;
       const docRef = refs[i];
       if (have.has(docRef.id)) continue;
+      const filed = await filedNames(parsed.ymd);
+      const key = parsed.phoneDigits ? callKey(parsed.startedAtMs, parsed.phoneDigits) : null;
+      if (filed.has(f.name) || (key && filed.has(key))) { counts.reuploaded = (counts.reuploaded || 0) + 1; continue; }
       // Too big to copy is permanent, not a retry: log it and move on, so it
       // never holds its day (and every day after it) open.
       if (Number(f.size) > MAX_BYTES) {
@@ -219,6 +252,13 @@ async function runIngest({ db, bucket, live, nowMs, feed }) {
         const callDoc = L.buildCallDoc({ ownerUid: fd.owner, companyId: fd.nbd ? undefined : fd.companyId, file: f, parsed, match, bucket: bucketName, storedPath: path, nowMs, durationSec });
         await docRef.set(Object.assign({}, callDoc, { createdAt: FieldValue.serverTimestamp() }));
         counts.stored++;
+        filed.add(f.name); if (key) filed.add(key); // its twin later in this run is a re-upload
+        // One call record (roadmap step 17C): a call Thursday also took is
+        // linked to its phone_calls/thursday_<id> projection, one card not two.
+        if (callDoc.phoneDigits) {
+          try { await require('./thursday-projection').linkCubeRow({ db, cube: Object.assign({ id: docRef.id }, callDoc), log: logger }); }
+          catch (e) { logger.warn('call_center_thursday_link_failed', { id: docRef.id, err: e && e.message }); }
+        }
         // Speed-to-lead auto-text (2026-10-15): dark unless
         // MISSED_CALL_AUTOTEXT_ENABLED === 'true'; consented customers only.
         // 2026-10-19: ALSO needs messaging_controls/automations
@@ -249,6 +289,19 @@ async function runIngest({ db, bucket, live, nowMs, feed }) {
   const recentFrom = L.daysBefore(etYmd(nowMs), RECENT_DAYS - 1);
   const done = new Map();
   for (const day of scan.filter((d) => d.ymd >= recentFrom).reverse()) done.set(day.ymd, await fileDay(day));
+  // Recordings loose in the top folder: re-listed every run; they never move the cursor.
+  await fileDay({ id: root }, true);
+  // A backfill (Cube ACR "Force backup", 2026-11-18) can create a day folder
+  // dated before the cursor, which the scan above never reaches. Any day
+  // folder CREATED in the last 2 days is read once more; it never moves the
+  // cursor, and calls already filed are skipped as re-uploads.
+  const scanned = new Set(scan.map((d) => d.id));
+  for (const day of days) {
+    const ymd = L.dayFolderDate(day.name);
+    const created = Date.parse(day.createdTime || '');
+    if (!ymd || ymd < floor || scanned.has(day.id) || !(created > nowMs - 2 * 86400000)) continue;
+    await fileDay(day);
+  }
   for (const day of scan.filter((d) => d.ymd < recentFrom)) {
     const fin = await fileDay(day);
     done.set(day.ymd, fin);
@@ -432,9 +485,13 @@ exports.callCenterIngest = onSchedule(
     try {
       const r = await runIngest({ db, bucket: getStorage().bucket(), live, nowMs: Date.now() });
       logger.info('[callCenterIngest]', r);
+      // Live, a missing or doubled "Cube ACR" folder returns normally but copies nothing.
+      if (live && (r.state === 'not_shared' || r.state === 'ambiguous_folder')) softFail(new Error('callCenterIngest: ' + r.state));
     } catch (e) {
       // 403/404 before the folder is shared is the expected idle state.
       logger.warn('[callCenterIngest] failed', { err: e && e.message, code: e && (e.code || (e.response && e.response.status)) });
+      // ...but only while the gate is off: live, a 403 means the pipeline is dead.
+      softFail(e, { expected: live ? [] : [403, 404] });
     }
     // Call to Close P2: other tenants, after NBD's own pass (dark unless
     // CALL_CENTER_MULTI_TENANT_ENABLED === 'true' AND a config is enabled).
@@ -461,7 +518,9 @@ exports.callCenterIngest = onSchedule(
 //   leads/{id}/tasks/cube-{id}      ONE follow-up task, only when Jo promised
 //                                   something or a follow-up date came out
 // A call the model calls "personal" keeps no transcript, files nothing, and
-// its CRM audio copy is deleted (the original stays in Jo's Drive).
+// its CRM audio copy is deleted (the original stays in Jo's Drive) — unless
+// the call is on a lead: then the audio is kept and the call waits as
+// personal (personalSuggested) for a person's "It wasn't personal".
 //
 // Gate: CALL_CENTER_TRANSCRIBE_ENABLED=true runs the backlog (newest first,
 // 12 a run, ≤ 7.5 h audio a day). With the gate OFF, only the ids on
@@ -471,7 +530,6 @@ exports.callCenterIngest = onSchedule(
 const { defineSecret } = require('firebase-functions/params');
 const { SECRETS, secretValue } = require('./integrations/_shared');
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
-const NOTES_MODEL = 'claude-haiku-4-5-20251001';
 const TRANSCRIBE_PER_RUN = 12;
 const TRANSIENT_MAX = 6; // consecutive 5xx/overloaded failures of ONE call before it counts as the call's fault
 const transcribeEnabled = () => process.env.CALL_CENTER_TRANSCRIBE_ENABLED === 'true';
@@ -481,12 +539,12 @@ function deps() {
   if (_deps) return _deps;
   const { transcribeGroqBuffer } = require('./integrations/voice-intelligence');
   return {
-    transcribe: async (buffer, ext) => {
+    transcribe: async (buffer, ext, companyId) => {
       // Groq refuses .amr/.3gp/.aac (Cube ACR): re-encoded to FLAC first.
       const p = await require('./call-audio-transcode').prepareForGroq(buffer, ext);
       // confidence: Whisper's per-segment avg_logprob, kept as the call's
       // segIndex (Call to Close P1: unsure quotes in the brief).
-      return transcribeGroqBuffer({ buffer: p.buffer, mimeType: p.mimeType, filename: p.filename, timeoutMs: 300_000, feature: 'call-center-transcribe', confidence: true });
+      return transcribeGroqBuffer({ buffer: p.buffer, mimeType: p.mimeType, filename: p.filename, timeoutMs: 300_000, feature: 'call-center-transcribe', confidence: true, companyId });
     },
     notes: claudeNotes,
     // callWatch's push sender (Jo's own devices; never a customer).
@@ -495,24 +553,19 @@ function deps() {
 }
 
 // Shared with text-inbox.js (textInboxNotes binds its own ANTHROPIC_API_KEY).
-async function claudeNotes({ system, prompt, feature, maxTokens }) {
-  const key = secretValue(ANTHROPIC_API_KEY);
-  if (!key) throw new Error('anthropic-not-configured');
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'x-api-key': key },
-    body: JSON.stringify({ model: NOTES_MODEL, max_tokens: Number(maxTokens) || 900, system, messages: [{ role: 'user', content: prompt }] }),
-    signal: AbortSignal.timeout(60_000),
+// 2026-11-25 (roadmap step 15): through functions/ai-client.js (the Anthropic
+// SDK). The route is the feature (call-center-notes / -facts, text-notes,
+// visit-notes, promise-cleanup), so the model, timeout and retries come from
+// functions/ai-models.js; ai-client records the spend with the companyId.
+// Every caller runs the one AI gate before its pass (gate: 'caller'). Errors
+// keep their old shape ('anthropic 529: …', status, provider) for
+// L.classifyProviderError.
+async function claudeNotes({ system, prompt, feature, maxTokens, companyId }) {
+  const r = await require('./ai-client').createMessage({
+    route: feature || 'call-center-notes', system, messages: [{ role: 'user', content: prompt }],
+    maxTokens, companyId, gate: 'caller', apiKey: secretValue(ANTHROPIC_API_KEY), log: logger,
   });
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    const err = new Error('anthropic ' + res.status + ': ' + String((data && data.error && data.error.message) || '').slice(0, 200));
-    err.status = res.status; err.provider = 'anthropic'; // L.classifyProviderError
-    throw err;
-  }
-  // AI spend in one place (functions/ai-spend.js) — one counter row per call.
-  await require('./ai-spend').recordAiSpend(require('./ai-spend').rowFromAnthropic(feature || 'call-center-notes', NOTES_MODEL, data), { log: logger });
-  const text = ((data && data.content) || []).map((c) => (c && c.type === 'text' ? c.text : '')).join('').trim();
+  const text = r.text;
   const m = /\{[\s\S]*\}/.exec(text);
   if (!m) throw new Error('notes: no JSON');
   return JSON.parse(m[0]);
@@ -651,7 +704,9 @@ async function unfiledNoted(db, feed) {
   const fd = feed || NBD_FEED;
   const q = await db.collection(COLLECTION).where('userId', '==', fd.owner).where('status', '==', 'noted').where('leadId', '==', null).limit(500).get();
   const rows = [];
-  q.forEach((d) => { const r = Object.assign({}, d.data() || {}, { id: d.id }); if (fd.nbd || inFeed(fd, r)) rows.push(r); });
+  // A Thursday call's projection (roadmap step 17C) is filed from the Thursday
+  // inbox, so it gets no "Looks like X" suggestion here.
+  q.forEach((d) => { const r = Object.assign({}, d.data() || {}, { id: d.id }); if ((fd.nbd || inFeed(fd, r)) && !TPL.isProjection(r)) rows.push(r); });
   return rows;
 }
 async function backfillSuggestions({ db, nowMs, leads, rows, feed }) {
@@ -694,7 +749,7 @@ async function reextractFacts({ db, d, rows, cfg, today, nowMs, getLeads, feed }
     }
     out.aiCalls++;
     try {
-      const facts = L.sanitizeCallerFacts(await d.notes({ system: L.factsSystemFor((feed || NBD_FEED).tenant), prompt: L.buildFactsPrompt({ transcript: c.transcript }), feature: 'call-center-facts' }));
+      const facts = L.sanitizeCallerFacts(await d.notes({ system: L.factsSystemFor((feed || NBD_FEED).tenant), prompt: L.buildFactsPrompt({ transcript: c.transcript }), feature: 'call-center-facts', companyId: (feed || NBD_FEED).companyId }));
       Object.assign(c, { callerFacts: facts, factsV: L.FACTS_VERSION });
       const sp = suggestionPatch(c, await getLeads(), nowMs);
       await ref.set(Object.assign({ callerFacts: facts, factsV: L.FACTS_VERSION, factsAtMs: nowMs }, sp), { merge: true });
@@ -842,6 +897,20 @@ async function runTranscribe({ db, bucket, live, nowMs, only, feed }) {
   }
   const allowIds = only ? [] : (Array.isArray(cfg.transcribeOnly) ? cfg.transcribeOnly : []);
   if (!live && !allowIds.length) return { state: 'off' };
+  // The one AI gate (functions/ai-gate.js aiGate, 2026-11-25): this feed's
+  // tenant plan (fails closed) and the daily spend breaker, before any spend.
+  const gate = await require('./ai-gate').aiGate(db, { companyId: fd.companyId, feature: 'call-center' });
+  if (!gate.ok) {
+    const gated = { state: 'gated', reason: gate.reason };
+    // The scheduled pass still writes its run record, so pipeline-deadman /
+    // pipeline-health see a pass that ran and was paused by the AI gate, not
+    // a stalled job. A Transcribe-now run (`only`) never writes it.
+    if (!only) {
+      try { await ref.set({ lastTranscribeAtMs: nowMs, lastTranscribe: gated }, { merge: true }); }
+      catch (e) { logger.warn('call_center_gated_record_failed', { err: e && e.message }); }
+    }
+    return gated;
+  }
 
   const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
   const usedSec = (gcfg.audioSecDay === today && Number(gcfg.audioSecUsed)) || 0;
@@ -902,7 +971,7 @@ async function runTranscribe({ db, bucket, live, nowMs, only, feed }) {
       } else {
         let buf;
         try { buf = await readStoredAudio(bucket, call.storagePath); } catch (se) { if (se && typeof se === 'object') se.notProvider = true; throw se; }
-        t = await d.transcribe(buf, String(call.storagePath).split('.').pop());
+        t = await d.transcribe(buf, String(call.storagePath).split('.').pop(), fd.companyId);
         out.audioSec += Number(t.durationSec) || L.estimateAudioSec(call.sizeBytes);
       }
 
@@ -912,7 +981,9 @@ async function runTranscribe({ db, bucket, live, nowMs, only, feed }) {
         const ls = await db.doc('leads/' + call.leadId).get();
         if (ls.exists) { leadDoc = ls.data(); leadName = ((leadDoc.firstName || '') + ' ' + (leadDoc.lastName || '')).trim(); }
       }
-      const notes = L.sanitizeNotes(await d.notes({ system: L.notesSystemFor(fd.tenant), prompt: L.buildNotesPrompt({ call, transcript: t.text, leadName, tenant: fd.tenant }), feature: 'call-center-notes' }));
+      // A call on an existing lead never gets the model's "personal" verdict
+      // applied (that deletes its CRM audio): it is held for review instead.
+      const notes = L.sanitizeNotes(await d.notes({ system: L.notesSystemFor(fd.tenant), prompt: L.buildNotesPrompt({ call, transcript: t.text, leadName, tenant: fd.tenant }), feature: 'call-center-notes', companyId: fd.companyId }), { matched: !!leadDoc && leadDoc.deleted !== true && call.notPersonal !== true });
       // Jo said "it wasn't personal" (callCenterAction notpersonal): the
       // model's personal verdict is overridden; the call is filed as business.
       if (call.notPersonal === true && notes.callType === 'personal') notes.callType = 'other';
@@ -933,7 +1004,14 @@ async function runTranscribe({ db, bucket, live, nowMs, only, feed }) {
         transcriptSaved: false,
         transcribeError: null,
         transcribeLease: null,
-      }, personal ? { segIndex: null } : segPatch(t, stored)), { merge: true });
+      }, notes.personalSuggested ? { personalSuggested: true } : {}, personal ? { segIndex: null } : segPatch(t, stored)), { merge: true });
+      if (personal && notes.personalSuggested) {
+        // On a lead (audit 2026-11-22): the verdict is only a suggestion. The
+        // call waits as personal with its CRM audio kept (Play, "It wasn't
+        // personal"); nothing is filed on the customer until a person says so.
+        out.personal++;
+        continue;
+      }
       if (personal) {
         // Jo, 2026-10-01: a personal call keeps no CRM copy of its audio
         // either. The original recording stays in Jo's own Drive, so a
@@ -1083,6 +1161,7 @@ exports.callCenterTranscribe = onSchedule(
       logger.info('[callCenterTranscribe]', r);
     } catch (e) {
       logger.warn('[callCenterTranscribe] failed', { err: e && e.message });
+      softFail(e);
     }
     // Call to Close P2: other tenants, after NBD's own pass, inside the same
     // day audio allowance (dark unless the env gate AND a config say so).
@@ -1122,10 +1201,16 @@ async function gatherSweep({ db, nowMs }) {
   const withLead = calls.filter((c) => c.leadId);
   const tasksByCallId = new Map();
   if (withLead.length) {
-    const snaps = await db.getAll(...withLead.map((c) => db.doc('leads/' + c.leadId + '/tasks/' + (c.channel === 'text' ? 'sms-' : 'cube-') + c.id)));
+    // A Thursday call's task is thursday-<blandId> (thursday-projection-logic followUpTaskId).
+    const snaps = await db.getAll(...withLead.map((c) => db.doc('leads/' + c.leadId + '/tasks/' + require('./thursday-projection-logic').followUpTaskId(c))));
     snaps.forEach((s, i) => { if (s.exists) tasksByCallId.set(withLead[i].id, s.data()); });
   }
-  const items = L.collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd: today });
+  const listed = L.collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd: today });
+  // A Thursday call and the Cube row of the same call (roadmap step 17C,
+  // linked with mergedInto): one row, the kept side's, when both are listed.
+  const listedIds = new Set(listed.map((i) => i.callId));
+  const hiddenLink = new Set(calls.filter((c) => c.mergedInto && listedIds.has(c.mergedInto) && (TPL.isProjection(c) || TPL.isProjectionId(c.mergedInto))).map((c) => c.id));
+  const items = listed.filter((i) => !hiddenLink.has(i.callId));
   // "No customer on file": suggest the one existing customer the call is
   // probably about (L.suggestLeadForCall — unique matches only).
   const nofile = items.filter((i) => i.kind === 'nofile' && i.channel === 'call');
@@ -1168,7 +1253,8 @@ async function gatherSweepWithPromises({ db, nowMs }) {
     const q = await db.collection(COLLECTION).where('userId', '==', OWNER).where('startedAtMs', '>=', nowMs - 36 * 3600000)
       .orderBy('startedAtMs', 'desc').limit(300).get();
     const rows = [];
-    q.forEach((d) => rows.push(Object.assign({}, d.data(), { id: d.id })));
+    // A Thursday call's projection is not a Cube call (callWatch skips it too).
+    q.forEach((d) => { const r = Object.assign({}, d.data(), { id: d.id }); if (!TPL.isProjection(r)) rows.push(r); });
     const ctx = Object.assign(W.reachIndex(rows), { labels });
     quietLines = PV.quietNumberLines(PV.quietNumbers(rows, nowMs, W.callNeedsYou, ctx), false);
   } catch (e) {
@@ -1236,6 +1322,7 @@ exports.callCenterSweep = onSchedule(
       logger.info('[callCenterSweep]', r);
     } catch (e) {
       logger.warn('[callCenterSweep] failed', { err: e && e.message });
+      softFail(e);
     }
   }
 );
@@ -1329,10 +1416,13 @@ async function refileNumber({ db, call, leadId, uid, nowMs, noted }) {
   if (onLeads.size >= L.PROXY_MIN_LEADS) return Object.assign(out, { proxy: true });
   const mine = (v) => v && !v.leadId && v.userId === call.userId && (v.companyId || null) === (call.companyId || null);
   const extra = { refiledFrom: call.id };
+  // A Thursday call's projection (roadmap step 17C) is filed from the Thursday
+  // inbox only (thursdayCallAction): sweeping it on here would be undone by
+  // the next projection and leave a second timeline row and task behind.
   const cs = await db.collection(COLLECTION).where('userId', '==', call.userId).where('phoneDigits', '==', digits).get();
   for (const s of cs.docs) {
     const c = Object.assign({}, s.data(), { id: s.id });
-    if (s.id === call.id || !mine(c)) continue;
+    if (s.id === call.id || !mine(c) || TPL.isProjection(c)) continue;
     await fileCallOnLead({ db, call: c, leadId, uid, nowMs, extra });
     if (Array.isArray(noted) && c.status === 'noted') noted.push(c);
     out.calls++;
@@ -1463,7 +1553,8 @@ async function mergeAction({ db, auth, call, action, data, nowMs }) {
       if (!me) throw new HttpsError('not-found', 'Call not found.');
       const otherId = me.mergedInto || me.mergedFrom;
       if (!otherId) return { ok: true, unmerged: false };
-      const other = MG.isCallId(otherId) ? await load(tx, String(otherId)) : null;
+      // A Thursday link (roadmap step 17C) pairs a cube_ row with a thursday_ projection.
+      const other = MG.isCallId(otherId) || TPL.isProjectionId(otherId) ? await load(tx, String(otherId)) : null;
       const p = me.mergedFrom ? me : other;
       const s = me.mergedFrom ? other : me;
       if (!other || !MG.mergedTogether(p, s)) {
@@ -1509,12 +1600,28 @@ async function settleAway(db, call, auth, nowMs) {
   } catch (_) { /* the clearing action already succeeded */ }
 }
 
+const THURSDAY_ROW_ACTIONS = ['handled', 'unhandled', 'rescueDismiss', 'rescueUndismiss', 'taskDone', 'taskUndone', 'snooze', 'unsnooze', 'unmerge'];
+// Handled on a Thursday call's projection is the Thursday inbox's "reviewed"
+// too (review 2026-11-25): callWatch and away mode judge the call by
+// thursday_calls.reviewed, and the projection carries reviewed back as
+// handledAtMs. Same tenant only; a missing doc is skipped.
+async function syncThursdayReviewed(db, call, auth, handled, nowMs) {
+  const docId = String(call.thursdayDocId || '');
+  if (!docId || docId.includes('/')) return;
+  const ref = db.collection('thursday_calls').doc(docId);
+  const s = await ref.get();
+  const t = s.exists ? (s.data() || {}) : null;
+  if (!t || (t.companyId || t.userId) !== (call.companyId || call.userId)) return;
+  await ref.set({ reviewed: handled, reviewedBy: { uid: auth.uid, at: new Date(nowMs) } }, { merge: true });
+}
 async function callAction({ db, auth, data, nowMs }) {
   if (!auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   const id = String((data && data.id) || '');
   // cube_… = a phone call; txt_… = a day of texts (phone_text_days, 2026-10-02).
   const isText = /^txt_[0-9_]{10,40}$/.test(id);
-  if (!isText && !/^cube_[A-Za-z0-9_-]{5,120}$/.test(id)) throw new HttpsError('invalid-argument', 'Bad call id.');
+  // thursday_… = a Thursday call's phone_calls projection (roadmap step 17C).
+  const isThursday = /^thursday_[A-Za-z0-9_-]{6,128}$/.test(id);
+  if (!isText && !isThursday && !/^cube_[A-Za-z0-9_-]{5,120}$/.test(id)) throw new HttpsError('invalid-argument', 'Bad call id.');
   const ref = db.collection(isText ? 'phone_text_days' : COLLECTION).doc(id);
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError('not-found', 'Call not found.');
@@ -1527,8 +1634,19 @@ async function callAction({ db, auth, data, nowMs }) {
     throw new HttpsError('permission-denied', 'Not your call.');
   }
   const action = String((data && data.action) || '');
+  // A Thursday call is filed, moved and reprocessed from the Thursday inbox
+  // (thursdayCallAction); here it takes only what touches the row itself or
+  // its follow-up task, so its projection never drifts from thursday_calls.
+  if (isThursday && !THURSDAY_ROW_ACTIONS.includes(action)) throw new HttpsError('failed-precondition', 'File or change a Thursday call from the Thursday inbox.');
   if (action === 'handled' || action === 'unhandled') {
     await ref.set({ handledAtMs: action === 'handled' ? nowMs : null, handledBy: auth.uid }, { merge: true });
+    if (isThursday) await syncThursdayReviewed(db, call, auth, action === 'handled', nowMs);
+    else if (!isText && TPL.isProjectionId(call.thursdayProjectionId)) {
+      // A kept Cube card linked to a Thursday call: its Handled is that call's reviewed too.
+      const ps = await db.collection(COLLECTION).doc(call.thursdayProjectionId).get();
+      const proj = ps.exists ? Object.assign({}, ps.data(), { id: ps.id }) : null;
+      if (proj && proj.cubeCallId === id) await syncThursdayReviewed(db, proj, auth, action === 'handled', nowMs);
+    }
     await settleAway(db, call, auth, nowMs);
     return { ok: true };
   }
@@ -1548,7 +1666,7 @@ async function callAction({ db, auth, data, nowMs }) {
   // parks the call itself (snoozeUntilYmd, read by collectSweepItems).
   // Each has an undo. Applies to calls and texts alike.
   if (action === 'taskDone' || action === 'taskUndone' || action === 'snooze' || action === 'unsnooze') {
-    const taskRef = call.leadId ? db.doc('leads/' + call.leadId + '/tasks/' + (isText ? 'sms-' : 'cube-') + id) : null;
+    const taskRef = call.leadId ? db.doc('leads/' + call.leadId + '/tasks/' + (isText ? 'sms-' + id : require('./thursday-projection-logic').followUpTaskId(call))) : null;
     const tSnap = taskRef ? await taskRef.get() : null;
     const task = tSnap && tSnap.exists ? tSnap.data() : null;
     const today = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
@@ -1795,9 +1913,11 @@ exports.callPromisesList = onCall(
 const { onDocumentWritten } = require('firebase-functions/v2/firestore');
 
 async function mirrorCallTask({ db, leadId, taskId, after }) {
-  const m = /^(cube|sms)-([A-Za-z0-9_-]{5,140})$/.exec(String(taskId || ''));
+  const m = /^(cube|sms|thursday)-([A-Za-z0-9_-]{5,140})$/.exec(String(taskId || ''));
   if (!m) return null;
-  const ref = db.collection(m[1] === 'sms' ? 'phone_text_days' : COLLECTION).doc(m[2]);
+  // thursday-<blandId> is a Thursday call's task: its call row is the
+  // phone_calls/thursday_<blandId> projection (roadmap step 17C).
+  const ref = db.collection(m[1] === 'sms' ? 'phone_text_days' : COLLECTION).doc(m[1] === 'thursday' ? 'thursday_' + m[2] : m[2]);
   const snap = await ref.get();
   if (!snap.exists) return null;
   const call = snap.data() || {};
@@ -1825,7 +1945,7 @@ exports.onCallTaskWrite = onDocumentWritten(
   { document: 'leads/{leadId}/tasks/{taskId}', region: 'us-central1', memory: '256MiB', timeoutSeconds: 30 },
   async (event) => {
     // Most tasks are not a call's; skip them before any read.
-    if (!/^(cube|sms)-/.test(String(event.params.taskId || ''))) return;
+    if (!/^(cube|sms|thursday)-/.test(String(event.params.taskId || ''))) return;
     const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
     try {
       await mirrorCallTask({ db: getFirestore(), leadId: event.params.leadId, taskId: event.params.taskId, after });
@@ -1848,7 +1968,8 @@ async function taggedMatch({ db, auth, data, nowMs }) {
   if (!(auth.uid === OWNER || role === 'admin')) throw new HttpsError('permission-denied', 'This is the owner\'s phone.');
   const calls = [];
   const q = await db.collection(COLLECTION).where('userId', '==', OWNER).where('leadId', '==', null).get();
-  q.forEach((d) => calls.push(Object.assign({}, d.data(), { id: d.id })));
+  // Thursday calls' projections are filed from the Thursday inbox (roadmap step 17C).
+  q.forEach((d) => { const r = Object.assign({}, d.data(), { id: d.id }); if (!TPL.isProjection(r)) calls.push(r); });
   const leads = await ownerLeads(db);
   const plan = L.taggedContactPlan({ calls, leads });
   const confirm = Array.isArray(data && data.confirm) ? data.confirm.slice(0, 500) : null;

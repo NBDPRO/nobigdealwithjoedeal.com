@@ -28,6 +28,14 @@
  * 'auto-email' (or 'auto-text'), and Joe gets the bell + timeline row
  * "Review ask emailed automatically" instead of "send a review request?".
  * A failed send is not retried (the job then goes back to the rep nudge).
+ *
+ * Customer send window (send-window.js, 2026-11-22): a job whose customer is
+ * outside 8:00-20:00 their time (the lead's location, else deps.companyProfile's
+ * zone, else Eastern) is skipped BEFORE either claim (reason
+ * 'outside_send_window'), so its one ask is still owed on a later run. Always
+ * checked; deps.sendWindow only replaces the check (tests). The text also
+ * carries the customer, deps.companyProfile and the run's nowMs to
+ * guardTwilio, so its own window check gives the same answer after the claim.
  */
 
 const { onSchedule } = require('./integrations/heartbeat');
@@ -42,6 +50,8 @@ const { resendRejected, resendErrorMessage } = require('./resend-guard');
 const OptOut = require('./sms-optout');
 const TextingGate = require('./sms-texting-gate');
 const ConsentDeclined = require('./sms-consent-declined');
+const SendWindow = require('./send-window');
+const V2 = require('./review-ask-v2-logic');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const TWILIO_ACCOUNT_SID = defineSecret('TWILIO_ACCOUNT_SID');
@@ -76,8 +86,11 @@ async function settle(db, leadId, jobId, channel, status, extra) {
   await db.collection('leads').doc(leadId).update(patch).catch(() => {});
 }
 
-/** Everything that says "asked" after a real send. */
-async function recordSent(db, entry, uid, channel, nowMs, FV) {
+/**
+ * Everything that says "asked" after a real send. `askExtra` joins reviewAutoAsk
+ * (v2: reminderDueMs); `auditExtra` joins the review_requests row (v2: triggeredBy).
+ */
+async function recordSent(db, entry, uid, channel, nowMs, FV, askExtra, auditExtra) {
   const source = channel === 'text' ? RA.TEXT_SOURCE : RA.SOURCE;
   const leadRef = db.collection('leads').doc(entry.id);
   const patch = {
@@ -86,15 +99,17 @@ async function recordSent(db, entry, uid, channel, nowMs, FV) {
     reviewRequestSource: source,
     // The rep nudge's own latch, so it never also asks Joe to ask by hand.
     reviewNudgedAt: FV.serverTimestamp(),
-    reviewAutoAsk: { jobKey: RA.jobKey(entry.jobId), jobId: entry.jobId || null, channel, status: 'sent', sentAtMs: nowMs },
+    reviewAutoAsk: Object.assign({ jobKey: RA.jobKey(entry.jobId), jobId: entry.jobId || null, channel, status: 'sent', sentAtMs: nowMs }, askExtra || {}),
   };
   if (entry.jobId) patch.reviewJobCount = FV.increment(1);
   await leadRef.update(patch).catch((e) => fnLogger.warn('review_auto_mark_failed', { leadId: entry.id, err: e && e.message }));
+  // S3: the review-email denominator for the bounce rate (dark = no write; never throws).
+  if (channel === 'email') await require('./review-ask-health').noteEmailSend(db, RA.NBD_OWNER_UID, { nowMs, FieldValue: FV });
   if (entry.jobId) {
     await leadRef.collection('jobs').doc(entry.jobId).update({ reviewRequestedAt: FV.serverTimestamp(), reviewNudgedAt: FV.serverTimestamp(), reviewRequestSource: source }).catch(() => {});
   }
   const said = channel === 'text' ? 'Review ask texted automatically' : 'Review ask emailed automatically';
-  await db.collection('review_requests').add({ leadId: entry.id, userId: uid, method: channel === 'text' ? 'sms' : 'email', source, jobId: entry.jobId || null, sentAt: FV.serverTimestamp(), status: 'sent' }).catch(() => {});
+  await db.collection('review_requests').add(Object.assign({ leadId: entry.id, userId: uid, method: channel === 'text' ? 'sms' : 'email', source, jobId: entry.jobId || null, sentAt: FV.serverTimestamp(), status: 'sent' }, auditExtra || {})).catch(() => {});
   await leadRef.collection('activity').add({ userId: uid, type: 'review_request_sent', label: said, message: said + ' (paid in full).', source, createdAt: FV.serverTimestamp() }).catch(() => {});
   const name = ((entry.firstName || '') + ' ' + (entry.lastName || '')).trim() || 'Customer';
   const note = { userId: uid, leadId: entry.id, type: 'review_request', title: '⭐ ' + said, message: said + ' to ' + name + '.', source, read: false, dismissed: false, createdAt: FV.serverTimestamp() };
@@ -118,6 +133,9 @@ async function askOne(db, entry, uid, deps) {
     // (MessagingControls.MAX_AUTOMATION_AGE_DAYS), however wide the window in
     // review-ask-auto-logic.js is, so switching this on cannot ask the backlog.
     if (d.maxAgeDays != null && !MessagingControls.withinAutomationAge(entry.receivedMs, nowMs, d.maxAgeDays)) return { sent: false, reason: 'too_old' };
+    // Outside the customer's send window: nothing claimed, retried next run.
+    const win = typeof d.sendWindow === 'function' ? d.sendWindow(entry, nowMs) : SendWindow.check(nowMs, entry, d.companyProfile || null);
+    if (!win.ok) return { sent: false, reason: 'outside_send_window' };
     const reviewUrl = RA.reviewUrlFor(entry, d.repUrl);
     const pe = RA.planEmail(args);
     if (pe.send) {
@@ -201,17 +219,32 @@ async function askOne(db, entry, uid, deps) {
     const swText = await MessagingControls.channelStatus(db, 'sms');
     if (!swText.allowed) return { sent: false, reason: 'messaging_paused' };
     if (swText.canary) return { sent: false, reason: 'canary' };
-    if (!(await claim(db, entry.id, entry.jobId, 'text', nowMs))) return { sent: false, reason: 'claimed' };
+    // S3 (2026-11-26): the same carrier-health pre-flight as v2 (dark, paused or callbacks missing = no
+    // text), and the send row + statusCallback registered before the claim.
+    const Health = require('./review-ask-health');
+    let hh;
+    try { hh = await Health.textHealthOk(db, tenantKey, { env: d.env || process.env, nowMs }); } catch (_) { hh = { ok: false, reason: 'health_unverified' }; }
+    if (!hh.ok) return { sent: false, reason: /^health_/.test(hh.reason) ? hh.reason : 'health_' + hh.reason };
+    const V2IO = require('./review-ask-v2');
+    const reg = await V2IO.registerText(db, d, entry, pt.to, nowMs, 'review_ask_text');
+    if (!reg) return { sent: false, reason: 'health_unregistered' };
+    if (!(await claim(db, entry.id, entry.jobId, 'text', nowMs))) { await V2IO.dropText(db, d, reg, nowMs); return { sent: false, reason: 'claimed' }; }
+    let m;
     try {
       if (!(await MessagingControls.claimSendOnce(db, pt.to, 'review_ask_text', entry.jobId || entry.id))) {
+        await V2IO.dropText(db, d, reg, nowMs);
         return { sent: false, reason: 'duplicate' };
       }
-      await d.sendText({ to: pt.to, body: RA.textBody(entry, reviewUrl) });
+      // The pre-claim window answer's own inputs, so guardTwilio agrees with it.
+      m = await d.sendText({ to: pt.to, body: RA.textBody(entry, reviewUrl), recipient: entry, companyProfile: d.companyProfile || null, nowMs, statusCallback: reg.statusCallback });
     } catch (e) {
+      await V2IO.dropText(db, d, reg, nowMs);
       log.warn('review_auto_text_failed', { leadId: entry.id, err: e && e.message });
       await settle(db, entry.id, entry.jobId, 'text', 'failed', { atMs: nowMs, error: String((e && e.message) || e).slice(0, 200) });
       return { sent: false, reason: 'send_failed' };
     }
+    await Health.confirmTextSend(db, reg.id, RA.NBD_OWNER_UID, m && m.sid, nowMs, { FieldValue: FV })
+      .catch((e) => log.warn('review_ask_health_confirm_failed', { err: e && e.message }));
     await recordSent(db, entry, uid, 'text', nowMs, FV);
     return { sent: true, channel: 'text', reason: 'sent' };
   } catch (e) {
@@ -226,23 +259,26 @@ async function runForUser(db, uid, deps) {
   const RN = require('./review-request-nudge')._test;
   const due = await RN.findReviewDueLeads(db, uid, { mode: 'auto', env: d.env || process.env, nowMs: d.nowMs });
   if (!due.length) return { asked: 0, results: [] };
+  const v2 = V2.v2On(d.env || process.env);
   d.repUrl = d.repUrl != null ? d.repUrl : await repReviewUrl(db, uid);
   const results = [];
   let asked = 0;
   for (const entry of due) {
     if (d.maxAsks != null && asked >= d.maxAsks) { results.push({ leadId: entry.id, jobId: entry.jobId || null, sent: false, reason: 'per_run_cap' }); break; }
-    const r = await askOne(db, entry, uid, d);
+    const r = v2 ? await require('./review-ask-v2').askOneV2(db, entry, uid, d) : await askOne(db, entry, uid, d);
     results.push(Object.assign({ leadId: entry.id, jobId: entry.jobId || null }, r));
     if (r.sent) asked++;
   }
   return { asked, results };
 }
 
-async function sendTextTwilio({ to, body }) {
+async function sendTextTwilio({ to, body, recipient, companyProfile, nowMs, statusCallback }) {
   const { secretValue: sv } = require('./integrations/_shared');
   const sid = sv(TWILIO_ACCOUNT_SID), tok = sv(TWILIO_AUTH_TOKEN), from = sv(TWILIO_PHONE_NUMBER);
   if (!sid || !tok || !from) throw new Error('twilio-not-configured');
-  return MessagingControls.guardTwilio(getFirestore(), require('twilio')(sid, tok)).messages.create({ to, from, body });
+  // v2 (S3): the delivery callback to this send's own opaque id (review-ask-health.js).
+  const msg = statusCallback ? { to, from, body, statusCallback } : { to, from, body };
+  return MessagingControls.guardTwilio(getFirestore(), require('twilio')(sid, tok)).messages.create(msg, { recipient, companyProfile, nowMs });
 }
 
 exports.reviewAskAutoSweep = onSchedule(
@@ -267,6 +303,8 @@ exports.reviewAskAutoSweep = onSchedule(
       REVIEW_ASK_AUTO_EMAIL_ENABLED: emailOn ? 'true' : 'false',
       REVIEW_ASK_AUTO_TEXT_ENABLED: textOn ? 'true' : 'false',
     });
+    // NBD's customers only, so NBD's company zone is the fallback for a lead with no location.
+    const nbdProfile = await SendWindow.readCompanyZone(db, RA.NBD_OWNER_UID);
     const runCap = Math.min(emailOn ? autoEmail.maxPerRun : Infinity, textOn ? autoText.maxPerRun : Infinity);
     const { Resend } = require('resend');
     const resend = emailOn && process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -284,7 +322,7 @@ exports.reviewAskAutoSweep = onSchedule(
         if ((u.data() || {}).e2eTestAccount) continue;
         if (asked >= runCap) break;
         try {
-          const out = await runForUser(db, u.id, { env: runEnv, resend, sendText: textOn ? sendTextTwilio : null, logger: fnLogger, maxAsks: runCap - asked, maxAgeDays: MessagingControls.MAX_AUTOMATION_AGE_DAYS });
+          const out = await runForUser(db, u.id, { env: runEnv, resend, sendText: textOn ? sendTextTwilio : null, companyProfile: nbdProfile, logger: fnLogger, maxAsks: runCap - asked, maxAgeDays: MessagingControls.MAX_AUTOMATION_AGE_DAYS });
           asked += out.asked;
           for (const r of out.results) counts[r.reason] = (counts[r.reason] || 0) + 1;
         } catch (e) {
@@ -295,8 +333,14 @@ exports.reviewAskAutoSweep = onSchedule(
       if (snap.size < 500) break;
       cursor = snap.docs[snap.docs.length - 1];
     }
+    // The one reminder per v2 ask (same switches, the run's cap is shared).
+    if (V2.v2On(runEnv)) {
+      const rem = await require('./review-ask-v2').runReminders(db, { env: runEnv, resend, sendText: textOn ? sendTextTwilio : null, companyProfile: nbdProfile, logger: fnLogger, maxAsks: Math.max(0, runCap - asked) });
+      for (const r of rem.results) counts['reminder_' + r.reason] = (counts['reminder_' + r.reason] || 0) + 1;
+    }
     fnLogger.info('review_auto_complete', { asked, counts });
   }
 );
 
-exports._test = { askOne, runForUser, claim, recordSent };
+// FROM / REPLY_TO / settle: shared with review-ask-v2.js (NBD's own sender, the claim's settle).
+exports._test = { askOne, runForUser, claim, settle, recordSent, FROM, REPLY_TO };

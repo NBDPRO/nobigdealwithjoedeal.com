@@ -1,0 +1,2210 @@
+{
+ "acc_001": {
+  "unit": "EA",
+  "sell": {
+   "good": 325,
+   "better": 380,
+   "best": 455
+  }
+ },
+ "acc_002": {
+  "unit": "TUBE",
+  "sell": {
+   "good": 17,
+   "better": 20.5,
+   "best": 25.5
+  }
+ },
+ "acc_003": {
+  "unit": "BX",
+  "sell": {
+   "good": 75,
+   "better": 86,
+   "best": 87
+  }
+ },
+ "acc_004": {
+  "unit": "EA",
+  "sell": {
+   "good": 65,
+   "better": 76,
+   "best": 91
+  }
+ },
+ "acc_005": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 163,
+   "best": 188
+  }
+ },
+ "acc_006": {
+  "unit": "LF",
+  "sell": {
+   "good": 8.5,
+   "better": 9.5,
+   "best": 11
+  }
+ },
+ "acc_007": {
+  "unit": "EA",
+  "sell": {
+   "good": 52,
+   "better": 55.5,
+   "best": 59.5
+  }
+ },
+ "acc_008": {
+  "unit": "EA",
+  "sell": {
+   "good": 329,
+   "better": 369,
+   "best": 434
+  }
+ },
+ "acc_009": {
+  "unit": "EA",
+  "sell": {
+   "good": 65,
+   "better": 74,
+   "best": 87
+  }
+ },
+ "acc_010": {
+  "unit": "EA",
+  "sell": {
+   "good": 67,
+   "better": 74,
+   "best": 84
+  }
+ },
+ "acc_011": {
+  "unit": "EA",
+  "sell": {
+   "good": 22,
+   "better": 24,
+   "best": 28
+  }
+ },
+ "acc_012": {
+  "unit": "LF",
+  "sell": {
+   "good": 8.5,
+   "better": 12.5,
+   "best": 22.5
+  }
+ },
+ "acc_013": {
+  "unit": "EA",
+  "sell": {
+   "good": 25,
+   "better": 29,
+   "best": 52
+  }
+ },
+ "acc_014": {
+  "unit": "GAL",
+  "sell": {
+   "good": 32,
+   "better": 39,
+   "best": 52
+  }
+ },
+ "acc_015": {
+  "unit": "LF",
+  "sell": {
+   "good": 9.5,
+   "better": 11,
+   "best": 14
+  }
+ },
+ "acc_016": {
+  "unit": "LF",
+  "sell": {
+   "good": 3,
+   "better": 3.5,
+   "best": 5.5
+  }
+ },
+ "acc_017": {
+  "unit": "EA",
+  "sell": {
+   "good": 60,
+   "better": 70,
+   "best": 84
+  }
+ },
+ "acc_018": {
+  "unit": "RL",
+  "sell": {
+   "good": 18,
+   "better": 28,
+   "best": 42
+  }
+ },
+ "acc_019": {
+  "unit": "CT",
+  "sell": {
+   "good": 90,
+   "better": 100,
+   "best": 113
+  }
+ },
+ "acc_020": {
+  "unit": "EA",
+  "sell": {
+   "good": 425,
+   "better": 550,
+   "best": 725
+  }
+ },
+ "acc_021": {
+  "unit": "SQ",
+  "sell": {
+   "good": 95,
+   "better": 115,
+   "best": 135
+  }
+ },
+ "acc_022": {
+  "unit": "EA",
+  "sell": {
+   "good": 150,
+   "better": 250,
+   "best": 429
+  }
+ },
+ "acc_023": {
+  "unit": "DAY",
+  "sell": {
+   "good": 53,
+   "better": 62,
+   "best": 74
+  }
+ },
+ "acc_024": {
+  "unit": "EA",
+  "sell": {
+   "good": 229,
+   "better": 249,
+   "best": 279
+  }
+ },
+ "acc_025": {
+  "unit": "EA",
+  "sell": {
+   "good": 22,
+   "better": 23,
+   "best": 27
+  }
+ },
+ "acc_026": {
+  "unit": "BAG",
+  "sell": {
+   "good": 41,
+   "better": 43,
+   "best": 47
+  }
+ },
+ "acc_027": {
+  "unit": "BX",
+  "sell": {
+   "good": 22,
+   "better": 25,
+   "best": 29
+  }
+ },
+ "chim_001": {
+  "unit": "EA",
+  "sell": {
+   "good": 296,
+   "better": 326,
+   "best": 376
+  }
+ },
+ "chim_002": {
+  "unit": "EA",
+  "sell": {
+   "good": 427,
+   "better": 492,
+   "best": 602
+  }
+ },
+ "chim_003": {
+  "unit": "CT",
+  "sell": {
+   "good": 225,
+   "better": 245,
+   "best": 275
+  }
+ },
+ "chim_004": {
+  "unit": "EA",
+  "sell": {
+   "good": 393,
+   "better": 448,
+   "best": 528
+  }
+ },
+ "chim_005": {
+  "unit": "GAL",
+  "sell": {
+   "good": 112,
+   "better": 125,
+   "best": 142
+  }
+ },
+ "chim_006": {
+  "unit": "BAG",
+  "sell": {
+   "good": 135,
+   "better": 139,
+   "best": 145
+  }
+ },
+ "chim_007": {
+  "unit": "EA",
+  "sell": {
+   "good": 385,
+   "better": 435,
+   "best": 520
+  }
+ },
+ "concrete_001": {
+  "unit": "SF",
+  "sell": {
+   "good": 15,
+   "better": 19,
+   "best": 27
+  }
+ },
+ "concrete_002": {
+  "unit": "SF",
+  "sell": {
+   "good": 18,
+   "better": 22,
+   "best": 29
+  }
+ },
+ "concrete_003": {
+  "unit": "SF",
+  "sell": {
+   "good": 26,
+   "better": 30,
+   "best": 36
+  }
+ },
+ "concrete_004": {
+  "unit": "EA",
+  "sell": {
+   "good": 640,
+   "better": 850,
+   "best": 1450
+  }
+ },
+ "concrete_005": {
+  "unit": "SF",
+  "sell": {
+   "good": 1,
+   "better": 1.25,
+   "best": 2
+  }
+ },
+ "concrete_006": {
+  "unit": "SF",
+  "sell": {
+   "good": 39,
+   "better": 46,
+   "best": 55
+  }
+ },
+ "deck_001": {
+  "unit": "SF",
+  "sell": {
+   "good": 13.5,
+   "better": 16,
+   "best": 19
+  }
+ },
+ "deck_002": {
+  "unit": "SF",
+  "sell": {
+   "good": 19,
+   "better": 22,
+   "best": 27
+  }
+ },
+ "deck_003": {
+  "unit": "SF",
+  "sell": {
+   "good": 19.5,
+   "better": 23,
+   "best": 28
+  }
+ },
+ "deck_004": {
+  "unit": "LF",
+  "sell": {
+   "good": 48,
+   "better": 60,
+   "best": 89
+  }
+ },
+ "deck_005": {
+  "unit": "EA",
+  "sell": {
+   "good": 41,
+   "better": 48,
+   "best": 57
+  }
+ },
+ "deck_006": {
+  "unit": "EA",
+  "sell": {
+   "good": 80,
+   "better": 96,
+   "best": 129
+  }
+ },
+ "ext_001": {
+  "unit": "RL",
+  "sell": {
+   "good": 256,
+   "better": 362,
+   "best": 392
+  }
+ },
+ "ext_002": {
+  "unit": "PC",
+  "sell": {
+   "good": 16,
+   "better": 18,
+   "best": 21
+  }
+ },
+ "ext_003": {
+  "unit": "RL",
+  "sell": {
+   "good": 463,
+   "better": 477,
+   "best": 500
+  }
+ },
+ "ext_004": {
+  "unit": "RL",
+  "sell": {
+   "good": 126,
+   "better": 132,
+   "best": 142
+  }
+ },
+ "ext_005": {
+  "unit": "RL",
+  "sell": {
+   "good": 411,
+   "better": 423,
+   "best": 441
+  }
+ },
+ "ext_006": {
+  "unit": "PC",
+  "sell": {
+   "good": 20,
+   "better": 22,
+   "best": 25
+  }
+ },
+ "fence_001": {
+  "unit": "LF",
+  "sell": {
+   "good": 42,
+   "better": 49,
+   "best": 59
+  }
+ },
+ "fence_002": {
+  "unit": "LF",
+  "sell": {
+   "good": 48,
+   "better": 56,
+   "best": 68
+  }
+ },
+ "fence_003": {
+  "unit": "LF",
+  "sell": {
+   "good": 23,
+   "better": 27,
+   "best": 32
+  }
+ },
+ "fence_004": {
+  "unit": "LF",
+  "sell": {
+   "good": 41,
+   "better": 48,
+   "best": 62
+  }
+ },
+ "fence_005": {
+  "unit": "EA",
+  "sell": {
+   "good": 59,
+   "better": 69,
+   "best": 82
+  }
+ },
+ "fence_006": {
+  "unit": "EA",
+  "sell": {
+   "good": 255,
+   "better": 375,
+   "best": 575
+  }
+ },
+ "flash_001": {
+  "unit": "BX",
+  "sell": {
+   "good": 133,
+   "better": 145,
+   "best": 161
+  }
+ },
+ "flash_002": {
+  "unit": "EA",
+  "sell": {
+   "good": 42,
+   "better": 49,
+   "best": 58
+  }
+ },
+ "flash_003": {
+  "unit": "LF",
+  "sell": {
+   "good": 2,
+   "better": 2.5,
+   "best": 3
+  }
+ },
+ "flash_004": {
+  "unit": "LF",
+  "sell": {
+   "good": 8.5,
+   "better": 9.5,
+   "best": 11
+  }
+ },
+ "flash_005": {
+  "unit": "TUBE",
+  "sell": {
+   "good": 6.5,
+   "better": 7.5,
+   "best": 9
+  }
+ },
+ "flash_006": {
+  "unit": "BX",
+  "sell": {
+   "good": 48,
+   "better": 56,
+   "best": 68
+  }
+ },
+ "flash_007": {
+  "unit": "BDNL",
+  "sell": {
+   "good": 122,
+   "better": 132,
+   "best": 145
+  }
+ },
+ "flash_008": {
+  "unit": "BDNL",
+  "sell": {
+   "good": 118,
+   "better": 124,
+   "best": 134
+  }
+ },
+ "flash_009": {
+  "unit": "BDNL",
+  "sell": {
+   "good": 184,
+   "better": 194,
+   "best": 207
+  }
+ },
+ "flash_010": {
+  "unit": "BDNL",
+  "sell": {
+   "good": 109,
+   "better": 115,
+   "best": 125
+  }
+ },
+ "flash_011": {
+  "unit": "TUBE",
+  "sell": {
+   "good": 19,
+   "better": 22,
+   "best": 26
+  }
+ },
+ "flash_012": {
+  "unit": "TUBE",
+  "sell": {
+   "good": 25,
+   "better": 27,
+   "best": 30
+  }
+ },
+ "flash_013": {
+  "unit": "EA",
+  "sell": {
+   "good": 42,
+   "better": 49,
+   "best": 62
+  }
+ },
+ "flash_014": {
+  "unit": "EA",
+  "sell": {
+   "good": 42,
+   "better": 50,
+   "best": 64
+  }
+ },
+ "flash_015": {
+  "unit": "EA",
+  "sell": {
+   "good": 62,
+   "better": 71,
+   "best": 87
+  }
+ },
+ "flash_016": {
+  "unit": "EA",
+  "sell": {
+   "good": 78,
+   "better": 85,
+   "best": 95
+  }
+ },
+ "gut_001": {
+  "unit": "LF",
+  "sell": {
+   "good": 15,
+   "better": 18,
+   "best": 24
+  }
+ },
+ "gut_002": {
+  "unit": "LF",
+  "sell": {
+   "good": 8,
+   "better": 9.5,
+   "best": 12
+  }
+ },
+ "gut_003": {
+  "unit": "LF",
+  "sell": {
+   "good": 6,
+   "better": 7,
+   "best": 8.5
+  }
+ },
+ "gut_004": {
+  "unit": "LF",
+  "sell": {
+   "good": 6,
+   "better": 7,
+   "best": 8.5
+  }
+ },
+ "gut_005": {
+  "unit": "TUBE",
+  "sell": {
+   "good": 24,
+   "better": 26,
+   "best": 29
+  }
+ },
+ "gut_006": {
+  "unit": "BX",
+  "sell": {
+   "good": 24,
+   "better": 27,
+   "best": 32
+  }
+ },
+ "gut_007": {
+  "unit": "EA",
+  "sell": {
+   "good": 316,
+   "better": 341,
+   "best": 381
+  }
+ },
+ "gutter_001": {
+  "unit": "LF",
+  "sell": {
+   "good": 13,
+   "better": 16,
+   "best": 22
+  }
+ },
+ "gutter_002": {
+  "unit": "LF",
+  "sell": {
+   "good": 16.5,
+   "better": 20,
+   "best": 26
+  }
+ },
+ "gutter_003": {
+  "unit": "LF",
+  "sell": {
+   "good": 45,
+   "better": 53,
+   "best": 63
+  }
+ },
+ "gutter_004": {
+  "unit": "LF",
+  "sell": {
+   "good": 9,
+   "better": 14,
+   "best": 22
+  }
+ },
+ "gutter_005": {
+  "unit": "LF",
+  "sell": {
+   "good": 6.5,
+   "better": 7.5,
+   "best": 9
+  }
+ },
+ "gutter_006": {
+  "unit": "LF",
+  "sell": {
+   "good": 9,
+   "better": 10.5,
+   "best": 12.5
+  }
+ },
+ "gutter_007": {
+  "unit": "EA",
+  "sell": {
+   "good": 6,
+   "better": 7,
+   "best": 8
+  }
+ },
+ "gutter_008": {
+  "unit": "EA",
+  "sell": {
+   "good": 18,
+   "better": 21,
+   "best": 31
+  }
+ },
+ "insul_001": {
+  "unit": "SF",
+  "sell": {
+   "good": 2.25,
+   "better": 2.5,
+   "best": 3
+  }
+ },
+ "insul_002": {
+  "unit": "SF",
+  "sell": {
+   "good": 1.75,
+   "better": 2,
+   "best": 2.5
+  }
+ },
+ "insul_003": {
+  "unit": "SF",
+  "sell": {
+   "good": 4.5,
+   "better": 5.5,
+   "best": 7
+  }
+ },
+ "insul_004": {
+  "unit": "EA",
+  "sell": {
+   "good": 29,
+   "better": 38,
+   "best": 52
+  }
+ },
+ "insul_005": {
+  "unit": "SF",
+  "sell": {
+   "good": 1.25,
+   "better": 1.5,
+   "best": 1.75
+  }
+ },
+ "interior_001": {
+  "unit": "EA",
+  "sell": {
+   "good": 280,
+   "better": 325,
+   "best": 425
+  }
+ },
+ "interior_002": {
+  "unit": "EA",
+  "sell": {
+   "good": 52,
+   "better": 60,
+   "best": 71
+  }
+ },
+ "interior_003": {
+  "unit": "EA",
+  "sell": {
+   "good": 505,
+   "better": 590,
+   "best": 705
+  }
+ },
+ "interior_004": {
+  "unit": "EA",
+  "sell": {
+   "good": 385,
+   "better": 450,
+   "best": 625
+  }
+ },
+ "interior_005": {
+  "unit": "LF",
+  "sell": {
+   "good": 9.5,
+   "better": 11,
+   "best": 13.5
+  }
+ },
+ "interior_006": {
+  "unit": "SF",
+  "sell": {
+   "good": 24,
+   "better": 29,
+   "best": 43
+  }
+ },
+ "labor_001": {
+  "unit": "SQ",
+  "sell": {
+   "good": 150,
+   "better": 170,
+   "best": 205
+  }
+ },
+ "labor_002": {
+  "unit": "SQ",
+  "sell": {
+   "good": 195,
+   "better": 225,
+   "best": 270
+  }
+ },
+ "labor_003": {
+  "unit": "SQ",
+  "sell": {
+   "good": 56,
+   "better": 65,
+   "best": 78
+  }
+ },
+ "labor_004": {
+  "unit": "SQ",
+  "sell": {
+   "good": 45,
+   "better": 53,
+   "best": 63
+  }
+ },
+ "labor_005": {
+  "unit": "EA",
+  "sell": {
+   "good": 640,
+   "better": 745,
+   "best": 895
+  }
+ },
+ "labor_006": {
+  "unit": "EA",
+  "sell": {
+   "good": 505,
+   "better": 590,
+   "best": 705
+  }
+ },
+ "labor_007": {
+  "unit": "EA",
+  "sell": {
+   "good": 450,
+   "better": 550,
+   "best": 650
+  }
+ },
+ "labor_008": {
+  "unit": "EA",
+  "sell": {
+   "good": 150,
+   "better": 175,
+   "best": 210
+  }
+ },
+ "maint_001": {
+  "unit": "CT",
+  "sell": {
+   "good": 192,
+   "better": 209,
+   "best": 224
+  }
+ },
+ "maint_002": {
+  "unit": "RL",
+  "sell": {
+   "good": 137,
+   "better": 147,
+   "best": 161
+  }
+ },
+ "maint_003": {
+  "unit": "JOB",
+  "sell": {
+   "good": 415,
+   "better": 495,
+   "best": 615
+  }
+ },
+ "maint_004": {
+  "unit": "EA",
+  "sell": {
+   "good": 47,
+   "better": 66,
+   "best": 76
+  }
+ },
+ "maint_005": {
+  "unit": "JOB",
+  "sell": {
+   "good": 243,
+   "better": 293,
+   "best": 358
+  }
+ },
+ "maint_006": {
+  "unit": "JOB",
+  "sell": {
+   "good": 372,
+   "better": 472,
+   "best": 572
+  }
+ },
+ "paint_001": {
+  "unit": "GAL",
+  "sell": {
+   "good": 55,
+   "better": 72,
+   "best": 95
+  }
+ },
+ "paint_002": {
+  "unit": "GAL",
+  "sell": {
+   "good": 38,
+   "better": 52,
+   "best": 68
+  }
+ },
+ "paint_003": {
+  "unit": "GAL",
+  "sell": {
+   "good": 42,
+   "better": 58,
+   "best": 78
+  }
+ },
+ "paint_004": {
+  "unit": "SF",
+  "sell": {
+   "good": 0.5,
+   "better": 0.75,
+   "best": 1
+  }
+ },
+ "paint_005": {
+  "unit": "TUBE",
+  "sell": {
+   "good": 8.5,
+   "better": 11,
+   "best": 14.5
+  }
+ },
+ "paint_006": {
+  "unit": "SF",
+  "sell": {
+   "good": 5.5,
+   "better": 6.5,
+   "best": 8
+  }
+ },
+ "rdeck_001": {
+  "unit": "EA",
+  "sell": {
+   "good": 36,
+   "better": 42,
+   "best": 51
+  }
+ },
+ "rdeck_002": {
+  "unit": "EA",
+  "sell": {
+   "good": 51,
+   "better": 59,
+   "best": 70
+  }
+ },
+ "rdeck_003": {
+  "unit": "EA",
+  "sell": {
+   "good": 90,
+   "better": 100,
+   "best": 113
+  }
+ },
+ "rdeck_004": {
+  "unit": "BX",
+  "sell": {
+   "good": 38,
+   "better": 41,
+   "best": 46
+  }
+ },
+ "rdeck_005": {
+  "unit": "LF",
+  "sell": {
+   "good": 6,
+   "better": 6.5,
+   "best": 7.5
+  }
+ },
+ "riv_cable_pen_mb114": {
+  "unit": "EA",
+  "sell": {
+   "good": 75,
+   "better": 75,
+   "best": 75
+  }
+ },
+ "riv_cable_pen_mb34": {
+  "unit": "EA",
+  "sell": {
+   "good": 75,
+   "better": 75,
+   "best": 75
+  }
+ },
+ "riv_cable_pen_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 75,
+   "better": 75,
+   "best": 75
+  }
+ },
+ "riv_cable_pen_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 75,
+   "better": 75,
+   "best": 75
+  }
+ },
+ "riv_condensation_5": {
+  "unit": "EA",
+  "sell": {
+   "good": 50,
+   "better": 50,
+   "best": 50
+  }
+ },
+ "riv_condensation_6": {
+  "unit": "EA",
+  "sell": {
+   "good": 60,
+   "better": 60,
+   "best": 60
+  }
+ },
+ "riv_eco_4_mb114": {
+  "unit": "EA",
+  "sell": {
+   "good": 95,
+   "better": 95,
+   "best": 95
+  }
+ },
+ "riv_eco_4_mb34": {
+  "unit": "EA",
+  "sell": {
+   "good": 95,
+   "better": 95,
+   "best": 95
+  }
+ },
+ "riv_eco_4_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 95,
+   "better": 95,
+   "best": 95
+  }
+ },
+ "riv_eco_4_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 95,
+   "better": 95,
+   "best": 95
+  }
+ },
+ "riv_eco_5_mb114": {
+  "unit": "EA",
+  "sell": {
+   "good": 95,
+   "better": 95,
+   "best": 95
+  }
+ },
+ "riv_eco_5_mb34": {
+  "unit": "EA",
+  "sell": {
+   "good": 95,
+   "better": 95,
+   "best": 95
+  }
+ },
+ "riv_eco_5_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 95,
+   "better": 95,
+   "best": 95
+  }
+ },
+ "riv_eco_5_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 95,
+   "better": 95,
+   "best": 95
+  }
+ },
+ "riv_eco_6_mb114": {
+  "unit": "EA",
+  "sell": {
+   "good": 112,
+   "better": 112,
+   "best": 112
+  }
+ },
+ "riv_eco_6_mb34": {
+  "unit": "EA",
+  "sell": {
+   "good": 112,
+   "better": 112,
+   "best": 112
+  }
+ },
+ "riv_eco_6_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 112,
+   "better": 112,
+   "best": 112
+  }
+ },
+ "riv_eco_6_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 112,
+   "better": 112,
+   "best": 112
+  }
+ },
+ "riv_flow_mb114": {
+  "unit": "EA",
+  "sell": {
+   "good": 44,
+   "better": 44,
+   "best": 44
+  }
+ },
+ "riv_flow_mb34": {
+  "unit": "EA",
+  "sell": {
+   "good": 44,
+   "better": 44,
+   "best": 44
+  }
+ },
+ "riv_flow_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 40,
+   "better": 40,
+   "best": 40
+  }
+ },
+ "riv_flow_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 44,
+   "better": 44,
+   "best": 44
+  }
+ },
+ "riv_iflex_5_20": {
+  "unit": "EA",
+  "sell": {
+   "good": 32,
+   "better": 32,
+   "best": 32
+  }
+ },
+ "riv_iflex_5_40": {
+  "unit": "EA",
+  "sell": {
+   "good": 36,
+   "better": 36,
+   "best": 36
+  }
+ },
+ "riv_iflex_6_20": {
+  "unit": "EA",
+  "sell": {
+   "good": 40,
+   "better": 40,
+   "best": 40
+  }
+ },
+ "riv_iflex_6_40": {
+  "unit": "EA",
+  "sell": {
+   "good": 44,
+   "better": 44,
+   "best": 44
+  }
+ },
+ "riv_iflex_damper_5_20": {
+  "unit": "EA",
+  "sell": {
+   "good": 41,
+   "better": 41,
+   "best": 41
+  }
+ },
+ "riv_iflex_damper_5_40": {
+  "unit": "EA",
+  "sell": {
+   "good": 45,
+   "better": 45,
+   "best": 45
+  }
+ },
+ "riv_iflex_damper_6_20": {
+  "unit": "EA",
+  "sell": {
+   "good": 49,
+   "better": 49,
+   "best": 49
+  }
+ },
+ "riv_iflex_damper_6_40": {
+  "unit": "EA",
+  "sell": {
+   "good": 53,
+   "better": 53,
+   "best": 53
+  }
+ },
+ "riv_pipe_pen_1_mb114": {
+  "unit": "EA",
+  "sell": {
+   "good": 73,
+   "better": 73,
+   "best": 73
+  }
+ },
+ "riv_pipe_pen_1_mb34": {
+  "unit": "EA",
+  "sell": {
+   "good": 73,
+   "better": 73,
+   "best": 73
+  }
+ },
+ "riv_pipe_pen_1_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 73,
+   "better": 73,
+   "best": 73
+  }
+ },
+ "riv_pipe_pen_1_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 73,
+   "better": 73,
+   "best": 73
+  }
+ },
+ "riv_pipe_pen_2_mb114": {
+  "unit": "EA",
+  "sell": {
+   "good": 76,
+   "better": 76,
+   "best": 76
+  }
+ },
+ "riv_pipe_pen_2_mb34": {
+  "unit": "EA",
+  "sell": {
+   "good": 76,
+   "better": 76,
+   "best": 76
+  }
+ },
+ "riv_pipe_pen_2_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 76,
+   "better": 76,
+   "best": 76
+  }
+ },
+ "riv_pipe_pen_2_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 76,
+   "better": 76,
+   "best": 76
+  }
+ },
+ "riv_reducer_r4": {
+  "unit": "EA",
+  "sell": {
+   "good": 6,
+   "better": 6,
+   "best": 6
+  }
+ },
+ "riv_roto_attic_oblong_6_mb114": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_attic_oblong_6_mb34": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_attic_oblong_6_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_attic_oblong_6_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_attic_oblong_8_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 223,
+   "better": 223,
+   "best": 223
+  }
+ },
+ "riv_roto_attic_oblong_8_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 223,
+   "better": 223,
+   "best": 223
+  }
+ },
+ "riv_roto_attic_round_6_mb114": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_attic_round_6_mb34": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_attic_round_6_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_attic_round_6_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_attic_round_8_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 223,
+   "better": 223,
+   "best": 223
+  }
+ },
+ "riv_roto_attic_round_8_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 223,
+   "better": 223,
+   "best": 223
+  }
+ },
+ "riv_roto_oblong_4_mb114": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_oblong_4_mb34": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_oblong_4_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_oblong_4_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_oblong_5_mb114": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_oblong_5_mb34": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_oblong_5_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_oblong_5_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_oblong_6_mb114": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_oblong_6_mb34": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_oblong_6_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_oblong_6_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_oblong_8_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 223,
+   "better": 223,
+   "best": 223
+  }
+ },
+ "riv_roto_oblong_8_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 223,
+   "better": 223,
+   "best": 223
+  }
+ },
+ "riv_roto_round_4_mb114": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_round_4_mb34": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_round_4_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_round_4_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_round_5_mb114": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_round_5_mb34": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_round_5_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_round_5_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_round_6_mb114": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_round_6_mb34": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_round_6_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_round_6_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 143,
+   "best": 143
+  }
+ },
+ "riv_roto_round_8_pg": {
+  "unit": "EA",
+  "sell": {
+   "good": 223,
+   "better": 223,
+   "best": 223
+  }
+ },
+ "riv_roto_round_8_pi": {
+  "unit": "EA",
+  "sell": {
+   "good": 223,
+   "better": 223,
+   "best": 223
+  }
+ },
+ "riv_turbo_oblong_6": {
+  "unit": "EA",
+  "sell": {
+   "good": 105,
+   "better": 105,
+   "best": 105
+  }
+ },
+ "riv_turbo_oblong_6_mf": {
+  "unit": "EA",
+  "sell": {
+   "good": 115,
+   "better": 115,
+   "best": 115
+  }
+ },
+ "riv_turbo_oblong_8": {
+  "unit": "EA",
+  "sell": {
+   "good": 135,
+   "better": 135,
+   "best": 135
+  }
+ },
+ "riv_turbo_round_6": {
+  "unit": "EA",
+  "sell": {
+   "good": 105,
+   "better": 105,
+   "best": 105
+  }
+ },
+ "riv_turbo_round_6_mf": {
+  "unit": "EA",
+  "sell": {
+   "good": 115,
+   "better": 115,
+   "best": 115
+  }
+ },
+ "riv_turbo_round_8": {
+  "unit": "EA",
+  "sell": {
+   "good": 135,
+   "better": 135,
+   "best": 135
+  }
+ },
+ "riv_wallvent_eco_4": {
+  "unit": "EA",
+  "sell": {
+   "good": 112,
+   "better": 112,
+   "best": 112
+  }
+ },
+ "riv_wallvent_roto_4": {
+  "unit": "EA",
+  "sell": {
+   "good": 136,
+   "better": 136,
+   "best": 136
+  }
+ },
+ "riv_warranty_cert": {
+  "unit": "JOB",
+  "sell": {
+   "good": 0,
+   "better": 0,
+   "best": 0
+  }
+ },
+ "shingle_001": {
+  "unit": "SQ",
+  "sell": {
+   "good": 272,
+   "better": 307,
+   "best": 362
+  }
+ },
+ "shingle_002": {
+  "unit": "SQ",
+  "sell": {
+   "good": 265,
+   "better": 300,
+   "best": 345
+  }
+ },
+ "shingle_003": {
+  "unit": "SQ",
+  "sell": {
+   "good": 225,
+   "better": 265,
+   "best": 315
+  }
+ },
+ "shingle_004": {
+  "unit": "SQ",
+  "sell": {
+   "good": 240,
+   "better": 280,
+   "best": 340
+  }
+ },
+ "shingle_005": {
+  "unit": "SQ",
+  "sell": {
+   "good": 220,
+   "better": 260,
+   "best": 310
+  }
+ },
+ "shingle_006": {
+  "unit": "SQ",
+  "sell": {
+   "good": 255,
+   "better": 300,
+   "best": 355
+  }
+ },
+ "shingle_007": {
+  "unit": "SQ",
+  "sell": {
+   "good": 458,
+   "better": 508,
+   "best": 573
+  }
+ },
+ "shingle_008": {
+  "unit": "SQ",
+  "sell": {
+   "good": 300,
+   "better": 350,
+   "best": 420
+  }
+ },
+ "shingle_009": {
+  "unit": "SQ",
+  "sell": {
+   "good": 252,
+   "better": 287,
+   "best": 327
+  }
+ },
+ "shingle_010": {
+  "unit": "SQ",
+  "sell": {
+   "good": 225,
+   "better": 250,
+   "best": 285
+  }
+ },
+ "shingle_011": {
+  "unit": "SQ",
+  "sell": {
+   "good": 205,
+   "better": 240,
+   "best": 285
+  }
+ },
+ "shingle_012": {
+  "unit": "SQ",
+  "sell": {
+   "good": 266,
+   "better": 301,
+   "best": 356
+  }
+ },
+ "shingle_013": {
+  "unit": "SQ",
+  "sell": {
+   "good": 240,
+   "better": 275,
+   "best": 330
+  }
+ },
+ "shingle_014": {
+  "unit": "SQ",
+  "sell": {
+   "good": 240,
+   "better": 275,
+   "best": 330
+  }
+ },
+ "shingle_015": {
+  "unit": "BDNL",
+  "sell": {
+   "good": 120,
+   "better": 135,
+   "best": 155
+  }
+ },
+ "shingle_016": {
+  "unit": "BDNL",
+  "sell": {
+   "good": 122,
+   "better": 136,
+   "best": 154
+  }
+ },
+ "shingle_017": {
+  "unit": "BDNL",
+  "sell": {
+   "good": 109,
+   "better": 121,
+   "best": 134
+  }
+ },
+ "siding_001": {
+  "unit": "SQ",
+  "sell": {
+   "good": 323,
+   "better": 373,
+   "best": 438
+  }
+ },
+ "siding_002": {
+  "unit": "SQ",
+  "sell": {
+   "good": 385,
+   "better": 450,
+   "best": 540
+  }
+ },
+ "siding_003": {
+  "unit": "SQ",
+  "sell": {
+   "good": 542,
+   "better": 632,
+   "best": 752
+  }
+ },
+ "siding_004": {
+  "unit": "SQ",
+  "sell": {
+   "good": 627,
+   "better": 702,
+   "best": 807
+  }
+ },
+ "siding_005": {
+  "unit": "SQ",
+  "sell": {
+   "good": 345,
+   "better": 405,
+   "best": 485
+  }
+ },
+ "siding_006": {
+  "unit": "SQ",
+  "sell": {
+   "good": 630,
+   "better": 735,
+   "best": 885
+  }
+ },
+ "siding_007": {
+  "unit": "SF",
+  "sell": {
+   "good": 5.5,
+   "better": 6.5,
+   "best": 7.5
+  }
+ },
+ "siding_008": {
+  "unit": "LF",
+  "sell": {
+   "good": 8,
+   "better": 9.5,
+   "best": 11.5
+  }
+ },
+ "siding_009": {
+  "unit": "RL",
+  "sell": {
+   "good": 165,
+   "better": 195,
+   "best": 210
+  }
+ },
+ "siding_010": {
+  "unit": "PC",
+  "sell": {
+   "good": 14,
+   "better": 15.5,
+   "best": 17.5
+  }
+ },
+ "sky_001": {
+  "unit": "EA",
+  "sell": {
+   "good": 769,
+   "better": 829,
+   "best": 909
+  }
+ },
+ "sky_002": {
+  "unit": "EA",
+  "sell": {
+   "good": 1022,
+   "better": 1102,
+   "best": 1222
+  }
+ },
+ "sky_003": {
+  "unit": "EA",
+  "sell": {
+   "good": 1643,
+   "better": 1773,
+   "best": 1973
+  }
+ },
+ "sky_004": {
+  "unit": "EA",
+  "sell": {
+   "good": 650,
+   "better": 700,
+   "best": 780
+  }
+ },
+ "sky_005": {
+  "unit": "EA",
+  "sell": {
+   "good": 922,
+   "better": 992,
+   "best": 1112
+  }
+ },
+ "sky_006": {
+  "unit": "EA",
+  "sell": {
+   "good": 279,
+   "better": 292,
+   "best": 309
+  }
+ },
+ "sky_007": {
+  "unit": "EA",
+  "sell": {
+   "good": 118,
+   "better": 128,
+   "best": 146
+  }
+ },
+ "sky_008": {
+  "unit": "EA",
+  "sell": {
+   "good": 636,
+   "better": 686,
+   "best": 776
+  }
+ },
+ "spec_001": {
+  "unit": "EA",
+  "sell": {
+   "good": 930,
+   "better": 1085,
+   "best": 1305
+  }
+ },
+ "spec_002": {
+  "unit": "EA",
+  "sell": {
+   "good": 633,
+   "better": 728,
+   "best": 903
+  }
+ },
+ "spec_003": {
+  "unit": "EA",
+  "sell": {
+   "good": 175,
+   "better": 205,
+   "best": 250
+  }
+ },
+ "spec_004": {
+  "unit": "LF",
+  "sell": {
+   "good": 14.5,
+   "better": 17,
+   "best": 22
+  }
+ },
+ "spec_005": {
+  "unit": "EA",
+  "sell": {
+   "good": 435,
+   "better": 550,
+   "best": 850
+  }
+ },
+ "under_001": {
+  "unit": "RL",
+  "sell": {
+   "good": 225,
+   "better": 238,
+   "best": 260
+  }
+ },
+ "under_002": {
+  "unit": "RL",
+  "sell": {
+   "good": 423,
+   "better": 440,
+   "best": 465
+  }
+ },
+ "under_003": {
+  "unit": "RL",
+  "sell": {
+   "good": 120,
+   "better": 135,
+   "best": 160
+  }
+ },
+ "under_004": {
+  "unit": "RL",
+  "sell": {
+   "good": 120,
+   "better": 137,
+   "best": 157
+  }
+ },
+ "under_005": {
+  "unit": "RL",
+  "sell": {
+   "good": 58,
+   "better": 64,
+   "best": 72
+  }
+ },
+ "under_006": {
+  "unit": "RL",
+  "sell": {
+   "good": 135,
+   "better": 155,
+   "best": 185
+  }
+ },
+ "under_007": {
+  "unit": "RL",
+  "sell": {
+   "good": 261,
+   "better": 274,
+   "best": 296
+  }
+ },
+ "under_008": {
+  "unit": "RL",
+  "sell": {
+   "good": 173,
+   "better": 193,
+   "best": 223
+  }
+ },
+ "under_009": {
+  "unit": "RL",
+  "sell": {
+   "good": 48,
+   "better": 55,
+   "best": 65
+  }
+ },
+ "vent_001": {
+  "unit": "LF",
+  "sell": {
+   "good": 10.5,
+   "better": 12,
+   "best": 14
+  }
+ },
+ "vent_002": {
+  "unit": "EA",
+  "sell": {
+   "good": 90,
+   "better": 102,
+   "best": 121
+  }
+ },
+ "vent_003": {
+  "unit": "EA",
+  "sell": {
+   "good": 435,
+   "better": 510,
+   "best": 610
+  }
+ },
+ "vent_004": {
+  "unit": "EA",
+  "sell": {
+   "good": 620,
+   "better": 700,
+   "best": 815
+  }
+ },
+ "vent_005": {
+  "unit": "LF",
+  "sell": {
+   "good": 3.5,
+   "better": 4,
+   "best": 4.75
+  }
+ },
+ "vent_006": {
+  "unit": "EA",
+  "sell": {
+   "good": 143,
+   "better": 158,
+   "best": 183
+  }
+ },
+ "window_001": {
+  "unit": "EA",
+  "sell": {
+   "good": 460,
+   "better": 535,
+   "best": 645
+  }
+ },
+ "window_002": {
+  "unit": "EA",
+  "sell": {
+   "good": 585,
+   "better": 685,
+   "best": 820
+  }
+ },
+ "window_003": {
+  "unit": "EA",
+  "sell": {
+   "good": 1405,
+   "better": 1650,
+   "best": 2150
+  }
+ },
+ "window_004": {
+  "unit": "EA",
+  "sell": {
+   "good": 1590,
+   "better": 1950,
+   "best": 2650
+  }
+ },
+ "window_005": {
+  "unit": "EA",
+  "sell": {
+   "good": 420,
+   "better": 490,
+   "best": 590
+  }
+ },
+ "window_006": {
+  "unit": "EA",
+  "sell": {
+   "good": 2590,
+   "better": 3020,
+   "best": 3650
+  }
+ },
+ "window_007": {
+  "unit": "EA",
+  "sell": {
+   "good": 3450,
+   "better": 4025,
+   "best": 4830
+  }
+ },
+ "window_008": {
+  "unit": "EA",
+  "sell": {
+   "good": 120,
+   "better": 135,
+   "best": 165
+  }
+ }
+}

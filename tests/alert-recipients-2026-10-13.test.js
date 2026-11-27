@@ -276,10 +276,13 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
     reset();
     tenant('co-a', { alertEmail: 'victim@example.test', alertSms: '+15555550142' }, { email: 'owner@example.test', emailVerified: true, phoneNumber: '+15555550142' });
     world.docs['alertRecipients/co-a'] = { confirmed: { [AR.addrKey('victim@example.test')]: { email: 'victim@example.test', requestedBy: 'co-a' } } };
-    await LA.alertJoe('contact_leads', lead(), 'l-2');
+    const o2 = await LA.alertJoe('contact_leads', lead(), 'l-2');
     const sentTo2 = rec.emails.map((e) => [].concat(e.to)).flat();
     ok('CONTROL: confirmed custom email DOES get the alert', sentTo2.join() === 'victim@example.test', sentTo2);
-    ok("CONTROL: SMS to the owner's auth phone DOES send", rec.sms.length === 1 && rec.sms[0].to === '+15555550142', rec.sms);
+    // S0 (2026-11-26, Jo: until a company has its own number, it gets email only): a tenant owner's alert
+    // text would go out on NBD's number and A2P campaign, so it is held. Was: "SMS to the owner's auth phone DOES send".
+    ok("a matched tenant owner phone gets NO text from NBD's number (held no_own_sender); email and push still go",
+      rec.sms.length === 0 && o2 && o2.sms === 'skipped:no_own_sender' && rec.pushes.length === 1, JSON.stringify({ sms: rec.sms, out: o2 && o2.sms }));
 
     // Unconfigured tenant stays silent (Jo 2026-10-05).
     reset();

@@ -178,7 +178,8 @@
     if (!coarse) return null;
     const ua = String(navigator.userAgent || '');
     if (_a2hsPrompt) return { canPrompt: true, text: 'Add this page to your home screen to check on your project with one tap.' };
-    if (/iPhone|iPad|iPod/.test(ua)) return { canPrompt: false, text: 'Add this page to your home screen: tap the Share button, then “Add to Home Screen”.' };
+    // iPadOS reports itself as a Mac: a Mac with touch points is an iPad (2026-11-25).
+    if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return { canPrompt: false, text: 'Add this page to your home screen: tap the Share button, then “Add to Home Screen”.' };
     return { canPrompt: false, text: 'Add this page to your home screen: open your browser menu, then choose “Add to Home screen”.' };
   }
   document.addEventListener('click', async function (e) {

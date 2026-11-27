@@ -184,7 +184,7 @@ function fakePS(answer, calls) {
     const nochk = await run(null);
     ok('C1 Text Portal, check unavailable → blocked with a message (never an unchecked hand-off)', !/^sms:/.test(nochk.href) && nochk.calls.some((c) => c[0] === 'toast' && /Couldn.t check/.test(c[1])));
     const yes = await run({ ok: true });
-    ok('C1 Text Portal, ok → Messages opens with the portal link, check asked for THIS lead', /^sms:5135550123\?body=/.test(yes.href)
+    ok('C1 Text Portal, ok → Messages opens with the portal link, check asked for THIS lead', /^sms:5135550123\?&body=/.test(yes.href)
       && yes.calls.some((c) => c[0] === 'checkText' && c[1].leadId === 'lead-123') && yes.calls.some((c) => c[0] === 'recorded' && c[1] === 'sms'), yes.href);
   });
 
@@ -219,7 +219,7 @@ function fakePS(answer, calls) {
     ok('C2 portal-link share, check unavailable → blocked with a message', !nochk.some((c) => c[0] === 'open') && nochk.some((c) => c[0] === 'toast' && /Couldn.t check/.test(c[1])));
     const yes = await run({ ok: true });
     ok('C2 portal-link share, ok → Messages opens to that number, check asked for THIS lead',
-      yes.some((c) => c[0] === 'open' && /^sms:5135550199\?body=/.test(c[1])) && yes.some((c) => c[0] === 'checkText' && c[1].leadId === 'L9') && yes.some((c) => c[0] === 'recorded' && c[1] === 'sms'));
+      yes.some((c) => c[0] === 'open' && /^sms:5135550199\?&body=/.test(c[1])) && yes.some((c) => c[0] === 'checkText' && c[1].leadId === 'L9') && yes.some((c) => c[0] === 'recorded' && c[1] === 'sms'));
   });
 
   // C3. Text Booking Link (customer-bootstrap.module.js) — the click handler's own source.
@@ -319,7 +319,7 @@ function fakePS(answer, calls) {
     const nochk = await run(null);
     ok('C5 kanban booking text, check unavailable → blocked with a message', !nochk.some((c) => c[0] === 'open') && nochk.some((c) => c[0] === 'toast' && /Couldn.t check/.test(c[1])));
     const yes = await run({ ok: true });
-    ok('C5 kanban booking text, ok → Messages opens, check for THIS lead', yes.some((c) => c[0] === 'open' && /^sms:5135550111\?body=/.test(c[1])) && yes.some((c) => c[0] === 'checkText' && c[1].leadId === 'L5'));
+    ok('C5 kanban booking text, ok → Messages opens, check for THIS lead', yes.some((c) => c[0] === 'open' && /^sms:5135550111\?&body=/.test(c[1])) && yes.some((c) => c[0] === 'checkText' && c[1].leadId === 'L5'));
   });
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

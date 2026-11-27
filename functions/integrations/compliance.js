@@ -70,6 +70,7 @@ const {
   ERASURE_STORAGE_PREFIXES,
   OWNER_KEYED_DOCS,
   COMPANY_KEYED_TREES,
+  COMPANY_KEYED_STORAGE_PREFIXES,
   NESTED_LEADS_PATH,
 } = require('./user-owned');
 
@@ -922,6 +923,10 @@ exports.confirmAccountErasure = onRequest(
       for (const tree of COMPANY_KEYED_TREES) {
         try { await db.recursiveDelete(db.doc(tree + '/' + scope.companyId)); }
         catch (e) { fail('recursiveDelete', tree, e); }
+      }
+      for (const prefix of COMPANY_KEYED_STORAGE_PREFIXES) {
+        try { await getStorage().bucket().deleteFiles({ prefix: prefix + '/' + scope.companyId + '/', force: true }); }
+        catch (e) { fail('storage', prefix, e); }
       }
     }
 

@@ -53,6 +53,8 @@ const CRON_GATES = [
   { name: 'LEADERBOARD_AGGREGATE_ENABLED', polarity: 'enabled', file: 'leaderboard-aggregate.js' },
   // Call retention (2026-11-09, Call to Close Q7): daily 03:20 ET, transcripts + briefs 24 months, CRM audio copies 12 months, Drive untouched. Dry-run (counts only) until Jo says go.
   { name: 'CALL_RETENTION_ENABLED', polarity: 'enabled', file: 'call-retention.js' },
+  // ...and its Thursday phases (2026-11-25, roadmap step 17C): thursday_calls recordings 12 months, transcripts 24. Act only with CALL_RETENTION_ENABLED too; otherwise dry (logs what they would delete).
+  { name: 'CALL_RETENTION_THURSDAY_ENABLED', polarity: 'enabled', file: 'call-retention.js' },
   // Away mode: the 15-min tick that tells the backup person (dry-run until Jo
   // says go). Ending an expired window is NOT behind this gate.
   { name: 'AWAY_MODE_ENABLED', polarity: 'enabled', file: 'away-mode.js' },
@@ -61,6 +63,10 @@ const CRON_GATES = [
   { name: 'THURSDAY_LABEL_PLAYBOOKS_ENABLED', polarity: 'enabled', file: 'integrations/thursday.js' },
   // Missed-lead-alert re-send (every 10 min, email + push to Jo): ON unless killed.
   { name: 'LEAD_ALERT_WATCHDOG_DISABLED', polarity: 'disabled', file: 'lead-alert-watchdog.js' },
+  // Per-job cron watcher (every 30 min, bell + push to Jo; daytime except call/text ingest): ON unless killed.
+  { name: 'CRON_DEADMAN_DISABLED', polarity: 'disabled', file: 'cron-deadman.js' },
+  // Office planner (2026-11-25, roadmap step 17B): 08/12/17 ET, the CRM lanes into the Agent inbox for opted-in companies. A no-op until Jo says go.
+  { name: 'OFFICE_PLANNER_ENABLED', polarity: 'enabled', file: 'office-planner.js' },
   // Text Inbox ingest (SMS Backup & Restore → phone_texts): dry-run until Jo says go.
   { name: 'TEXT_INBOX_ENABLED', polarity: 'enabled', file: 'text-inbox.js' },
   // Receipt inbox reader (2026-11-04): submitInboxReceipt is a dry run (reads and spends nothing) until Jo says go. Not a cron.
@@ -99,6 +105,8 @@ const CRON_GATES = [
   // the email is live on nobigdeal-pro; the text is DARK until A2P approval.
   { name: 'REVIEW_ASK_AUTO_EMAIL_ENABLED', polarity: 'enabled', file: 'review-ask-auto.js' },
   { name: 'REVIEW_ASK_AUTO_TEXT_ENABLED', polarity: 'enabled', file: 'review-ask-auto.js' },
+  // The review ask for OTHER companies, email only (2026-11-26, reviewAskTenantSweep 11:00 ET): DARK.
+  { name: 'REVIEW_ASK_TENANTS_ENABLED', polarity: 'enabled', file: 'review-ask-tenant.js' },
   // Not a cron: the Apple Health weight Shortcut endpoint (2026-10-20). Its real
   // on-switch is the Firestore doc system/healthShortcut {enabled:true} (dark
   // until Jo flips it in the console); this env var is the emergency kill switch.
@@ -109,6 +117,10 @@ const CRON_GATES = [
   { name: 'DOC_LINK_FOLLOWUP_ENABLED', polarity: 'enabled', file: 'doc-link-followup.js' },
   // Not a cron: the two Firestore triggers that send the portal key-moment emails (2026-11-04). DARK until Jo says go; also needs messaging_controls/automations portalMomentEmail.
   { name: 'PORTAL_MOMENT_EMAILS_ENABLED', polarity: 'enabled', file: 'portal-moments.js' },
+  // Server mail feed (2026-11-25, roadmap step 17 part A): every 15 min, a READ-ONLY redacted copy of new iCloud + Gmail inbox mail. Needs the mail secrets too. Dark until Joe says go.
+  { name: 'MAIL_FEED_ENABLED', polarity: 'enabled', file: 'mail-feed.js' },
+  // Storm-tips email (2026-11-26): Joe's manual send AND the daily schedule need it; the schedule also needs automations.stormTipsEmail. Dark until Joe says go.
+  { name: 'STORM_TIPS_EMAIL_ENABLED', polarity: 'enabled', file: 'storm-tips-email.js' },
 ];
 
 /**

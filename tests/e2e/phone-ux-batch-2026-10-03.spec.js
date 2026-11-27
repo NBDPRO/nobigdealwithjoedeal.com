@@ -43,6 +43,7 @@
 //   PLAYWRIGHT_TEST_USER_PASSWORD=nbd-e2e-password-1 \
 //   npx playwright test --config=playwright.config.js phone-ux-batch-2026-10-03.spec.js --workers=1
 const { test, expect } = require('@playwright/test');
+const { autoDialogs } = require('./fixtures/dialogs'); // in-tab dialogs (native ones are gone)
 const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
 const { deleteSeededRun } = require('./fixtures/seeded-run');
 
@@ -194,7 +195,7 @@ test.describe('installed iPhone app — tap targets and safe areas @shard3', () 
     run = `phone-ux-batch@390:${stamp}`; // set before the first write (seeded-run.js)
     ctx = await browser.newContext(contextOptions(testInfo));
     page = await ctx.newPage();
-    page.on('dialog', (d) => d.accept().catch(() => {}));
+    await autoDialogs(page);
     await page.route('**/nominatim.openstreetmap.org/**', (r) => r.fulfill({ contentType: 'application/json', body: '[]' }));
     // A mis-tap on the quick bar must never leave the page (tel:/sms:).
     await page.addInitScript(() => {

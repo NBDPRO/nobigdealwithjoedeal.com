@@ -118,7 +118,8 @@ function fakeResend() {
   const sent = [];
   return { sent, emails: { send: async (m) => { sent.push(m); return { data: { id: 're_' + sent.length }, error: null }; } } };
 }
-const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowMs: NOW }, o || {});
+// sendWindow: the customer send window held open (NOW is the real clock); tests/send-window-2026-11-22.test.js covers it.
+const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowMs: NOW, sendWindow: () => ({ ok: true }) }, o || {});
 FV.delete = () => '__DEL__';
 // The fake applies '__DEL__' as a value; read it back as "absent".
 const gone = (v) => v === undefined || v === '__DEL__';

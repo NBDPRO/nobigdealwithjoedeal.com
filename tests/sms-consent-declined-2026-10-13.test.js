@@ -17,6 +17,9 @@
  *   node tests/sms-consent-declined-2026-10-13.test.js
  */
 'use strict';
+// Only NBD texts on NBD's Twilio sender (review-ask guardrail plan S0, 2026-11-26): this suite's
+// fixture tenant stands in for NBD. sms-texting-gate.js refuses every other company (no_own_sender).
+process.env.NBD_OWNER_UID = 'co-1';
 
 const fs = require('fs');
 const path = require('path');
@@ -541,6 +544,7 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
       'call-center.js': { covered: ['missed-call-autotext.js'], note: 'sendAutoText is the missed-call auto-text\'s Twilio sender (dark: MISSED_CALL_AUTOTEXT_ENABLED); maybeAutoTextMissedCall requires a web-form tcpaConsent === true, the STOP/DNT register, then ConsentDeclined.decide kind automated, all before the claim and the send' },
       'review-ask-auto.js': { covered: ['askOne'], note: 'the automatic review ask by text (dark: REVIEW_ASK_AUTO_TEXT_ENABLED); planText requires a web-form tcpaConsent === true and the 8am-9pm window, then the STOP/DNT register, ConsentDeclined.decide kind automated and the texting switch, all before the claim and the send' },
       'verify-functions.js': { exempt: 'one-time verification code to the number the user is verifying; not a customer message' },
+      'owner-notify.js': { exempt: 'system alerts to the owner\'s own phone (messaging-controls owner phone + internalAlertsEnabled + daily cap); never a customer (step 13, 2026-11-25)' },
       'messaging-controls.js': { exempt: 'the kill-switch wrapper around the SDK call itself (guardTwilio); it sends nothing of its own' },
       'storm-poller.js': { exempt: 'the Storm Alert double-opt-in confirmation text (storm-confirm.js): subscriber tcpaConsent === true, STOP register, quiet hours, once per subscriber; default OFF' },
     };
@@ -557,7 +561,11 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
       return out;
     };
     const allFiles = walkJs(FUNCTIONS, '', []);
-    const senders = allFiles.filter((f) => /messages\s*\.\s*create\s*\(/.test(stripComments(fs.readFileSync(path.join(FUNCTIONS, f), 'utf8'))));
+    // Same shape, not Twilio: the Anthropic SDK model call (2026-11-25). Its one
+    // site is pinned in messaging-senders-guarded-2026-10-19 RAW_PINS, so a
+    // second send added to that file still fails there.
+    const NOT_TWILIO = { 'ai-client.js': 'Anthropic SDK client.messages.create: a model call, not a text' };
+    const senders = allFiles.filter((f) => !NOT_TWILIO[f] && /messages\s*\.\s*create\s*\(/.test(stripComments(fs.readFileSync(path.join(FUNCTIONS, f), 'utf8'))));
     ok('the Twilio senders found are exactly the ledger\'s (a NEW sender must be classified)',
       JSON.stringify(senders.sort()) === JSON.stringify(Object.keys(LEDGER).sort()), senders.join(','));
     // Static backstops (behaviour is asserted above). Comments stripped and the

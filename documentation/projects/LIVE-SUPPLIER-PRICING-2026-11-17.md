@@ -202,6 +202,135 @@ and adopted (5 in a different form, listed in the design's section 11).
 | 15-16 | SRS and QXO adapters. |
 | 17 | Later: purchase orders per store, delivery and proof-of-delivery filing, invoice-against-order check, Menards. |
 
+## Update 2026-11-17 (later): slice 2 built
+
+Slice 2 (Home Depot receipt lines into the history, the dry-run copy of the
+legacy price book, the ledger in the company export, an "Unlinked items" list)
+is built and ships dark. Jo's answers and where the build departs from its
+checklist are in
+[LIVE-SUPPLIER-PRICING-SLICE-2-PLAN-2026-11-17](LIVE-SUPPLIER-PRICING-SLICE-2-PLAN-2026-11-17.md).
+After the deploy the flag goes on for Jo alone; the copy script's write needs
+Jo's OK for that run.
+
+## Update 2026-11-17 (evening): slice 3 built
+
+Slice 3, cut down by Jo (no nightly job, no stored alerts, no cost-book
+change), is built and ships dark: Import prices (supplier CSV files on the new
+`csv_import` channel), suggested links on Unlinked items, suppliers side by side
+on each product, Compare suppliers with on-screen alerts and a shared seen
+list, and a Supplier Price Compare panel in Company Settings (tax rate and alert
+threshold, off until set). Details, Jo's nine decisions and what is not done:
+[LIVE-SUPPLIER-PRICING-SLICE-3-2026-11-17](LIVE-SUPPLIER-PRICING-SLICE-3-2026-11-17.md).
+Next: after the deploy Jo loads the SRS and QXO price sheets through the
+import, each only after his OK on its preview.
+
+## Update 2026-11-17 (night): slice 4 built
+
+Slice 4 is built and ships dark: **Update my cost** approves a fresh supplier
+price into the company's cost book one tier at a time, with the margin-floor
+and above-sell confirms, an audit row, Undo, and the change reaching his other
+devices. A product save now writes only the costs it changed. Details and what
+is not done:
+[LIVE-SUPPLIER-PRICING-SLICE-4-2026-11-17](LIVE-SUPPLIER-PRICING-SLICE-4-2026-11-17.md).
+
+## Where it stands, 2026-11-18 (handoff: start here)
+
+Everything through slice 4 is merged and deployed (deploys green at 00:20 and
+00:45 UTC, 2026-11-18): slice 1 #3130, slice 2 #3144, slice 3 #3157, import
+fixes #3158, slice 4 plan #3159, slice 4 #3160. All dark behind
+`supplierPricing`, which is on for Jo alone.
+
+Data in Jo's live ledger (loaded 2026-11-17 with his OK on each preview; counts
+only here, the files stay in his private money folder):
+
+- Supplier accounts: SRS (rep Peyton Van Horn; branches Florence, the usual
+  one, and Ft Thomas) and QXO (rep Jay Kirby; branch Cincinnati 291). Delivery
+  fee set to the middle of the range Jo gave; minimum order and account number
+  blank. There is no screen to edit terms yet.
+- SRS: two quotes, 62 items, before tax, good through 2026-11-22 (so they turn
+  "expired" in a few days). QXO: two quotes for one item, before tax, good
+  through 2026-12-29.
+- Jo's old price book (122 items) and his Home Depot receipts are in as
+  unlinked offers too.
+
+Jo's next steps, in order (no code needed):
+
+1. Company Settings: Supplier Price Compare tax rate and alert threshold (his
+   numbers are in the slice 2 plan's table), and check the estimate margin
+   floor.
+2. Unlinked items: link each item to a product (a suggestion is shown where one
+   fits), then set and confirm each pack size on the product's Stores & prices.
+   Until then nothing compares, alerts or can be approved.
+3. Then Compare suppliers and "Update my cost" have something to work on.
+
+Small loose ends a later session can pick up:
+
+- One SRS line (zip screws, unit printed as TUB) was saved before the TUB fix
+  and stays without a unit; re-entering that one price fixes it.
+- Supplier account terms (delivery fee, minimum order) have no edit screen.
+- The import screens and Compare suppliers were driven in Jo's real browser on
+  desktop; not yet checked on his iPhone.
+
+Next slice: 5 (live check, dry) waits on the supplier API access only Jo can
+request (the list below). When Jo asks for more work here, start from this
+section, the slice 3 and slice 4 notes, and the design's section 8.
+
+## Update 2026-11-18: Jo's next-step decisions, product photos built
+
+Jo, 2026-11-18, in chat (each the recommended answer):
+
+- **Product photos:** the owner and company admins add them (take a photo or pick
+  a file) on a product's Stores & prices sheet and on each supplier item; they
+  show on the product card and the sheet, inside the CRM only. **Built**, ships
+  dark: [LIVE-SUPPLIER-PRICING-PHOTOS-2026-11-18](LIVE-SUPPLIER-PRICING-PHOTOS-2026-11-18.md).
+- **Slice 5 (Check today's price) waits** until a store-price service is chosen
+  and keyed. Not built.
+- **Slice 7 (materials list with real prices):** supplier prices on the list are
+  seen by the owner, company admins and managers only (reps still see the
+  quantities and where to buy); each line uses the supplier set as usual for that
+  kind of product, else the cheapest fresh price, with the quantity from the
+  item's confirmed pack size; the company's own suppliers replace the two
+  hard-coded store names; no price shows "No price yet". Next to build.
+
+## Update 2026-11-18 (later): Jo's plan from here, and reps locked out of supplier prices
+
+Slice 7 (the materials list at the company's suppliers) is built and merged:
+[LIVE-SUPPLIER-PRICING-SLICE-7-2026-11-18](LIVE-SUPPLIER-PRICING-SLICE-7-2026-11-18.md).
+
+Jo, 2026-11-18, in a grilling round (each the recommended answer):
+
+1. **Rollout:** `supplierPricing` stays on for Jo only until he has made about 10
+   real cost approvals and opened the Materials list on 5 real estimates; then he
+   decides the next group.
+2. **Reps never read a supplier price anywhere.** Built here: the rules for
+   `priceOffers` and `supplierAccounts` are owner / company_admin / manager
+   (`plStaff`); reps get no Stores & prices button and the plain materials list;
+   product photos stay visible to them (`productLinks`, Storage).
+3. **Next:** exact estimate-line to product links: a starter list of the 44
+   estimate codes that clearly name one product (codes and product ids only),
+   an "Estimate codes" box per product where the owner or an admin adds or removes
+   codes (their edits win), a code on more than one product counts as unlinked,
+   a line never borrows another product's price, no automatic unit conversion.
+4. **Then slice 9:** reading supplier PDFs (invoices, quotes), then photos of
+   paper receipts; owner and admins only; the reader pre-fills kind, date,
+   good-through and tax, never a number that is not on the document; rows land on
+   the Import prices preview and nothing saves without an OK; the original is kept
+   privately and linked to its rows; "Remove this document" voids its rows and
+   deletes the file; AI reading capped at $10 a month per company, adjustable;
+   originals erased with a solo owner's account.
+
+Not covered by the rep lock, and Jo's call (not changed here):
+
+- The legacy `priceBook/{companyId}` doc (Home Depot receipt prices, the old
+  "Price book" button) is readable by every company member, a rep included. Its
+  rule is pinned by `tests/price-book-2026-10-02.test.js`; changing it is a
+  deliberate re-pin. **Done 2026-11-18 (Jo: "Yes, lock reps out"):** the read rule
+  refuses a sales_rep, the pin now checks catalogCosts' rule plus that one clause,
+  and the Price book button hides for reps. Side effect: a rep's order screen no
+  longer lists the Home Depot SKUs bought for a lead (it reads the same doc).
+- `catalogCosts/{companyId}` (the cost book, where an approved supplier cost lands)
+  is readable by every company member, as it has been since 2026-07.
+
 ## Waiting on Jo
 
 Outside actions (none blocks slice 1):

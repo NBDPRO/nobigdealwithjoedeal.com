@@ -276,7 +276,7 @@ const FV = { serverTimestamp: () => 'TS', increment: (n) => n, arrayUnion: (...a
         './job-spine': { spineAfterRemoteSign: async () => ({}) },
         resend: { Resend: class { constructor() { this.emails = { send: async (m) => { sent.push(m.to); return { data: { id: 'm1' } }; } }; } } },
       };
-      const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './await-briefly', './signed-price', 'crypto'];
+      const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './doc-evidence', './await-briefly', './signed-price', './attic-ack', './attic-gate', 'crypto'];
       const req = (id) => {
         if (Object.prototype.hasOwnProperty.call(stubs, id)) return stubs[id];
         if (REAL.indexOf(id) !== -1) return require(id.charAt(0) === '.' ? path.join(FN, id) : id);

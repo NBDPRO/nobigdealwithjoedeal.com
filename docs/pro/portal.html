@@ -488,7 +488,7 @@
   .ph-viewer-full{ color:#fff; font-size:14px; text-decoration:underline; min-height:44px; display:inline-flex; align-items:center; }
   .ph-viewer-close, .ph-viewer-nav button{ background:rgba(255,255,255,.12); color:#fff; border:0; border-radius:999px; min-width:44px; min-height:44px; font-size:22px; cursor:pointer; }
   .ph-viewer-stage{ flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center; overflow:hidden; padding:0 8px; }
-  .ph-viewer-img{ display:block; max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; touch-action:pan-y; user-select:none; }
+  .ph-viewer-img{ display:block; max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; touch-action:pan-y; -webkit-user-select:none;user-select:none; }
   .ph-viewer-nav{ display:flex; justify-content:space-between; padding:10px 14px 18px; }
   .care-plan-list{ margin: var(--nbd-space-2) 0 var(--nbd-space-3); padding-left: 1.2em; line-height:1.5; }
   .appt-actions{ display:flex; gap: var(--nbd-space-2); flex-wrap:wrap; margin-top: var(--nbd-space-3); }
@@ -664,12 +664,13 @@
 <!-- Phone reading layout for "Your Documents → View" (shared with sign.html
      and the rep's doc viewer, 2026-09-25). Before portal.js, which reads it. -->
 <script defer src="js/doc-phone-layout.js?v=1"></script>
+<script defer src="js/doc-phone-layout-letterhead.js?v=1"></script>
 <!-- Arrival-window wording for the install-date line (2026-09-29). Pure, no
      Firebase; before portal.js, which reads window.NBDScheduleWindow. -->
 <script defer src="js/schedule-window.js?v=2"></script>
 <!-- "A video from Thursday" card (NBD only; ships dark until a video is
      configured). Before portal.js, which reads window.NBDThursdayVideo. -->
 <script defer src="js/thursday-video.js?v=1"></script>
-<script src="js/portal.js?v=28" defer></script>
+<script src="js/portal.js?v=29" defer></script>
 </body>
 </html>

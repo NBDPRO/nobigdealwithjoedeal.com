@@ -52,7 +52,8 @@ const COORDS = {
 
 const FAMILIES = [
   { prefix: 'hail-damage-insurance-claim', hub: 'hail-damage-insurance-claim.html', label: 'Hail Claim Help', icon: '📋' },
-  { prefix: 'hail-damage', hub: 'hail-damage-insurance-claim.html', label: 'Hail Damage Inspection', icon: '🛡️' },
+  // 2026-11-26: the hail-damage-<town> family was merged into storm-damage-<town>
+  // (GSC content merge; firebase.json 301s). Don't re-add it.
   { prefix: 'storm-damage', hub: 'storm-damage.html', label: 'Storm Damage Repair', icon: '⛈️' },
   { prefix: 'roof-replacement', hub: 'roof-replacement.html', label: 'Roof Replacement', icon: '🏠' },
   { prefix: 'roof-repair', hub: 'roof-repair.html', label: 'Roof Repair', icon: '🔧' },
@@ -63,12 +64,6 @@ const FAMILIES = [
 ];
 
 const GUIDES = {
-  'hail-damage': [
-    ['/blog/does-homeowner-insurance-cover-hail-damage-ohio', 'Does Insurance Cover Hail Damage?'],
-    ['/blog/cincinnati-hail-season-2026', 'Cincinnati Hail Season Guide'],
-    // 2026-10-06 SEO audit fix #8: the weakest helpful pages get town links.
-    ['/blog/how-to-choose-a-roofer-after-a-storm', 'How to Choose a Roofer After a Storm'],
-  ],
   'hail-damage-insurance-claim': [
     ['/blog/how-to-file-storm-damage-insurance-claim-ohio', 'How to File a Storm Claim in Ohio'],
     ['/blog/what-to-expect-roof-insurance-adjuster-visit', 'What the Adjuster Visit Looks Like'],

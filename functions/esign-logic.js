@@ -202,6 +202,7 @@ function buildSignerEvidence(input) {
     signedAt: at,
     typedName: str(i.typedName, 200) || null,
     ip: i.ip ? String(i.ip).slice(0, 64) : null,
+    ipSource: i.ipSource ? String(i.ipSource).slice(0, 80) : null,
     ua: i.ua ? String(i.ua).slice(0, 300) : null,
     consent: {
       agreed: i.consent === true,
@@ -211,6 +212,11 @@ function buildSignerEvidence(input) {
       ua: i.ua ? String(i.ua).slice(0, 300) : null,
     },
     valuesSha256: i.valuesSha256 ? String(i.valuesSha256) : null,
+    // Evidence parity (2026-11-18): the clause set the document carried and the
+    // digest of the document as presented (the stored source PDF the signer saw).
+    clauseSetVersion: i.clauseSetVersion ? String(i.clauseSetVersion).slice(0, 60) : null,
+    clauseIds: Array.isArray(i.clauseIds) ? i.clauseIds.slice(0, 60).map(String) : [],
+    documentSha256: i.documentSha256 ? String(i.documentSha256) : null,
     fieldIds: Array.isArray(i.fieldIds) ? i.fieldIds.slice(0, 200).map(String) : [],
     viewedAt: Number.isFinite(Number(i.viewedAt)) ? Number(i.viewedAt) : null,
   };
@@ -349,6 +355,7 @@ function signedCopyEmail(o) {
 // the lead as an alternate (lead.altEmails — e.g. a co-owner). Compared
 // trimmed and case-insensitive. Pure.
 const SIGN_EMAIL_DAILY_CAP = 50;          // sign-link sends per user per day, both flows together
+const SIGN_LINK_ONLY_DAILY_CAP = 200;     // link-only mints (docSignPanelV1, no email sent) per user per day: their own counter
 const SIGN_EMAIL_NOT_ON_RECORD = "That email isn't on this customer's record. Save it on the customer first (their email, or an alternate email), then send.";
 
 function emailsOnRecord(lead) {
@@ -366,7 +373,7 @@ function recipientOnRecord(lead, email) {
 }
 
 module.exports = {
-  SIGN_EMAIL_DAILY_CAP, SIGN_EMAIL_NOT_ON_RECORD, emailsOnRecord, recipientOnRecord,
+  SIGN_EMAIL_DAILY_CAP, SIGN_LINK_ONLY_DAILY_CAP, SIGN_EMAIL_NOT_ON_RECORD, emailsOnRecord, recipientOnRecord,
   MAX_SIGNERS, DEFAULT_SIGNER_ID, CONSENT_TEXT, REMINDER_EVERY_MS, REMINDER_MAX, REQUIRED_EVIDENCE, EMAIL_RE,
   normalizeSigners, fieldsForSigner, nextPendingSigner, signerForToken, sanitizeSignerInput,
   validateSignerLayout, pickSignerValues, buildSignerEvidence, missingEvidence, estimateStatusFor,

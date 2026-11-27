@@ -125,7 +125,7 @@ async function selectProject(id) {
   }
 
   if (id === '__manual__') {
-    const name = prompt('Enter homeowner name or project address:');
+    const name = await window.nbdPrompt('Enter homeowner name or project address:');
     if (!name) return;
     currentProject = { id: 'manual', firstName: name, stage: 'new', createdAt: { toDate: () => new Date() } };
   } else {

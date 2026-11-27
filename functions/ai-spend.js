@@ -10,6 +10,8 @@
  *
  *   ai_spend_daily/{YYYY-MM-DD}   (America/New_York day)
  *   ai_spend_monthly/{YYYY-MM}
+ *   ai_spend_daily_co/{YYYY-MM-DD}__{companyId}   (when the row names a
+ *                                 company; read by ai-gate.js's breaker)
  *
  * Each holds usdMicros / calls / inputTokens / outputTokens / audioSec, plus the
  * same counters per feature under features.<feature>. Money is an integer of
@@ -37,6 +39,10 @@ const PRICES = {
   'claude-sonnet-5-5': { input: 2, output: 10 },
   'claude-opus-5': { input: 5, output: 25 },
   'claude-opus-5-5': { input: 4, output: 20 },
+  // 2026-11-25 (roadmap step 15): the ids functions/ai-models.js can name.
+  // Haiku 5.5 is $0.10 / $0.50 for prompts up to 100K tokens (every NBD route).
+  'claude-haiku-5-5': { input: 0.1, output: 0.5 },
+  'claude-fable-5-2': { input: 8, output: 40 },
 };
 // Groq Whisper, USD per audio hour (whisper-large-v3-turbo list price).
 const AUDIO_PRICES_PER_HOUR = {
@@ -87,10 +93,18 @@ function spendPatch(row, inc) {
   return { patch, micros, priced };
 }
 
+/** ai_spend_daily_co doc id for a company's day, or null for no / an unsafe companyId. */
+function companyDayDocId(day, companyId) {
+  const id = typeof companyId === 'string' ? companyId : '';
+  if (!id || id.length > 128 || id.includes('/')) return null;
+  return day + '__' + id;
+}
+
 /**
- * Adds one AI call to today's and this month's counters. Never throws.
- * @param {object} row { feature, model, inputTokens?, outputTokens?, audioSec? }
- * @param {object} [opts] { db, nowMs, FieldValue, log }
+ * Adds one AI call to today's and this month's counters (and, with a
+ * companyId, that company's day counter). Never throws.
+ * @param {object} row { feature, model, inputTokens?, outputTokens?, audioSec?, companyId? }
+ * @param {object} [opts] { db, nowMs, FieldValue, log, companyId }
  */
 async function recordAiSpend(row, opts) {
   const o = opts || {};
@@ -101,10 +115,18 @@ async function recordAiSpend(row, opts) {
     const nowMs = Number(o.nowMs) || Date.now();
     const { patch, micros } = spendPatch(row || {}, (n) => FV.increment(n));
     const stamp = { updatedAt: FV.serverTimestamp() };
-    await Promise.all([
+    const writes = [
       db.collection('ai_spend_daily').doc(etYmd(nowMs)).set(Object.assign({ day: etYmd(nowMs) }, stamp, patch), { merge: true }),
       db.collection('ai_spend_monthly').doc(etYm(nowMs)).set(Object.assign({ month: etYm(nowMs) }, stamp, patch), { merge: true }),
-    ]);
+    ];
+    // Per-company day counter (2026-11-25): what ai-gate.js's spend breaker
+    // reads for the per-company cap, and the data future per-plan caps are
+    // derived from. api_usage_daily __co__ docs only cover claudeProxy (in
+    // tokens, by UTC day), so this one counts every feature, in micro-dollars,
+    // by the same ET day as ai_spend_daily.
+    const co = companyDayDocId(etYmd(nowMs), (row && row.companyId) || o.companyId);
+    if (co) writes.push(db.collection('ai_spend_daily_co').doc(co).set(Object.assign({ day: etYmd(nowMs), companyId: String((row && row.companyId) || o.companyId) }, stamp, patch), { merge: true }));
+    await Promise.all(writes);
     return { ok: true, micros };
   } catch (e) {
     try { (o.log || console).warn('ai_spend_record_failed', { feature: row && row.feature, err: e && e.message }); } catch (_) { /* ignore */ }
@@ -156,4 +178,5 @@ function aiSpendLine(s) {
 module.exports = {
   PRICES, AUDIO_PRICES_PER_HOUR,
   costMicros, spendPatch, recordAiSpend, rowFromAnthropic, readAiSpend, aiSpendLine, fmtUsdMicros, featureKey, etYmd, etYm,
+  companyDayDocId,
 };

@@ -96,7 +96,6 @@ const BANNED = [
 ];
 // Files that quote a banned phrase to forbid it — AI prompt rules, not copy.
 const ALLOW = {
-  'docs/assets/js/roof-score.js': 'AI prompt rule: "Do NOT guarantee … claim approval"',
   'docs/assets/js/inline/4053149b2f.js': 'AI prompt rule: "Do NOT say or imply what insurance will cover or pay …"',
 };
 
@@ -134,11 +133,12 @@ ok('no Kentucky page has NBD sending the supplement to the carrier', !kyHits.len
 
 // ── 3. The approved wording is there ────────────────────────────────────
 {
-  const cov = plain(fs.readFileSync(path.join(ROOT, 'docs/services/hail-damage-covington-ky.html'), 'utf8'));
-  ok('Covington (KY) hail page: nothing is due at signing on a Kentucky insurance job (KRS 367.626)',
+  // 2026-11-26: the Covington and Florence hail pages were merged into their storm twins (GSC content merge).
+  const cov = plain(fs.readFileSync(path.join(ROOT, 'docs/services/storm-damage-covington-ky.html'), 'utf8'));
+  ok('Covington (KY) hail & storm page: nothing is due at signing on a Kentucky insurance job (KRS 367.626)',
     /On a Kentucky insurance job, nothing is due at signing/.test(cov) && /KRS 367\.626/.test(cov));
-  ok('Covington (KY) hail page: the claim stays the homeowner\'s', /The claim stays yours: you file it/.test(cov));
-  ok('Covington (KY) hail page: the supplement is for the homeowner to send', /supplement \(my updated estimate\) for you to send your insurer/.test(cov));
+  ok('Covington (KY) hail & storm page: the claim stays the homeowner\'s', /The claim stays yours: you file it/.test(cov));
+  ok('Covington (KY) hail & storm page: the supplement is for the homeowner to send', /supplement \(my updated estimate\) for you to send your insurer/.test(cov));
   const storm = plain(fs.readFileSync(path.join(ROOT, 'docs/services/storm-damage.html'), 'utf8'));
   ok('storm-damage page: "I meet your adjuster … The claim stays yours." in place of "all major carriers"',
     /I meet your adjuster on the roof, whoever your carrier is\. The claim stays yours\./.test(storm));
@@ -147,7 +147,7 @@ ok('no Kentucky page has NBD sending the supplement to the carrier', !kyHits.len
 // ── 4. FAQ JSON-LD still matches the visible FAQ on the pages edited ───
 // (faq-schema-sync checks every page; this pins the edited answers.)
 {
-  const page = fs.readFileSync(path.join(ROOT, 'docs/services/hail-damage-florence-ky.html'), 'utf8');
+  const page = fs.readFileSync(path.join(ROOT, 'docs/services/storm-damage-florence-ky.html'), 'utf8');
   const want = "Get the roof looked at first. Your neighbor's claim doesn't decide yours";
   ok('Florence (KY) neighbor FAQ: new answer in JSON-LD and in the visible FAQ', page.split(want).length - 1 === 2);
 }

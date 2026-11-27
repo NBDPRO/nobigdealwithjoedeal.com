@@ -110,7 +110,7 @@
 
   // 'crew' (a sub) / 'number' (no lead behind it): the number's lists only.
   function _numberOnly(o) { return (o.recipient === 'crew' || o.recipient === 'number') && !o.leadId; }
-  function _checkKey(o) { return (_numberOnly(o) ? o.recipient : String(o.leadId || '')) + '|' + digits(o.phone); }
+  function _checkKey(o) { return (_numberOnly(o) ? o.recipient : String(o.leadId || '')) + '|' + digits(o.phone) + '|' + (typeof o.source === 'string' ? o.source : ''); }
 
   /** The server's answer for this person, now. Never throws; an error is { ok:false, code:'unverified' }. */
   function checkText(opts) {
@@ -243,7 +243,7 @@
     root.document.addEventListener('pointerdown', onCheckedSmsDown, true);
   }
 
-  const api = { share, checkText, precheck, reportStop, smsHref, mailtoHref, withLink, digits, _onCheckedSmsClick: onCheckedSmsClick };
+  const api = { share, checkText, precheck, logSent: _logSent, reportStop, smsHref, mailtoHref, withLink, digits, _onCheckedSmsClick: onCheckedSmsClick };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root && root.document) root.NBDPhoneShare = api;
 })(typeof window !== 'undefined' ? window : null);

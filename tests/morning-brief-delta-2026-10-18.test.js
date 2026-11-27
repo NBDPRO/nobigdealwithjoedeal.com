@@ -352,9 +352,9 @@ const go = (db, env, s, extra) => runMorningBrief(Object.assign({ db, env, nowMs
     ok('cron-gates registers it (enabled polarity, morning-brief.js)', CRON_GATES.some((g) => g.name === 'MORNING_BRIEF_DELTA_ENABLED' && g.polarity === 'enabled' && g.file === 'morning-brief.js'));
     const REG = require(path.join(FN, 'flags-registry.js'));
     const row = REG.FLAGS.find((f) => f.name === 'MORNING_BRIEF_DELTA_ENABLED');
-    ok('flags-registry row exists, dark, with a real doc', !!row && row.dark === true && fs.existsSync(path.join(ROOT, row.doc)), JSON.stringify(row));
+    ok('flags-registry row exists, not dark (Joe turned it on 2026-11-26), with a real doc', !!row && !row.dark && fs.existsSync(path.join(ROOT, row.doc)), JSON.stringify(row));
     const env = fs.readFileSync(path.join(FN, '.env.nobigdeal-pro'), 'utf8');
-    ok('functions/.env.nobigdeal-pro has MORNING_BRIEF_DELTA_ENABLED=false (shipped dark)', /^MORNING_BRIEF_DELTA_ENABLED=false\r?$/m.test(env));
+    ok('functions/.env.nobigdeal-pro has MORNING_BRIEF_DELTA_ENABLED=true (Joe turned on 2026-11-26)', /^MORNING_BRIEF_DELTA_ENABLED=true\r?$/m.test(env));
     ok('MORNING_BRIEF_ABSORB_ENABLED behaviour is untouched (still true, absorb module unchanged)', /^MORNING_BRIEF_ABSORB_ENABLED=true\r?$/m.test(env) && !/DELTA/.test(fs.readFileSync(path.join(FN, 'morning-brief-absorb.js'), 'utf8')));
     const rules = fs.readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8');
     ok('firestore.rules denies every client on morningBriefState', /match \/morningBriefState\/\{companyId\}\s*\{\s*allow read, write: if false;\s*\}/.test(rules));

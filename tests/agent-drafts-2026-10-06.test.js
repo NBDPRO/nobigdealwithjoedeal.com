@@ -151,8 +151,11 @@ async function tool(bot, name, args) {
   let json = null; try { json = JSON.parse(res.content[0].text); } catch (_) {}
   return { isError: res.isError === true, text: res.content[0].text, json };
 }
+// A 'sent' here is the owner who already tapped through the Quinn warning
+// (roadmap step 8; the gate itself is tests/quinn-gate-2026-11-25.test.js).
 async function call(auth, data) {
-  try { return { r: await M.agentDraftAction.run({ auth, data: data || {}, rawRequest: {} }) }; } catch (e) { return { err: e }; }
+  const d = data && data.action === 'sent' ? Object.assign({ confirmUnverified: true }, data) : data;
+  try { return { r: await M.agentDraftAction.run({ auth, data: d || {}, rawRequest: {} }) }; } catch (e) { return { err: e }; }
 }
 const inbox = () => [...DB.docs.entries()].filter(([k]) => /^agent_inbox\//.test(k)).map(([k, v]) => Object.assign({ id: k.split('/')[1] }, v));
 const rows = (c) => [...DB.docs.entries()].filter(([k]) => k.startsWith(c + '/')).map(([, v]) => v);
@@ -164,7 +167,8 @@ const rows = (c) => [...DB.docs.entries()].filter(([k]) => k.startsWith(c + '/')
   ok('Dana + Priya get file_social_draft, no customer drafts', ['dana', 'priya'].every((b) => names(b).includes('file_social_draft') && !names(b).includes('draft_text') && !names(b).includes('draft_email')));
   ok('only those four bots hold a draft tool', Object.keys(L.BOTS).filter((b) => L.DRAFT_TOOLS.some((t) => L.botAllows(b, t))).sort().join() === 'dana,marcus,priya,tucker');
   // + closes_this_week (2026-10-15, read-only): the What-closes-this-week radar for the morning brief / Command Deck.
-  ok('CoS keeps its exact list', L.BOTS.cos.tools.join() === 'crm_summary,schedule,overdue_followups,collected_revenue,lead_sources,inbox_pending,team_activity,closes_this_week,file_report');
+  // + withdraw_item (2026-11-25, roadmap step 8): every filing bot may take back its own waiting item.
+  ok('CoS keeps its exact list', L.BOTS.cos.tools.join() === 'crm_summary,schedule,overdue_followups,collected_revenue,lead_sources,inbox_pending,team_activity,closes_this_week,file_report,withdraw_item');
   ok('Frank gets post_job + file_reminder (and still no notes)', L.botAllows('frank', 'post_job') && L.botAllows('frank', 'file_reminder') && !L.botAllows('frank', 'file_note'));
   ok('company-made bots can never pick a draft tool', L.DRAFT_TOOLS.every((t) => L.CUSTOM_TOOLS.indexOf(t) === -1) && !!L.normalizeBotInput({ name: 'x', tools: ['draft_text'] }).error);
   ok('draft tools are marked as writes (not read-only)', L.DRAFT_TOOLS.every((t) => L.annotationsFor(t).readOnlyHint === false));
@@ -271,6 +275,75 @@ const rows = (c) => [...DB.docs.entries()].filter(([k]) => k.startsWith(c + '/')
   r = await call(jo, { action: 'sent', id: em.id, subject: 'Your gutter quote', body: 'Hi Maria' });
   const eml = rows('email_log');
   ok('email: email_log row with leadId + uid + date + subject', r.r && eml.length === 1 && eml[0].leadId === 'ok1' && eml[0].uid === NBD && !!eml[0].date && eml[0].subject === 'Your gutter quote' && eml[0].from === 'jd@nobigdealwithjoedeal.com');
+  // Audit 2026-11-22: an owner-sent review ask must stamp the lead, so every
+  // other "already asked?" check (post_job, the automatic ask, the nudge) sees it.
+  let lead1 = DB.docs.get('leads/ok1');
+  ok('a non-review draft sent by the owner does NOT stamp reviewRequested / reviewRequestedAt', lead1.reviewRequested !== true && !lead1.reviewRequestedAt && !lead1.reviewRequestSource, JSON.stringify(lead1));
+  t = await tool('tucker', 'draft_email', { lead_id: 'ok1', subject: 'Would you leave No Big Deal Home Solutions a quick Google review?', body: 'Hi Maria,\n\nWould you take a minute to leave us a Google review?\n\nhttps://g.page/r/CXzIjLwvtRPdEBM/review\n\nThank you', reason: 'review sprint', from: 'jd' });
+  const revEm = inbox().find((i) => i.kind === 'draft_email' && i.status === 'pending' && /Google review/.test(i.title));
+  ok('a review-ask email draft (Google review link) is filed marked purpose review_ask', !t.isError && revEm && revEm.purpose === 'review_ask', t.text + ' ' + JSON.stringify(revEm));
+  r = await call(jo, { action: 'sent', id: revEm.id, subject: revEm.title, body: revEm.text });
+  lead1 = DB.docs.get('leads/ok1');
+  ok('sending a review-ask draft stamps reviewRequested + reviewRequestedAt (+ source) on the lead', r.r && r.r.ok === true && lead1.reviewRequested === true && !!lead1.reviewRequestedAt && lead1.reviewRequestSource === 'agent-draft-email', JSON.stringify(lead1));
+  const pj = L.postJob([Object.assign({ id: 'ok1' }, lead1, { stage: 'final_payment', completedAt: Date.now() - 86400000 })], [], Date.now(), {}, 'America/New_York');
+  ok('…and post_job now reads the customer as asked', pj.length === 1 && pj[0].review_requested === true, JSON.stringify(pj));
+  S0('leads/rev2', { userId: NBD, companyId: NBD, firstName: 'Rita', lastName: 'Review', phone: '(513) 555-0152', tcpaConsent: true, stage: 'closed' });
+  t = await tool('marcus', 'draft_text', { lead_id: 'rev2', body: 'Hi Rita, Joe with No Big Deal. Would you leave us a review? https://example.test/r', reason: 'review sprint', purpose: 'review_ask' });
+  const revTx = inbox().find((i) => i.leadId === 'rev2');
+  ok('purpose "review_ask" marks a text draft even without a Google link', !t.isError && revTx && revTx.purpose === 'review_ask', t.text);
+  r = await call(jo, { action: 'sent', id: revTx.id, body: revTx.text });
+  const lead2 = DB.docs.get('leads/rev2');
+  ok('sending it stamps the lead with the text source', r.r && r.r.ok === true && lead2.reviewRequested === true && !!lead2.reviewRequestedAt && lead2.reviewRequestSource === 'agent-draft-text', JSON.stringify(lead2));
+  S0('leads/plain3', { userId: NBD, companyId: NBD, firstName: 'Paul', lastName: 'Plain', phone: '(513) 555-0153', tcpaConsent: true, stage: 'contacted' });
+  t = await tool('marcus', 'draft_text', { lead_id: 'plain3', body: 'Hi Paul, Joe with No Big Deal. I reviewed your estimate; Thursday still good?', reason: 'follow-up' });
+  const plain = inbox().find((i) => i.leadId === 'plain3');
+  r = await call(jo, { action: 'sent', id: plain.id, body: plain.text });
+  const lead3 = DB.docs.get('leads/plain3');
+  ok('a follow-up that merely says "reviewed" is not a review ask: no purpose, no stamp', !plain.purpose && r.r && r.r.ok === true && lead3.reviewRequested !== true && !lead3.reviewRequestedAt, JSON.stringify(lead3));
+  // A customer already asked gets no second review draft (the prompt's
+  // review_requested check is advisory; the server refuses).
+  const REV_EMAIL = { subject: 'A quick Google review?', body: 'Hi Maria,\n\nWould you leave us a Google review?\n\nhttps://g.page/r/CXzIjLwvtRPdEBM/review', reason: 'post job', from: 'jd' };
+  let nInbox = inbox().length;
+  t = await tool('tucker', 'draft_email', Object.assign({ lead_id: 'ok1', purpose: 'review_ask' }, REV_EMAIL));
+  ok('a second review-ask draft for a customer already asked is refused, nothing filed', t.isError === true && /already asked/i.test(t.text) && inbox().length === nInbox, t.text);
+  S0('leads/auto5', { userId: NBD, companyId: NBD, firstName: 'Ann', lastName: 'Auto', phone: '(513) 555-0155', tcpaConsent: true, stage: 'closed', reviewAutoAsk: { jobKey: '_lead', status: 'sent' } });
+  t = await tool('marcus', 'draft_text', { lead_id: 'auto5', body: 'Hi Ann, Joe with No Big Deal. Would you leave us a Google review? https://g.page/r/CXzIjLwvtRPdEBM/review', reason: 'sprint', purpose: 'review_ask' });
+  ok('…also when the automatic ask already went (reviewAutoAsk)', t.isError === true && /already asked/i.test(t.text), t.text);
+  // Two bots drafting one ask each: the second is refused while the first waits.
+  S0('leads/two6', { userId: NBD, companyId: NBD, firstName: 'Tom', lastName: 'Two', phone: '(513) 555-0156', email: 'tom@example.test', tcpaConsent: true, stage: 'closed' });
+  t = await tool('marcus', 'draft_text', { lead_id: 'two6', body: 'Hi Tom, Joe with No Big Deal. Would you leave us a Google review? https://g.page/r/CXzIjLwvtRPdEBM/review', reason: 'sprint', purpose: 'review_ask' });
+  ok('the first review-ask draft for a customer files', !t.isError, t.text);
+  nInbox = inbox().length;
+  t = await tool('tucker', 'draft_email', Object.assign({ lead_id: 'two6', purpose: 'review_ask' }, REV_EMAIL));
+  ok('a second review-ask draft while the first is waiting is refused', t.isError === true && /already/i.test(t.text) && inbox().length === nInbox, t.text);
+  t = await tool('marcus', 'draft_text', { lead_id: 'two6', body: 'Hi Tom, Joe with No Big Deal. Gutters Thursday?', reason: 'follow-up', purpose: 'review' });
+  ok('a purpose other than "review_ask" is refused, not silently dropped', t.isError === true && /purpose/.test(t.text), t.text);
+  // The send re-reads the lead: asked since the draft was filed → refused,
+  // the first ask's time and source kept, the item still pending.
+  const two = inbox().find((i) => i.leadId === 'two6' && i.status === 'pending');
+  S0('leads/two6', Object.assign({}, DB.docs.get('leads/two6'), { reviewRequested: true, reviewRequestedAt: 111, reviewRequestSource: 'review-ask-auto-text' }));
+  const smsBefore = rows('sms_log').length;
+  r = await call(jo, { action: 'sent', id: two.id, body: two.text });
+  const lead6 = DB.docs.get('leads/two6');
+  ok('sending a review ask to a customer asked since → refused, nothing logged', !!r.err && r.err.code === 'failed-precondition' && /already asked/i.test(r.err.message) && rows('sms_log').length === smsBefore && DB.docs.get('agent_inbox/' + two.id).status === 'pending', r.err ? r.err.code + ' ' + r.err.message : JSON.stringify(r.r));
+  ok('…and the earlier ask\'s time and source are kept', lead6.reviewRequestedAt === 111 && lead6.reviewRequestSource === 'review-ask-auto-text', JSON.stringify(lead6));
+  // An ordinary draft the owner edits to add the review link counts as an ask.
+  S0('leads/edit7', { userId: NBD, companyId: NBD, firstName: 'Eve', lastName: 'Edit', phone: '(513) 555-0157', tcpaConsent: true, stage: 'closed' });
+  t = await tool('marcus', 'draft_text', { lead_id: 'edit7', body: 'Hi Eve, Joe with No Big Deal. Thanks again!', reason: 'thank you' });
+  const ed = inbox().find((i) => i.leadId === 'edit7');
+  r = await call(jo, { action: 'sent', id: ed.id, body: 'Hi Eve, Joe with No Big Deal. Thanks again! Would you leave us a Google review? https://g.page/r/CXzIjLwvtRPdEBM/review\nReply STOP to opt out.' });
+  const lead7 = DB.docs.get('leads/edit7');
+  ok('a plain draft edited to carry the Google review link stamps the lead', !ed.purpose && r.r && r.r.ok === true && lead7.reviewRequested === true && lead7.reviewRequestSource === 'agent-draft-text', JSON.stringify(r.err ? r.err.message : lead7));
+  // The lead hard-deleted between the check and the claim: a clean not-found,
+  // and the draft stays pending.
+  S0('leads/gone8', { userId: NBD, companyId: NBD, firstName: 'Gus', lastName: 'Gone', phone: '(513) 555-0158', tcpaConsent: true, stage: 'closed' });
+  t = await tool('marcus', 'draft_text', { lead_id: 'gone8', body: 'Hi Gus, Joe with No Big Deal. Would you leave us a Google review? https://g.page/r/CXzIjLwvtRPdEBM/review', reason: 'sprint', purpose: 'review_ask' });
+  const gone = inbox().find((i) => i.leadId === 'gone8');
+  const realTx = DB.runTransaction;
+  DB.runTransaction = async (fn) => { DB.docs.delete('leads/gone8'); return realTx(fn); };
+  r = await call(jo, { action: 'sent', id: gone.id, body: gone.text });
+  DB.runTransaction = realTx;
+  ok('a lead deleted mid-send → not-found HttpsError, draft still pending', !!r.err && r.err.code === 'not-found' && DB.docs.get('agent_inbox/' + gone.id).status === 'pending', r.err ? r.err.code + ' ' + r.err.message : JSON.stringify(r.r));
   const soc = inbox().find((i) => i.kind === 'social_draft');
   r = await call(jo, { action: 'sent', id: soc.id, body: 'x' });
   ok('a social draft cannot be "sent" through it', !!r.err);

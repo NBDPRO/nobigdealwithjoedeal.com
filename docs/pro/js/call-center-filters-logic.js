@@ -224,7 +224,128 @@
   function load(storage) { try { return normalize(JSON.parse(storage.getItem(KEY))); } catch (_) { return defaults(); } }
   function save(storage, f) { try { storage.setItem(KEY, JSON.stringify(normalize(f))); } catch (_) { /* private mode */ } }
 
+  // ── More ways to order the list (2026-11-20, phone sweep: Call Center compact view, behind callCenterCompact) ──
+  // The saved FILTER record above (nbd_cc_filters) is untouched. These choices live in their own record, one for the list of
+  // calls and one for the Needs attention list of PEOPLE, so Smart can be the default on Needs attention and Newest on All.
+  const SORT_LIST = [['new', 'Newest first'], ['old', 'Oldest first'], ['urgent', 'Urgent first'], ['promise', 'Open promises first'],
+    ['unhandled', 'Unhandled first'], ['waiting', 'Longest waiting'], ['long', 'Longest call'], ['name', 'Name A to Z'], ['repeat', 'Most calls from one number']];
+  const SORT_PEOPLE = [['smart', 'Smart: urgent, promises, longest waiting'], ['new', 'Newest first'], ['old', 'Oldest first'], ['urgent', 'Urgent first'],
+    ['promise', 'Promises first'], ['waiting', 'Longest waiting'], ['repeat', 'Most calls'], ['name', 'Name A to Z']];
+  const SORT_KEY = 'nbd_cc_sort2';
+  const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+  const tOf = (c) => { const t = Number(c && c.startedAtMs); return isFinite(t) && t > 0 ? t : 0; };
+  const keyOf = (c) => (c && c.leadId ? 'lead:' + c.leadId : (c && c.phoneDigits ? 'num:' + String(c.phoneDigits).slice(-10) : 'id:' + (c && c.id)));
+  /**
+   * When is a promise due? Dates are ISO (2026-11-23) or the words the AI notes use (today, tomorrow, a weekday), counted from the
+   * day of the call. Anything else is Infinity: undated promises sort after dated ones, never first.
+   */
+  function dueMs(p, callMs) {
+    const raw = String(p && p.due != null ? p.due : '').trim().toLowerCase();
+    if (!raw) return Infinity;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) { const t = Date.parse(raw + 'T12:00:00Z'); return isFinite(t) ? t : Infinity; }
+    const base = Number(callMs) > 0 ? Number(callMs) : 0;
+    if (!base) return Infinity;
+    if (raw === 'today') return base;
+    if (raw === 'tomorrow') return base + DAY;
+    const wd = WEEKDAYS.indexOf(raw.slice(0, 3));
+    if (wd > -1 && /^[a-z]+$/.test(raw)) { const cur = new Date(base).getUTCDay(); const add = (wd - cur + 7) % 7 || 7; return base + add * DAY; }
+    return Infinity;
+  }
+  const firstDue = (calls) => {
+    let best = Infinity, any = false;
+    (calls || []).forEach((c) => (Array.isArray(c.promises) ? c.promises : []).forEach((p) => { any = true; best = Math.min(best, dueMs(p, tOf(c))); }));
+    return { any, due: best };
+  };
+  const byName = (a, b) => (a === b ? 0 : !a ? 1 : !b ? -1 : a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  const cmpChain = (fns) => (a, b) => { for (let i = 0; i < fns.length; i++) { const r = fns[i](a, b); if (r) return r; } return 0; };
+  const newest = (ta, tb) => tb - ta;
+
+  /**
+   * The calls (or days of texts) in the chosen order, never mutating. `nameOf(call)` gives the name to sort by (the lead's name or the
+   * contact name). Ties always fall back to newest first, so a reorder is never a shuffle.
+   */
+  function sortListBy(rows, id, nameOf) {
+    const list = (rows || []).slice();
+    const nm = typeof nameOf === 'function' ? (c) => String(nameOf(c) || '').trim() : () => '';
+    const counts = {};
+    if (id === 'repeat') list.forEach((c) => { const k = keyOf(c); counts[k] = (counts[k] || 0) + 1; });
+    const tie = (a, b) => newest(tOf(a), tOf(b));
+    const by = {
+      new: (a, b) => newest(tOf(a), tOf(b)),
+      old: (a, b) => { const x = tOf(a), y = tOf(b); return x && y ? x - y : (x ? -1 : y ? 1 : 0); },
+      urgent: cmpChain([(a, b) => (b.urgent === true) - (a.urgent === true), tie]),
+      promise: cmpChain([(a, b) => {
+        const x = firstDue([a]), y = firstDue([b]);
+        if (x.any !== y.any) return x.any ? -1 : 1;
+        return x.due === y.due ? 0 : (x.due < y.due ? -1 : 1);
+      }, tie]),
+      unhandled: cmpChain([(a, b) => (isOpen(b) ? 1 : 0) - (isOpen(a) ? 1 : 0), tie]),
+      waiting: cmpChain([(a, b) => (isOpen(b) ? 1 : 0) - (isOpen(a) ? 1 : 0), (a, b) => { if (!(isOpen(a) && isOpen(b))) return 0; const x = tOf(a), y = tOf(b); return x && y ? x - y : (x ? -1 : y ? 1 : 0); }, tie]),
+      long: cmpChain([(a, b) => (Number(b.durationSec) || 0) - (Number(a.durationSec) || 0), tie]),
+      name: cmpChain([(a, b) => byName(nm(a), nm(b)), tie]),
+      repeat: cmpChain([(a, b) => (counts[keyOf(b)] || 0) - (counts[keyOf(a)] || 0), tie]),
+    };
+    list.sort(by[id] || by.new);
+    return list;
+  }
+
+  /** What a person (one card on Needs attention: { key, calls: [open calls] }) looks like to the sorts. */
+  function personFacts(g) {
+    const calls = (g && g.calls) || [];
+    const ts = calls.map(tOf).filter((t) => t > 0);
+    const fd = firstDue(calls);
+    return { newest: ts.length ? Math.max.apply(null, ts) : 0, oldest: ts.length ? Math.min.apply(null, ts) : 0, urgent: calls.some((c) => c.urgent === true),
+      promise: fd.any, due: fd.due, count: calls.length };
+  }
+  /** The people in the chosen order, never mutating. Smart = urgent first, then promises (soonest due), then the longest-waiting. */
+  function sortPeopleBy(groups, id, nameOfGroup) {
+    const list = (groups || []).slice();
+    const nm = typeof nameOfGroup === 'function' ? (g) => String(nameOfGroup(g) || '').trim() : () => '';
+    const F = new Map();
+    list.forEach((g) => F.set(g, personFacts(g)));
+    const f = (g) => F.get(g);
+    const tie = (a, b) => newest(f(a).newest, f(b).newest);
+    const urgent = (a, b) => (f(b).urgent ? 1 : 0) - (f(a).urgent ? 1 : 0);
+    const promise = (a, b) => { const x = f(a), y = f(b); if (x.promise !== y.promise) return x.promise ? -1 : 1; return x.due === y.due ? 0 : (x.due < y.due ? -1 : 1); };
+    const waiting = (a, b) => { const x = f(a).oldest, y = f(b).oldest; return x && y ? x - y : (x ? -1 : y ? 1 : 0); };
+    const by = {
+      smart: cmpChain([urgent, promise, waiting, tie]),
+      new: tie,
+      old: (a, b) => { const x = f(a).newest, y = f(b).newest; return x && y ? x - y : (x ? -1 : y ? 1 : 0); },
+      urgent: cmpChain([urgent, tie]),
+      promise: cmpChain([promise, tie]),
+      waiting: cmpChain([waiting, tie]),
+      repeat: cmpChain([(a, b) => f(b).count - f(a).count, tie]),
+      name: cmpChain([(a, b) => byName(nm(a), nm(b)), tie]),
+    };
+    list.sort(by[id] || by.smart);
+    return list;
+  }
+  /** One short word for WHY a person sits where they do under Smart: 'Urgent', 'Promise due Nov 24', 'Waiting 3 days', or ''. */
+  function smartReason(g, nowMs) {
+    const x = personFacts(g);
+    if (x.urgent) return 'Urgent';
+    if (x.promise) return isFinite(x.due) ? 'Promise due ' + (function (t) { const d = new Date(t); return MON[d.getUTCMonth()] + ' ' + d.getUTCDate(); })(x.due) : 'Has a promise';
+    const now = Number(nowMs) || Date.now();
+    if (x.oldest && now - x.oldest >= DAY) { const n = Math.floor((now - x.oldest) / DAY); return 'Waiting ' + n + (n === 1 ? ' day' : ' days'); }
+    return '';
+  }
+
+  /** The two saved choices { list, people }; junk or a missing value becomes the default (Newest for the list, Smart for people). */
+  function normalizeSort(s) {
+    const o = { list: 'new', people: 'smart' };
+    if (s && typeof s === 'object') {
+      if (ids(SORT_LIST).indexOf(s.list) > -1) o.list = s.list;
+      if (ids(SORT_PEOPLE).indexOf(s.people) > -1) o.people = s.people;
+    }
+    return o;
+  }
+  function loadSort(storage) { try { return normalizeSort(JSON.parse(storage.getItem(SORT_KEY))); } catch (_) { return normalizeSort(null); } }
+  function saveSort(storage, s) { try { storage.setItem(SORT_KEY, JSON.stringify(normalizeSort(s))); } catch (_) { /* private mode */ } }
+
   const api = { actionLabel, rove, focusKey, liveSummary, KEY, RANGES, DIRS, STATUSES, VIEWS, applyView, matchView, SORTS, MISSED_UNDER_SEC, isMissed, matchesStatus, defaults, normalize, addDays, ymdOf, rangeOf, isActive, passes, sortCalls, describe, load, save };
+  Object.assign(api, { SORT_LIST, SORT_PEOPLE, SORT_KEY, sortListBy, sortPeopleBy, smartReason, normalizeSort, loadSort, saveSort, dueMs });
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDCallCenterFilters = api;
 })(typeof window !== 'undefined' ? window : null);

@@ -306,10 +306,9 @@ check('T27 the inspect kind declares tcpaConsent as a boolean field', () => {
     'inspect kind must declare boolOptional including tcpaConsent, or the three funnels’ boolean is dropped again');
 });
 
+// 2026-11-25: /storm-check, /roof-score and /storm-report merged into /roof-check.
 const FUNNELS = {
-  '/storm-check':  { js: 'storm-check.js',       html: 'storm-check.html',  checkbox: 'sc-consent' },
-  '/roof-score':   { js: 'roof-score.js',        html: 'roof-score.html',   checkbox: 'rs-consent' },
-  '/storm-report': { js: 'storm-report-page.js', html: 'storm-report.html', checkbox: 'sr-consent' },
+  '/roof-check':   { js: 'roof-check.js',        html: 'roof-check.html',   checkbox: 'rc-consent' },
 };
 
 check('T28 each of the three inspect-kind funnels posts tcpaConsent in the same payload it gates', () => {
@@ -380,7 +379,7 @@ check('T34 /estimate, /storm-alerts and /inspect record THEIR wording versions; 
   // kind 'inspect' is shared by /inspect, /storm-check, /roof-score and
   // /storm-report: only /inspect's own source tag picks its wording (2026-10-15).
   assert.strictEqual(C.consentVersionForKind('inspect', '/inspect'), C.INSPECT_CONSENT_VERSION);
-  for (const src of ['/storm-check', '/roof-score', '/storm-report', undefined]) {
+  for (const src of ['/roof-check', '/storm-check', '/roof-score', '/storm-report', undefined]) {
     assert.strictEqual(C.consentVersionForKind('inspect', src), C.CONSENT_VERSION, 'inspect from ' + src);
   }
   assert.strictEqual(C.consentVersionForKind('contact'), C.CONSENT_VERSION);
@@ -406,9 +405,8 @@ function labelText(src, id) {
     .replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 }
 const PAGES_V1 = [
-  ['docs/storm-check.html', 'sc-consent'], ['docs/roof-score.html', 'rs-consent'],
-  ['docs/storm-report.html', 'sr-consent'],
-  ['docs/index.html', 'fieldConsent'],
+  ['docs/roof-check.html', 'rc-consent'],
+  // docs/index.html: its #fieldConsent box was removed 2026-11-17; #contact hosts the quick form, covered by the quick-lead-form.js row below.
   ['docs/assets/js/quick-lead-form.js', "' + uid + '-consent"],
 ];
 

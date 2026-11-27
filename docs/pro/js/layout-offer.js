@@ -84,7 +84,7 @@
 
   // ── browser ──────────────────────────────────────────────────────────
   var w = root, doc = root.document;
-  var banner = null, shown = null;
+  var banner = null, shown = null, waitT = null;
   // The answer, kept in memory when the storage write fails (private mode,
   // quota): without it the 5-minute re-check showed the offer again (2026-11-16).
   var memSeen = {}, memOff = false;
@@ -141,6 +141,9 @@
     try { o = decide(); } catch (_) { o = null; }
     if (!o) { if (shown) hide(); return; }
     if (shown && shown.key === o.key && shown.id === o.id && banner && !banner.hidden) return;
+    // Bottom edge, one at a time (2026-11-19): a toast (the answer to a tap) or the
+    // reminders card is up, so this waits its turn and asks again in 3 s.
+    if (doc.querySelector('#toastContainer .toast, #nbd-push-optin')) { clearTimeout(waitT); waitT = setTimeout(check, 3000); return; }
     show(o);
   }
   function remember(key) {

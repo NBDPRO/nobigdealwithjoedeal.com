@@ -1,0 +1,15 @@
+{
+  "contract.oh_cash": "d83c3073c29d19eafff0a4b807f52d4d0c492b4be31e38c283f192dd076bce7a",
+  "contract.oh_insurance": "d83c3073c29d19eafff0a4b807f52d4d0c492b4be31e38c283f192dd076bce7a",
+  "contract.ky_cash": "792d90217e9d51a52899ae9e5a349c62e2636dfbbb869d64b8599bc7196e080f",
+  "contract.ky_insurance": "a8c18fad0a54d22487332bef52a48e5138f07d5cd21f727597407207a4d51ebb",
+  "contract.oh_financed": "d83c3073c29d19eafff0a4b807f52d4d0c492b4be31e38c283f192dd076bce7a",
+  "contract.unknown_insurance": "662fac92b173308d2a9f438e1ee5e635db8ede0dc1e23ecf1e133a4129929165",
+  "proposal.oh_cash": "05689ec6e0edde11d235b8f86ae9e32f066d5297cd495a0c67d8baa12e909aca",
+  "workAuthorization.oh_cash": "6c9b92959f60face9d9daaa385ee49fcaf74ed8f3e8994207511cde17cece08f",
+  "proposal.ky_insurance": "917574f0d772dd072460451435e89a08083728582ec58b9c6cbba5c750da21b2",
+  "workAuthorization.ky_insurance": "c5f6b50f011c05f4f954aeae0c6fdafd707100b04cc2c22c27742b340d53d871",
+  "esignPdf.OH": "6419d546b17c0e4cbbf0a1240080df0f8c965e68cf923c3c29ef3466ae44fbb6",
+  "esignPdf.KY": "93049e0c5b5de56f12ec4894df7331ef417a0ac5079649bf1da2840c9bc31895",
+  "esignPdf.OH.bare": "a6ee8aec9973a30d6b74aa48e428aadfaf786c74f07d3e443b83371f4d8542e0"
+}

@@ -36,6 +36,7 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
+const { getStorage } = require('firebase-admin/storage');
 const { callableRateLimit, assertNotViewer } = require('./shared');
 
 const CORS_ORIGINS = [
@@ -64,9 +65,47 @@ exports.recordInPersonSignature = onCall(
     assertNotViewer(request.auth.token);
     await callableRateLimit(request, 'recordInPersonSignature', 30, 60_000);
     try {
-      return await handleInPersonSignature(getFirestore(), { uid, token: request.auth.token || {} }, request.data);
+      const db = getFirestore();
+      // Evidence parity (flag docEvidenceFoundation, default OFF): IP and user agent come from this
+      // request, the digest from the stored signed copy; the flag is read per person.
+      const DE = require('./doc-evidence');
+      // A flag read that FAILS refuses (retryable): it must not read "off" and skip the checks.
+      // Either flag (docEvidenceFoundation or docClauseSetV1, review 2026-11-18 item 6) turns the server gate on; both reads are strict.
+      const evidenceFlag = await DE.flagForGate(db, uid, HttpsError);
+      const clauseFlag = await DE.clauseFlagForGate(db, uid, HttpsError);
+      const evidence = (evidenceFlag || clauseFlag) ? Object.assign({
+        enabled: true,
+        clauseFlag,
+        readBytes: async (p, max) => {
+          const f = getStorage().bucket().file(p);
+          if (max) {
+            const [md] = await f.getMetadata();
+            if (Number(md && md.size) > max) { const er = new Error('document over the read cap'); er.code = 'too_large'; throw er; }
+          }
+          const [buf] = await f.download();
+          return buf;
+        },
+        onError: (err) => logger.warn('[recordInPersonSignature] evidence write failed', { uid, err: err && err.message }),
+      }, DE.requestFacts(request.rawRequest)) : null;
+      // Phase 3 (flag docAtticAckV1, strict read): the attic acknowledgment is read back and the re-roof gate runs.
+      // Review 2026-11-18, finding 3: the flag is read once the lead is loaded (the acting user's OR the tenant owner's, strict).
+      // Review 2 (item 7): this path never refuses because of the ATTIC flag reads. The gate runs only when the flag is positively known on
+      // (the acting user's, else the tenant owner's); a read that fails reads "not known on", so flag-off in-person signing behaves exactly
+      // as before the attic lane (the evidence-flag reads above are the only strict ones here, and they already were).
+      const attic = { flagOn: async (lead) => {
+        try { return await DE.atticGateOn(db, uid, lead, HttpsError); }
+        catch (e) { logger.warn('[recordInPersonSignature] attic flag unreadable, treated as not on (recorded for audit)', { uid, err: e && e.message }); return { on: false, unverified: true }; }
+      }, readBytes: async (p, max) => {
+        const f = getStorage().bucket().file(p);
+        const [md] = await f.getMetadata();
+        if (Number(md && md.size) > max) { const er = new Error('document over the read cap'); er.code = 'too_large'; throw er; }
+        const [buf] = await f.download();
+        return buf;
+      } };
+      return await handleInPersonSignature(db, { uid, token: request.auth.token || {} }, request.data, Object.assign({}, evidence ? { evidence } : {}, { attic }));
     } catch (e) {
       if (e instanceof RefusalError) throw new HttpsError(e.code, e.message);
+      if (e instanceof HttpsError) throw e;
       logger.warn('[recordInPersonSignature] failed', { uid, err: e && e.message });
       throw new HttpsError('internal', 'Could not record the signing');
     }

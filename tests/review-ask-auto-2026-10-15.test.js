@@ -120,7 +120,8 @@ function fakeResend() {
   const sent = [];
   return { sent, emails: { send: async (m) => { sent.push(m); return { data: { id: 're_' + sent.length }, error: null }; } } };
 }
-const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowMs: NOW }, o || {});
+// sendWindow: the customer send window held open (NOW is the real clock); tests/send-window-2026-11-22.test.js covers it.
+const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowMs: NOW, sendWindow: () => ({ ok: true }) }, o || {});
 
 (async () => {
   // ═══ A ═══
@@ -169,8 +170,9 @@ const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowM
     const rated1 = RA.planEmail({ env: ON, lead: leadOf({ customerRating: 1 }), recvMs: ago(8), nowMs: NOW });
     ok('a customer who rated 1 star privately is asked exactly the same (no gating on rating)', rated1.send === true);
     ok('the rating fields are never read by the planner', !/customerRating/.test(read('functions/review-ask-auto-logic.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')));
-    ok('the reviewUrl resolver: the rep\'s https link wins, else NBD\'s, never a javascript: link',
-      RA.reviewUrlFor(leadOf(), 'https://g.page/r/rep/review') === 'https://g.page/r/rep/review'
+    // Jo, 2026-11-26 (R12): "Always NBD's link" for NBD's automatic ask.
+    ok('the reviewUrl resolver: NBD always gets NBD\'s link (a rep\'s saved link is ignored), never a javascript: link',
+      RA.reviewUrlFor(leadOf(), 'https://g.page/r/rep/review') === RA.NBD_REVIEW_URL
       && RA.reviewUrlFor(leadOf(), 'javascript:alert(1)') === RA.NBD_REVIEW_URL
       && RA.reviewUrlFor(leadOf({ companyId: 'x', userId: 'x' }), '') === '');
   }
@@ -327,7 +329,9 @@ const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowM
   // ═══ G ═══
   console.log('\nG. the text channel (dark until A2P)');
   {
-    const TXT = { REVIEW_ASK_AUTO_TEXT_ENABLED: 'true' };
+    // S3 (2026-11-26): a review text also needs the carrier-health handler on; dark = no text
+    // (tests/review-ask-health-2026-11-26.test.js §J covers v1's gate).
+    const TXT = { REVIEW_ASK_AUTO_TEXT_ENABLED: 'true', REVIEW_ASK_HEALTH_ENABLED: 'true' };
     const consented = { email: '', phone: '(859) 555-0142', phoneDigits: '8595550142', tcpaConsent: true, tcpaConsentText: Object.keys(require(path.join(FN, 'tcpa-consent.js')).CONSENT_TEXTS)[0] };
     const noon = (() => { const d = new Date(NOW); d.setUTCHours(17, 0, 0, 0); return d.getTime(); })();   // 1 PM Eastern / noon Central
     const pt = (lead, env, now) => RA.planText({ env: env || TXT, lead, recvMs: (now || noon) - 8 * DAY, nowMs: now || noon });
@@ -347,6 +351,9 @@ const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowM
     const dbOk = makeDb(seed);
     const ro = await AUTO.runForUser(dbOk, NBD, deps({ env: TXT, sendText, nowMs: noon }));
     ok('all clear → ONE text, marked reviewRequested source auto-text', texts.length === 1 && texts[0].to === '+18595550142' && dbOk.store.get('leads/T1').reviewRequestSource === 'auto-text', JSON.stringify(ro.results));
+    ok('the text hands guardTwilio the run\'s nowMs and company zone (one window answer, send-window.js)', texts[0] && texts[0].nowMs === noon && 'companyProfile' in texts[0] && texts[0].recipient && texts[0].recipient.id === 'T1', JSON.stringify(texts[0] && Object.keys(texts[0])));
+    // The first text's status callback arrived (S3 heartbeat), so only the once-per-job rule is tested here.
+    for (const k of dbOk.store.keys()) if (k.startsWith('review_ask_heartbeat/')) dbOk.store.set(k, { pending: {} });
     await AUTO.runForUser(dbOk, NBD, deps({ env: TXT, sendText, nowMs: noon + DAY }));
     ok('never a second text for the job', texts.length === 1);
     const env = read('functions/.env.nobigdeal-pro');

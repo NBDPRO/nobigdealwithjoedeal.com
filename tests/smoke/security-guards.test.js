@@ -64,12 +64,15 @@ function run(ctx) {
 
   // ── AI billing entitlement (claudeProxy must be paid + budgeted) ──
   section('SECURITY GUARDS — AI billing entitlement');
+  // 2026-11-25: the plan + email checks moved into the one AI gate
+  // (functions/ai-gate.js aiGate), which claudeProxy calls before any counter.
+  const aiGate = read(path.join(FUNCTIONS, 'ai-gate.js'));
   assert('claudeProxy requires an active paid subscription (server-side)',
-    /hasPaidPlan/.test(ai) && /require an active paid subscription/i.test(ai));
+    /require\('\.\.\/ai-gate'\)\.aiGate\(getFirestore\(\), \{ auth:/.test(ai) && /s\.plan !== 'free' && \(s\.status === 'active' \|\| s\.status === 'trialing'\)/.test(aiGate));
   assert('claudeProxy enforces a per-uid/company token budget',
     /reserveClaudeBudget/.test(ai));
   assert('claudeProxy requires a verified email before billable AI',
-    /email_verified/.test(ai));
+    /email_verified/.test(aiGate));
 
   // ── SMS opt-out / TCPA ──
   section('SECURITY GUARDS — SMS opt-out (TCPA)');

@@ -30,7 +30,7 @@
  * Gate: LEAD_ALERT_WATCHDOG_DISABLED=true → dry run (computes + logs only).
  * At most MAX_RESENDS_PER_RUN re-sends per run.
  */
-const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler
+const { onSchedule, mainWorkRan } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler
 const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const LA = require('./lead-alert')._internal;
@@ -199,17 +199,8 @@ async function runWatchdog(deps) {
   return out;
 }
 
-/** Bell entry + push to the owner (internal; never a customer). */
-async function notifyOwner(db, title, body) {
-  const clickUrl = '/pro/dashboard.html#/calls';
-  await db.collection('notifications').add({
-    userId: LA.NBD_OWNER_UID, type: 'call_watch', title, message: body, priority: 'high',
-    clickUrl, read: false, dismissed: false, createdAt: FieldValue.serverTimestamp(),
-  });
-  try {
-    await require('./push-functions').sendCustomNotification(LA.NBD_OWNER_UID, title, String(body).slice(0, 180), { type: 'call_watch', clickUrl, notificationId: 'pipeline-deadman-' + Date.now() });
-  } catch (e) { logger.warn('[pipelineDeadMan] push failed', { err: e && e.message }); }
-}
+/** Bell entry + push (+ one capped text for alert/critical) to the owner; internal, never a customer. Shared with cron-deadman.js. */
+const { notifyOwner } = require('./owner-notify');
 
 exports.leadAlertWatchdog = onSchedule(
   { schedule: 'every 10 minutes', timeZone: 'America/New_York', timeoutSeconds: 120, memory: '256MiB', maxInstances: 1, secrets: LA.SECRETS },
@@ -222,7 +213,7 @@ exports.leadAlertWatchdog = onSchedule(
     // can never stop the lead re-sends below.
     let dm = null;
     try {
-      dm = await require('./pipeline-deadman').run({ db, nowMs, live: !watchdogDisabled(), env: process.env, canary: require('./pipeline-canary').run, notify: (title, body) => notifyOwner(db, title, body) });
+      dm = await require('./pipeline-deadman').run({ db, nowMs, live: !watchdogDisabled(), env: process.env, canary: require('./pipeline-canary').run, notify: (title, body, meta) => notifyOwner(db, Object.assign({ title, body }, meta)) });
       if (dm.problems.length) logger.warn('[pipelineDeadMan]', dm);
     } catch (e) { logger.warn('[pipelineDeadMan] check skipped', { err: e && e.message }); }
     const r = await runWatchdog({
@@ -233,7 +224,10 @@ exports.leadAlertWatchdog = onSchedule(
     if (dm && dm.problems.length) {
       // Fail the run so the heartbeat pings /fail and Healthchecks.io emails
       // Jo, a path that works even when push and Firestore alerts are what broke.
-      throw new Error('pipelineDeadMan: ' + dm.problems.join(', '));
+      // A report, not this job failing: the cron ledger records ok, so
+      // cronDeadman does not alert again (unless a lead also reached nobody).
+      if (!(r.unresolved > 0)) mainWorkRan();
+      throw new Error('pipelineDeadMan: ' + dm.problems.join(', ') + (r.unresolved > 0 ? '; ' + r.unresolved + ' lead(s) reached nobody after a re-send' : ''));
     }
     if (r.unresolved > 0) {
       // A lead reached nobody even on the re-send: fail the run so the

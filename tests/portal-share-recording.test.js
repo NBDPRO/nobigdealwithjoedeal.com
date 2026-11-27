@@ -149,7 +149,7 @@ group('Copy Portal Link records the share', async () => {});
       JSON.stringify(h.recorded) === JSON.stringify([['lead-123', 'sms']]),
       JSON.stringify(h.recorded));
     assert('...and the composer was actually invoked',
-      /^sms:5135550123\?body=/.test(h.ctx.location.href), h.ctx.location.href);
+      /^sms:5135550123\?&body=/.test(h.ctx.location.href), h.ctx.location.href);
   }
   {
     const h = load({ lead: { id: 'lead-123', firstName: 'Dana', phone: '' } });

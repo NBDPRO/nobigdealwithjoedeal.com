@@ -58,17 +58,19 @@ function deps() {
   if (_deps) return _deps;
   const V = require('./integrations/voice-intelligence');
   return {
-    transcribe: ({ buffer, ext, prompt }) => V.transcribeGroqBuffer({
+    transcribe: ({ buffer, ext, prompt, companyId }) => V.transcribeGroqBuffer({
       buffer, mimeType: ext === 'm4a' ? 'audio/mp4' : (ext === 'webm' ? 'audio/webm' : 'audio/' + ext),
       filename: 'visit.' + ext, timeoutMs: 480_000, feature: 'visit-transcribe', prompt,
       // Call to Close P2 integration: per-segment confidence (avg_logprob), so a
       // walkthrough brief marks hard-to-hear quotes as a call's does.
       confidence: true,
+      companyId,
     }),
     notes: (a) => require('./call-center').claudeNotes(a),
     checkConsent: (a) => V._checkVerbalConsent(a),
     checkBudget: (db, companyId, plan) => V._checkBudget(db, companyId, plan),
-    entitled: (db, uid) => require('./ai-gate').aiEntitlementForUid(db, uid),
+    // The one AI gate (2026-11-25): the same entitlement plus the spend breaker.
+    entitled: (db, uid) => require('./ai-gate').aiGate(db, { forUid: uid, feature: 'visit-capture' }),
     recordUsage: (db, a) => V._incrementVoiceUsage(db, a),
     aiDisabled: async () => {
       const K = require('./integrations/killswitch');
@@ -326,9 +328,11 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
   // audio kept until retention; a plan-check blip retries in 30 minutes.
   const ent = D.entitled ? await D.entitled(db, uid) : { ok: false, reason: 'plan_check_failed' };
   if (!ent.ok) {
-    if (ent.reason === 'plan_check_failed') {
-      await state({ pipelineStatus: d.pipelineStatus || PIPELINE.QUEUED, pipelineNote: 'plan_check_failed', pipelineNextAtMs: nowMs + 30 * 60000 });
-      return { step: 'process', state: d.pipelineStatus || PIPELINE.QUEUED, note: 'plan_check_failed' };
+    // A plan-check blip, or the spend breaker (daily cap / stop-all, which
+    // lift on their own), parks the work and retries; only a plan refusal fails it.
+    if (['plan_check_failed', 'platform_cap', 'company_cap', 'paused'].includes(ent.reason)) {
+      await state({ pipelineStatus: d.pipelineStatus || PIPELINE.QUEUED, pipelineNote: ent.reason, pipelineNextAtMs: nowMs + 30 * 60000 });
+      return { step: 'process', state: d.pipelineStatus || PIPELINE.QUEUED, note: ent.reason };
     }
     const note = ent.reason === 'unverified' ? 'needs_confirmed_email' : 'needs_paid_plan';
     await state({ pipelineStatus: PIPELINE.FAILED, pipelineNote: note, pipelineNextAtMs: 0 });
@@ -439,7 +443,7 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
     }
     let t;
     try {
-      t = await D.transcribe({ buffer, ext: extOf(d.audioPath), prompt });
+      t = await D.transcribe({ buffer, ext: extOf(d.audioPath), prompt, companyId: ctx.companyId });
     } catch (e) {
       const outage = LG.visitOutage(e);
       // One poisoned file can answer 5xx / time out for ever: after TRANSIENT_MAX in a row it is the file's fault.
@@ -501,7 +505,7 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
     try {
       let c;
       try {
-        c = await D.checkConsent({ transcript: transcriptText, segments: segments.map((s) => ({ start: s.s, end: s.e, text: s.t })) });
+        c = await D.checkConsent({ transcript: transcriptText, segments: segments.map((s) => ({ start: s.s, end: s.e, text: s.t })), companyId: ctx.companyId });
       } catch (ce) {
         if (!LG.visitOutage(ce)) await countClaudeCall();
         throw ce;
@@ -536,7 +540,7 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
   let notes;
   const notesPrompt = LG.buildVisitNotesPrompt({ capture: Object.assign({}, d, { durationSec }), transcript: transcriptText, leadName: name, nowMs });
   try {
-    const raw = await D.notes({ system: LG.VISIT_NOTES_SYSTEM, prompt: notesPrompt, feature: 'visit-notes', maxTokens: 1500 });
+    const raw = await D.notes({ system: LG.VISIT_NOTES_SYSTEM, prompt: notesPrompt, feature: 'visit-notes', maxTokens: 1500, companyId: ctx.companyId });
     notes = LG.sanitizeVisitNotes(raw);
   } catch (e) {
     const outage = LG.visitOutage(e);
@@ -847,6 +851,7 @@ async function retentionSweep({ db, bucket, nowMs, maxPages }) {
       const who = uidFromPath(doc.ref.path);
       const v = doc.data() || {};
       if (!who) { out.kept++; continue; }
+      if (LG.isHeld(v)) { out.skipped++; continue; }   // a Hold stops the 90-day audio expiry too
       const days = await daysFor(who.uid);
       if (days == null) { out.skipped++; continue; }
       // A capture that was skipped / quarantined / discarded and whose audio could not be
@@ -910,6 +915,165 @@ async function sweep({ db, bucket, nowMs, budgetMs }) {
   return out;
 }
 
+// ── the Bin, Hold, erase (2026-11-20, recordings Bin PR 1; documentation/projects/RECORDINGS-BIN-2026-11-20.md) ──────────────
+/** The content-free log line: who did what to which recording, never what was said. Written BEFORE the delete: no log, no delete. */
+async function writeAudit(db, companyId, fields, nowMs) {
+  const entry = LG.buildAudit(Object.assign({}, fields, { nowMs }));
+  await db.collection('companies/' + companyId + '/recording_audit').add(Object.assign(entry, { at: FieldValue.serverTimestamp() }));
+  return entry;
+}
+
+/**
+ * Delete a recording for good: the audio, the transcript, the notes and what it filed on a customer (doPurge), leaving the tombstone.
+ * hardDeleteAtMs is cleared so the daily Bin job never finds it again. A doc whose audio could not be deleted yet goes to
+ * purge_pending and the sweep retries (doPurge's own rule); it never ends in a state that still holds the audio.
+ */
+async function purgeForever({ db, bucket, uid, visitId, nowMs, reason }) {
+  const ref = visitRef(db, uid, visitId);
+  const snap = await ref.get();
+  if (!snap.exists) return { ok: false, gone: true };
+  const d = snap.data() || {};
+  await upd(ref, { status: 'discarded', discardedAtMs: nowMs, leadId: null, hardDeleteAtMs: null });
+  const r = await doPurge({ db, bucket, ref, uid, visitId, d, nowMs, reason: reason || 'discarded', final: PIPELINE.DISCARDED });
+  return { ok: true, audioDeleted: !!r.audioDeleted };
+}
+
+/**
+ * The daily job: Bin items past their 30 days are deleted for good, unless they are on Hold. Fails closed: a doc whose company cannot
+ * be read (the audit needs it) is left for tomorrow, never deleted unlogged.
+ */
+async function binSweep({ db, bucket, nowMs, maxPages }) {
+  const out = { scanned: 0, purged: 0, held: 0, failed: 0, skipped: 0 };
+  let last = null;
+  for (let page = 0; page < (maxPages || 20); page++) {
+    let q = db.collectionGroup(VISITS).where('hardDeleteAtMs', '<=', nowMs).orderBy('hardDeleteAtMs').limit(100);
+    if (last) q = q.startAfter(last);
+    const snap = await q.get();
+    if (snap.empty) break;
+    for (const doc of snap.docs) {
+      out.scanned++;
+      const who = uidFromPath(doc.ref.path);
+      const v = doc.data() || {};
+      if (!who) { out.skipped++; continue; }
+      if (LG.isBinned(v) && LG.isHeld(v)) { out.held++; continue; }
+      if (!LG.binExpired(v, nowMs)) { out.skipped++; continue; }
+      try {
+        const ctx = await contextFor(db, who.uid);
+        await writeAudit(db, ctx.companyId, { action: 'bin_expired', byUid: null, visitUid: who.uid, visitId: who.visitId, leadId: v.binnedLeadId }, nowMs);
+        const r = await purgeForever({ db, bucket, uid: who.uid, visitId: who.visitId, nowMs, reason: 'discarded' });
+        if (r.ok && r.audioDeleted) out.purged++; else if (r.ok) out.failed++; else out.skipped++;
+      } catch (e) { out.failed++; logger.warn('visit_capture_bin_sweep_failed', { path: doc.ref.path, err: msg(e) }); }
+    }
+    last = snap.docs[snap.docs.length - 1];
+    if (snap.size < 100) break;
+  }
+  return out;
+}
+
+/** The uids of everyone in the caller's company (a rep's users doc carries companyId), plus the caller. Capped. */
+async function companyUids(db, companyId, callerUid) {
+  const set = new Set([callerUid]);
+  const snap = await db.collection('users').where('companyId', '==', companyId).limit(150).get();
+  snap.forEach((d) => set.add(d.id));
+  if (companyId && companyId !== callerUid) set.add(companyId);
+  return Array.from(set).slice(0, 150);
+}
+
+/** What the admin screens may see of one recording: ids, times, state. Never a transcript, a note, a name or an address. */
+function adminRow(uid, id, d, nowMs, repName) {
+  return {
+    ownerUid: uid, id, repName: String(repName || '').slice(0, 60), startedAtMs: Number(d.startedAtMs) || 0, durationSec: Number(d.durationSec) || 0,
+    status: d.status || '', leadId: d.leadId || null, binned: LG.isBinned(d), kept: LG.isKept(d), held: LG.isHeld(d),
+    binnedAtMs: Number(d.binnedAtMs) || 0, hardDeleteAtMs: Number(d.hardDeleteAtMs) || 0, binDaysLeft: LG.binDaysLeft(d, nowMs),
+    audioLive: d.audioLive === true, pipelineStatus: d.pipelineStatus || '',
+  };
+}
+
+/**
+ * The owner / admin callable: see everyone's recordings in the company, Hold / Release, Delete forever (Bin only), Erase a customer's,
+ * and read the log. The caller's role and company come from the server, never from the request; every target is checked to be in the
+ * caller's company before anything is read or written.
+ */
+async function adminAction({ db, bucket, auth, data, nowMs }) {
+  const { HttpsError } = require('firebase-functions/v2/https');
+  if (!auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const token = auth.token || {};
+  require('./shared').assertNotViewer(token);
+  if (!LG.mayAdminRecordings(token.role)) throw new HttpsError('permission-denied', 'Only an owner or admin can do that.');
+  const req = LG.parseAdminRequest(data);
+  if (req.error) throw new HttpsError('invalid-argument', req.error);
+  try { await getDeps().rateLimit(auth.uid); } catch (e) { if (e && /resource-exhausted/.test(String(e.code || ''))) throw e; }
+  const callerUid = auth.uid;
+  const companyId = (await contextFor(db, callerUid)).companyId;
+  const sameCompany = async (uid) => uid === callerUid || (await contextFor(db, uid)).companyId === companyId;
+
+  if (req.action === 'audit') {
+    const snap = await db.collection('companies/' + companyId + '/recording_audit').orderBy('atMs', 'desc').limit(100).get();
+    return { ok: true, entries: snap.docs.map((x) => { const v = x.data() || {}; return { action: v.action, byUid: v.byUid, visitUid: v.visitUid || null, visitId: v.visitId || null, leadId: v.leadId || null, count: v.count || null, atMs: v.atMs || 0 }; }) };
+  }
+
+  if (req.action === 'list') {
+    const uids = await companyUids(db, companyId, callerUid);
+    const rows = [];
+    for (const uid of uids) {
+      const col = db.collection('users/' + uid + '/' + VISITS);
+      let snap;
+      if (req.state === 'bin') snap = await col.where('binnedAtMs', '>', 0).orderBy('binnedAtMs', 'desc').limit(req.limit).get();
+      else if (req.state === 'kept') snap = await col.where('keptAtMs', '>', 0).orderBy('keptAtMs', 'desc').limit(req.limit).get();
+      else snap = await col.orderBy('startedAtMs', 'desc').limit(300).get();
+      let repName = '';
+      if (snap && !snap.empty) { const u = await db.doc('users/' + uid).get(); const ud = (u.exists && u.data()) || {}; repName = ud.displayName || ud.name || ''; }
+      snap.forEach((x) => {
+        const v = x.data() || {};
+        if (req.state === 'unfiled' && (v.leadId || LG.isBinned(v) || LG.isKept(v) || v.status === 'discarded' || v.status === 'recording')) return;
+        rows.push(adminRow(uid, x.id, v, nowMs, repName));
+      });
+    }
+    rows.sort((a, b) => (b.binnedAtMs || b.startedAtMs) - (a.binnedAtMs || a.startedAtMs));
+    return { ok: true, rows: rows.slice(0, req.limit), truncated: rows.length > req.limit };
+  }
+
+  if (req.action === 'hold' || req.action === 'release' || req.action === 'deleteForever') {
+    if (!(await sameCompany(req.ownerUid))) throw new HttpsError('permission-denied', 'That recording is not in your company.');
+    const ref = visitRef(db, req.ownerUid, req.visitId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'That recording is gone.');
+    const d = snap.data() || {};
+    if (req.action === 'hold' || req.action === 'release') {
+      await writeAudit(db, companyId, { action: req.action, byUid: callerUid, visitUid: req.ownerUid, visitId: req.visitId, leadId: d.attachedLeadId || d.leadId || d.binnedLeadId }, nowMs);
+      await upd(ref, req.action === 'hold' ? { legalHold: true, holdBy: callerUid, holdAtMs: nowMs } : { legalHold: false, holdBy: null, holdAtMs: nowMs });
+      return { ok: true, held: req.action === 'hold' };
+    }
+    if (!LG.isBinned(d)) throw new HttpsError('failed-precondition', 'Only a recording in the Bin can be deleted forever.');
+    if (LG.isHeld(d)) throw new HttpsError('failed-precondition', 'That recording is on Hold. Release the hold first.');
+    await writeAudit(db, companyId, { action: 'delete_forever', byUid: callerUid, visitUid: req.ownerUid, visitId: req.visitId, leadId: d.binnedLeadId }, nowMs);
+    const r = await purgeForever({ db, bucket, uid: req.ownerUid, visitId: req.visitId, nowMs });
+    return { ok: true, audioDeleted: !!r.audioDeleted };
+  }
+
+  // eraseCustomer: every recording filed on, binned from, or attached to this customer, across the company. Skips Held ones.
+  const ls = await db.doc('leads/' + req.leadId).get();
+  const lead = ls.exists ? ls.data() || {} : null;
+  if (!lead || !(lead.userId === callerUid || (lead.companyId != null && lead.companyId === companyId))) throw new HttpsError('permission-denied', 'That customer is not in your company.');
+  const uids = await companyUids(db, companyId, callerUid);
+  const found = new Map();
+  for (const uid of uids) {
+    for (const field of ['attachedLeadId', 'leadId', 'binnedLeadId']) {
+      const snap = await db.collection('users/' + uid + '/' + VISITS).where(field, '==', req.leadId).limit(200).get();
+      snap.forEach((x) => found.set(uid + '/' + x.id, { uid, id: x.id, d: x.data() || {} }));
+    }
+  }
+  let erased = 0, held = 0;
+  const todo = [];
+  found.forEach((x) => { if (LG.isHeld(x.d)) held++; else todo.push(x); });
+  if (todo.length) await writeAudit(db, companyId, { action: 'erase_customer', byUid: callerUid, leadId: req.leadId, count: todo.length }, nowMs);
+  for (const x of todo) {
+    const r = await purgeForever({ db, bucket, uid: x.uid, visitId: x.id, nowMs });
+    if (r.ok) erased++;
+  }
+  return { ok: true, erased, held };
+}
+
 // ── exports (registered in functions/index.js) ───────────────────────────
 // Top-level `exports.NAME = onX(` on purpose: tests/cron-heartbeat.test.js and the
 // function-map / viewer-callables sweeps find functions by that shape.
@@ -965,8 +1129,25 @@ exports.attachVisitCapture = onCall(
   (request) => attachAction({ db: getFirestore(), bucket: getStorage().bucket(), auth: request.auth, data: request.data, nowMs: Date.now() })
 );
 
+// Daily: Bin items past their 30 days are deleted for good (never a Held one). No AI is involved, so no AI kill switch applies.
+exports.visitBinSweep = onSchedule(
+  { schedule: 'every day 03:40', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '512MiB' },
+  async () => {
+    try {
+      const r = await binSweep({ db: getFirestore(), bucket: getStorage().bucket(), nowMs: Date.now() });
+      logger.info('[visitBinSweep]', r);
+    } catch (e) { logger.warn('[visitBinSweep] failed', { err: msg(e) }); }
+  }
+);
+
+// Owner / admin: everyone's recordings, Hold, Delete forever (Bin only), Erase a customer's, the log. See adminAction.
+exports.visitCaptureAdmin = onCall(
+  { region: 'us-central1', enforceAppCheck: true, memory: '512MiB', timeoutSeconds: 300, maxInstances: 5 },
+  (request) => adminAction({ db: getFirestore(), bucket: getStorage().bucket(), auth: request.auth, data: request.data, nowMs: Date.now() })
+);
+
 Object.assign(exports, {
-  runVisit, attachAction, sweep, retentionSweep, retract,
+  runVisit, attachAction, sweep, retentionSweep, retract, binSweep, adminAction, purgeForever, writeAudit,
   _setDeps: setDeps,
   _internal: { doProcess, doFinalize, doPurge, doUnfile, fileFailure, tenantLeads, appointmentsAround, vocabularyFor, mayRecordOn, uidFromPath, contextFor },
 });

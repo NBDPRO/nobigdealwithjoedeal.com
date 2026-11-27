@@ -17,12 +17,14 @@
  * jobs already write (integrations/callWatch.lastCheckAtMs,
  * integrations/callCenter.lastRunAtMs / lastTranscribeAtMs) and decides, with
  * pure rules, whether the 2-hourly check or the copy/transcribe jobs stopped.
- * A standing problem is told at most every 6 h (bell + push, 08–20 ET only),
+ * A standing problem is told at most every 6 h (bell + push, 08–20 ET; a
+ * stopped call / text job at any hour, roadmap step 13),
  * recorded on integrations/pipelineHealth, and returned so the caller can
  * throw — the heartbeat then pings /fail and Healthchecks.io emails Jo over a
  * path that does not depend on our push or Firestore at all.
  *
- * Reads and one bell/push to Jo only. Never texts or emails anyone.
+ * Reads and one bell/push to Jo only, plus owner-notify.js's one capped text
+ * ('critical' when a call / text job stopped). Never a customer.
  */
 const W = require('./call-watch-logic');
 
@@ -39,7 +41,17 @@ const REPEAT_MS = 6 * HOUR;
  * no new recording row in this long is a canary, not a quiet week.
  */
 const SILENT_RECORDINGS_MS = 36 * HOUR;
+/**
+ * cronDeadman (cron-deadman.js, 2026-11-22) runs every 30 min and stamps
+ * system/heartbeats.checkedAtMs each run. Two missed runs plus slack = it
+ * stopped. Raised at ANY hour: it is the only watcher of text ingest and the
+ * any-hour call/text exception (Joe, 2026-11-22) depends on it. It is in
+ * DEAD_PIPELINE, so it is told at night too (with the watchdog's /fail).
+ */
+const CRON_DEADMAN_STALE_MS = 75 * MIN;
 const ET = 'America/New_York';
+/** A stopped call / text job (or its watcher) is a dead pipeline: 'critical' to owner-notify. */
+const DEAD_PIPELINE = new Set(['callwatch_not_running', 'ingest_not_running', 'transcribe_not_running', 'cron_deadman_not_running']);
 
 function etHm(ms) {
   const s = new Date(ms).toLocaleString('en-US', { timeZone: ET, hour: 'numeric', minute: 'numeric', hour12: false });
@@ -68,7 +80,7 @@ function expectedWatchSlotMs(now, graceMs) {
  * null), gates = { watch, ingest, transcribe } — which jobs are switched on in
  * this deployment. Returns [{ key, text, repeatMs }].
  */
-function deadManProblems({ watch, cc, now, gates, newestCallMs }) {
+function deadManProblems({ watch, cc, now, gates, newestCallMs, cronDeadman }) {
   const g = gates || {};
   const out = [];
   if (g.watch) {
@@ -108,6 +120,14 @@ function deadManProblems({ watch, cc, now, gates, newestCallMs }) {
   if (po && po.kind && po.needsAction) {
     out.push({ key: 'ai_provider_outage', quiet: true, repeatMs: 24 * HOUR, text: 'AI call notes are paused: ' + String(po.reason || 'provider problem') + '.' });
   }
+  // The watcher of every other cron (cron-deadman.js). No doc yet = not
+  // deployed yet: say nothing. Any hour (see CRON_DEADMAN_STALE_MS).
+  if (cronDeadman) {
+    const last = W.toMs(cronDeadman.checkedAtMs);
+    if (!last || now - last > CRON_DEADMAN_STALE_MS) {
+      out.push({ key: 'cron_deadman_not_running', repeatMs: REPEAT_MS, text: 'The scheduled-job watcher has not run since ' + (last ? etClock(last) + ' ET' : 'ever') + ' (runs every 30 min). A stopped job will not be reported until it does.' });
+    }
+  }
   return out;
 }
 
@@ -118,7 +138,7 @@ const gatesFromEnv = (env) => ({
 });
 
 /**
- * One check. deps: { db, nowMs, live, env, notify(title, body) → Promise }.
+ * One check. deps: { db, nowMs, live, env, notify(title, body, { severity, key }) → Promise }.
  * Returns { problems: [keys], told: [keys], state }. Never throws on a read
  * failure of its own bookkeeping: a failed read is itself reported as a
  * problem (a watcher that cannot read must not look healthy).
@@ -126,26 +146,30 @@ const gatesFromEnv = (env) => ({
 async function run(deps) {
   const { db, nowMs, live } = deps;
   const gates = gatesFromEnv(deps.env || process.env);
-  let watch = null, cc = null, health = {};
+  let watch = null, cc = null, health = {}, cronDeadman = null;
   try {
-    const [a, b, c] = await Promise.all([
+    const [a, b, c, d] = await Promise.all([
       db.doc('integrations/callWatch').get(),
       db.doc('integrations/callCenter').get(),
       db.doc('integrations/pipelineHealth').get(),
+      db.doc('system/heartbeats').get(),
     ]);
     watch = a.exists ? a.data() : null;
     cc = b.exists ? b.data() : null;
     health = c.exists ? (c.data() || {}) : {};
+    cronDeadman = d.exists ? (d.data() || {}) : null;
   } catch (e) {
     return { state: 'read_failed', error: String(e && e.message || e).slice(0, 200), problems: ['deadman_read_failed'], told: [] };
   }
   let newestCallMs;
   try {
     const owner = (deps.env || process.env).NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
-    const q = await db.collection('phone_calls').where('userId', '==', owner).orderBy('startedAtMs', 'desc').limit(1).get();
-    newestCallMs = q.docs.length ? (W.toMs((q.docs[0].data() || {}).startedAtMs) || 0) : 0;
+    // The newest Cube ACR recording: a Thursday call's phone_calls projection
+    // (roadmap step 17C) is not a recording and must not mask a dead ingest.
+    const q = await db.collection('phone_calls').where('userId', '==', owner).orderBy('startedAtMs', 'desc').limit(25).get();
+    newestCallMs = require('./thursday-projection-logic').newestCubeStartMs(q.docs.map((d) => d.data() || {}));
   } catch (_) { newestCallMs = undefined; }
-  const problems = deadManProblems({ watch, cc, now: nowMs, gates, newestCallMs });
+  const problems = deadManProblems({ watch, cc, now: nowMs, gates, newestCallMs, cronDeadman });
   // The daily self-test (pipeline-canary.js): opt-in via deps.canary, once per
   // ET day after 03:00, live runs only. Its verdict rides on integrations/pipelineHealth.
   let canary = health.canary || null;
@@ -162,10 +186,18 @@ async function run(deps) {
   const out = { state: problems.length ? 'problem' : 'ok', problems: problems.map((p) => p.key), told: [] };
   if (!live) return Object.assign(out, { state: out.state + '_dry_run' });
 
-  if (tell.length && W.inWatchHours(nowMs) && typeof deps.notify === 'function') {
+  // 08-20 ET: every problem. Outside it, only a dead call / text pipeline
+  // (step 11: told at any hour, 'critical'); the rest wait for the day and
+  // stay un-told, so they go out at 08:00.
+  const sayNow = W.inWatchHours(nowMs) ? tell : tell.filter((p) => DEAD_PIPELINE.has(p.key));
+  if (sayNow.length && typeof deps.notify === 'function') {
     try {
-      await deps.notify('⚠ Call alerts may be down', tell.map((p) => p.text).join('\n').slice(0, 900));
-      out.told = tell.map((p) => p.key);
+      const keys = sayNow.map((p) => p.key);
+      await deps.notify('⚠ Call alerts may be down', sayNow.map((p) => p.text).join('\n').slice(0, 900), {
+        severity: keys.some((k) => DEAD_PIPELINE.has(k)) ? 'critical' : 'alert',
+        key: 'pipeline-deadman:' + keys.slice().sort().join(','),
+      });
+      out.told = keys;
     } catch (_) { /* the heartbeat /fail below is the other path */ }
   }
   const problemsToldAt = {};
@@ -181,4 +213,4 @@ async function run(deps) {
   return out;
 }
 
-module.exports = { run, deadManProblems, expectedWatchSlotMs, gatesFromEnv, WATCH_GRACE_MS, JOB_STALE_MS, REPEAT_MS, SILENT_RECORDINGS_MS };
+module.exports = { run, deadManProblems, expectedWatchSlotMs, gatesFromEnv, etHm, etClock, WATCH_GRACE_MS, JOB_STALE_MS, REPEAT_MS, SILENT_RECORDINGS_MS, CRON_DEADMAN_STALE_MS };

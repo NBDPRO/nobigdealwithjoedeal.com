@@ -3,7 +3,8 @@
  * (2026-11-17, flag supplierPricing; design section 2.4, the "slice 1" cases).
  *
  * Every write is a Cloud Function (admin SDK); a browser only reads. Offers and supplier
- * accounts: owner, company_admin, manager, sales_rep. Observations and meters: owner,
+ * accounts: owner, company_admin, manager (a sales_rep was dropped 2026-11-18, Jo: reps never
+ * read a supplier price; productLinks stay readable by a rep). Observations and meters: owner,
  * company_admin, manager. Audit: owner, company_admin. A viewer, the access-code role
  * `member`, a token with no role and another tenant read nothing.
  *
@@ -85,20 +86,24 @@ async function run() {
     await setDoc(doc(db, 'priceBook/co-h/priceOffers/other_testco_TEST-0001'), DATA.offer);
     await setDoc(doc(db, 'priceBook/co-h/priceObservations/o_1'), DATA.obs);
     await setDoc(doc(db, 'priceBook/co-h/priceAudit/a_1'), DATA.audit);
-    for (const p of ['priceAlerts/x', 'priceImports/x', 'priceConfig/main', 'productLinks/shingle_001', 'priceNotices/x', 'priceRollups/2026-11', 'leadSkus/lead1']) await setDoc(doc(db, BASE + p), { v: 1 });
+    await setDoc(doc(db, 'priceBook/co-h/priceConfig/seen'), { marks: {} });
+    await setDoc(doc(db, 'priceBook/co-h/productLinks/shingle_001'), { v: 1 });
+    await setDoc(doc(db, BASE + 'priceDocs/d_1'), { v: 1, state: 'read' });
+    await setDoc(doc(db, 'priceBook/co-h/priceDocs/d_1'), { v: 1, state: 'read' });
+    for (const p of ['priceAlerts/x', 'priceImports/x', 'priceConfig/main', 'priceConfig/seen', 'productLinks/shingle_001', 'priceNotices/x', 'priceRollups/2026-11', 'leadSkus/lead1']) await setDoc(doc(db, BASE + p), { v: 1 });
     await setDoc(doc(db, 'retail_shelf_cache/x'), { v: 1 });
     await setDoc(doc(db, 'price_check_global/day_2026-11-17'), { v: 1 });
     await setDoc(doc(db, 'integrations/pricing/companies/co-a'), { enabled: false });
   });
 
-  // 1. offers and supplier accounts
+  // 1. offers and supplier accounts. A sales_rep reads neither (Jo, 2026-11-18: reps never read a supplier price)
   const members = ['solo owner (uid is the company)', 'company_admin', 'manager', 'sales_rep'];
   const outsiders = ['viewer', 'member (access code)', 'role-less token with the claim', 'another company'];
-  for (const w of members) {
+  for (const w of ['solo owner (uid is the company)', 'company_admin', 'manager']) {
     await check('1. ' + w + ' reads an offer', 'allow', getDoc(doc(WHO[w], PATHS.offer)));
     await check('1. ' + w + ' reads a supplier account', 'allow', getDoc(doc(WHO[w], PATHS.account)));
   }
-  for (const w of outsiders) {
+  for (const w of ['sales_rep'].concat(outsiders)) {
     await check('1. ' + w + ' can not read an offer', 'deny', getDoc(doc(WHO[w], PATHS.offer)));
     await check('1. ' + w + ' can not read a supplier account', 'deny', getDoc(doc(WHO[w], PATHS.account)));
   }
@@ -136,7 +141,7 @@ async function run() {
   await check('5. a removed former owner (no claims) can not read an offer', 'deny', getDoc(doc(removed, H + 'priceOffers/other_testco_TEST-0001')));
   await check('5. a removed former owner can not read an observation', 'deny', getDoc(doc(removed, H + 'priceObservations/o_1')));
   await check('5. a removed former owner can not read audit', 'deny', getDoc(doc(removed, H + 'priceAudit/a_1')));
-  await check('5. a former owner demoted to sales_rep reads offers', 'allow', getDoc(doc(demoted, H + 'priceOffers/other_testco_TEST-0001')));
+  await check('5. a former owner demoted to sales_rep can not read offers', 'deny', getDoc(doc(demoted, H + 'priceOffers/other_testco_TEST-0001')));
   await check('5. a former owner demoted to sales_rep can not read an observation', 'deny', getDoc(doc(demoted, H + 'priceObservations/o_1')));
   await check('5. a former owner demoted to sales_rep can not read audit', 'deny', getDoc(doc(demoted, H + 'priceAudit/a_1')));
   await check('5. a former owner kept as company_admin reads an observation', 'allow', getDoc(doc(kept, H + 'priceObservations/o_1')));
@@ -160,7 +165,8 @@ async function run() {
   }
 
   // 8. the legacy priceBook/{companyId} doc behaves as before
-  await check('8. a sales rep still reads the legacy price book doc', 'allow', getDoc(doc(WHO.sales_rep, 'priceBook/co-a')));
+  await check('8. a sales rep can not read the legacy price book doc (2026-11-18, Jo)', 'deny', getDoc(doc(WHO.sales_rep, 'priceBook/co-a')));
+  await check('8. a manager still reads it', 'allow', getDoc(doc(WHO.manager, 'priceBook/co-a')));
   await check('8. a viewer still reads the legacy price book doc', 'allow', getDoc(doc(WHO.viewer, 'priceBook/co-a')));
   await check('8. another company still can not read it', 'deny', getDoc(doc(WHO['another company'], 'priceBook/co-a')));
   await check('8. the owner still writes it', 'allow', setDoc(doc(WHO['solo owner (uid is the company)'], 'priceBook/co-a'), { items: {} }, { merge: true }));
@@ -172,9 +178,50 @@ async function run() {
   }
 
   // 10. paths later slices add are denied to everyone today (each line goes when its slice lands)
-  for (const p of ['priceAlerts/x', 'priceImports/x', 'priceConfig/main', 'productLinks/shingle_001', 'priceNotices/x', 'priceRollups/2026-11', 'leadSkus/lead1']) {
+  for (const p of ['priceAlerts/x', 'priceImports/x', 'priceNotices/x', 'priceRollups/2026-11', 'leadSkus/lead1']) {
     await check('10. the owner can not read ' + p + ' yet', 'deny', getDoc(doc(WHO['solo owner (uid is the company)'], BASE + p)));
     await check('10. a company_admin can not read ' + p + ' yet', 'deny', getDoc(doc(WHO.company_admin, BASE + p)));
+  }
+
+  // 11. priceConfig (slice 3): the shared "seen" marks. Owner and company_admin read; nobody writes
+  for (const p of ['priceConfig/seen', 'priceConfig/main']) {
+    for (const w of ['solo owner (uid is the company)', 'company_admin']) await check('11. ' + w + ' reads ' + p, 'allow', getDoc(doc(WHO[w], BASE + p)));
+    for (const w of ['manager', 'sales_rep', 'viewer', 'member (access code)', 'role-less token with the claim', 'another company']) await check('11. ' + w + ' can not read ' + p, 'deny', getDoc(doc(WHO[w], BASE + p)));
+    for (const w of Object.keys(WHO)) {
+      await check('11. ' + w + ' can not write ' + p, 'deny', setDoc(doc(WHO[w], BASE + p), { marks: {} }));
+      await check('11. ' + w + ' can not delete ' + p, 'deny', deleteDoc(doc(WHO[w], BASE + p)));
+    }
+    await check('11. a signed-out browser can not read ' + p, 'deny', getDoc(doc(signedOut, BASE + p)));
+  }
+  await check('11. a removed former owner can not read the seen marks', 'deny', getDoc(doc(removed, H + 'priceConfig/seen')));
+  await check('11. a former owner kept as company_admin reads the seen marks', 'allow', getDoc(doc(kept, H + 'priceConfig/seen')));
+
+  // 12. productLinks (slice 4): the last approved cost per tier. Read like offers; nobody writes
+  {
+    const p = BASE + 'productLinks/shingle_001';
+    for (const w of members) await check('12. ' + w + ' reads a product link', 'allow', getDoc(doc(WHO[w], p)));
+    for (const w of outsiders) await check('12. ' + w + ' can not read a product link', 'deny', getDoc(doc(WHO[w], p)));
+    for (const w of Object.keys(WHO)) {
+      await check('12. ' + w + ' can not write a product link', 'deny', setDoc(doc(WHO[w], p), { applied: {} }));
+      await check('12. ' + w + ' can not create a product link', 'deny', setDoc(doc(WHO[w], p + '_new'), { applied: {} }));
+      await check('12. ' + w + ' can not delete a product link', 'deny', deleteDoc(doc(WHO[w], p)));
+    }
+    await check('12. a signed-out browser can not read a product link', 'deny', getDoc(doc(signedOut, p)));
+    await check('12. a removed former owner can not read a product link', 'deny', getDoc(doc(removed, H + 'productLinks/shingle_001')));
+    await check('12. a former owner demoted to sales_rep reads a product link', 'allow', getDoc(doc(demoted, H + 'productLinks/shingle_001')));
+  }
+
+  // 13. priceDocs (slice 9, 2026-11-18): read supplier documents. Owner and company_admin only; nobody writes
+  {
+    const p = BASE + 'priceDocs/d_1';
+    for (const w of ['solo owner (uid is the company)', 'company_admin']) await check('13. ' + w + ' reads a read document', 'allow', getDoc(doc(WHO[w], p)));
+    for (const w of ['manager', 'sales_rep', 'viewer', 'member (access code)', 'role-less token with the claim', 'another company']) await check('13. ' + w + ' can not read a read document', 'deny', getDoc(doc(WHO[w], p)));
+    for (const w of Object.keys(WHO)) {
+      await check('13. ' + w + ' can not write a read document', 'deny', setDoc(doc(WHO[w], p), { state: 'removed' }));
+      await check('13. ' + w + ' can not delete a read document', 'deny', deleteDoc(doc(WHO[w], p)));
+    }
+    await check('13. a removed former owner can not read a read document', 'deny', getDoc(doc(removed, H + 'priceDocs/d_1')));
+    await check('13. a former owner kept as company_admin reads it', 'allow', getDoc(doc(kept, H + 'priceDocs/d_1')));
   }
 
   await env.cleanup();

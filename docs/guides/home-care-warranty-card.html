@@ -26,6 +26,7 @@
 <link rel="stylesheet" href="/assets/css/nbd-guide.css?v=5">
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
 <link rel="stylesheet" href="/assets/css/mobile-cta.css">
+<link rel="stylesheet" href="/assets/css/quick-lead-form.css">
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <script type="application/ld+json">{
  "@context": "https://schema.org",
@@ -331,7 +332,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 <h2 class="g-ch-title">After a storm</h2>
 <p>Hail and high wind leave clues you can see from the ground. Before anything gets cleaned up, walk the house and take dated photos of what you find.</p>
 <ul class="g-check"><li>Dents or dings on gutters, downspouts, vents and the AC unit: soft metal shows hail first.</li><li>Shingle granules washed out at the downspouts, or pieces of shingle in the yard.</li><li>Siding cracked, chipped or holed on the side the storm came from.</li><li>New water stains on ceilings, or damp spots in the attic.</li></ul>
-<p>Then call or text me. Whether insurance covers it depends on your policy and the damage. I'll tell you honestly if it's worth a claim.</p>
+<p>Then call or text me. Whether insurance covers it depends on your policy and the damage. I document the damage with photos so you can decide whether to file a claim.</p>
 </section>
 <section class="g-chapter" id="your-warranty-plainly">
 <h2 class="g-ch-title">Your warranty, plainly</h2>
@@ -360,6 +361,20 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 <p>Joe Deal, No Big Deal Home Solutions</p>
 </section>
 <!-- GUIDE-BODY:END home-care-warranty-card -->
+  <!-- EMAIL ME A COPY (2026-11-26): posts through submitPublicLead as guide_copy; functions/guide-copy-email.js sends the PDF -->
+  <section class="g-panel" aria-labelledby="g-copy-title" data-guide-copy="home-care-warranty-card" hidden>
+    <h2 id="g-copy-title">Email me a copy</h2>
+    <p>Get the printable PDF of this guide in your inbox. One email with the file, nothing else unless you tick the box.</p>
+    <form class="g-form" id="guideCopyForm" novalidate>
+      <div><label for="gcEmail">Your email</label><input type="email" id="gcEmail" name="email" autocomplete="email" required maxlength="200"></div>
+      <label class="g-consent" for="gcConsent"><input type="checkbox" id="gcConsent" name="emailConsent" value="yes"> <span>Also email me storm-season tips from Joe now and then. Unsubscribe any time.</span></label>
+      <div><label for="gcZip">ZIP code (optional, so storm tips can match your area)</label><input type="text" id="gcZip" name="zip" inputmode="numeric" autocomplete="postal-code" maxlength="10"></div>
+      <div class="g-hp" aria-hidden="true"><label for="gcHp">Leave this empty</label><input type="text" id="gcHp" name="nbd_hp" tabindex="-1" autocomplete="off"></div>
+      <button type="submit" class="g-btn g-btn-primary">Email me the PDF</button>
+      <p class="g-form-note">See the <a href="/privacy">privacy policy</a>.</p>
+      <p class="g-form-msg" id="guideCopyMsg" role="status" aria-live="polite" hidden></p>
+    </form>
+  </section>
   <section class="g-panel" aria-labelledby="g-next-title">
     <h2 id="g-next-title">Something look off?</h2>
     <p>Call or text me. If it needs a ladder or the roof, I'll come look, and the inspection is free.</p>
@@ -369,6 +384,8 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
       <a class="g-btn g-btn-ghost" href="sms:+18594207382">Text Joe</a>
     </div>
   </section>
+  <!-- QUICK LEAD FORM (2026-11-25): same embed as the area/service pages; posts through submitPublicLead as page-form:/guides/home-care-warranty-card -->
+  <section class="qlf-section" id="quote"><div class="qlf-wrap"><div data-nbd-quick-form></div></div></section>
   <nav class="g-related" aria-label="More free guides">
     <p class="g-related-title">More free guides and tools</p>
     <ul>
@@ -416,5 +433,8 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 </div>
 <!-- /nbd:partial mobile-cta -->
 <script defer src="/assets/js/guide-pdf-slot.js?v=2"></script>
+<script defer src="/assets/js/quick-lead-form.js"></script>
+<script defer src="/assets/js/public-lead-submit.js"></script>
+<script defer src="/assets/js/guide-email-copy.js?v=2"></script>
 </body>
 </html>

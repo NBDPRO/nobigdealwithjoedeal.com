@@ -168,6 +168,21 @@ const ids = (r) => r.customers.map((c) => c.lead_id).join();
     ok('a review-ask draft already waiting → left out; another kind of draft does not count', ids(waiting) === 'b' && waiting.skipped.draft_waiting === 1, JSON.stringify(waiting));
     const tossed = run([lead('a')], [paidInv('a', at)], { inbox: [{ leadId: 'a', kind: 'draft_email', status: 'dismissed', title: 'Google review' }] });
     ok('a tossed review draft does not block it', tossed.total === 1);
+    // Audit 2026-11-22: the owner's "I sent it" marks the item sent_by_owner,
+    // which the waiting check did not count, so the next sprint asked again.
+    const ownerSent = run([lead('a')], [paidInv('a', at)], { inbox: [{ companyId: CO, leadId: 'a', kind: 'draft_text', status: 'sent_by_owner', title: '', text: 'Hi Maria, would you leave us a Google review? ' + RA.NBD_REVIEW_URL }] });
+    ok('a review-ask draft the owner already sent (sent_by_owner) → left out, never drafted twice', ownerSent.total === 0 && ownerSent.skipped.draft_waiting === 1, JSON.stringify(ownerSent));
+    ok('reviewDraftWaiting counts a sent_by_owner review ask (marker or Google link) as asked', L.reviewDraftWaiting({ kind: 'draft_email', status: 'sent_by_owner', title: 'A quick Google review?', purpose: 'review_ask' }) === true
+      && L.reviewDraftWaiting({ kind: 'draft_email', status: 'sent_by_owner', title: 'A quick Google review?', text: RA.NBD_REVIEW_URL }) === true
+      && L.reviewDraftWaiting({ kind: 'draft_email', status: 'dismissed', title: 'A quick Google review?', purpose: 'review_ask' }) === false);
+    // A draft the bot marked purpose 'review_ask' counts while pending, even
+    // when its words never say "review".
+    const marked = run([lead('a')], [paidInv('a', at)], { inbox: [{ companyId: CO, leadId: 'a', kind: 'draft_text', status: 'pending', purpose: 'review_ask', title: '', text: 'Hi Ann, could you share a few words about us on Google? https://example.test/r', reason: 'job done' }] });
+    ok('a pending draft marked purpose review_ask (no word "review") → left out', marked.total === 0 && marked.skipped.draft_waiting === 1, JSON.stringify(marked));
+    // sent_by_owner is final: a sent follow-up that merely says "review" must
+    // not block the customer forever. Only a real ask (marker or Google link) counts.
+    const followUp = run([lead('a')], [paidInv('a', at)], { inbox: [{ companyId: CO, leadId: 'a', kind: 'draft_text', status: 'sent_by_owner', title: '', text: "Hi Maria, I'll review the insurance paperwork Thursday.", reason: 'post-review follow-up' }] });
+    ok('an owner-sent follow-up that only says "review" does not block the sprint', followUp.total === 1, JSON.stringify(followUp));
     const order = run([lead('a'), lead('b'), lead('c')], [paidInv('a', Date.parse('2026-05-01T16:00:00Z')), paidInv('b', Date.parse('2026-09-01T16:00:00Z')), paidInv('c', Date.parse('2026-07-01T16:00:00Z'))], { args: { limit: 2 } });
     ok('newest paid first; limit pages it while total counts all', ids(order) === 'b,c' && order.total === 3, JSON.stringify(order));
   }

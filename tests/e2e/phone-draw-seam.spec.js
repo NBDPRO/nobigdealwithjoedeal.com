@@ -42,6 +42,7 @@
 //     npx playwright test --config=playwright.config.js phone-draw-seam.spec.js --workers=1
 const path = require('path');
 const { test, expect } = require('@playwright/test');
+const { autoDialogs } = require('./fixtures/dialogs'); // in-tab dialogs (native ones are gone)
 const { requireTestUser, loginAs, safeWaitForFunction } = require('./fixtures/auth');
 const T = require('./fixtures/draw-touch');
 const G = require(path.join(__dirname, '..', '..', 'docs', 'pro', 'js', 'draw-geom.js'));
@@ -78,8 +79,10 @@ async function returningUser(context) {
   });
 }
 // Native dialogs: accept; a prompt() gets page.__promptValue when set.
-function dialogs(page) {
-  page.__dialogLog = [];
+async function dialogs(page) {
+  const dlg = await autoDialogs(page);
+  page.__dialogLog = dlg.log; // 'prompt: …' / 'confirm: …' lines, same shape as the native log
+  Object.defineProperty(page, '__promptValue', { configurable: true, get: () => dlg.promptValue, set: (v) => { dlg.promptValue = v; } });
   page.on('dialog', (d) => {
     page.__dialogLog.push(d.type() + ': ' + d.message());
     const v = d.type() === 'prompt' && page.__promptValue != null ? String(page.__promptValue) : undefined;
@@ -146,7 +149,7 @@ for (const width of [412, 360]) {
       context = await browser.newContext(T.phoneContextOptions(width));
       await returningUser(context);
       ctx.page = await context.newPage();
-      dialogs(page());
+      await dialogs(page());
       await T.stubTiles(page());
       await stubNetwork(page());
       await loginAs(page(), creds);
@@ -572,7 +575,7 @@ test.describe.serial('draw seam desktop 1280 @shard3', () => {
     context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
     await returningUser(context);
     ctx.page = await context.newPage();
-    dialogs(page());
+    await dialogs(page());
     await T.stubTiles(page());
     await stubNetwork(page());
     await loginAs(page(), creds);

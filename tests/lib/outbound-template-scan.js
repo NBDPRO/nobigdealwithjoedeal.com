@@ -42,11 +42,19 @@ const TEMPLATE_FILES = Object.freeze([
   'functions/portal-moments.js',     // key-moment emails with the portal link (2026-11-04)
   'functions/review-ask-auto.js',
   'functions/review-ask-auto-logic.js',
+  'functions/review-ask-v2.js',       // v2 sends: text first + one reminder (dark, 2026-11-26)
+  'functions/review-ask-v2-logic.js', // v2 words: the reminder text + email
+  'functions/review-ask-tenant.js',       // the review ask for other companies (2026-11-26, dark)
+  'functions/review-ask-tenant-logic.js', // its fixed email words
   'functions/missed-call-reply-logic.js',
   'functions/missed-call-autotext.js',
   'functions/storm-watch.js',
   'functions/storm-confirm.js',
   'functions/storm-report-email.js',
+  'functions/guide-copy-email.js',
+  'functions/guide-copy-logic.js',   // the guide-copy email's text (2026-11-26)
+  'functions/storm-tips-email.js',
+  'functions/storm-tips-logic.js',   // the storm-tips email issues (2026-11-26)
   'functions/estimate-email.js',
   'functions/estimate-email-logic.js', // the estimate email's text since 2026-11-17 (sweep M3)
   'functions/email-functions.js',
@@ -69,6 +77,9 @@ const TEMPLATE_FILES = Object.freeze([
   'docs/pro/js/winback-logic.js',
   'docs/pro/js/document-generator-templates.js',
   'docs/pro/js/document-generator-library.js',
+  'docs/pro/js/clause-set-text.js',  // the clause set v1 wording (2026-11-18, phase 2)
+  'docs/pro/js/attic-ack-text.js',   // the attic acknowledgment wording (2026-11-18, phase 3)
+  'docs/pro/js/p5-forms.js',         // the phase 5 forms' own (drafter) wording (2026-11-19)
   'docs/pro/js/nbd-comms.js',
 ]);
 
@@ -85,6 +96,8 @@ const INTERNAL_SENDERS = Object.freeze([
   'functions/morning-brief.js', 'functions/review-request-nudge.js', 'functions/storm-poller.js',
   'functions/weekly-digest.js',
   'functions/storm-watch.js', 'functions/verify-functions.js',   // internal: Jo's storm / new-lead alert (the customer texts in these files are covered by the SMS rules)
+  'functions/ai-client.js',   // not a send: the Anthropic SDK model call (client.messages.create), 2026-11-25
+  'functions/owner-notify.js',   // internal (2026-11-25, step 13): system alerts to the owner's own phone; never a customer
 ]);
 
 function walk(dir, out) {

@@ -26,6 +26,7 @@
 <link rel="stylesheet" href="/assets/css/nbd-guide.css?v=5">
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
 <link rel="stylesheet" href="/assets/css/mobile-cta.css">
+<link rel="stylesheet" href="/assets/css/quick-lead-form.css">
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <script type="application/ld+json">{
  "@context": "https://schema.org",
@@ -346,7 +347,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 </section>
 <section class="g-chapter" id="insurance-and-financing-together">
 <h2 class="g-ch-title">Insurance and financing together</h2>
-<p>If you have covered storm damage, your insurer pays its share under your policy and you pay the deductible. Some homeowners use financing for the deductible or for upgrades the policy doesn't cover, like a better shingle. Whether insurance covers it depends on your policy and the damage. I'll tell you honestly if it's worth a claim. Our free <a href="/guides/kentucky-ohio-storm-claim-guide">storm-claim guide</a> walks through the claim side step by step.</p>
+<p>If you have covered storm damage, your insurer pays its share under your policy and you pay the deductible. Some homeowners use financing for the deductible or for upgrades the policy doesn't cover, like a better shingle. Whether insurance covers it depends on your policy and the damage. I document the damage with photos so you can decide whether to file a claim. Our free <a href="/guides/kentucky-ohio-storm-claim-guide">storm-claim guide</a> walks through the claim side step by step.</p>
 <aside class="g-callout g-callout-ky"><p class="g-callout-title">Kentucky insurance jobs</p><p>On our Kentucky insurance jobs, nothing is due at signing. Your deductible and the insurer's first payment are due after the insurer's written decision and the five-business-day cancellation window.</p></aside>
 </section>
 <section class="g-chapter" id="next-step">
@@ -355,6 +356,20 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 <p>Joe Deal, No Big Deal Home Solutions</p>
 </section>
 <!-- GUIDE-BODY:END roof-financing-explained -->
+  <!-- EMAIL ME A COPY (2026-11-26): posts through submitPublicLead as guide_copy; functions/guide-copy-email.js sends the PDF -->
+  <section class="g-panel" aria-labelledby="g-copy-title" data-guide-copy="roof-financing-explained" hidden>
+    <h2 id="g-copy-title">Email me a copy</h2>
+    <p>Get the printable PDF of this guide in your inbox. One email with the file, nothing else unless you tick the box.</p>
+    <form class="g-form" id="guideCopyForm" novalidate>
+      <div><label for="gcEmail">Your email</label><input type="email" id="gcEmail" name="email" autocomplete="email" required maxlength="200"></div>
+      <label class="g-consent" for="gcConsent"><input type="checkbox" id="gcConsent" name="emailConsent" value="yes"> <span>Also email me storm-season tips from Joe now and then. Unsubscribe any time.</span></label>
+      <div><label for="gcZip">ZIP code (optional, so storm tips can match your area)</label><input type="text" id="gcZip" name="zip" inputmode="numeric" autocomplete="postal-code" maxlength="10"></div>
+      <div class="g-hp" aria-hidden="true"><label for="gcHp">Leave this empty</label><input type="text" id="gcHp" name="nbd_hp" tabindex="-1" autocomplete="off"></div>
+      <button type="submit" class="g-btn g-btn-primary">Email me the PDF</button>
+      <p class="g-form-note">See the <a href="/privacy">privacy policy</a>.</p>
+      <p class="g-form-msg" id="guideCopyMsg" role="status" aria-live="polite" hidden></p>
+    </form>
+  </section>
   <section class="g-panel" aria-labelledby="g-next-title">
     <h2 id="g-next-title">Start with the real price</h2>
     <p>A free inspection and a written, itemized estimate come first. Then you can decide how to pay, with no pressure either way.</p>
@@ -364,11 +379,13 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
       <a class="g-btn g-btn-ghost" href="/services/financing">See financing options</a>
     </div>
   </section>
+  <!-- QUICK LEAD FORM (2026-11-25): same embed as the area/service pages; posts through submitPublicLead as page-form:/guides/roof-financing-explained -->
+  <section class="qlf-section" id="quote"><div class="qlf-wrap"><div data-nbd-quick-form></div></div></section>
   <nav class="g-related" aria-label="More free guides">
     <p class="g-related-title">More free guides and tools</p>
     <ul>
       <li><a href="/services/financing">Financing with Acorn Finance</a></li>
-      <li><a href="/blog/how-roof-financing-actually-works">How roof financing actually works (blog)</a></li>
+      <li><a href="/blog/roof-financing-cincinnati-explained#soft-vs-hard">How roof financing actually works (blog)</a></li>
       <li><a href="/guides/compare-roofing-quotes-checklist">How to compare roofing quotes (checklist)</a></li>
       <li><a href="/guides/kentucky-ohio-storm-claim-guide">Storm damage and your insurance claim (KY &amp; OH)</a></li>
       <li><a href="/free-tools">All free tools and guides</a></li>
@@ -411,5 +428,8 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 </div>
 <!-- /nbd:partial mobile-cta -->
 <script defer src="/assets/js/guide-pdf-slot.js?v=2"></script>
+<script defer src="/assets/js/quick-lead-form.js"></script>
+<script defer src="/assets/js/public-lead-submit.js"></script>
+<script defer src="/assets/js/guide-email-copy.js?v=2"></script>
 </body>
 </html>

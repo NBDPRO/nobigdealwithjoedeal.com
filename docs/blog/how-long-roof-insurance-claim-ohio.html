@@ -570,14 +570,17 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
 <!-- /nbd:partial schema-entity -->
 <link rel="stylesheet" href="/assets/css/nbd-nav.css">
 <link rel="stylesheet" href="/assets/css/blog-nav-fit.css">
+<script defer src="/assets/js/ga-loader.js" data-gtag="https://www.googletagmanager.com/gtag/js?id=G-8PG7N9Q3DL"></script>
+<script defer src="/assets/js/inline/2a90205f1b.js"></script>
+<script defer src="/assets/js/clarity-loader.js"></script>
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 
 <div class="ann-bar" id="annBar" role="region" aria-label="Announcements">
   <div class="ann-slide active"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2 L4 6 V12 C4 17 8 21 12 22 C16 21 20 17 20 12 V6 Z"/></svg> <span class="ann-text" data-long="The NBD Pledge — I stand behind every install personally" data-short="The NBD Pledge — Backed by Joe">The NBD Pledge — I stand behind every install personally</span></div>
+  <div class="ann-slide" data-nbd-season-ann="winter"><svg class="ico" viewBox="0 0 24 24" style="margin-right:6px"><path d="M12 2 V22"/><path d="M3.3 7 L20.7 17"/><path d="M3.3 17 L20.7 7"/></svg><a href="/services/emergency-roof-tarping" style="color:inherit;text-decoration:none"><span class="ann-text" data-long="Ice Dam or Storm Leak? 24/7 Same-Day Tarping When Daylight &amp; Weather Allow" data-short="Winter Leak? Emergency Tarping">Ice Dam or Storm Leak? 24/7 Same-Day Tarping When Daylight &amp; Weather Allow</span></a></div>
   <div class="ann-slide"><svg class="ico" viewBox="0 0 24 24"><path d="M3 11 L12 3 L21 11"/><path d="M5 10 V20 H19 V10"/></svg> <a href="tel:+18594207382" style="color:inherit;text-decoration:none"><span class="ann-text" data-long="Free Roof Inspections — Call or Text Joe: (859) 420-7382" data-short="Free Inspections — (859) 420-7382">Free Roof Inspections — Call or Text Joe: (859) 420-7382</span></a></div>
   <div class="ann-slide"><svg class="ico ico-fill" viewBox="0 0 24 24"><path d="M13 2 L4 14 L11 14 L10 22 L20 10 L13 10 Z"/></svg> <span class="ann-text" data-long="Storm Damage? I Document It and Meet Your Adjuster — No Big Deal" data-short="Storm Damage? I Meet Your Adjuster">Storm Damage? I Document It and Meet Your Adjuster — No Big Deal</span></div>
-  <div class="ann-slide" data-nbd-freeroof-ann="v1"><a href="/free-roof" style="color:inherit;text-decoration:none"><svg class="ico" viewBox="0 0 24 24" style="margin-right:6px"><path d="M3 11 L12 3 L21 11"/><path d="M5 10 V20 H19 V10"/></svg><span class="ann-text" data-long="One free roof a year — nominate a Greater Cincinnati or NKY neighbor &rarr;" data-short="One free roof a year &rarr;">One free roof a year &rarr;</span></a></div>
 </div>
 
 <!-- nbd:partial nav-blog cta_href="/inspect" -->
@@ -612,11 +615,10 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
         <li><a href="/services/fire-water-smoke-damage">Fire &amp; Water Damage</a></li>
         <li><a href="/services/financing">Financing</a></li>
         <li><a href="/visualizer" style="color:var(--orange-light,#dd875f)">Roof Visualizer</a></li>
-        <li><a href="/roof-score" style="color:var(--orange-light,#dd875f)">Roof Score</a></li>
+        <li><a href="/roof-check" style="color:var(--orange-light,#dd875f)">Free Roof Check</a></li>
         <li><a href="/free-tools" style="color:var(--orange-light,#dd875f)">All Free Tools</a></li>
         <li><a href="/storm-alerts" style="color:var(--orange-light,#dd875f)">Storm Alerts</a></li>
-        <li><a href="/storm-report" style="color:var(--orange-light,#dd875f)">5-Year Storm Report</a></li>
-        <li><a href="/storm-check" style="color:var(--orange-light,#dd875f)">Is It Worth a Claim?</a></li><li><a href="/inspect" style="color:var(--orange-light,#dd875f)">Free Inspection</a></li>
+        <li><a href="/inspect" style="color:var(--orange-light,#dd875f)">Free Inspection</a></li>
       </ul>
     </li>
     <li><a href="/about">About Joe</a></li>
@@ -668,11 +670,9 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
   <a href="/blog">Blog</a>
   <div class="mnav-group">Tools</div>
   <a href="/estimate" style="color:#dd875f">Instant Estimate</a>
-  <a href="/roof-score" style="color:#dd875f">Roof Score</a>
+  <a href="/roof-check" style="color:#dd875f">Free Roof Check</a>
   <a href="/visualizer" style="color:#dd875f">Roof Visualizer</a>
   <a href="/storm-alerts" style="color:#dd875f">Storm Alerts</a>
-  <a href="/storm-report" style="color:#dd875f">5-Year Storm Report</a>
-  <a href="/storm-check" style="color:#dd875f">Is It Worth a Claim?</a>
   <a href="/inspect" style="color:#dd875f">Free Inspection</a>
   <a href="/free-tools" style="color:#dd875f">All Free Tools</a>
   <a href="/inspect" style="color:#bd5728;font-weight:800;">Book Inspection &rarr;</a>
@@ -707,7 +707,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
     <p><strong>Timeline: Same day to next business day.</strong></p>
     <p>You call your insurance company after discovering damage. You tell them there's a storm claim, they assign you a claim number, and you provide basic information. That's it for phase one. You're done in one phone call.</p>
     <p><strong>What happens:</strong> Your claim enters the adjuster queue. Depending on how busy the carrier is and whether there was a major storm event, you'll wait anywhere from next business day to 2-3 weeks for the adjuster to contact you to schedule an inspection.</p>
-    <blockquote><p>"If water's coming in, get it tarped and report the damage promptly. If it isn't, an inspection first tells you whether there's a claim worth filing — then call your insurer, get the claim number, and schedule the adjuster."</p></blockquote>
+    <blockquote><p>"If water's coming in, get it tarped and report the damage promptly. If it isn't, an inspection first documents the damage so you can decide whether to file — then call your insurer, get the claim number, and schedule the adjuster."</p></blockquote>
 
     <h2 id="phase-2">Phase 2: Adjuster Inspection (Days 3-14)</h2>
     <p><strong>Timeline: Typically 5-14 days after you file.</strong></p>
@@ -836,7 +836,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
     <div class="cta-sidebar">
       <h3>Claim Timeline?</h3>
       <p>Not sure where you are in the process? Call Joe for a free assessment of your claim status.</p>
-      <a href="/#contact">Get Free Assessment →</a>
+      <a href="/inspect">Book a free inspection →</a>
       <a href="tel:+18594207382" class="phone-link">📞 (859) 420-7382</a>
     </div>
 

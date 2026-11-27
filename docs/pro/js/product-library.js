@@ -189,6 +189,8 @@
     }
     product.updatedAt = now;
     const idx = products.findIndex(p => p.id === product.id);
+    // The stored copy this save replaces: the cost book gets only what changed (catalog-costs.js recordProduct).
+    const before = (idx >= 0 && products[idx] !== product) ? products[idx] : null;
     if (idx >= 0) products[idx] = product;
     else products.push(product);
     saveAll();
@@ -199,11 +201,30 @@
     // owner/company_admin, so a rep's edit stays local and that is fine.
     try {
       const cc = window.NBDCatalogCosts;
-      if (cc && typeof cc.recordProduct === 'function') cc.recordProduct(product);
+      if (cc && typeof cc.recordProduct === 'function') cc.recordProduct(product, before);
     } catch (e) { /* never block a local save on the sync */ }
     // …and the rest of the row to the company library.
     cloudRecord(product);
     return product;
+  }
+
+  /**
+   * A cost approved into the company's cost book on the server (supplier pricing
+   * slice 4), on this device: set the tier's cost, save the store, re-render. It
+   * does NOT stamp updatedAt, for the same reason applyCostSeed does not: cost
+   * hydration is not an edit. `dollars` null clears the tier (an undo of a tier the
+   * approval had created).
+   */
+  function applyApprovedCost(id, tier, dollars) {
+    const p = products.find(x => x && x.id === id);
+    if (!p || TIERS.indexOf(tier) === -1) return false;
+    if (!p.pricing || typeof p.pricing !== 'object') p.pricing = {};
+    if (!p.pricing[tier] || typeof p.pricing[tier] !== 'object') p.pricing[tier] = {};
+    if (typeof dollars === 'number' && isFinite(dollars)) p.pricing[tier].cost = dollars;
+    else delete p.pricing[tier].cost;
+    saveAll();
+    reRender();
+    return true;
   }
 
   function deleteProduct(id) {
@@ -578,6 +599,10 @@
     const results = getFilteredProducts();
     const activeCount = products.filter(p => p.isActive !== false).length;
     const usedCats = [...new Set(products.filter(p => p.isActive !== false).map(p => p.category))];
+    // Supplier pricing slice 3 (2026-11-17): Import prices and Compare suppliers are
+    // for the owner and company admins; the alert count fills in after this paints.
+    const prlAdmin = !!(window.NBDPriceLedger && window.NBDPriceLedger.enabled() && window.NBDPriceLedger.canSave());
+    if (prlAdmin && window.NBDPriceCompareUI) setTimeout(() => window.NBDPriceCompareUI.refreshCount(), 0);
     const categoryCount = usedCats.length;
     const marginTier = currentFilter.tier || 'better';
     // Average over the products whose cost is actually KNOWN. Averaging a
@@ -617,7 +642,7 @@
       const chevron = isCollapsed ? '▸' : '▾';
       productsHtml += `
         <div class="plx-mb28">
-          <div data-pl-action="toggleCategory" data-pl-id="${escapeHtml(catId)}" style="display:flex;align-items:center;gap:8px;margin-bottom:${isCollapsed ? '0' : '12'}px;cursor:pointer;user-select:none;padding:8px 12px;background:var(--s);border-radius:8px;border:1px solid var(--br);transition:all .15s;">
+          <div data-pl-action="toggleCategory" data-pl-id="${escapeHtml(catId)}" style="display:flex;align-items:center;gap:8px;margin-bottom:${isCollapsed ? '0' : '12'}px;cursor:pointer;-webkit-user-select:none;user-select:none;padding:8px 12px;background:var(--s);border-radius:8px;border:1px solid var(--br);transition:all .15s;">
             <span class="plx-caret">${chevron}</span>
             <span class="plx-fs20">${catIcon(catId)}</span>
             <h3 style="margin:0;font-size:16px;font-weight:700;color:color-mix(in srgb, ${catColor(catId)} 50%, var(--t, #e8eaf0));flex:1;">${escapeHtml(catLabel(catId))}</h3>
@@ -636,7 +661,8 @@
         const colorCount = p.colors ? p.colors.length : 0;
         const hasLabor = p.labor && p.labor.perUnit > 0;
         productsHtml += `
-          <div class="pl-card plx-card">
+          <div class="pl-card plx-card">${(window.NBDPriceLedger && window.NBDPriceLedger.enabled()) ? `
+            <div class="prl-card-photo" data-prl-card-photo="${escapeHtml(p.id)}" hidden></div>` : ''}
             <div class="plx-card-head">
               <div class="plx-grow">
                 <div class="plx-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
@@ -682,7 +708,7 @@
                 : NOT_SET}</div>
               <div class="plx-row6">${editable ? `
                 <button class="pl-card-btn plx-btn-edit" data-pl-action="editProduct" data-pl-id="${escapeHtml(p.id)}">Edit</button>
-                <button class="pl-card-btn plx-btn-ghost" data-pl-action="archiveProduct" data-pl-id="${escapeHtml(p.id)}">Archive</button>` : ''}${(window.NBDPriceLedger && window.NBDPriceLedger.enabled()) ? `
+                <button class="pl-card-btn plx-btn-ghost" data-pl-action="archiveProduct" data-pl-id="${escapeHtml(p.id)}">Archive</button>` : ''}${(window.NBDPriceLedger && window.NBDPriceLedger.enabled() && window.NBDPriceLedger.canRecord()) ? `
                 <button class="pl-card-btn plx-btn-ghost prl-card-btn" data-prl-action="openProduct" data-prl-id="${escapeHtml(p.id)}">Stores &amp; prices</button>` : ''}
               </div>
             </div>
@@ -712,7 +738,10 @@
           <div class="plx-row8">${editable ? `
             <button data-pl-action="addProduct" class="plx-btn-add">+ Add Product</button>
 ` : ''}
-            <button type="button" class="btn btn-ghost" data-pb-action="open" title="What you actually paid, per store SKU">💲 Price book</button>
+            ${(window._userClaims || {}).role !== 'sales_rep' ? `<button type="button" class="btn btn-ghost" data-pb-action="open" title="What you actually paid, per store SKU">💲 Price book</button>` : ''}${(window.NBDPriceLedger && window.NBDPriceLedger.enabled() && window.NBDPriceLedger.canRecord()) ? `
+            <button type="button" class="btn btn-ghost" data-prl-action="openUnlinked" title="Receipt items not linked to a product yet">Unlinked items</button>` : ''}${prlAdmin ? `
+            <button type="button" class="btn btn-ghost" data-pri-action="open" title="A supplier's quote, price sheet or invoice as a CSV file">Import prices</button>
+            <button type="button" class="btn btn-ghost" data-prc-action="open" title="Price moves and cheaper suppliers">Compare suppliers <span class="prc-count" data-prc-count hidden></span></button>` : ''}
             <button type="button" data-pl-action="exportCSV" class="btn btn-ghost">Export CSV</button>
             ${editable ? `<button type="button" data-pl-action="resetDefaults" class="btn btn-ghost plx-btn-reset">Reset</button>` : ''}
           </div>
@@ -1171,6 +1200,8 @@
     hardDelete: hardDeleteProduct,
     // Called by catalog-costs.js once the tenant's cost book loads.
     applyCostSeed,
+    // Called by price-ledger.js when a supplier price is approved into the cost book.
+    applyApprovedCost,
     // Company library (productLibrary/{companyId}).
     hydrateCompany: cloudHydrate,
     canEdit: canEditLibrary,

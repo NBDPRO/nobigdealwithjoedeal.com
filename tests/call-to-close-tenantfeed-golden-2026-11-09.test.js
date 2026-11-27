@@ -32,6 +32,23 @@
  * other write (shifted by one), Drive request, Storage call, model prompt and
  * push is unchanged, and the multi-tenant run still equals NBD's own pass.
  *
+ * Regenerated 2026-11-18 with Jo's OK for the loose-recordings fix (Cube ACR
+ * started uploading into the top "Cube ACR" folder, not day folders). One
+ * Drive request appended: a list of the top folder's non-folder files. Every
+ * write, Storage call, model prompt and push is byte-identical.
+ *
+ * Regenerated 2026-11-18 (later) with Jo's OK for reading day folders a
+ * backfill creates behind the cursor: the day-folder list request now asks
+ * for createdTime ("files(id, name)" -> "files(id, name, createdTime)").
+ * Nothing else changed.
+ *
+ * Regenerated 2026-11-22 for the AI data fences (audit
+ * BOTS-AGENTS-SCHEDULES-REVIEW-2026-11-22 §3.2; needs Jo's OK in review): only
+ * model[*].system (FENCE_CLAUSE appended to the notes / facts rules) and
+ * model[*].prompt (the transcript wrapped in <untrusted_transcript> … </untrusted_transcript>,
+ * the phone contact and CRM lead names in <untrusted_contact_name> / <untrusted_lead_name>)
+ * changed. Every write, Drive request, Storage call and push is byte-identical.
+ *
  * It runs twice: once as before (no multi-tenant env), once with
  * CALL_CENTER_MULTI_TENANT_ENABLED=true and an enabled tenant config sitting
  * in Firestore; NBD's own pass must write exactly the same either way.

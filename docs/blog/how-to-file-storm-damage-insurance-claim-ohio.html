@@ -628,14 +628,17 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
 <!-- /nbd:partial schema-entity -->
 <link rel="stylesheet" href="/assets/css/nbd-nav.css">
 <link rel="stylesheet" href="/assets/css/blog-nav-fit.css">
+<script defer src="/assets/js/ga-loader.js" data-gtag="https://www.googletagmanager.com/gtag/js?id=G-8PG7N9Q3DL"></script>
+<script defer src="/assets/js/inline/2a90205f1b.js"></script>
+<script defer src="/assets/js/clarity-loader.js"></script>
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 
 <div class="ann-bar" id="annBar" role="region" aria-label="Announcements">
   <div class="ann-slide active"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2 L4 6 V12 C4 17 8 21 12 22 C16 21 20 17 20 12 V6 Z"/></svg> <span class="ann-text" data-long="The NBD Pledge — I stand behind every install personally" data-short="The NBD Pledge — Backed by Joe">The NBD Pledge — I stand behind every install personally</span></div>
+  <div class="ann-slide" data-nbd-season-ann="winter"><svg class="ico" viewBox="0 0 24 24" style="margin-right:6px"><path d="M12 2 V22"/><path d="M3.3 7 L20.7 17"/><path d="M3.3 17 L20.7 7"/></svg><a href="/services/emergency-roof-tarping" style="color:inherit;text-decoration:none"><span class="ann-text" data-long="Ice Dam or Storm Leak? 24/7 Same-Day Tarping When Daylight &amp; Weather Allow" data-short="Winter Leak? Emergency Tarping">Ice Dam or Storm Leak? 24/7 Same-Day Tarping When Daylight &amp; Weather Allow</span></a></div>
   <div class="ann-slide"><svg class="ico" viewBox="0 0 24 24"><path d="M3 11 L12 3 L21 11"/><path d="M5 10 V20 H19 V10"/></svg> <a href="tel:+18594207382" style="color:inherit;text-decoration:none"><span class="ann-text" data-long="Free Roof Inspections — Call or Text Joe: (859) 420-7382" data-short="Free Inspections — (859) 420-7382">Free Roof Inspections — Call or Text Joe: (859) 420-7382</span></a></div>
   <div class="ann-slide"><svg class="ico ico-fill" viewBox="0 0 24 24"><path d="M13 2 L4 14 L11 14 L10 22 L20 10 L13 10 Z"/></svg> <span class="ann-text" data-long="Storm Damage? I Document It and Meet Your Adjuster — No Big Deal" data-short="Storm Damage? I Meet Your Adjuster">Storm Damage? I Document It and Meet Your Adjuster — No Big Deal</span></div>
-  <div class="ann-slide" data-nbd-freeroof-ann="v1"><a href="/free-roof" style="color:inherit;text-decoration:none"><svg class="ico" viewBox="0 0 24 24" style="margin-right:6px"><path d="M3 11 L12 3 L21 11"/><path d="M5 10 V20 H19 V10"/></svg><span class="ann-text" data-long="One free roof a year — nominate a Greater Cincinnati or NKY neighbor &rarr;" data-short="One free roof a year &rarr;">One free roof a year &rarr;</span></a></div>
 </div>
 
 <!-- nbd:partial nav-blog cta_href="/inspect" -->
@@ -670,11 +673,10 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
         <li><a href="/services/fire-water-smoke-damage">Fire &amp; Water Damage</a></li>
         <li><a href="/services/financing">Financing</a></li>
         <li><a href="/visualizer" style="color:var(--orange-light,#dd875f)">Roof Visualizer</a></li>
-        <li><a href="/roof-score" style="color:var(--orange-light,#dd875f)">Roof Score</a></li>
+        <li><a href="/roof-check" style="color:var(--orange-light,#dd875f)">Free Roof Check</a></li>
         <li><a href="/free-tools" style="color:var(--orange-light,#dd875f)">All Free Tools</a></li>
         <li><a href="/storm-alerts" style="color:var(--orange-light,#dd875f)">Storm Alerts</a></li>
-        <li><a href="/storm-report" style="color:var(--orange-light,#dd875f)">5-Year Storm Report</a></li>
-        <li><a href="/storm-check" style="color:var(--orange-light,#dd875f)">Is It Worth a Claim?</a></li><li><a href="/inspect" style="color:var(--orange-light,#dd875f)">Free Inspection</a></li>
+        <li><a href="/inspect" style="color:var(--orange-light,#dd875f)">Free Inspection</a></li>
       </ul>
     </li>
     <li><a href="/about">About Joe</a></li>
@@ -726,11 +728,9 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
   <a href="/blog">Blog</a>
   <div class="mnav-group">Tools</div>
   <a href="/estimate" style="color:#dd875f">Instant Estimate</a>
-  <a href="/roof-score" style="color:#dd875f">Roof Score</a>
+  <a href="/roof-check" style="color:#dd875f">Free Roof Check</a>
   <a href="/visualizer" style="color:#dd875f">Roof Visualizer</a>
   <a href="/storm-alerts" style="color:#dd875f">Storm Alerts</a>
-  <a href="/storm-report" style="color:#dd875f">5-Year Storm Report</a>
-  <a href="/storm-check" style="color:#dd875f">Is It Worth a Claim?</a>
   <a href="/inspect" style="color:#dd875f">Free Inspection</a>
   <a href="/free-tools" style="color:#dd875f">All Free Tools</a>
   <a href="/inspect" style="color:#bd5728;font-weight:800;">Book Inspection &rarr;</a>
@@ -798,7 +798,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
 
     <p>First, you know what you're actually dealing with. You walk into the adjuster meeting with information instead of walking in blind. Second, if the adjuster's estimate comes in low — and it often does — you have an independent scope to compare against. That document becomes the basis of your supplement request.</p>
 
-    <p>A good contractor will do this inspection for free. I do. The inspection takes 45 minutes to an hour. At the end of it you know exactly what's damaged, what it costs to repair, and whether it looks worth filing. What a claim pays is up to your insurer.</p>
+    <p>A good contractor will do this inspection for free. I do. The inspection takes 45 minutes to an hour. At the end of it you know exactly what's damaged, what it costs to repair, and you have the photos to decide whether to file. What a claim pays is up to your insurer.</p>
 
     <h2 id="step-4">Step 4: Be There for the Adjuster Meeting</h2>
 
@@ -936,7 +936,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
   <aside class="sidebar">
     <div class="cta-sidebar">
       <h3>Had a Storm?</h3>
-      <p>No active leak? Call Joe before you call your insurer. I'll get on the roof, document everything, and tell you whether a claim makes sense — no pressure either way.</p>
+      <p>No active leak? Call Joe before you call your insurer. I'll get on the roof and document the damage with photos so you can decide whether to file a claim — no pressure either way.</p>
       <a href="tel:+18594207382"><svg class="ico ico-fill" viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.36 2.3.56 3.6.56.55 0 1 .45 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.56 3.6a1 1 0 0 1-.25 1z"/></svg> Call Joe — (859) 420-7382</a>
       <a href="/#contact" class="phone-link">Send a message →</a>
     </div>

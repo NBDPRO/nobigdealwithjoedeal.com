@@ -148,12 +148,13 @@ ok('count carries data-nbd-gr-total', !!reviewsBlock && /data-nbd-gr-total/.test
 ok('the rating hook ships EMPTY inside a hidden data-nbd-gr-rating-wrap',
   !!reviewsBlock && /<span data-nbd-gr-rating-wrap hidden><span data-nbd-gr-rating><\/span> on Google<\/span>/.test(reviewsBlock)
   && !/data-nbd-gr-rating[^>-]*>\s*\d/.test(reviewsBlock));
-ok('...beside a plain fallback that names no number',
-  !!reviewsBlock && /<span data-nbd-gr-rating-fallback>Real Google reviews<\/span>/.test(reviewsBlock));
+// 2026-11-17: the fallback ships hidden, so a failed fetch shows no "Real Google reviews" claim at all.
+ok('...beside a plain fallback that names no number and ships hidden',
+  !!reviewsBlock && /<span data-nbd-gr-rating-fallback hidden>Real Google reviews<\/span>/.test(reviewsBlock));
 ok('the star row ships empty (no static five stars)',
   !!reviewsBlock && /data-nbd-gr-stars><\/div>/.test(reviewsBlock));
 const STATIC_RATING = /data-nbd-gr-rating(?![\w-])[^>]*>\s*\d/;
-for (const rel of ['docs/index.html', 'docs/review.html', 'docs/storm-check.html', 'docs/inspect.html', 'docs/estimate.html', 'docs/storm-alerts.html', 'docs/assets/js/quick-lead-form.js']) {
+for (const rel of ['docs/index.html', 'docs/review.html', 'docs/roof-check.html', 'docs/inspect.html', 'docs/estimate.html', 'docs/storm-alerts.html', 'docs/assets/js/quick-lead-form.js']) {
   ok(rel + ': no rating hook ships a hard-coded number', !STATIC_RATING.test(read(rel)));
 }
 // 2026-10-06: the COUNT is the exception. A hard-coded "29" went stale the day

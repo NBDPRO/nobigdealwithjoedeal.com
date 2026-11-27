@@ -38,6 +38,9 @@ const { logger } = require('firebase-functions/v2');
 const { FieldValue, Timestamp, getFirestore } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
+// The clause block (flag docClauseSetV1) is stored on the deal_accept_tokens doc: the set is about 60 KB of HTML at most,
+// so 300 KB leaves the 1 MiB Firestore document limit far away.
+const CLAUSE_BLOCK_MAX = 300000;
 const { callableRateLimit, assertNotViewer } = require('./shared');
 const { fillLeadInstallDate } = require('./deal-install-date');
 const { spineAfterDealAccept } = require('./job-spine');
@@ -209,6 +212,7 @@ exports.createDealAcceptToken = onCall(
     // lead that no longer exists is dropped, never carried.
     let leadId = null;
     let leadPrimaryEstimateId = null;
+    let leadDocData = null;   // the lead as this one read saw it (the attic gate below reads no lead of its own: review 3, item 4)
     if (deal.leadId != null && deal.leadId !== '') {
       if (typeof deal.leadId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(deal.leadId)) {
         throw new HttpsError('failed-precondition', 'This deal is linked to an invalid lead.');
@@ -220,6 +224,7 @@ exports.createDealAcceptToken = onCall(
         }
         leadId = deal.leadId;
         leadPrimaryEstimateId = (leadSnap.data() || {}).primaryEstimateId || null;
+        leadDocData = leadSnap.data() || {};
       }
     }
 
@@ -240,12 +245,14 @@ exports.createDealAcceptToken = onCall(
     // checkDealPrice). Only the deal owner's own estimate counts.
     let estimateId = null;
     let estimateFingerprint = null;
+    let dealEstimate = null;   // the deal's own estimate (the deal owner's), for the attic gate when there is no lead
     if (typeof deal.estimateId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(deal.estimateId)) {
       try {
         const es = await db.doc(`estimates/${deal.estimateId}`).get();
         const est = es.exists ? (es.data() || {}) : null;
         if (est && est.deleted !== true && est.userId === deal.userId) {
           estimateId = deal.estimateId;
+          dealEstimate = est;
           estimateFingerprint = require('./customer-estimate-rows').pricedFingerprint(est);
         }
       } catch (e) { logger.warn('[createDealAcceptToken] estimate read failed', { msg: e && e.message }); }
@@ -274,6 +281,100 @@ exports.createDealAcceptToken = onCall(
       }
     }
 
+    // Review 2026-11-18 (finding 5): the page this link serves is digested and archived NOW, so the
+    // acceptance evidence is read from this token and never from a live Storage read after the fact
+    // (the rep can re-upload the page, or Storage can fail, between sending and accepting).
+    // A page that cannot be read leaves the digest null with a reason code, never a guess.
+    let pageSha256 = null;
+    let pageArchivePath = null;
+    let pageArchiveReason = null;
+    let pbuf = null;
+    try {
+      [pbuf] = await getStorage().bucket().file(htmlPath).download();
+      pageSha256 = require('crypto').createHash('sha256').update(pbuf).digest('hex');
+    } catch (e) {
+      pbuf = null; pageSha256 = null; pageArchiveReason = 'page_unreadable_at_mint';
+      logger.warn('[createDealAcceptToken] page unreadable at mint', { dealId, msg: e && e.message });
+    }
+
+    // Review 2 (2026-11-18), item 3: accepting this page is signing the contract, so with the flag on for
+    // the rep the same pre-send gap check as every other path runs HERE, on the page as it stands now
+    // (price from the offerable tiers, address and name from the lead / deal, entity and mailing address
+    // from the company profile, a leftover [Placeholder] in the page). An incomplete page is refused and
+    // no link is minted; a flag or page that cannot be read fails closed. Flag off: unchanged. The
+    // acceptance (submit) is unchanged.
+    const DE = require('./doc-evidence');
+    // Phase 3 (flag docAtticAckV1, strict read; Q72): the deal page is how a Kentucky insurance contract is accepted, so a
+    // re-roof link is not minted until the signed attic form (or a recorded owner override) exists. A deal with no resolvable lead
+    // is gated from its own estimate and refused when it has neither (finding 4, below). A read that fails refuses, never passes.
+    {
+      const AG = require('./attic-gate');
+      // Review 3 (item 4): this block reads NO lead of its own. The lead the mint already read above is used, so with the flag off the
+      // mint does exactly what it did before the attic gate existed (no extra read, no new way to fail); a failed read of the flag
+      // or of the estimates and overrides inside decide() still refuses, below.
+      const atticLead = leadId && leadDocData ? leadDocData : {};
+      // Review 2026-11-18 (finding 4): deal_rooms.leadId is client-written, so a deal with no resolvable lead is NOT ungated. The
+      // tenant owner's flag is read from the minting owner's company; the scope comes from the deal's own estimate; and a deal
+      // that resolves neither a lead nor an estimate is refused (fail closed) while the flag is on.
+      if (await DE.atticGateOn(db, uid, leadId ? atticLead : { companyId: ownerCompanyId }, HttpsError)) {
+        // Review 2 (2026-11-18), item 1: deal.leadId and deal.estimateId are written by the rep. A leadId that resolves to no lead in this
+        // tenant (it was dropped above) would leave the gate to read only the rep's chosen estimate, and an estimate that is not the
+        // lead's own would let a re-roof be classified from a different job. Under the flag both are refused, never dropped.
+        if (deal.leadId != null && deal.leadId !== '' && !leadId) {
+          throw new HttpsError('failed-precondition', 'This deal is linked to a customer that could not be found, so the attic acknowledgment cannot be checked. Link the deal to the customer, then send it. Nothing was sent.');
+        }
+        if (leadId && estimateId && estimateId !== atticLead.primaryEstimateId && !(dealEstimate && dealEstimate.leadId === leadId)) {
+          throw new HttpsError('failed-precondition', 'This deal\'s estimate is not one of this customer\'s estimates, so the attic acknowledgment cannot be checked. Use the customer\'s own estimate, then send it. Nothing was sent.');
+        }
+        let dec;
+        try { dec = await AG.decide(db, leadId || '', atticLead, { estimate: dealEstimate || undefined, estimateId: estimateId || undefined, requireResolved: !leadId }); }
+        catch (_) { throw new HttpsError('unavailable', 'Could not check the attic acknowledgment just now. Nothing was sent. Try again in a moment.'); }
+        if (!dec.satisfied) throw new HttpsError('failed-precondition', dec.message);
+      }
+    }
+    // Flag docClauseSetV1 (default off): the clause set this deal page carries. The token keeps what was minted.
+    const clauseOn = await DE.clauseFlagForGate(db, uid, HttpsError);
+    let clauseSetV1 = null;
+    if (clauseOn || await DE.flagForGate(db, uid, HttpsError)) {
+      if (!pbuf) throw new HttpsError('unavailable', 'Could not read the deal page to check it. Nothing was sent. Try again in a moment.');
+      let leadData = {};
+      if (leadId) { try { const ls = await db.doc(`leads/${leadId}`).get(); leadData = ls.exists ? (ls.data() || {}) : {}; } catch (_) { leadData = {}; } }
+      let profile = {};
+      try { const cp = await db.doc(`companyProfile/${ownerCompanyId}`).get(); if (cp.exists) profile = cp.data() || {}; } catch (_) { profile = {}; }
+      const bestTier = Math.max.apply(null, [0].concat(VALID_TIERS.map((t) => tierPrices[t])));
+      const dealAddress = leadData.address || deal.address || deal.customerAddress || deal.propertyAddress || '';
+      const dealOwner = deal.customerName || [leadData.firstName, leadData.lastName].filter(Boolean).join(' ') || leadData.name || '';
+      let cs = null;
+      if (clauseOn) {
+        cs = DE.buildClauseSetFor(HttpsError, KyLaw, leadData, {}, profile, ownerCompanyId, {
+          ownerNames: dealOwner, propertyAddress: dealAddress, date: KyLaw.formatDay(KyLaw.todayIn(KyLaw.resolveTimeZone(profile))),
+        }, DE.printedByRef(KyLaw, pbuf.toString('utf8'))); // by-reference clauses are listed only when the stored page carries them
+        const csHtml = DE.clauseSetHtml(cs);
+        // The block rides on the token (a Firestore doc, 1 MiB at most): refuse an absurd one instead of failing at write.
+        if (csHtml.length > CLAUSE_BLOCK_MAX) throw new HttpsError('failed-precondition', 'The clause set is too large to attach to this link.');
+        // sha256 of exactly what getDealRoom injects: getDealRoom re-checks it before serving, and the acceptance evidence records it.
+        clauseSetV1 = { version: cs.clauseSetVersion, refs: cs.refs.slice(), html: csHtml, variant: cs.variant, sha256: DE.sha256Hex(csHtml) };
+      }
+      const gaps = DE.serverContractGaps({
+        type: 'proposal', html: pbuf.toString('utf8') + (clauseSetV1 ? clauseSetV1.html : ''), lead: leadData, profile, tenantKey: ownerCompanyId, KyLaw,
+        priceCents: bestTier > 0 ? Math.round(bestTier * 100) : null,
+        address: dealAddress,
+        homeownerName: dealOwner,
+        clauseConfigMissing: cs ? cs.missing : [],
+      });
+      if (gaps.length) throw new HttpsError('failed-precondition', DE.describeGaps(gaps));
+    }
+
+    if (pbuf) {
+      try {
+        pageArchivePath = htmlPath.replace(/(.html?)?$/i, '') + '.minted-' + Date.now() + '.html';
+        await getStorage().bucket().file(pageArchivePath).save(pbuf, { contentType: 'text/html', resumable: false });
+      } catch (e) {
+        pageArchivePath = null; pageArchiveReason = 'archive_save_failed';
+        logger.warn('[createDealAcceptToken] page archive failed', { dealId, msg: e && e.message });
+      }
+    }
+
     const now = Date.now();
     // Link life is a company setting since 2026-10-03
     // (companyProfile/{tenant}.salesLinks.dealLinkDays, 1–90, default still
@@ -294,6 +395,8 @@ exports.createDealAcceptToken = onCall(
       leadId,
       customerName: String(deal.customerName || '').slice(0, 120),
       htmlPath,
+      pageSha256, pageArchivePath, pageArchiveReason,
+      ...(clauseSetV1 ? { clauseSetV1 } : {}),
       tierPrices,
       estimateId,
       estimateFingerprint,
@@ -415,6 +518,14 @@ exports.getDealRoom = onRequest(
     try {
       const [buf] = await getStorage().bucket().file(tok.htmlPath).download();
       html = buf.toString('utf8');
+      // The digest of the stored page a HUMAN was just served (a link-preview bot does not count),
+      // kept on the token: the acceptance evidence reads it from here. Best-effort.
+      if (!isBot) {
+        pendingWrites.push(db.doc(`deal_accept_tokens/${token}`).update({
+          servedPageSha256: require('crypto').createHash('sha256').update(buf).digest('hex'),
+          servedPageAt: FieldValue.serverTimestamp(),
+        }).catch(() => {}));
+      }
     } catch (e) {
       logger.error('[getDealRoom] html fetch failed', { token: token.slice(0, 6), err: e.message });
       errPage(500, 'We could not load this deal right now. Please try again shortly.'); return;
@@ -423,6 +534,16 @@ exports.getDealRoom = onRequest(
     // homeowner reads and signs it — not the day the rep made the link.
     try { html = KyLaw.restampCancelPacket(html, new Date()); } catch (_) { /* serve as stored */ }
     html = stripDealRoomHtml(html);
+    // Clause set v1 (minted onto the token under flag docClauseSetV1): flag off = no field = the page as stored.
+    if (tok.clauseSetV1 && typeof tok.clauseSetV1.html === 'string') {
+      const DEc = require('./doc-evidence');
+      // A block that no longer matches the digest minted with it is never shown (fail closed).
+      if (!tok.clauseSetV1.sha256 || DEc.sha256Hex(tok.clauseSetV1.html) !== tok.clauseSetV1.sha256) {
+        logger.error('[getDealRoom] clause block digest mismatch', { token: token.slice(0, 6) });
+        errPage(500, 'We could not load this deal right now. Please try again shortly.'); return;
+      }
+      html = DEc.injectClauseBlock(html, tok.clauseSetV1.html);
+    }
 
     // Packet (2026-10-04): a FULL packet's inspection photos go in where the
     // page left its marker, each one at /deal/<token>/photo/<n> (getDealPhoto
@@ -516,15 +637,29 @@ exports.submitDealAcceptance = onRequest(
     // (deal-room.js), and a digest of the signature itself. Recorded in the
     // SAME transaction as the acceptance. The consent text is the server's
     // own copy — never free text from the wire.
+    // ip and how it was derived (review 2026-11-18, finding 10) come from the one shared reader.
     let ip = null;
-    try { ip = require('./integrations/upstash-ratelimit').clientIp(req) || null; } catch (_) { ip = null; }
-    const evidence = {
+    let ipSource = null;
+    try {
+      const rl = require('./integrations/upstash-ratelimit');
+      ip = rl.clientIp(req) || null;
+      ipSource = ip ? (typeof rl.clientIpInfo === 'function' ? rl.clientIpInfo(req).source : 'unreported') : null;
+    } catch (_) { ip = null; ipSource = null; }
+    // The reader's "no usable address" literal is not evidence: null with ipSource 'unknown', as doc-evidence.js does.
+    if (!ip || ip === 'unknown') { ip = null; ipSource = 'unknown'; }
+    const baseEvidence = {
       at: Date.now(),
       ip,
+      ipSource,
       ua: String((typeof req.get === 'function' && req.get('user-agent')) || '').slice(0, 300) || null,
       consent: b.consent === true,
       consentText: b.consent === true ? DEAL_CONSENT_TEXT : null,
+      // The tick is the page's own checkbox, sent in the request body: the server cannot see it.
+      // Recorded as what it is (review 2026-11-18, finding 6); acceptance behaviour is unchanged.
+      consentSource: 'client_asserted',
       signatureSha256: require('crypto').createHash('sha256').update(signature, 'utf8').digest('hex'),
+      // Evidence parity (2026-11-18): the clause-set version in force when they accepted.
+      clauseSetVersion: require('./doc-evidence').CLAUSE_SET_VERSION,
     };
 
     const db = getFirestore();
@@ -550,6 +685,9 @@ exports.submitDealAcceptance = onRequest(
         const snap = await tx.get(tokRef);
         if (!snap.exists) { const e = new Error('nf'); e._http = 404; e._msg = 'Invalid link'; throw e; }
         const t = snap.data();
+        // Built fresh on EVERY attempt (review 2, item 10): a contention retry re-runs this callback, and a field
+        // set on an earlier attempt (priceChangedFrom) must not survive into the one that commits.
+        const evidence = Object.assign({}, baseEvidence);
         if (t.expiresAt && t.expiresAt.toMillis && t.expiresAt.toMillis() < Date.now()) {
           const e = new Error('exp'); e._http = 410; e._msg = 'This deal link has expired.'; throw e;
         }
@@ -594,6 +732,22 @@ exports.submitDealAcceptance = onRequest(
         const accepted = await staleDealPrice(db, tx, t, dealRoomSnap.data() || {}, tier, price, confirmPrice);
         const acceptedPrice = accepted.price;
         if (accepted.changedFrom != null) evidence.priceChangedFrom = accepted.changedFrom;
+        // The page digest comes from the token (finding 5): what the homeowner was last served, else
+        // the page as minted, else null with the reason. No Storage read happens after this commits.
+        const hex = (v) => (typeof v === 'string' && /^[a-f0-9]{64}$/.test(v) ? v : null);
+        const served = hex(t.servedPageSha256);
+        const minted = hex(t.pageSha256);
+        const pageDigest = served || minted;
+        evidence.documentSha256 = pageDigest;
+        evidence.pageSha256 = pageDigest;
+        evidence.documentSha256Source = served ? 'served_at_view' : (minted ? 'minted' : null);
+        evidence.documentSha256Reason = pageDigest ? null : (typeof t.pageArchiveReason === 'string' && t.pageArchiveReason ? t.pageArchiveReason : 'no_archive_at_mint');
+        evidence.mintedPageSha256 = minted;
+        // sha256 of the clause block the homeowner was shown (minted onto the token, re-checked at serve); null when the page carried none.
+        evidence.clauseSetSha256 = t.clauseSetV1 ? hex(t.clauseSetV1.sha256) : null;
+        evidence.pageChangedSinceMint = !!(served && minted && served !== minted);
+        evidence.pagePath = t.htmlPath || null;
+        evidence.pageArchivePath = t.pageArchivePath || null;
         tx.update(tokRef, { status: 'accepted', acceptedAt: FieldValue.serverTimestamp() });
         // update(), not set(merge) — the existence check above means this must
         // modify an existing doc, never create one.
@@ -611,6 +765,7 @@ exports.submitDealAcceptance = onRequest(
         return {
           dealId: t.dealId, ownerUid: t.ownerUid, companyId: t.companyId || null, leadId: t.leadId || null,
           customerName: t.customerName || '', price: acceptedPrice, htmlPath: t.htmlPath || null,
+          clauseRefs: t.clauseSetV1 && Array.isArray(t.clauseSetV1.refs) ? t.clauseSetV1.refs : null,
         };
       });
     } catch (err) {
@@ -625,17 +780,21 @@ exports.submitDealAcceptance = onRequest(
     // and the lead. Best-effort — the acceptance is already committed.
     const cancelBy = await recordDealCancelWindow(db, info, new Date());
 
-    // The digest of the deal page as stored when they accepted — what they
-    // were shown (after the re-date above, so it matches the stored record).
-    // Best-effort: the acceptance is already committed.
+    // The page digest is already in the evidence (read from the token inside the transaction; review
+    // 2026-11-18, finding 5): nothing is read from Storage here any more. What is added after the
+    // commit is only the clause refs for this property and payment source, best-effort.
     if (info.htmlPath) {
       try {
-        const [buf] = await getStorage().bucket().file(info.htmlPath).download();
+        // The clauses this property and payment source carry (clause-set.js), read from the lead.
+        let stamp = { clauseIds: [] };
+        try {
+          const ls = info.leadId ? await db.doc(`leads/${info.leadId}`).get() : null;
+          stamp = require('./doc-evidence').stampFor(KyLaw, ls && ls.exists ? ls.data() : {}, {}, { refs: info.clauseRefs });
+        } catch (_) { /* the version is already on the record; ids are best-effort */ }
         await db.doc(`deal_rooms/${info.dealId}`).update({
-          'acceptedEvidence.pageSha256': require('crypto').createHash('sha256').update(buf).digest('hex'),
-          'acceptedEvidence.pagePath': info.htmlPath,
+          'acceptedEvidence.clauseIds': stamp.clauseIds,
         });
-      } catch (e) { logger.warn('[submitDealAcceptance] page digest failed', { msg: e && e.message }); }
+      } catch (e) { logger.warn('[submitDealAcceptance] clause refs failed', { msg: e && e.message }); }
     }
 
     // Token is burned AND the deal is recorded — both committed together

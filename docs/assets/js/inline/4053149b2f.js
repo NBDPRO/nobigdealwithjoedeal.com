@@ -70,6 +70,27 @@ let funnelData = {
 const STEP_NAMES = { 1: 'address', 2: 'confirm_home', 3: 'project', 4: 'ballpark', 5: 'contact', 6: 'results' };
 function trackStep(step) {
   trackEvent('funnel_step', { step: step, step_name: STEP_NAMES[step] || String(step) });
+  trackFormStep('form_step_view', step);
+}
+/* The shared form-funnel names (2026-11-26), the same on /inspect, the quick
+   form and /storm-check (documentation/projects/FORM-FUNNEL-EVENTS-2026-11-26.md).
+   funnel_step stays as it was, so reports already built on it keep working. */
+function trackFormStep(name, step, extra) {
+  trackEvent(name, Object.assign({ form: 'estimate', step: step, step_name: STEP_NAMES[step] || String(step) }, extra || {}));
+  try { if (typeof window.clarity === 'function') window.clarity('event', name); } catch (e) {}
+}
+// Which answers stopped Continue: the ids the step marked aria-invalid, never
+// a value. Step 1 with nothing marked is the map lookup still resolving.
+function _stepGaps(step) {
+  var el = document.getElementById('step' + step);
+  var ids = [];
+  if (el) el.querySelectorAll('[aria-invalid="true"]').forEach(function (n) { if (n.id) ids.push(n.id); });
+  if (!ids.length && step === 3) {
+    if (!funnelData.service) ids.push('service');
+    if (!funnelData.timeline) ids.push('timeline');
+  }
+  if (!ids.length) ids.push(step === 1 ? 'address_lookup' : 'continue');
+  return ids.join(',');
 }
 
 /* ── Unified pricing model — single source of truth ──
@@ -202,7 +223,8 @@ function _focusStepHeading(stepEl) {
 function goToStep(step) {
   // Validate before advancing
   if (step > currentStep) {
-    if (!validateStep(currentStep)) return;
+    if (!validateStep(currentStep)) { trackFormStep('form_error', currentStep, { fields: _stepGaps(currentStep) }); return; }
+    trackFormStep('form_step_complete', currentStep);
     // Save (or retry, or update) the lead in the background — step 1 is done.
     _saveStartedLead();
   }
@@ -1240,6 +1262,8 @@ async function _doSaveStartedLead() {
   var id = null;
   try { id = await window._saveLead(payload, { silent: true }); } catch (e) { id = null; }
   if (!id) { trackEvent('funnel_lead_save_failed', { at: 'step1' }); return; }
+  // The step-1 save worked (2026-11-26): created = a new lead, else an update of this visit's lead.
+  trackEvent('funnel_lead_saved', { at: 'step1', created: id !== _estLead.id });
   if (id !== _estLead.id) {
     // A new lead: this visit's first save, or the server could not update the
     // old one and created this instead. Its grant is the one just handed back.
@@ -1287,6 +1311,7 @@ async function submitAndGetEstimate() {
   if (btn.disabled) return;
   btn.disabled = true;
   btn.textContent = 'Processing...';
+  trackFormStep('form_step_complete', 5);
 
   funnelData.firstName = document.getElementById('firstName').value.trim();
   funnelData.lastName = document.getElementById('lastName').value.trim();
@@ -1313,19 +1338,19 @@ async function submitAndGetEstimate() {
   _focusStepHeading(document.getElementById('stepLoading'));
   updateProgress(5);
 
-  // Animate loading steps
+  // Loading lines follow the real stages (2026-11-17): each one is marked when
+  // the awaited work it names starts, not on a timer. 0 = saving the lead,
+  // 1 = the aerial-measurement read, 2 = pricing, 3 = the note.
   var lsSteps = ['ls1', 'ls2', 'ls3', 'ls4'];
-  for (var i = 0; i < lsSteps.length; i++) {
-    (function(idx) {
-      setTimeout(function() {
-        document.getElementById(lsSteps[idx]).classList.add('active');
-        if (idx > 0) {
-          document.getElementById(lsSteps[idx - 1]).classList.remove('active');
-          document.getElementById(lsSteps[idx - 1]).classList.add('done');
-        }
-      }, idx * 900);
-    })(i);
+  function lsMark(idx) {
+    for (var j = 0; j < lsSteps.length; j++) {
+      var el = document.getElementById(lsSteps[j]);
+      if (!el) continue;
+      if (j < idx) { el.classList.remove('active'); el.classList.add('done'); }
+      else if (j === idx) { el.classList.remove('done'); el.classList.add('active'); }
+    }
   }
+  lsMark(0);
 
   // Save lead to Firestore
   var leadData = {
@@ -1364,6 +1389,7 @@ async function submitAndGetEstimate() {
   } catch (saveErr) {
     console.error('Lead save threw:', saveErr);
   }
+  lsMark(1);
 
   // Joe's alert (email + text) is the leadAlertEstimate Firestore trigger on
   // this estimate_leads doc, so the lead SAVING is the only delivery signal.
@@ -1380,6 +1406,7 @@ async function submitAndGetEstimate() {
   // so a slow or failed lookup costs nothing and simply leaves the estimate
   // on its size-tile footing.
   funnelData.measurement = await fetchRoofMeasurement(_publicLeadId);
+  lsMark(2);
 
   // Service-aware results: only roof-replacement gets the AI tier-table
   // call. Every other service shows a deterministic single range built
@@ -1388,6 +1415,7 @@ async function submitAndGetEstimate() {
   if (funnelData.service !== 'roof-replacement') {
     var svcEst = buildServiceEstimate();
     funnelData.estimate = svcEst;
+    lsMark(3);
     try {
       var note = await fetchJoesTakeNote();
       if (note) svcEst.joesTake = note;
@@ -1400,6 +1428,7 @@ async function submitAndGetEstimate() {
   }
 
   // Get AI estimate
+  lsMark(3);
   try {
     // Pull NBD's actual per-square pricing into the request so the AI can't drift.
     var roofMat = funnelData.roofType === 'other' ? 'asphalt' : (funnelData.roofType || 'asphalt');
@@ -1618,6 +1647,15 @@ function showResults(est) {
   // The optional "help Joe prepare" questions, saved onto this lead.
   if (!window._leadDeliveryFailed) _mountFollowUp();
   trackStep(6);
+
+  // Booking link prefilled with what they already gave us (2026-11-17).
+  var inspCta = document.querySelector('a[data-cta="inspection"]');
+  if (inspCta && window.NBDIntake && typeof window.NBDIntake.calendarUrl === 'function') {
+    inspCta.setAttribute('href', window.NBDIntake.calendarUrl({
+      firstName: funnelData.firstName, lastName: funnelData.lastName, email: funnelData.email,
+      phone: funnelData.phone, address: funnelData.address, service: 'Roof inspection'
+    }));
+  }
 
   // Personalized header
   document.getElementById('resultName').textContent = funnelData.firstName + "'s";

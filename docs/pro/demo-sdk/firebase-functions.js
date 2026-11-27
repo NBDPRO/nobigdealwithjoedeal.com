@@ -209,6 +209,7 @@ function agentDraftAction(p) {
 // Callables whose real job is to contact someone, publish something or move
 // money: answered with an explanation, never a fake success.
 const WOULD = {
+  stormTipsAdmin: 'send storm-season tips email to guide subscribers',
   sendEstimateEnvelope: 'email the estimate to the homeowner',
   sendEsignEnvelope: 'send the contract for e-signature',
   createEsignEnvelope: 'create an e-signature envelope',
@@ -226,6 +227,7 @@ const WOULD = {
   submitInboxReceipt: 'read a receipt into your inbox with AI',
   priceLedgerSave: 'save a store, a supplier item or its pack size',
   priceLedgerRecord: 'record a supplier price in your price history',
+  priceDocRead: 'read a supplier PDF or photo into price lines for you to check',
   renderPdf: 'render the PDF on the server',
   getDocumentPdfUrl: 'render the PDF on the server',
   exportMyData: 'export your company data',
@@ -236,6 +238,8 @@ const WOULD = {
   setSiteSlug: 'reserve your website address',
   previewAiPersona: 'preview the AI texting persona',
   recordInPersonSignature: 'record the in-person signature on NBD Pro servers',
+  attestWetSigned: 'certify a paper-signed document on NBD Pro servers',
+  recordAtticOverride: 'record that a job proceeds without a signed attic page, on NBD Pro servers',
   // Wave 3: on a real address only.
   attachStormProof: 'look up verified hail reports near this address and attach a server-stamped storm proof to the customer',
   reverifyCompanyKnocks: 're-check every door address against Google and county parcel records',

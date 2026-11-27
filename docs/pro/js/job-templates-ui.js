@@ -850,7 +850,7 @@
       '.jt-seg button.on{background:var(--orange,#BD5728);color:#fff;}',
       '.jt-ctl-lbl{font-size:10.5px;color:var(--m,#9aa3ad);font-weight:700;text-transform:uppercase;letter-spacing:.1em;display:block;margin-bottom:4px;}',
       '.jt-sec{border:1px solid var(--br,#2a2f35);border-radius:10px;margin-bottom:12px;overflow:hidden;background:var(--s,#111418);}',
-      '.jt-sec-hdr{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;user-select:none;background:var(--s2,#181c22);-webkit-tap-highlight-color:transparent;}',
+      '.jt-sec-hdr{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;-webkit-user-select:none;user-select:none;background:var(--s2,#181c22);-webkit-tap-highlight-color:transparent;}',
       '.jt-sec-hdr .nm{font-weight:700;font-size:14px;color:var(--t,#e8eaf0);flex:1;min-width:0;}',
       '.jt-sec-hdr .meta{font-size:11px;color:var(--m,#9aa3ad);white-space:nowrap;}',
       '.jt-sec-hdr .chev{color:var(--ui-accent-text,var(--orange,#BD5728));font-size:15px;font-weight:800;width:14px;text-align:center;}',
@@ -1324,7 +1324,7 @@
       var res = resolveCurrent();
       state.lastResolved = res;
       var model = upgModel(res);
-      body.innerHTML = renderPreview(res, model);
+      body.innerHTML = ratesNoteHtml(res) + renderPreview(res, model);
       _jtWireLeadPicker();
       foot.innerHTML =
         '<button type="button" class="jt-btn" data-jt-action="back-to-preconfirm">← Back to edit</button>' +
@@ -2314,6 +2314,18 @@
       '</span><span>' + (adj < 0 ? '−' : '') + esc(money(Math.abs(adj))) + '</span></div>';
   }
 
+  // The one-time "Now using your Settings rates" line (2026-11-17): for the
+  // rep, above the proposal paper (never on it). Taken once per device by
+  // JobTemplates.takeRatesNote, then kept for this modal so a repaint of the
+  // same preview does not drop it.
+  function ratesNoteHtml(res) {
+    var JT = engine();
+    if (!state.ratesNote && JT && typeof JT.takeRatesNote === 'function') state.ratesNote = JT.takeRatesNote(res);
+    if (!state.ratesNote) return '';
+    return '<div class="jt-ratesnote" role="note">' +
+      esc(state.ratesNote) + '</div>';
+  }
+
   function renderPreview(res, model) {
     var totals = readTotals(res);
     var lines = readLines(res).filter(function (l) {
@@ -2967,6 +2979,22 @@
     var leadId = state.createdLeadId;
     if (!estId) { toast('Estimate not saved yet', 'error'); return; }
     if (!leadId) { toast('Attach a customer to this estimate to send it', 'info'); return; }
+    // Margin floor (2026-11-17): an estimate under the company's floor needs the
+    // owner's or a company admin's confirm. A raise is made in the estimate
+    // builder (open the estimate there), not on this screen.
+    var MF = window.NBDMarginFloor;
+    var JTe = (typeof engine === 'function') ? engine() : null;
+    var last = (JTe && typeof JTe.lastCreated === 'function') ? JTe.lastCreated() : null;
+    if (MF && last && last.id === estId && last.payload) {
+      var v = MF.view(Object.assign({}, last.payload, { costUnsetCount: last.costUnsetCount }));
+      var r = await MF.confirmUnder(v, { prev: state.floorNote || null, extra: 'Open it in the estimate builder to raise the price.' });
+      if (!r.ok) return;
+      if (r.note && r.note !== state.floorNote) {
+        state.floorNote = r.note;
+        try { if (window.updateDoc && window.doc && window.db) await window.updateDoc(window.doc(window.db, 'estimates', estId), { floorConfirm: r.note }); }
+        catch (e) { console.warn('[job-templates] floor note not saved', e && e.code); }
+      }
+    }
     if (!window.CustomerPortal || typeof window.CustomerPortal.mintUrl !== 'function') {
       toast('Portal module not loaded — open the estimate and share from there', 'error');
       return;
@@ -2989,15 +3017,24 @@
       } catch (e) { toast('Could not share the estimate — try again', 'error'); return; }
 
       var shared = false;
-      if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent || '')) {
+      // iPadOS reports itself as a Mac: a Mac with touch points is an iPad (2026-11-25).
+      if (navigator.share && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent || '') || (/Macintosh/.test(navigator.userAgent || '') && navigator.maxTouchPoints > 1))) {
         try { await navigator.share({ title: 'Your estimate', text: 'Here’s your estimate:', url: url }); shared = true; }
-        catch (e) { /* user cancelled or unsupported — fall through to copy */ }
+        catch (e) {
+          // iPhone Safari refuses the sheet once the link mint + save outlived
+          // the tap (2026-11-25 parity); one more tap gives it a fresh gesture.
+          var ask = window.nbdConfirm || function (m) { return Promise.resolve(window.confirm(m)); };
+          if (e && e.name === 'NotAllowedError' && await ask('Your estimate link is ready. Share it now?')) {
+            try { await navigator.share({ title: 'Your estimate', text: 'Here’s your estimate:', url: url }); shared = true; }
+            catch (e2) { /* cancelled: fall through to copy */ }
+          }
+        }
       }
       if (!shared && navigator.clipboard && navigator.clipboard.writeText) {
         try { await navigator.clipboard.writeText(url); shared = true; toast('Customer estimate link copied ✓', 'success'); }
         catch (e) { /* clipboard blocked — fall through to prompt */ }
       }
-      if (!shared) { window.prompt('Copy this link to send to your customer:', url); }
+      if (!shared) { window.nbdPrompt('Copy this link to send to your customer:', url); }
 
       // Feed the existing share-tracking widgets (last-shared chip, freshness).
       if (window.PortalLinkHelpers && typeof window.PortalLinkHelpers.recordShare === 'function') {

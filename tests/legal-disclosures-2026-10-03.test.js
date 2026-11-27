@@ -42,8 +42,8 @@ console.log('1. privacy policy — vendors the code uses');
   ok('policy names Bland AI for the phone assistant, with recording + transcript',
     /Bland AI/.test(text) && /Thursday/.test(text) && /recorded and transcribed/.test(text));
 
-  const cc = read('functions/call-center.js');
-  ok('code: recorded calls are summarized by Claude (precondition)', /claude-/.test(cc));
+  // 2026-11-25: the call-center notes model lives in the model registry.
+  ok('code: recorded calls are summarized by Claude (precondition)', /^claude-/.test(require('../functions/ai-models').modelFor('call-center-notes')));
   const callPara = (text.match(/Recorded Business Calls(.*?)(?:Roof Visualizer)/) || [])[1] || '';
   ok('policy: recorded business calls are transcribed by Groq and summarized by Anthropic',
     /transcribed by Groq/.test(callPara) && /summarized by Anthropic/.test(callPara), callPara.slice(0, 160));

@@ -954,7 +954,7 @@ async function loadCustomerData(id) {
           // arrive as a number from a CSV import.
           const cleanPhone = String(lead.phone).replace(/\D/g, '');
           const smsBody = encodeURIComponent(`Hey${custName ? ' ' + custName : ''}, this is ${_signOff}! I'd love to ${window._bookingAsk} at your convenience. Pick a time that works for you here: ${opt.url}`);
-          smsBtn.href = `sms:${cleanPhone}?body=${smsBody}`;
+          smsBtn.href = `sms:${cleanPhone}?&body=${smsBody}`;
           smsBtn.style.display = '';
         }
         if (copyBtn) copyBtn.style.display = '';
@@ -1074,7 +1074,7 @@ async function loadCustomerData(id) {
     if (_next) {
       const btn = document.getElementById('stageProgressBtn');
       btn.style.display = 'inline-flex';
-      btn.innerHTML = `→ Move to ${_next.label}`;
+      btn.textContent = `→ Move to ${_next.label}`;
     }
 
     // Load related data with individual error handling
@@ -2323,7 +2323,8 @@ window.shareEstimateViewLink = async function(estId) {
   // Try the modern Web Share API first (mobile, opens native share
   // sheet straight to SMS/Messenger/email). Fall back to clipboard
   // copy for desktop. Final fallback: prompt() for legacy browsers.
-  if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
+  // iPadOS reports itself as a Mac: a Mac with touch points is an iPad (2026-11-25).
+  if (navigator.share && (/Mobi|Android/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1))) {
     try {
       await navigator.share({
         title: 'Your estimate from ' + ((window._brand && window._brand().displayName) || 'No Big Deal'),
@@ -2331,14 +2332,24 @@ window.shareEstimateViewLink = async function(estId) {
         url,
       });
       return;
-    } catch (_) { /* user cancelled; fall through to clipboard */ }
+    } catch (e) {
+      // iPhone Safari refuses a share sheet once the save above has outlived
+      // the tap (2026-11-25 parity: Android usually got the sheet, iPhone the
+      // copy box). One more tap on the confirm gives Safari a fresh gesture.
+      const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
+      if (e && e.name === 'NotAllowedError' && await ask('Your estimate link is ready. Share it now?')) {
+        try { await navigator.share({ title: 'Your estimate from ' + ((window._brand && window._brand().displayName) || 'No Big Deal'), text: 'Here’s your estimate. Tap the link to review:', url }); return; }
+        catch (_) { /* cancelled: fall through to clipboard */ }
+      }
+      /* user cancelled; fall through to clipboard */
+    }
   }
   try {
     await navigator.clipboard.writeText(url);
     if (typeof showToast === 'function') showToast('Customer view link copied ✓', 'success');
   } catch (_) {
     // Last resort prompt — user can manually copy.
-    try { window.prompt('Copy this link:', url); } catch (_) {}
+    try { window.nbdPrompt('Copy this link:', url); } catch (_) {}
   }
 };
 
@@ -2706,7 +2717,7 @@ function _applyStageOnPage(lead, stage, label) {
   const after = _nextStageFor(lead);
   if (btnEl) {
     if (after) {
-      btnEl.innerHTML = `→ Move to ${after.label}`;
+      btnEl.textContent = `→ Move to ${after.label}`;
       btnEl.disabled = false;
       btnEl.style.display = '';
     } else {

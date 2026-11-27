@@ -263,6 +263,10 @@ const AUTOMATION_KEYS = Object.freeze([
   'a2pServerTexts', 'stormConfirmText',
   // Key-moment emails with the portal link (portal-moments.js, 2026-11-04).
   'portalMomentEmail',
+  // The review ask for OTHER companies, email only (review-ask-tenant.js, 2026-11-26, dark).
+  'reviewAskTenantEmail',
+  // Storm-season tips email's optional schedule (storm-tips-email.js, 2026-11-26).
+  'stormTipsEmail',
 ]);
 const DEFAULT_MAX_PER_RUN = 5;
 /** A backlog item older than this is never sent by an automation (the first sweep after enabling cannot reach back). */
@@ -363,20 +367,49 @@ async function claimSendOnce(db, recipient, template, jobKey, opts) {
  * A refused send throws an error with status 403 / code 'messaging_paused'
  * (a definite "did not go" for the outbox claim logic). Only messages.create
  * is guarded; messages.list passes through (read-only).
+ *
+ * The customer send window (send-window.js, 2026-11-22) is enforced HERE, so
+ * a caller that forgot it is still covered: outside 8:00-20:00 in the
+ * recipient's time the send throws the same 403 with reason
+ * 'outside_send_window' (+ nextOpenMs). Context, client-wide in opts or per
+ * text as create(msg, ctx): { recipient (a lead / subscriber record),
+ * companyProfile | companyId (the fallback zone), nowMs, sendWindow }. A
+ * caller that pre-checked the window before a one-time claim passes its own
+ * nowMs and companyProfile here, so this check gives the same answer. No
+ * recipient = the company zone, else Eastern. Only an explicit sendWindow
+ * marker ('exempt:internal' | 'exempt:transactional' | 'exempt:manual')
+ * skips it; those callers keep their own TCPA hours.
  */
+async function sendWindowVerdict(db, c) {
+  const SendWindow = require('./send-window');
+  if (SendWindow.isExempt(c.sendWindow)) return { ok: true };
+  // An explicit companyProfile (null included) is the caller's pre-check
+  // answer: use it as is, so both checks agree. Otherwise read the company
+  // zone, only when the recipient has no location (unreadable = Eastern).
+  const profile = c.companyProfile !== undefined ? c.companyProfile
+    : (c.companyId ? await SendWindow.profileFor(db, c.recipient, c.companyId, c.timeoutMs || READ_TIMEOUT_MS) : null);
+  const now = typeof c.nowMs === 'number' ? c.nowMs : SendWindow.nowMs();
+  return SendWindow.check(now, c.recipient, profile);
+}
+
+function pausedError(reason, extra) {
+  const e = new Error('messaging_paused:' + reason);
+  e.code = 'messaging_paused';
+  e.status = 403;
+  e.messagingPaused = true;
+  e.reason = reason;
+  return Object.assign(e, extra || {});
+}
+
 function guardTwilio(db, client, opts) {
   return {
     messages: {
-      create: async (msg) => {
-        const g = await guardSms(db, msg && msg.to, msg && msg.body, opts);
-        if (!g.send) {
-          const e = new Error('messaging_paused:' + g.reason);
-          e.code = 'messaging_paused';
-          e.status = 403;
-          e.messagingPaused = true;
-          e.reason = g.reason;
-          throw e;
-        }
+      create: async (msg, ctx) => {
+        const c = Object.assign({}, opts || {}, ctx || {});
+        const g = await guardSms(db, msg && msg.to, msg && msg.body, c);
+        if (!g.send) throw pausedError(g.reason);
+        const w = await sendWindowVerdict(db, c);
+        if (!w.ok) throw pausedError('outside_send_window', { outsideSendWindow: true, nextOpenMs: w.nextOpenMs });
         return client.messages.create(Object.assign({}, msg, { to: g.to, body: g.body }));
       },
       list: (...a) => client.messages.list(...a),

@@ -46,13 +46,14 @@ const CHECKS = {
   'lead-follow-up-sweep':    { period: '3 hours',   grace: '4 hours',    why: 'follow-up to untouched new leads' },
   'storm-poller':            { period: '30 minutes', grace: '1 hour',    why: 'the one storm poller (#2148) — storm alert texts + NWS watch' },
   'social-publisher':        { period: '5 minutes', grace: '30 minutes', why: 'scheduled Social Studio posts go out (#2162); removed-member storage-move resume (#2271)' },
+  'mail-feed':               { period: '15 minutes', grace: '1 hour',    why: 'read-only iCloud + Gmail inbox copy (2026-11-25); its own check so a mailbox that stays broken cannot flap a shared one' },
   // ── shared: same cadence, failures still surface via /fail
   'calls-texts-ingest':      { period: '30 minutes', grace: '1 hour',    why: 'call recordings, transcripts, texts in' },
   'hourly-crons':            { period: '1 hour',    grace: '2 hours',    why: 'abandoned-estimate recovery + text notes' },
   'call-followups':          { period: '12 hours',  grace: '1 hour',     why: 'call watch (2h, 08-20 ET) + promise sweep (07:15/15:15 ET)' },
   'daily-retention':         { period: '1 day',     grace: '6 hours',    why: 'cleanup / retention jobs (incl. promise cleanup, Reel cleanup)' },
   'daily-customer-touches':  { period: '1 day',     grace: '6 hours',    why: 'morning digests + nudges to Jo; e-sign reminders to signers (10:00 ET); invoice overdue sweep (08:15 ET)' },
-  'daily-syncs':             { period: '1 day',     grace: '6 hours',    why: 'GBP reviews, Google Calendar reconcile, hail match' },
+  'daily-syncs':             { period: '1 day',     grace: '6 hours',    why: 'GBP reviews, Google Calendar reconcile, hail match, website lead-gateway probe' },
   'weekly-crons':            { period: '1 week',    grace: '12 hours',   why: 'weekly digest (Mon) + dormant-lead nudge (Wed) + vendor-config export (Sun)' },
   'monthly-crons':           { period: 'cron 0 7 1 * * (America/New_York)', grace: '12 hours', why: 'marketing report + overhead alert, 1st of month' },
 };
@@ -76,6 +77,8 @@ const PLAN = {
   callCenterTranscribe:      { slug: 'calls-texts-ingest' },
   textInboxIngest:           { slug: 'calls-texts-ingest' },
   leadAlertWatchdog:         { slug: 'calls-texts-ingest' }, // 2026-10-07: every 10 min; a /fail = a lead reached nobody even on the re-send
+  mailFeed:                  { slug: 'mail-feed' }, // 2026-11-25: every 15 min, read-only iCloud + Gmail inbox copy; a /fail = a mailbox sign-in or read failed. Own check: a revoked password fails every run, which would flap calls-texts-ingest against its 10-min siblings
+  cronDeadman:               { slug: 'calls-texts-ingest' }, // 2026-11-22: every 30 min, per-job ledger watcher; a /fail = it alerted Joe; pipeline-deadman watches it
 
   runAbandonRecovery:        { slug: 'hourly-crons' },
   textInboxNotes:            { slug: 'hourly-crons' },
@@ -95,6 +98,7 @@ const PLAN = {
   promiseCleanup:            { slug: 'daily-retention' }, // #2148: 02:30 ET
   reelCleanup:               { slug: 'daily-retention' }, // #2162: 04:15 ET
   callRetention:             { slug: 'daily-retention' }, // 2026-11-09: 03:20 ET, call transcripts/briefs 24 mo, CRM audio 12 mo
+  visitBinSweep:             { slug: 'daily-retention' }, // 2026-11-20: 03:40 ET, recordings Bin items past 30 days (never a Held one)
 
   dailyLeadDigest:           { slug: 'daily-customer-touches' },
   morningBrief:              { slug: 'daily-customer-touches' },
@@ -107,12 +111,16 @@ const PLAN = {
   onAfterInstallDay:         { slug: 'daily-customer-touches' }, // #2147: 07:15 ET push to Jo
   esignReminderSweep:        { slug: 'daily-customer-touches' }, // #2166: 10:00 ET signer reminders
   reviewAskAutoSweep:        { slug: 'daily-customer-touches' }, // 2026-10-15: 10:00 ET automatic review ask
+  reviewAskTenantSweep:      { slug: 'daily-customer-touches' }, // 2026-11-26: 11:00 ET review ask for other companies (email, dark)
+  stormTipsSweep:            { slug: 'daily-customer-touches' }, // 2026-11-26: 11:00 ET storm-tips email schedule (dark)
   invoiceOverdueSweep:       { slug: 'daily-customer-touches' }, // R4 dates: 08:15 ET overdue flags
+  officePlanner:             { slug: 'daily-customer-touches' }, // 2026-11-25: 08/12/17 ET, CRM lanes into the Agent inbox (reminders + drafts for the owner; nothing is sent)
 
   syncGbpReviews:            { slug: 'daily-syncs' },
   googleCalendarReconcile:   { slug: 'daily-syncs' },
   hailMatchCron:             { slug: 'daily-syncs' },
   meshHailCron:              { slug: 'daily-syncs' },
+  leadGatewayProbe:          { slug: 'daily-syncs' },   // 2026-11-26: daily 09:00 ET; a /fail = a website lead submit would fail right now (Joe is also texted)
 
   weeklyDigest:              { slug: 'weekly-crons' },
   dormantLeadNudge:          { slug: 'weekly-crons' },

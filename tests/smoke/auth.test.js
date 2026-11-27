@@ -151,8 +151,12 @@ section('H-5: per-company Claude budget');
 section('M-1: email verification');
 {
   const src = readFunctionsIndex();
+  // 2026-11-25: claudeProxy calls the one AI gate (functions/ai-gate.js aiGate),
+  // which holds the check (behaviour: tests/ai-gate-entry-points-2026-11-25.test.js).
+  const gate = read(path.join(FUNCTIONS, 'ai-gate.js'));
   assert('claudeProxy requires email_verified before AI',
-    /email_verified !== true[\s\S]{0,200}Verify your email/.test(src));
+    /aiGate\(getFirestore\(\), \{ auth: \{ uid: decoded\.uid, token: decoded \}, feature: 'claude-proxy' \}\)/.test(src)
+    && /email_verified !== true\) return \{ ok: false, reason: 'unverified' \}/.test(gate));
 }
 
 section('D6: GDPR export-my-data');

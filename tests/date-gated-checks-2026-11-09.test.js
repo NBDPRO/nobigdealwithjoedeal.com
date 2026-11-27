@@ -120,8 +120,15 @@ try {
   ok('a feed 13 go-live dates behind still passes the default check as lag (no 12-date cap)', r.status === 0 && /lag/i.test(out(r)), out(r));
   fs.copyFileSync(path.join(ROOT, 'docs', 'feed.xml'), path.join(tmp, 'docs', 'feed.xml'));
 
-  // A retitled live post is real drift whatever the date.
-  fs.writeFileSync(postsFile, postsSrc.replace(/title: "([^"]+)"/, 'title: "$1 (retitled)"'));
+  // A retitled live post is real drift whatever the date. Retitle the first LIVE entry: the top of POSTS can be a
+  // queued future post (BLOG-SCHEDULE runbook), and retitling that one changes nothing the feed renders today.
+  let retitled = false;
+  fs.writeFileSync(postsFile, postsSrc.replace(/title: "([^"]+)"([^}]*?published: "([\d-]+)")/g, (m, t, rest, d) => {
+    if (retitled || d > TODAY) return m;
+    retitled = true;
+    return `title: "${t} (retitled)"${rest}`;
+  }));
+  if (!retitled) throw new Error('fixture: no live post to retitle in POSTS');
   r = node(tmp, 'build-feed.mjs');
   ok('a retitled live post still fails the default check', r.status === 1, out(r));
   fs.writeFileSync(postsFile, postsSrc);
@@ -132,6 +139,9 @@ try {
   for (const d of ['areas', 'services', 'our-work']) copyDir(path.join(ROOT, 'docs', d), path.join(tmp, 'docs', d));
   copyDir(path.join(ROOT, 'docs', 'assets', 'data'), path.join(tmp, 'docs', 'assets', 'data'));
   for (const f of ['index.html', 'our-work.html']) fs.copyFileSync(path.join(ROOT, 'docs', f), path.join(tmp, 'docs', f));
+  // The nearby-jobs fallback reads town coordinates from site-src/data/towns.json (2026-11-26).
+  fs.mkdirSync(path.join(tmp, 'site-src', 'data'), { recursive: true });
+  fs.copyFileSync(path.join(ROOT, 'site-src', 'data', 'towns.json'), path.join(tmp, 'site-src', 'data', 'towns.json'));
   for (const e of fs.readdirSync(path.join(ROOT, 'docs', 'assets'))) {
     const dst = path.join(tmp, 'docs', 'assets', e);
     if (!fs.existsSync(dst)) fs.symlinkSync(path.join(ROOT, 'docs', 'assets', e), dst);

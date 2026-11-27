@@ -217,6 +217,20 @@ async function waitFor(page, fn, arg, ms) {
       await page.locator('[data-action="generateCustomerDoc"][data-doc-type="' + type + '"]').evaluate((el) => el.click());
       await page.waitForSelector('.dpf-card', { timeout: 20000 });
       const missing = await page.evaluate(() => [...document.querySelectorAll('.dpf-card .missing')].map((w) => w.getAttribute('data-field-wrap')));
+      // A field the pre-flight now leaves EMPTY on purpose (the honesty-removals
+      // change: no pre-filled assessment or damage notes) is typed by the rep,
+      // as in real use. 'missing' above is read BEFORE this, so the contract's
+      // 'nothing to type' assertion still holds.
+      await page.evaluate(() => {
+        document.querySelectorAll('.dpf-card .missing').forEach((w) => {
+          const el = w.querySelector('textarea, input:not([type=checkbox]):not([type=hidden]), select');
+          if (!el) return;
+          if (el.tagName === 'SELECT') { if (el.options.length > 1) el.selectedIndex = 1; }
+          else el.value = 'Sample entry for the demo walk.';
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+      });
       await page.evaluate(() => { const s = document.getElementById('nbdv-iframe'); if (s) s.srcdoc = ''; });
       await page.locator('.dpf-card button', { hasText: /Generate/i }).last().click();
       await page.waitForSelector('#nbd-doc-viewer-overlay.open', { timeout: 20000 });
@@ -241,8 +255,9 @@ async function waitFor(page, fn, arg, ms) {
     console.log('9. e-sign from the viewer: a read-only preview, nothing sent');
     // The real (contract) document goes back on screen for the send.
     await generateDoc('contract');
-    page.once('dialog', (d) => d.accept('jordan.avery@example.com'));
     await page.locator('#nbdv-sign-btn').click(); // a real click: the strip must not cover the viewer's row
+    await page.fill('#nbd-dialog-input', 'jordan.avery@example.com'); // the in-tab prompt (was a native prompt)
+    await page.click('#nbd-dialog-confirm');
     await page.waitForSelector('#nbd-send-preview[data-kind="sign-request"]', { timeout: 15000 });
     const sp1 = await page.evaluate(() => {
       const s = document.getElementById('nbd-send-preview');
@@ -319,6 +334,9 @@ async function waitFor(page, fn, arg, ms) {
     ok('Kentucky insurance: "Due at signing $0", nothing is due at signing', /Due at signing\s*\$0\b/.test(ins.deposit || '') && /Nothing is due at signing/.test(ins.deposit || ''), ins.deposit);
     ok('e-mail e-sign is off for a Kentucky insurance job (the real KY gate)', await page.evaluate(() => document.getElementById('v2signBtn').classList.contains('v2-ky-off')));
     await page.locator('#estV2Modal [data-action="send-to-homeowner"]').first().click();
+    // "Use this new estimate's value instead?" used to be a native confirm that Playwright
+    // auto-dismissed (= Cancel). It is an in-tab dialog now: answer Cancel, same as before.
+    await page.click('#nbd-dialog-cancel', { timeout: 8000 });
     await page.waitForSelector('#nbd-send-preview[data-kind="deal-link"]', { timeout: 20000 });
     const kyDeal = await page.evaluate(() => (document.querySelector('#nbd-send-preview iframe') || {}).srcdoc || '');
     ok('Jordan\'s deal page preview: $0 due at signing and the Kentucky notices', /Due at signing: <strong>\$0(\.00)?<\/strong>/.test(kyDeal) && !/Due at signing: <strong>\$[1-9]/.test(kyDeal) && /367\.62/.test(kyDeal));

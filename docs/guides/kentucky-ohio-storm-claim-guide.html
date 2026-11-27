@@ -26,6 +26,7 @@
 <link rel="stylesheet" href="/assets/css/nbd-guide.css?v=5">
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
 <link rel="stylesheet" href="/assets/css/mobile-cta.css">
+<link rel="stylesheet" href="/assets/css/quick-lead-form.css">
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <script type="application/ld+json">{
  "@context": "https://schema.org",
@@ -306,7 +307,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
     <p class="g-byline">By <strong>Joe Deal</strong>, owner of No Big Deal Home Solutions · Updated October 2026</p>
     <div class="g-actions" data-pdf-group>
       <a class="g-btn g-btn-primary" href="/inspect">Book my free inspection</a>
-      <a class="g-btn g-btn-ghost" href="/storm-report">Get my storm report</a>
+      <a class="g-btn g-btn-ghost" href="/roof-check">Check my address's storms</a>
       <a class="g-btn g-btn-ghost" data-pdf-slot data-pdf-href="/guides/pdf/kentucky-ohio-storm-claim-guide.pdf" hidden>Download the printable PDF</a>
       <span class="g-pdf-soon" data-pdf-soon>Printable PDF coming soon</span>
     </div>
@@ -324,13 +325,13 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 <p>An emergency tarp from us is billed on its own invoice, separate from any repair or replacement.</p>
 <h3>Write it down while it's fresh</h3>
 <ul class="g-check"><li>The date and rough time of the storm</li><li>Photos from the ground of every side of the house, the gutters, the downspouts and the AC unit</li><li>Anything dented, cracked or torn: siding, window screens, vents, fences, cars</li><li>Shingle pieces or granules in the yard or at the downspouts</li><li>Any new water stains inside, especially on top-floor ceilings and in the attic</li></ul>
-<p>Our free <a href="/storm-report">5-Year Storm Report</a> shows the hail and wind reports the National Weather Service logged near your address, which helps you pin down the date.</p>
+<p>Our free <a href="/roof-check">Roof Check</a> shows the hail and wind reports the National Weather Service logged near your address, which helps you pin down the date.</p>
 </section>
 <section class="g-chapter" id="how-a-claim-actually-works">
 <h2 class="g-ch-title">How a claim actually works</h2>
 <h3>Get an inspection before you file</h3>
 <p>You don't have to file a claim to find out whether you have damage. A free inspection first tells you whether there's storm damage at all, and roughly how much. Some roofs have wear, not storm damage, and filing on wear can count against you without paying anything.</p>
-<aside class="g-callout g-callout-note"><p class="g-callout-title">What I tell every homeowner</p><p>Whether insurance covers it depends on your policy and the damage. I'll tell you honestly if it's worth a claim.</p></aside>
+<aside class="g-callout g-callout-note"><p class="g-callout-title">What I tell every homeowner</p><p>Whether insurance covers it depends on your policy and the damage. I document the damage with photos so you can decide whether to file a claim.</p></aside>
 <p>My inspection is free and takes 45 to 60 minutes. I get on the roof myself and photograph every hit, and you get the photos. If you want a formal written report with photos, a condition rating and repair recommendations (for your records, a real-estate deal or your insurer), that's $150.</p>
 <h3>You file and you own the claim</h3>
 <p>If there's real storm damage and you decide to file, you call your insurance company or file online. The claim is yours. You decide whether to file, you talk to your insurer, and you decide what to do with the result.</p>
@@ -378,26 +379,41 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 </section>
 <section class="g-chapter" id="next-step">
 <h2 class="g-ch-title">Next step</h2>
-<p>If you've had hail or high wind, book a free inspection at <a href="/inspect">nobigdealwithjoedeal.com/inspect</a>, or call or text me at <a href="tel:+18594207382">(859) 420-7382</a>. I'll tell you straight whether it's storm damage, and whether it's worth a claim.</p>
+<p>If you've had hail or high wind, book a free inspection at <a href="/inspect">nobigdealwithjoedeal.com/inspect</a>, or call or text me at <a href="tel:+18594207382">(859) 420-7382</a>. I'll tell you straight whether it's storm damage. I document it with photos so you can decide whether to file a claim.</p>
 <p>Joe Deal, No Big Deal Home Solutions</p>
 </section>
 <!-- GUIDE-BODY:END kentucky-ohio-storm-claim-guide -->
+  <!-- EMAIL ME A COPY (2026-11-26): posts through submitPublicLead as guide_copy; functions/guide-copy-email.js sends the PDF -->
+  <section class="g-panel" aria-labelledby="g-copy-title" data-guide-copy="kentucky-ohio-storm-claim-guide" hidden>
+    <h2 id="g-copy-title">Email me a copy</h2>
+    <p>Get the printable PDF of this guide in your inbox. One email with the file, nothing else unless you tick the box.</p>
+    <form class="g-form" id="guideCopyForm" novalidate>
+      <div><label for="gcEmail">Your email</label><input type="email" id="gcEmail" name="email" autocomplete="email" required maxlength="200"></div>
+      <label class="g-consent" for="gcConsent"><input type="checkbox" id="gcConsent" name="emailConsent" value="yes"> <span>Also email me storm-season tips from Joe now and then. Unsubscribe any time.</span></label>
+      <div><label for="gcZip">ZIP code (optional, so storm tips can match your area)</label><input type="text" id="gcZip" name="zip" inputmode="numeric" autocomplete="postal-code" maxlength="10"></div>
+      <div class="g-hp" aria-hidden="true"><label for="gcHp">Leave this empty</label><input type="text" id="gcHp" name="nbd_hp" tabindex="-1" autocomplete="off"></div>
+      <button type="submit" class="g-btn g-btn-primary">Email me the PDF</button>
+      <p class="g-form-note">See the <a href="/privacy">privacy policy</a>.</p>
+      <p class="g-form-msg" id="guideCopyMsg" role="status" aria-live="polite" hidden></p>
+    </form>
+  </section>
   <section class="g-panel" aria-labelledby="g-next-title">
     <h2 id="g-next-title">Had hail or high wind?</h2>
-    <p>I'll get on the roof, photograph what I find and tell you straight whether it's storm damage and whether it's worth a claim. The inspection is free.</p>
+    <p>I'll get on the roof, photograph what I find and tell you straight whether it's storm damage. I document it with photos so you can decide whether to file a claim. The inspection is free.</p>
     <div class="g-actions">
       <a class="g-btn g-btn-primary" href="/inspect">Book my free inspection</a>
       <a class="g-btn g-btn-ghost" href="tel:+18594207382">Call (859) 420-7382</a>
       <a class="g-btn g-btn-ghost" href="sms:+18594207382">Text Joe</a>
     </div>
   </section>
+  <!-- QUICK LEAD FORM (2026-11-25): same embed as the area/service pages; posts through submitPublicLead as page-form:/guides/kentucky-ohio-storm-claim-guide -->
+  <section class="qlf-section" id="quote"><div class="qlf-wrap"><div data-nbd-quick-form></div></div></section>
   <nav class="g-related" aria-label="More free guides">
     <p class="g-related-title">More free guides and tools</p>
     <ul>
       <li><a href="/guides/hail-photo-baseline-sheet">Pre-storm photo baseline (one-page checklist)</a></li>
       <li><a href="/blog/hail-season-prep-checklist">Hail season prep checklist</a></li>
-      <li><a href="/storm-report">5-year storm report for your address</a></li>
-      <li><a href="/storm-check">Should my roof get looked at? Quick check</a></li>
+      <li><a href="/roof-check">Storm history for your address, and should my roof get looked at?</a></li>
       <li><a href="/services/storm-damage">Storm damage and insurance work</a></li>
       <li><a href="/free-tools">All free tools and guides</a></li>
     </ul>
@@ -439,5 +455,8 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 </div>
 <!-- /nbd:partial mobile-cta -->
 <script defer src="/assets/js/guide-pdf-slot.js?v=2"></script>
+<script defer src="/assets/js/quick-lead-form.js"></script>
+<script defer src="/assets/js/public-lead-submit.js"></script>
+<script defer src="/assets/js/guide-email-copy.js?v=2"></script>
 </body>
 </html>

@@ -111,7 +111,7 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 .tile-group{margin-bottom:24px;}
 .tile-group-label{font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.72);margin-bottom:12px;}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
-.tile{background:rgba(255,255,255,.04);border:2px solid rgba(255,255,255,.08);border-radius:12px;padding:16px 12px;text-align:center;cursor:pointer;transition:all .2s;user-select:none;}
+.tile{background:rgba(255,255,255,.04);border:2px solid rgba(255,255,255,.08);border-radius:12px;padding:16px 12px;text-align:center;cursor:pointer;transition:all .2s;-webkit-user-select:none;user-select:none;}
 .tile:hover{border-color:rgba(189,87,40,.3);background:rgba(189,87,40,.05);}
 .tile.selected{border-color:var(--orange);background:rgba(189,87,40,.12);box-shadow:0 0 12px rgba(189,87,40,.15);}
 .tile-icon{font-size:1.6rem;margin-bottom:6px;}
@@ -818,7 +818,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
       </div>
     </div>
 
-    <button class="btn-primary" id="btnStep3" data-step="4" disabled>See My Estimate &#x2192;</button>
+    <button class="btn-primary" id="btnStep3" data-step="4" disabled>Show My Ballpark Range &#x2192;</button>
   </div>
   <button class="btn-back" data-step="2">&#8592; Back</button>
 </div>
@@ -861,7 +861,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
       <p>See material tier pricing, a quick note drafted from your answers, and a free inspection offer.</p>
     </div>
 
-    <button class="btn-primary" data-step="5">See My Estimate &#x2192;</button>
+    <button class="btn-primary" data-step="5">Continue to My Contact Info &#x2192;</button>
   </div>
   <button class="btn-back" data-step="3">&#8592; Back</button>
 </div>
@@ -903,12 +903,12 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 <div class="step" id="stepLoading">
   <div class="funnel-card" style="text-align:center;padding:48px 28px;">
     <div class="spinner"></div>
-    <div class="loading-text">Building your personalized estimate...</div>
+    <div class="loading-text">Putting your estimate together...</div>
     <div class="loading-steps" style="margin-top:16px;">
-      <div class="loading-step" id="ls1">Analyzing your property...</div>
-      <div class="loading-step" id="ls2">Calculating roof dimensions...</div>
-      <div class="loading-step" id="ls3">Checking local material costs...</div>
-      <div class="loading-step" id="ls4">Preparing your note...</div>
+      <div class="loading-step" id="ls1">Saving your request for Joe...</div>
+      <div class="loading-step" id="ls2">Looking for a measured roof size from aerial imagery...</div>
+      <div class="loading-step" id="ls3">Working out your price ranges...</div>
+      <div class="loading-step" id="ls4">Drafting a short note from your answers...</div>
     </div>
   </div>
 </div>
@@ -1096,7 +1096,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 <!-- ═══════════════════════ MAIN SCRIPT (lazy) ═══════════════════════
      The 52KB wizard loads on first user intent (or idle <=2.5s) via the
      loader instead of eagerly — see assets/js/estimate-wizard-loader.js. -->
-<script defer src="/assets/js/estimate-wizard-loader.js?v=9"></script>
+<script defer src="/assets/js/estimate-wizard-loader.js?v=11"></script>
 
 <!-- Google Analytics -->
 <script defer src="/assets/js/ga-loader.js" data-gtag="https://www.googletagmanager.com/gtag/js?id=G-8PG7N9Q3DL"></script>

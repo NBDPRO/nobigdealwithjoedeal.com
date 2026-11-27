@@ -20,6 +20,7 @@
 //   PLAYWRIGHT_TEST_USER_PASSWORD=nbd-e2e-password-1 \
 //   npx playwright test --config=playwright.config.js phone-crm-header-compact-2026-10-13.spec.js --workers=1
 const { test, expect } = require('@playwright/test');
+const { autoDialogs } = require('./fixtures/dialogs'); // in-tab dialogs (native ones are gone)
 const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction, ensureClassicLayout } = require('./fixtures/auth');
 const { deleteSeededRun } = require('./fixtures/seeded-run');
 
@@ -142,7 +143,7 @@ test.describe('CRM tab on the installed iPhone — compact header @shard2', () =
     run = `phone-crm-header@390:${stamp}`;
     ctx = await browser.newContext(contextOptions(testInfo));
     page = await ctx.newPage();
-    page.on('dialog', (d) => d.accept().catch(() => {}));
+    await autoDialogs(page);
     await page.route('**/nominatim.openstreetmap.org/**', (r) => r.fulfill({ contentType: 'application/json', body: '[]' }));
     await page.route(/cloudfunctions\.net\//, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"result":{}}' }));
     await page.addInitScript(() => {

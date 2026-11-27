@@ -202,6 +202,52 @@
     if (document.visibilityState === 'hidden' && !busyReasons().length) doReload(pending + ':hidden');
   });
 
+  // New build on resume (2026-11-25, iPhone parity). An installed app comes
+  // back from the background without reloading, so it could run last week's
+  // code for days: the only reload signal was a new service worker, and
+  // sw.js rarely changes. Coming back to the foreground now compares the
+  // build this page loaded (window.__NBD_RELEASE, "web@<date>-<sha8>",
+  // stamped by the deploy) with the live /version.json and asks for a safe
+  // reload when they differ. Once per live build: if the reload still serves
+  // the old stamp (a half-finished deploy), the page does not loop.
+  var CHECK_MS = 5 * 60 * 1000;
+  var lastCheck = 0;
+  var SEEN_KEY = 'nbd-reloaded-for';
+  function loadedBuild() {
+    var m = /-([0-9a-f]{8})$/.exec(String(window.__NBD_RELEASE || ''));
+    return m ? m[1] : '';
+  }
+  function checkForNewBuild() {
+    var mine = loadedBuild();
+    if (!mine || pending || reloaded || typeof fetch !== 'function') return;
+    if (Date.now() - lastCheck < CHECK_MS) return;
+    lastCheck = Date.now();
+    try {
+      navigator.serviceWorker.getRegistration().then(function (r) { if (r) r.update(); }).catch(function () {});
+    } catch (_) { /* no service worker: the version check below still runs */ }
+    fetch('/version.json', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        var live = j && /^[0-9a-f]{40}$/.test(String(j.sha)) ? String(j.sha).slice(0, 8) : '';
+        if (!live || live === mine) return;
+        try {
+          if (sessionStorage.getItem(SEEN_KEY) === live) return;
+          sessionStorage.setItem(SEEN_KEY, live);
+        } catch (_) { /* no storage: reload anyway; the next resume is 5 min away */ }
+        // Not request(): the rep has only just come back, and an upload or
+        // a half-built estimate held in memory is not a modal or a text
+        // field, so request() could not see it. Offer the reload instead;
+        // it happens on a tap, or the next time the app is left while idle.
+        if (pending || reloaded) return;
+        pending = 'new-build:' + live;
+        showBar();
+      })
+      .catch(function () { /* offline: try on the next resume */ });
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') checkForNewBuild();
+  });
+
   window.NBDSafeReload = {
     request: request,
     hold: function (key) { key = String(key || 'busy'); holds[key] = (holds[key] || 0) + 1; },

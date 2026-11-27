@@ -22,6 +22,7 @@
 
 const L = require('./call-center-logic');
 const PR = require('./promise-logic');
+const { FENCE_CLAUSE, fence } = require('./ai-fence');
 
 // ── limits ──────────────────────────────────────────────────────────────
 const MAX_DURATION_SEC = 60 * 60 + 120;   // the client caps at 60:00; two minutes of slack
@@ -233,9 +234,14 @@ function nextStep(doc, nowMs) {
   if (!d) return { step: 'none', why: 'no doc' };
   if (d.status === 'discarded') {
     if (d.pipelineStatus === PIPELINE.DISCARDED && d.audioLive !== true) return { step: 'none', why: 'discard done' };
+    // A Hold wins over a discard the phone wrote: nothing is deleted until an owner / admin releases it.
+    if (isHeld(d)) return { step: 'none', why: 'legal hold' };
     if (d.pipelineStatus === PIPELINE.PURGE_PENDING && (Number(d.pipelineNextAtMs) || 0) > nowMs) return { step: 'none', why: 'purge backoff' };
     return { step: 'discard' };
   }
+  // In the Bin: parked. Nothing new is spent on it (no transcription, no notes); whatever it filed on a customer comes off (the
+  // phone wrote leadId null when it was binned), and Restore puts leadId back so the ordinary finalize files it again.
+  if (isBinned(d)) return !d.leadId && d.attachedLeadId ? { step: 'unfile' } : { step: 'none', why: 'binned' };
   if (d.status !== 'uploaded') return { step: 'none', why: 'not uploaded' };
   const p = d.pipelineStatus || '';
   const due = Number(d.pipelineNextAtMs) || 0;
@@ -409,6 +415,7 @@ const VISIT_NOTES_SYSTEM = [
   'Rules: only things actually said, at most 6 promises. Resolve relative dates ("Thursday", "next week") against the visit date given. ',
   'A recording about family, friends or anything not business is "personal": then summary is "Personal." and the lists are empty.',
   'Never invent prices, measurements, names or dates that were not said. Scope facts are what people SAID, not measured.',
+  FENCE_CLAUSE,
 ].join('\n');
 
 function buildVisitNotesPrompt({ capture, transcript, leadName, nowMs }) {
@@ -419,10 +426,10 @@ function buildVisitNotesPrompt({ capture, transcript, leadName, nowMs }) {
   return [
     'Visit date (Eastern): ' + when + (wd ? ' (' + wd + ', ' + day + ')' : ' (' + day + ')'),
     'Length: ' + Math.round((Number(c.durationSec) || 0) / 60) + ' minutes',
-    leadName ? 'CRM customer chosen for this visit: ' + leadName : 'Not attached to a customer yet.',
+    leadName ? 'CRM customer chosen for this visit: ' + fence('lead_name', leadName) : 'Not attached to a customer yet.',
     '',
     'Transcript:',
-    str(transcript).slice(0, NOTES_MAX_TRANSCRIPT_CHARS),
+    fence('transcript', str(transcript).slice(0, NOTES_MAX_TRANSCRIPT_CHARS)),
   ].join('\n');
 }
 
@@ -742,6 +749,71 @@ function buildFailureActivity({ capture, visitId, lead, uid, nowMs, audioKeptDay
   return { activityId: 'visit-' + visitId, activity };
 }
 
+// ── Bin, Keep and Hold (2026-11-20, recordings Bin PR 1; documentation/projects/RECORDINGS-BIN-2026-11-20.md) ──
+// Discard used to destroy a recording at once. Now a person BINS it: the audio, transcript and notes are kept for BIN_DAYS and
+// Restore puts it back. A Held recording (owner / admin) cannot be deleted, expired or purged until released. The client writes
+// binnedAtMs / hardDeleteAtMs / binnedFrom / binnedLeadId / keptAtMs (firestore.rules vcKeys); legalHold / holdBy / holdAtMs are
+// server-owned. "Delete forever" is the old discard path (status 'discarded' -> doPurge), run only by the server.
+const BIN_DAYS = 30;
+const BIN_MS = BIN_DAYS * 86400000;
+/** In the Bin: binned, not yet discarded for good. */
+function isBinned(d) { return !!d && Number(d.binnedAtMs) > 0 && d.status !== 'discarded'; }
+/** Reviewed, needs no customer (never nagged, never auto-removed). */
+function isKept(d) { return !!d && Number(d.keptAtMs) > 0; }
+/** On Hold: nothing may delete or expire it. */
+function isHeld(d) { return !!d && d.legalHold === true; }
+/** A Bin item past its 30 days that the daily job may purge (never a Held one). */
+function binExpired(d, nowMs) { return isBinned(d) && !isHeld(d) && Number(d.hardDeleteAtMs) > 0 && Number(d.hardDeleteAtMs) <= nowMs; }
+
+// Roles that may Hold, Delete forever, Erase and see other reps' recordings. A solo operator has NO role claim (''), and is the owner.
+const RECORDING_ADMIN_ROLES = ['', 'owner', 'company_admin', 'admin'];
+function mayAdminRecordings(role) { return RECORDING_ADMIN_ROLES.indexOf(String(role == null ? '' : role)) !== -1; }
+
+// The content-free log of what was done to recordings. It never carries a transcript, a note, a name or an address.
+const AUDIT_ACTIONS = ['bin_expired', 'delete_forever', 'erase_customer', 'hold', 'release'];
+const ID_RE = /^[A-Za-z0-9_-]{6,128}$/;
+function buildAudit({ action, byUid, visitUid, visitId, leadId, count, nowMs } = {}) {
+  if (AUDIT_ACTIONS.indexOf(action) === -1) throw new Error('unknown audit action');
+  const idOrNull = (v) => (typeof v === 'string' && ID_RE.test(v) ? v : null);
+  const n = Number(count);
+  return { action, byUid: idOrNull(byUid) || 'system', visitUid: idOrNull(visitUid), visitId: idOrNull(visitId), leadId: idOrNull(leadId), count: Number.isFinite(n) && n > 0 ? Math.floor(n) : null, atMs: Number(nowMs) || 0 };
+}
+
+/**
+ * The admin callable's input, cleaned. Never trusts the caller's company or role; those come from the server.
+ * { action, ownerUid, visitId, leadId, state, limit } or { error }.
+ */
+const ADMIN_ACTIONS = ['list', 'hold', 'release', 'deleteForever', 'eraseCustomer', 'audit'];
+const LIST_STATES = ['unfiled', 'bin', 'kept'];
+function parseAdminRequest(data) {
+  const d = data && typeof data === 'object' ? data : {};
+  const action = String(d.action || '');
+  if (ADMIN_ACTIONS.indexOf(action) === -1) return { error: 'Unknown action.' };
+  const out = { action };
+  if (action === 'list') {
+    out.state = LIST_STATES.indexOf(d.state) !== -1 ? d.state : 'bin';
+    const lim = Number(d.limit);
+    out.limit = Number.isFinite(lim) ? Math.max(1, Math.min(200, Math.floor(lim))) : 100;
+  }
+  if (action === 'hold' || action === 'release' || action === 'deleteForever') {
+    if (typeof d.ownerUid !== 'string' || !ID_RE.test(d.ownerUid)) return { error: 'Bad owner id.' };
+    if (typeof d.visitId !== 'string' || !/^[A-Za-z0-9_-]{8,64}$/.test(d.visitId)) return { error: 'Bad visit id.' };
+    out.ownerUid = d.ownerUid; out.visitId = d.visitId;
+  }
+  if (action === 'eraseCustomer') {
+    if (typeof d.leadId !== 'string' || !ID_RE.test(d.leadId)) return { error: 'Bad customer id.' };
+    if (d.confirm !== true) return { error: 'Erasing needs an explicit confirm.' };
+    out.leadId = d.leadId;
+  }
+  return out;
+}
+
+/** Days until a Bin item is purged (0 = today), or null when it is not in the Bin. Held items report null: they do not expire. */
+function binDaysLeft(d, nowMs) {
+  if (!isBinned(d) || isHeld(d) || !(Number(d.hardDeleteAtMs) > 0)) return null;
+  return Math.max(0, Math.ceil((Number(d.hardDeleteAtMs) - Number(nowMs)) / 86400000));
+}
+
 module.exports = {
   MAX_DURATION_SEC, OBJECT_WAIT_MS, MAX_TRANSCRIBE_STRIKES, MAX_NOTES_STRIKES, LEASE_MS, APPT_WINDOW_MS,
   GPS_MIN_RADIUS_M, GPS_MAX_RADIUS_M, GPS_MAX_ACCURACY_M, MAX_CHIPS, SUGGEST_RULES_VERSION, VOCAB_MAX_CHARS,
@@ -752,4 +824,5 @@ module.exports = {
   buildVisitNotesPrompt, sanitizeVisitNotes,
   haversineM, gpsCandidate, rankSuggestions, guessPromiseKind, buildAttachment, etToday,
   FAIL_WORDS, failureWords, RETRANSCRIBE_NOTES, canRetryTranscription, failKey, buildFailureActivity,
+  BIN_DAYS, BIN_MS, isBinned, isKept, isHeld, binExpired, binDaysLeft, RECORDING_ADMIN_ROLES, mayAdminRecordings, AUDIT_ACTIONS, buildAudit, ADMIN_ACTIONS, LIST_STATES, parseAdminRequest,
 };

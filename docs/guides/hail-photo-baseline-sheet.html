@@ -26,6 +26,7 @@
 <link rel="stylesheet" href="/assets/css/nbd-guide.css?v=5">
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
 <link rel="stylesheet" href="/assets/css/mobile-cta.css">
+<link rel="stylesheet" href="/assets/css/quick-lead-form.css">
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <script type="application/ld+json">{
  "@context": "https://schema.org",
@@ -324,10 +325,24 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 <ul class="g-check"><li>Your insurance declarations page (shows your deductible and any wind or hail deductible). Date: ____</li><li>The year your roof was installed and the shingle brand, if you know it. Date: ____</li><li>Receipts for any roof, gutter or siding work. Date: ____</li></ul>
 <aside class="g-callout g-callout-tip"><p class="g-callout-title">Where to keep them</p><p>Make a photo album called &quot;House baseline (year)&quot; and back it up somewhere other than your phone, like a cloud folder or an email to yourself.</p></aside>
 <h3>After a storm</h3>
-<p>Take the same photos again from the same spots, and add our free 5-Year Storm Report for your address at <a href="/storm-report">nobigdealwithjoedeal.com/storm-report</a>. Then book a free inspection at <a href="/inspect">nobigdealwithjoedeal.com/inspect</a> or call or text <a href="tel:+18594207382">(859) 420-7382</a>. Whether insurance covers it depends on your policy and the damage. I'll tell you honestly if it's worth a claim.</p>
+<p>Take the same photos again from the same spots, and check your address's 5-year storm history with our free Roof Check at <a href="/roof-check">nobigdealwithjoedeal.com/roof-check</a>. Then book a free inspection at <a href="/inspect">nobigdealwithjoedeal.com/inspect</a> or call or text <a href="tel:+18594207382">(859) 420-7382</a>. Whether insurance covers it depends on your policy and the damage. I document the damage with photos so you can decide whether to file a claim.</p>
 <p>Joe Deal, No Big Deal Home Solutions</p>
 </section>
 <!-- GUIDE-BODY:END hail-photo-baseline-sheet -->
+  <!-- EMAIL ME A COPY (2026-11-26): posts through submitPublicLead as guide_copy; functions/guide-copy-email.js sends the PDF -->
+  <section class="g-panel" aria-labelledby="g-copy-title" data-guide-copy="hail-photo-baseline-sheet" hidden>
+    <h2 id="g-copy-title">Email me a copy</h2>
+    <p>Get the printable PDF of this guide in your inbox. One email with the file, nothing else unless you tick the box.</p>
+    <form class="g-form" id="guideCopyForm" novalidate>
+      <div><label for="gcEmail">Your email</label><input type="email" id="gcEmail" name="email" autocomplete="email" required maxlength="200"></div>
+      <label class="g-consent" for="gcConsent"><input type="checkbox" id="gcConsent" name="emailConsent" value="yes"> <span>Also email me storm-season tips from Joe now and then. Unsubscribe any time.</span></label>
+      <div><label for="gcZip">ZIP code (optional, so storm tips can match your area)</label><input type="text" id="gcZip" name="zip" inputmode="numeric" autocomplete="postal-code" maxlength="10"></div>
+      <div class="g-hp" aria-hidden="true"><label for="gcHp">Leave this empty</label><input type="text" id="gcHp" name="nbd_hp" tabindex="-1" autocomplete="off"></div>
+      <button type="submit" class="g-btn g-btn-primary">Email me the PDF</button>
+      <p class="g-form-note">See the <a href="/privacy">privacy policy</a>.</p>
+      <p class="g-form-msg" id="guideCopyMsg" role="status" aria-live="polite" hidden></p>
+    </form>
+  </section>
   <section class="g-panel" aria-labelledby="g-next-title">
     <h2 id="g-next-title">Storm already hit?</h2>
     <p>Book a free inspection and I'll photograph everything from the roof, so you have both sets of pictures. Whether insurance covers it depends on your policy and the damage.</p>
@@ -337,12 +352,14 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
       <a class="g-btn g-btn-ghost" href="sms:+18594207382">Text Joe</a>
     </div>
   </section>
+  <!-- QUICK LEAD FORM (2026-11-25): same embed as the area/service pages; posts through submitPublicLead as page-form:/guides/hail-photo-baseline-sheet -->
+  <section class="qlf-section" id="quote"><div class="qlf-wrap"><div data-nbd-quick-form></div></div></section>
   <nav class="g-related" aria-label="More free guides">
     <p class="g-related-title">More free guides and tools</p>
     <ul>
       <li><a href="/guides/kentucky-ohio-storm-claim-guide">Storm damage and your insurance claim (KY &amp; OH guide)</a></li>
       <li><a href="/blog/hail-season-prep-checklist">Hail season prep checklist</a></li>
-      <li><a href="/storm-report">5-year storm report for your address</a></li>
+      <li><a href="/roof-check">5-year storm history for your address</a></li>
       <li><a href="/storm-alerts">Storm alerts by text</a></li>
       <li><a href="/free-tools">All free tools and guides</a></li>
     </ul>
@@ -384,5 +401,8 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 </div>
 <!-- /nbd:partial mobile-cta -->
 <script defer src="/assets/js/guide-pdf-slot.js?v=2"></script>
+<script defer src="/assets/js/quick-lead-form.js"></script>
+<script defer src="/assets/js/public-lead-submit.js"></script>
+<script defer src="/assets/js/guide-email-copy.js?v=2"></script>
 </body>
 </html>

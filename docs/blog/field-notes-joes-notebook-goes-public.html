@@ -476,13 +476,16 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.75);padding:56px 5% 2
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <link rel="stylesheet" href="/assets/css/nbd-nav.css">
 <link rel="stylesheet" href="/assets/css/blog-nav-fit.css">
+<script defer src="/assets/js/ga-loader.js" data-gtag="https://www.googletagmanager.com/gtag/js?id=G-8PG7N9Q3DL"></script>
+<script defer src="/assets/js/inline/2a90205f1b.js"></script>
+<script defer src="/assets/js/clarity-loader.js"></script>
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 <div class="ann-bar" id="annBar" role="region" aria-label="Announcements">
   <div class="ann-slide active"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2 L4 6 V12 C4 17 8 21 12 22 C16 21 20 17 20 12 V6 Z"/></svg> <span class="ann-text" data-long="The NBD Pledge — I stand behind every install personally" data-short="The NBD Pledge — Backed by Joe">The NBD Pledge — I stand behind every install personally</span></div>
+  <div class="ann-slide" data-nbd-season-ann="winter"><svg class="ico" viewBox="0 0 24 24" style="margin-right:6px"><path d="M12 2 V22"/><path d="M3.3 7 L20.7 17"/><path d="M3.3 17 L20.7 7"/></svg><a href="/services/emergency-roof-tarping" style="color:inherit;text-decoration:none"><span class="ann-text" data-long="Ice Dam or Storm Leak? 24/7 Same-Day Tarping When Daylight &amp; Weather Allow" data-short="Winter Leak? Emergency Tarping">Ice Dam or Storm Leak? 24/7 Same-Day Tarping When Daylight &amp; Weather Allow</span></a></div>
   <div class="ann-slide"><svg class="ico" viewBox="0 0 24 24"><path d="M3 11 L12 3 L21 11"/><path d="M5 10 V20 H19 V10"/></svg> <a href="tel:+18594207382" style="color:inherit;text-decoration:none"><span class="ann-text" data-long="Free Roof Inspections — Call or Text Joe: (859) 420-7382" data-short="Free Inspections — (859) 420-7382">Free Roof Inspections — Call or Text Joe: (859) 420-7382</span></a></div>
   <div class="ann-slide"><svg class="ico ico-fill" viewBox="0 0 24 24"><path d="M13 2 L4 14 L11 14 L10 22 L20 10 L13 10 Z"/></svg> <span class="ann-text" data-long="Storm Damage? I Document It and Meet Your Adjuster — No Big Deal" data-short="Storm Damage? I Meet Your Adjuster">Storm Damage? I Document It and Meet Your Adjuster — No Big Deal</span></div>
-  <div class="ann-slide" data-nbd-freeroof-ann="v1"><a href="/free-roof" style="color:inherit;text-decoration:none"><svg class="ico" viewBox="0 0 24 24" style="margin-right:6px"><path d="M3 11 L12 3 L21 11"/><path d="M5 10 V20 H19 V10"/></svg><span class="ann-text" data-long="One free roof a year — nominate a Greater Cincinnati or NKY neighbor &rarr;" data-short="One free roof a year &rarr;">One free roof a year &rarr;</span></a></div>
 </div>
 <!-- nbd:partial nav-blog cta_href="/inspect" -->
 <nav id="mainNav" class="nav">
@@ -516,11 +519,10 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.75);padding:56px 5% 2
         <li><a href="/services/fire-water-smoke-damage">Fire &amp; Water Damage</a></li>
         <li><a href="/services/financing">Financing</a></li>
         <li><a href="/visualizer" style="color:var(--orange-light,#dd875f)">Roof Visualizer</a></li>
-        <li><a href="/roof-score" style="color:var(--orange-light,#dd875f)">Roof Score</a></li>
+        <li><a href="/roof-check" style="color:var(--orange-light,#dd875f)">Free Roof Check</a></li>
         <li><a href="/free-tools" style="color:var(--orange-light,#dd875f)">All Free Tools</a></li>
         <li><a href="/storm-alerts" style="color:var(--orange-light,#dd875f)">Storm Alerts</a></li>
-        <li><a href="/storm-report" style="color:var(--orange-light,#dd875f)">5-Year Storm Report</a></li>
-        <li><a href="/storm-check" style="color:var(--orange-light,#dd875f)">Is It Worth a Claim?</a></li><li><a href="/inspect" style="color:var(--orange-light,#dd875f)">Free Inspection</a></li>
+        <li><a href="/inspect" style="color:var(--orange-light,#dd875f)">Free Inspection</a></li>
       </ul>
     </li>
     <li><a href="/about">About Joe</a></li>
@@ -571,11 +573,9 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.75);padding:56px 5% 2
   <a href="/blog">Blog</a>
   <div class="mnav-group">Tools</div>
   <a href="/estimate" style="color:#dd875f">Instant Estimate</a>
-  <a href="/roof-score" style="color:#dd875f">Roof Score</a>
+  <a href="/roof-check" style="color:#dd875f">Free Roof Check</a>
   <a href="/visualizer" style="color:#dd875f">Roof Visualizer</a>
   <a href="/storm-alerts" style="color:#dd875f">Storm Alerts</a>
-  <a href="/storm-report" style="color:#dd875f">5-Year Storm Report</a>
-  <a href="/storm-check" style="color:#dd875f">Is It Worth a Claim?</a>
   <a href="/inspect" style="color:#dd875f">Free Inspection</a>
   <a href="/free-tools" style="color:#dd875f">All Free Tools</a>
   <a href="/inspect" style="color:#bd5728;font-weight:800;">Book Inspection &rarr;</a>
@@ -616,7 +616,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.75);padding:56px 5% 2
   <h3>Questions About Your Roof?<br>Ask Joe Directly.</h3>
   <p>No call center, no runaround. Joe answers his own phone and gives you a straight answer.</p>
   <a href="tel:+18594207382" class="cta-btn">📞 (859) 420-7382</a>
-  <a href="/#contact" class="cta-btn-outline">Get My Free Estimate →</a>
+  <a href="/inspect" class="cta-btn-outline">Book a free inspection →</a>
   <a href="https://cal.com/nobigdeal/roof-inspection" target="_blank" rel="noopener noreferrer" class="cta-btn-outline"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg> Schedule Inspection</a>
 </div>
 <div class="related-posts">

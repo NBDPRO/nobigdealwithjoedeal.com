@@ -68,8 +68,10 @@ const et = (hhmm) => Date.parse('2026-10-02T' + hhmm + ':00-04:00');
   ok('6+ hours later: told again', r.told.includes('callwatch_not_running') && sent.length === 2, JSON.stringify(r));
   sent = []; db = fakeDb(base());
   r = await D.run({ db, nowMs: Date.parse('2026-10-03T03:00:00-04:00'), live: true, env: Object.assign({}, env, { CALL_WATCH_ENABLED: 'false' }), notify });
-  ok('overnight: ingest silent is reported but no 3 a.m. push', r.problems.length === 1 && r.problems[0] === 'ingest_not_running' || r.problems.includes('ingest_not_running'));
-  ok('...nothing sent overnight', sent.length === 0);
+  ok('overnight: ingest silent is reported', r.problems.length === 1 && r.problems[0] === 'ingest_not_running' || r.problems.includes('ingest_not_running'));
+  // Roadmap step 13 (2026-11-25): a stopped call / text job is told at ANY hour
+  // (the step 11 rule; owner-notify.js owns quiet hours), so 03:00 now pushes.
+  ok('...and told at 3 a.m. (a dead call pipeline is any-hour)', sent.length === 1 && r.told.includes('ingest_not_running'), JSON.stringify(r));
   db = fakeDb(base()); sent = [];
   r = await D.run({ db, nowMs: et('10:40'), live: false, env, notify });
   ok('dry run: computes, tells nothing, writes nothing', r.problems.length === 1 && sent.length === 0 && !db.docs['integrations/pipelineHealth']);
@@ -91,6 +93,16 @@ const et = (hhmm) => Date.parse('2026-10-02T' + hhmm + ':00-04:00');
   ok('runner reads the newest phone_calls row and reports a silent phone', r.problems.join() === 'no_new_recordings', JSON.stringify(r));
   r = await D.run({ db: fakeDb2(et('10:40') - 2 * H), nowMs: et('10:40'), live: true, env, notify: async () => {} });
   ok('control: a recent recording -> all clear', r.problems.length === 0 && r.state === 'ok', JSON.stringify(r));
+
+  console.log('C3. the watcher of every other cron (cron-deadman.js, 2026-11-22)');
+  const cdm = (checkedAtMs, now) => D.deadManProblems(Object.assign({}, fresh, { now: now || et('10:40'), cronDeadman: { checkedAtMs } })).map((p) => p.key);
+  ok('cronDeadman last ran 2 h ago (daytime) -> cron_deadman_not_running', cdm(et('08:40')).join() === 'cron_deadman_not_running', cdm(et('08:40')).join());
+  ok('ran 20 min ago -> fine', cdm(et('10:20')).length === 0);
+  ok('stale at 03:00 ET -> reported too (it guards the any-hour call/text path)', cdm(et('00:30'), et('03:00')).join() === 'cron_deadman_not_running');
+  ok('no system/heartbeats doc (not deployed yet) -> says nothing', D.deadManProblems(Object.assign({}, fresh, { cronDeadman: null })).length === 0);
+  const docs3 = { 'integrations/callWatch': { lastCheckAtMs: et('10:00') + 1000 }, 'integrations/callCenter': { lastRunAtMs: et('10:20'), lastTranscribeAtMs: et('10:20') }, 'system/heartbeats': { checkedAtMs: et('07:00') } };
+  r = await D.run({ db: { docs: docs3, doc: (p) => ({ get: async () => ({ exists: p in docs3, data: () => docs3[p] }), set: async (v) => { docs3[p] = v; } }), collection: () => ({}) }, nowMs: et('10:40'), live: true, env, notify: async () => {} });
+  ok('runner reads system/heartbeats and reports it (so the watchdog run fails)', r.problems.includes('cron_deadman_not_running'), JSON.stringify(r));
 
   console.log('D. wired into the 10-minute watchdog');
   const src = fs.readFileSync(path.join(ROOT, 'functions/lead-alert-watchdog.js'), 'utf8').replace(/\r\n/g, '\n');

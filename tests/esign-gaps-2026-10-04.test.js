@@ -214,12 +214,14 @@ function load(db, storage, extraStubs) {
     './job-spine': { spineAfterEsign: async (_db, env, id) => { spine.push(id); return {}; } },
     './esign-stamp': require(path.join(FN, 'esign-stamp.js')),
     './esign-logic': require(path.join(FN, 'esign-logic.js')),
+    './doc-evidence': require(path.join(FN, 'doc-evidence.js')),
     './estimate-esign-pdf': require(path.join(FN, 'estimate-esign-pdf.js')),
     './ky-insurance-law': require(path.join(FN, 'ky-insurance-law.js')),
     './customer-estimate-rows': require(path.join(FN, 'customer-estimate-rows.js')),
     './deposit-plan-view': require(path.join(FN, 'deposit-plan-view.js')),
     './cancel-window': require(path.join(FN, 'cancel-window.js')),
     './cancel-notice-pdf': require(path.join(FN, 'cancel-notice-pdf.js')),
+    './send-window': require('./lib/send-window-open'), // the customer window is tested in send-window-2026-11-22
     './integrations/heartbeat': { onSchedule: (o, h) => { const f = async () => h(); f.__options = o; return f; } },
   };
   Object.assign(stubs, extraStubs || {});
@@ -613,7 +615,7 @@ const tokenFor = (db, envelopeId, signerId) => {
     const SIG = 'data:image/png;base64,' + 'A'.repeat(400);
     const PAGE = Buffer.from('<!doctype html><html><body>deal page</body></html>');
     const dbA = makeDb({
-      'deal_accept_tokens/DEALTOKEN0001': { dealId: 'DEAL1', ownerUid: UID, leadId: 'LEAD1', status: 'pending', htmlPath: `deal_rooms/${UID}/DEAL1.html`,
+      'deal_accept_tokens/DEALTOKEN0001': { dealId: 'DEAL1', ownerUid: UID, leadId: 'LEAD1', status: 'pending', htmlPath: `deal_rooms/${UID}/DEAL1.html`, pageSha256: sha256(PAGE),
         tierPrices: { better: 13000 }, customerName: 'Pat', expiresAt: { toMillis: () => Date.now() + 86_400_000 } },
       'deal_rooms/DEAL1': { userId: UID, status: 'sent', customerName: 'Pat' },
     });
@@ -641,6 +643,7 @@ const tokenFor = (db, envelopeId, signerId) => {
       './photo-reencode': { reencodePhoto: async (x) => x },
       './await-briefly': require(path.join(FN, 'await-briefly.js')),
       './portal-after-signing': require(path.join(FN, 'portal-after-signing.js')),
+      './doc-evidence': require(path.join(FN, 'doc-evidence.js')),
     };
     const mod = { exports: {} };
     new Function('module', 'exports', 'require', fs.readFileSync(path.join(FN, 'deal-acceptance.js'), 'utf8'))(

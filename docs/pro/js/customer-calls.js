@@ -142,8 +142,10 @@
         }
       }
     }
-    // A merged redial (Call to Close P2) shows through its first call.
-    return Object.keys(byId).map(function (k) { return byId[k]; }).filter(function (x) { return !x.mergedInto; }).sort(function (a, b) {
+    // A merged redial (Call to Close P2) shows through its first call. A
+    // Thursday call's phone_calls projection (source 'thursday', roadmap step
+    // 17C) is already here from thursday_calls: one row, not two.
+    return Object.keys(byId).map(function (k) { return byId[k]; }).filter(function (x) { return !x.mergedInto && !(x._kind === 'phone' && x.source === 'thursday'); }).sort(function (a, b) {
       return callTime(b) - callTime(a);
     });
   }
@@ -482,7 +484,7 @@
     var pc = phoneCall(id);
     if (!pc) return;
     try {
-      if (!window.NBDCallBrief && window.ScriptLoader) await window.ScriptLoader.load('/pro/js/call-brief-ui.js?v=4');
+      if (!window.NBDCallBrief && window.ScriptLoader) await window.ScriptLoader.load('/pro/js/call-brief-ui.js?v=6');
     } catch (_) { /* reported below */ }
     if (!window.NBDCallBrief) { status(id, 'Could not open the call brief. Try again in a moment.'); return; }
     window.NBDCallBrief[tx ? 'transcribe' : 'open']({ callId: pc._id, call: pc, lead: window._leadDoc || {}, leadId: window._customerId, page: 'customer', onChange: load });

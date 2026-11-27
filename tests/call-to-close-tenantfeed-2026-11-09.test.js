@@ -85,6 +85,9 @@ function world(extra) {
     ['companies/' + B.cid]: { ownerId: B.owner },
     ['companyProfile/' + A.cid]: { companyName: 'Acme Exteriors', serviceArea: 'Dayton, OH' },
     ['companyProfile/' + B.cid]: { brand: { name: 'Beta Roofing Co' }, city: 'Lexington', state: 'KY' },
+    // 2026-11-25: the one AI gate (functions/ai-gate.js) checks each tenant's own plan; both pay.
+    ['subscriptions/' + A.cid]: { plan: 'growth', status: 'active' },
+    ['subscriptions/' + B.cid]: { plan: 'growth', status: 'active' },
     // The same customer number in three tenants: each must match only its own lead.
     'leads/nbdLead': { companyId: OWNER, userId: OWNER, firstName: 'Nora', lastName: 'Nbd', phone: '(812) 555-0113' },
     'leads/aLead': { companyId: A.cid, userId: A.owner, firstName: 'Avery', lastName: 'Acme', phone: '(812) 555-0113' },
@@ -326,7 +329,8 @@ const callsOf = (db) => [...db.docs.entries()].filter(([k]) => /^phone_calls\/[^
     }, extra || {})));
     const tap = async (db, auth) => { try { return { r: await TN._test.transcribeNow({ db, bucket: fakeBucket(), auth, data: { callId: ID }, nowMs: NOW, log: { info() {}, warn() {} } }) }; } catch (e) { return { e }; } };
     const ownerA = { uid: A.owner, token: { companyId: A.cid, email_verified: true } };
-    const caA = { uid: 'caA', token: { role: 'company_admin', companyId: A.cid } };
+    // 2026-11-25: Transcribe now runs the one AI gate on the tapper (confirmed email + paid plan).
+    const caA = { uid: 'caA', token: { role: 'company_admin', companyId: A.cid, email_verified: true } };
     const caB = { uid: 'caB', token: { role: 'company_admin', companyId: B.cid } };
     process.env.CALL_CENTER_TRANSCRIBE_ENABLED = 'true';
     const prev = process.env.CALL_CENTER_MULTI_TENANT_ENABLED;
@@ -340,6 +344,9 @@ const callsOf = (db) => [...db.docs.entries()].filter(([k]) => /^phone_calls\/[^
     stubDeps(); db = seedNow();
     o = await tap(db, caA);
     ok('a same-company company_admin may too', o.r && o.r.state === 'noted', o.e ? o.e.message : o.r);
+    stubDeps(); db = seedNow();
+    o = await tap(db, { uid: 'caA2', token: { role: 'company_admin', companyId: A.cid } });
+    ok('…but not with an unconfirmed email (the AI gate), and nothing is transcribed', !!(o.e && /Confirm your email/.test(o.e.message)) && model.length === 0, o.e ? o.e.message : o.r);
     stubDeps(); db = seedNow();
     o = await tap(db, caB);
     ok('another tenant\'s company_admin → refused', o.e && o.e.code === 'permission-denied' && model.length === 0, o.e && o.e.message);

@@ -1,6 +1,13 @@
 /**
  * price-offers-ui.js: the "Stores & prices" sheet (2026-11-17, flag supplierPricing).
  *
+ * The Product Library's "Unlinked items" button (data-prl-action="openUnlinked",
+ * slice 2) opens the same sheet as a list of receipt items no product is linked
+ * to yet; the owner or an admin links each to a product. Slice 3: each one shows a
+ * suggested product (SKU match first, else name match) that links with one tap; the
+ * picker is still there to choose another. A product's sheet also shows its suppliers
+ * side by side and each quote's "good for N more days" (js/price-compare-ui.js).
+ *
  * Opened from a product card (data-prl-action="openProduct"). For one product it
  * shows the store and supplier items linked to it, each with its pack size, its
  * current price with the source and date, and (for the owner, an admin or a
@@ -94,7 +101,9 @@
   }
   function perCatalog(offer, r) {
     if (packState(offer) !== 'ok') return '';
-    const c = LG().toCatalogMicros(r.priceMicros, r.per, r.statedUnit, offer.pack);
+    // A summary point (latest.best, latest.lastPaid) carries no channel; its
+    // per-unit price was already derived by the server from the current pack.
+    const c = (r.source == null && r.statedUnit == null) ? { micros: typeof r.catalogMicros === 'number' ? r.catalogMicros : null, flag: null } : LG().catalogMicrosFor(r, offer);
     if (c.micros === null) return c.flag === 'unit_mismatch' ? '<span class="prl-dim">Unit does not match this item</span>' : '';
     return '<span class="ui-money">' + esc(money(c.micros)) + '</span> per ' + esc(catalogUnitLabel(offer.pack.catalogUnit));
   }
@@ -105,7 +114,8 @@
     return '<div class="prl-best">' +
       '<div class="prl-price"><span class="ui-money">' + statedText(b) + '</span>' + (perCatalog(offer, b) ? ' <span class="prl-dim">·</span> ' + perCatalog(offer, b) : '') + '</div>' +
       '<div class="prl-src">' + esc(KIND_SHORT[b.kind] || b.kind) + ' · ' + esc(dateText(b.observedAtMs)) + ' (' + esc(ageText(b.observedAtMs)) + ')' +
-      (b.taxIncluded ? ' · tax included' : ' · before tax') + ' ' + levelBadge(b, offer.supplierId) + '</div></div>';
+      (b.taxIncluded ? ' · tax included' : ' · before tax') + ' ' + levelBadge(b, offer.supplierId) +
+      (w.NBDPriceCompareUI ? w.NBDPriceCompareUI.expiryHtml(b.validThroughMs) : '') + '</div></div>';
   }
 
   function historyBlock(offer) {
@@ -137,16 +147,197 @@
     if (staff) btns.push('<button type="button" class="ui-btn-quiet prl-btn" data-prl-action="toggleHistory" data-prl-id="' + esc(offer.id) + '">' + (S.history[offer.id] !== undefined ? 'Hide history' : 'History') + '</button>');
     if (admin) btns.push('<button type="button" class="ui-btn-quiet prl-btn" data-prl-action="showPack" data-prl-id="' + esc(offer.id) + '">' + (st === 'ok' ? 'Change pack size' : 'Set pack size') + '</button>');
     if (admin && st === 'ok' && !offer.pack.verified) btns.push('<button type="button" class="ui-btn-quiet prl-btn" data-prl-action="confirmPack" data-prl-id="' + esc(offer.id) + '">Confirm pack size</button>');
+    if (admin && offer.latest && offer.latest.bestComparable) btns.unshift('<button type="button" class="btn btn-orange prl-btn" data-prl-action="showCost" data-prl-id="' + esc(offer.id) + '">Update my cost</button>');
     if (admin) btns.push('<button type="button" class="ui-btn-quiet prl-btn" data-prl-action="archive" data-prl-id="' + esc(offer.id) + '">Remove</button>');
     return '<div class="prl-offer">' +
       '<div class="prl-otitle"><span class="prl-store">' + esc(supplierLabel(offer.supplierId)) + '</span>' + esc(offer.title) + '</div>' +
       '<div class="prl-src">' + (offer.sku ? 'SKU ' + esc(offer.sku) : 'No SKU') + link + '</div>' +
       '<div class="prl-pack">' + packLine(offer) + '</div>' +
+      photoBlock('offer', offer.id, offer.photo, offer.title) +
       bestBlock(offer) +
       '<div class="prl-actions">' + btns.join('') + '</div>' +
+      costPanelHtml(offer) +
       (S.form && S.form.offerId === offer.id ? formHtml() : '') +
       historyBlock(offer) +
       '</div>';
+  }
+
+  // ── Slice 4: Update my cost (a supplier price into the cost book, line by line) ──
+  const TIER_WORDS = { good: 'Good', better: 'Better', best: 'Best' };
+  const COST_REASONS = {
+    no_price: 'No price to use yet.',
+    not_paperwork: 'Only your own paperwork can update a cost: a receipt, invoice, quote, price sheet or account price an owner or admin entered.',
+    price_type: 'A list or sale price can not update your cost.',
+    delivered: 'A delivered price includes delivery, so it can not update your cost.',
+    not_comparable: 'This price can not be used for cost changes.',
+    unit_suspect: 'This price looks like it was entered in the wrong unit. Check it or void it first.',
+    stale: 'This price is too old to trust. Get a current receipt or quote first.',
+    needs_pack: 'Confirm the pack size first.',
+    unit_changed: 'The product\'s unit changed. Set the pack size again first.',
+    needs_tax_rate: 'Set your purchase sales tax rate first (Company Settings, Supplier Price Compare).',
+    no_cost_book: 'Open the Product Library once on the owner\'s device so your costs are saved, then try again.',
+    below_one_cent: 'That cost rounds to less than one cent.',
+    no_change: 'Your cost book already has this cost.',
+    changed: 'Something changed since this was shown. Look again.',
+  };
+  const centsText = (c) => (typeof c === 'number' ? (c < 0 ? '-' : '') + money(LG().centsToMicros(Math.abs(c))) : '');
+  function tierTicks(selected) {
+    const sel = (selected && selected.length) ? selected : ['good'];
+    return '<fieldset class="prl-field prl-ticks"><legend class="prl-label">This item is for the tiers</legend>' +
+      ['good', 'better', 'best'].map((t) => '<label class="prl-tick"><input type="checkbox" name="tier" value="' + t + '"' + (sel.indexOf(t) !== -1 ? ' checked' : '') + '> ' + esc(TIER_WORDS[t]) + '</label>').join('') +
+      '<span class="prl-hint">Update my cost changes only the ticked tiers.</span></fieldset>';
+  }
+  const tiersFrom = (fd) => fd.getAll('tier').filter((t) => TIER_WORDS[t]);
+
+  /** The approval panel's lines, built on this device with the same code the server runs again. */
+  function buildCost(offer, row) {
+    const PLx = PL(), CC = w.NBDCatalogCosts;
+    const acct = accountOf(offer.supplierId);
+    const r = Object.assign({}, row, { catalogMicros: offer.latest && offer.latest.bestComparable ? offer.latest.bestComparable.catalogMicros : null });
+    return LG().proposalLines({
+      product: S.product || {}, offer, row: r, book: (CC && typeof CC.get === 'function') ? CC.get() : null,
+      taxBps: PLx.compareSettings().taxBps, floorTenths: LG().marginFloorTenths(w._companyProfile || {}),
+      nowMs: Date.now(), quoteValidDays: acct && acct.terms && acct.terms.quoteValidDays,
+    });
+  }
+  function costLineHtml(l, ticked) {
+    const g = l.guard, can = !l.blocked;
+    const ct = l.fromCents === null || l.toCents === null ? null : LG().changeTenths(l.fromCents, l.toCents);
+    const plus = (n) => (n > 0 ? '+' : '');
+    const change = (l.fromCents === null) ? 'no cost set before' : (plus(l.toCents - l.fromCents) + centsText(l.toCents - l.fromCents) + (ct === null ? '' : ' (' + plus(ct) + LG().tenthsText(ct) + ')'));
+    const margin = g.marginAfter === null ? '<span class="prl-dim">No sell price on this tier, so no margin to show.</span>'
+      : 'Margin after labor: ' + (g.marginBefore === null ? '' : esc(LG().tenthsText(g.marginBefore)) + ' → ') + '<strong>' + esc(LG().tenthsText(g.marginAfter)) + '</strong>' + (g.laborKnown ? '' : ' <span class="prl-dim">(no labor set)</span>');
+    const warns = [];
+    if (can && g.aboveSell) warns.push('<span class="ui-badge is-danger">Cost is above the sell</span>');
+    if (can && g.belowFloor) warns.push('<span class="ui-badge is-warn">Under your margin floor</span>');
+    return '<div class="prl-hrow">' +
+      (can ? '<label class="prl-tick"><input type="checkbox" data-prl-change="costTick" value="' + esc(l.tier) + '"' + (ticked ? ' checked' : '') + '> <strong>' + esc(TIER_WORDS[l.tier]) + '</strong></label>' : '<strong>' + esc(TIER_WORDS[l.tier]) + '</strong>') +
+      '<div class="prl-hmain">Was ' + (l.fromCents === null ? 'not set' : '<span class="ui-money">' + esc(centsText(l.fromCents)) + '</span>') +
+      (l.toCents === null ? '' : ' · now <span class="ui-money">' + esc(centsText(l.toCents)) + '</span> · ' + esc(change)) + '</div>' +
+      (l.toCents === null ? '' : '<div class="prl-src">' + margin + (warns.length ? ' ' + warns.join(' ') : '') + '</div>') +
+      (l.blocked ? '<div class="prl-dim">' + esc(COST_REASONS[l.blocked] || 'This line can not be approved.') + '</div>' : '') +
+      '</div>';
+  }
+  function costPanelHtml(offer) {
+    const c = S.cost;
+    if (!c || c.offerId !== offer.id) return '';
+    if (c.loading) return '<div class="prl-form"><div class="prl-dim">Checking this price…</div></div>';
+    const built = c.built, can = built.lines.filter((l) => !l.blocked);
+    return '<div class="prl-form">' +
+      '<h3 class="prl-h3">Update my cost</h3>' +
+      '<div class="prl-hint">The new cost is this price per ' + esc(catalogUnitLabel(offer.pack && offer.pack.catalogUnit)) + (c.row && c.row.taxIncluded ? ' (tax included)' : ' with your sales tax added') +
+      '. Only the cost changes: no sell price, labor or estimate moves.</div>' +
+      (built.blocked && COST_REASONS[built.blocked] ? '<div class="prl-note">' + esc(COST_REASONS[built.blocked]) + '</div>' : '') +
+      '<div class="prl-hist">' + built.lines.map((l) => costLineHtml(l, c.ticks[l.tier] === true)).join('') + '</div>' +
+      '<div class="prl-actions">' + (can.length ? '<button type="button" class="btn btn-orange prl-btn" data-prl-action="approveCost"' + (S.busy ? ' disabled' : '') + '>Approve</button>' : '') +
+      '<button type="button" class="ui-btn-quiet prl-btn" data-prl-action="cancelCost">Cancel</button></div>' +
+      (S.error ? '<div class="prl-error" role="alert">' + esc(S.error) + '</div>' : '') +
+      '</div>';
+  }
+  /**
+   * A product's or an item's photo (2026-11-18). The picture is read with getBlob
+   * (NBDPriceLedger.paintPhotos fills the src); the owner and admins add, change or
+   * remove it. The file input sits inside its label: no inline handler.
+   */
+  function photoBlock(target, id, photo, what) {
+    const admin = PL().canSave();
+    const has = photo && typeof photo.path === 'string';
+    if (!has && !admin) return '';
+    const input = '<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="prl-file-input" data-prl-change="photo" data-prl-target="' + esc(target) + '" data-prl-id="' + esc(id) + '">';
+    return '<div class="prl-photo-row">' +
+      (has ? '<img class="prl-photo" alt="' + esc('Photo of ' + what) + '" data-prl-photo="' + esc(photo.path) + '"' + (photo.w && photo.h ? ' width="' + esc(photo.w) + '" height="' + esc(photo.h) + '"' : '') + '>' : '') +
+      (admin ? '<div class="prl-actions"><label class="ui-btn-quiet prl-btn prl-file">' + (has ? 'Change photo' : 'Add a photo') + input + '</label>' +
+        (has ? '<button type="button" class="ui-btn-quiet prl-btn" data-prl-action="removePhoto" data-prl-target="' + esc(target) + '" data-prl-id="' + esc(id) + '">Remove photo</button>' : '') + '</div>' : '') +
+      '</div>';
+  }
+
+  /**
+   * Estimate codes (2026-11-18, Jo): the estimate line codes that price from this
+   * product on the materials list. The starter list until the owner or an admin
+   * changes it here; a code another product also claims is flagged, and that line
+   * stays unpriced until one of them lets it go. A manager sees the list only.
+   */
+  function codesBlock() {
+    const p = S.product;
+    if (!p || !S.productId) return '';
+    const links = S.links || [];
+    const mine = LG().productEstimateCodes(S.productId, links);
+    const map = LG().lineCodeMap(links);
+    const set = !!(S.link && S.link.estimateCodesSet === true);
+    const admin = PL().canSave();
+    const cat = w.NBD_XACT_CATALOG;
+    const nameOf = (code) => { const it = cat && typeof cat.find === 'function' ? cat.find(code) : null; return it ? it.name : ''; };
+    const unitOf = (code) => { const it = cat && typeof cat.find === 'function' ? cat.find(code) : null; return it ? String(it.unit || '').toUpperCase() : ''; };
+    const chips = mine.map((c) => {
+      const conflict = map[c] === null;
+      const otherUnit = unitOf(c) && p.unit && unitOf(c) !== p.unit;
+      return '<li class="prl-code"><span class="prl-code-id">' + esc(c) + '</span> ' + esc(nameOf(c)) +
+        (conflict ? ' <span class="ui-badge is-warn">Another product has this code</span>' : '') +
+        (otherUnit ? ratioHtml(c, unitOf(c), p, admin) : '') +
+        (admin ? ' <button type="button" class="ui-btn-quiet prl-btn" data-prl-action="removeCode" data-prl-id="' + esc(c) + '" aria-label="' + esc('Remove the code ' + c) + '">Remove code</button>' : '') + '</li>';
+    }).join('');
+    let add = '';
+    if (admin) {
+      const items = (cat && Array.isArray(cat.items)) ? cat.items : [];
+      const sugg = items.filter((it) => it && it.code && mine.indexOf(it.code) === -1 && LG().materialProductsFor(it.code, it.sub, [p]).length)
+        .map((it) => opt(it.code, it.code + ' · ' + it.name + (map[it.code] ? ' (now on another product)' : ''))).join('');
+      add = '<form class="prl-form" data-prl-form="codes" novalidate>' +
+        field('Add an estimate code', '<input class="prl-input" name="code" maxlength="40" autocomplete="off" list="prlCodeList" placeholder="RFG 240-GAF-HDZ">' +
+          (sugg ? '<datalist id="prlCodeList">' + sugg + '</datalist>' : ''), 'Lines on an estimate with this code price from this product on the materials list.') +
+        '<div class="prl-actions"><button type="submit" class="btn btn-ghost prl-btn"' + (S.busy ? ' disabled' : '') + '>Add code</button>' +
+        (set ? '<button type="button" class="ui-btn-quiet prl-btn" data-prl-action="resetCodes">Use the starter list</button>' : '') + '</div>' +
+        (S.error && !S.form ? '<div class="prl-error" role="alert">' + esc(S.error) + '</div>' : '') + '</form>';
+    }
+    return '<div class="prc-block"><div class="prc-main">Estimate codes</div>' +
+      '<div class="prl-hint">' + (set ? 'Your list for this product.' : 'The starter list.') + ' A materials-list line prices from this product only when its estimate code is here.</div>' +
+      (mine.length ? '<ul class="prl-codes">' + chips + '</ul>' : '<div class="prl-dim">No estimate code is linked to this product.</div>') +
+      add + '</div>';
+  }
+
+  /**
+   * A code whose estimate unit is not the product's (2026-11-18, Jo): the saved ratio
+   * ("1 bundle = 25 LF"), or a box to type one, pre-filled from the product's coverage
+   * when it says. Nothing is priced in the other unit until a ratio is saved.
+   */
+  function ratioHtml(code, estUnit, p, admin) {
+    const saved = S.link && S.link.codeRatios && S.link.codeRatios[code];
+    const pUnit = catalogUnitLabel(p.unit), eUnit = String(estUnit || '');
+    if (saved && S.ratioEdit !== code) {
+      return ' <span class="ui-badge is-success">1 ' + esc(pUnit) + ' = ' + esc(LG().ratioText(saved)) + ' ' + esc(eUnit) + '</span>' +
+        (admin ? ' <button type="button" class="ui-btn-quiet prl-btn" data-prl-action="editRatio" data-prl-id="' + esc(code) + '">Change</button>' +
+          ' <button type="button" class="ui-btn-quiet prl-btn" data-prl-action="removeRatio" data-prl-id="' + esc(code) + '">Remove ratio</button>' : '');
+    }
+    const note = ' <span class="ui-badge is-info">Estimate per ' + esc(eUnit) + ', priced per ' + esc(p.unit) + '</span>';
+    if (!admin) return note + ' <span class="prl-dim">Not priced until an owner or admin sets how many ' + esc(eUnit) + ' one ' + esc(pUnit) + ' is.</span>';
+    const sug = saved || LG().suggestCodeRatio(p, eUnit);
+    return note + '<form class="prl-form" data-prl-form="ratio" data-prl-code="' + esc(code) + '" novalidate>' +
+      field('1 ' + pUnit + ' is how many ' + eUnit + '?', '<input class="prl-input" name="ratio" inputmode="decimal" autocomplete="off" value="' + esc(sug ? LG().ratioText(sug) : '') + '" placeholder="10">',
+        sug && !saved ? 'Suggested from the product\'s coverage: check it against your supplier before you save.' : 'Lines with this code are priced in ' + pUnit + ' once you save this.') +
+      '<div class="prl-actions"><button type="submit" class="btn btn-ghost prl-btn"' + (S.busy ? ' disabled' : '') + '>Save ratio</button>' +
+      (S.ratioEdit === code ? '<button type="button" class="ui-btn-quiet prl-btn" data-prl-action="cancelRatio">Cancel</button>' : '') + '</div></form>';
+  }
+
+  /** Above the items: a tier whose cost is above its sell (Q5), and the last approved change per tier with Undo (Q8). */
+  function costNotesHtml() {
+    const p = S.product, out = [];
+    if (!p) return '';
+    ['good', 'better', 'best'].forEach((t) => {
+      const tp = p.pricing && p.pricing[t];
+      if (tp && typeof tp.cost === 'number' && typeof tp.sell === 'number' && tp.sell > 0 && tp.cost > tp.sell) out.push('<div class="prl-note">' + esc(TIER_WORDS[t]) + ': the cost is above the sell price. Raise the sell in the product to make money on this tier.</div>');
+    });
+    const applied = (S.link && S.link.applied) || {};
+    if (PL().canSave()) {
+      ['good', 'better', 'best'].forEach((t) => {
+        const a = applied[t];
+        if (!a || a.undo === true || typeof a.dollars !== 'number') return;
+        const cur = p.pricing && p.pricing[t] && p.pricing[t].cost;
+        if (typeof cur !== 'number' || LG().dollarsToMicros(cur) !== LG().dollarsToMicros(a.dollars)) return;
+        out.push('<div class="prl-src">' + esc(TIER_WORDS[t]) + ' cost updated from a supplier price ' + esc(ageText(a.atMs)) + ': ' +
+          (typeof a.fromDollars === 'number' ? esc(money(LG().dollarsToMicros(a.fromDollars))) : 'not set') + ' → ' + esc(money(LG().dollarsToMicros(a.dollars))) +
+          ' <button type="button" class="ui-btn-quiet prl-btn" data-prl-action="undoCost" data-prl-id="' + esc(t) + '" data-prl-audit="' + esc(a.auditId) + '">Undo</button></div>');
+      });
+    }
+    return out.join('');
   }
 
   const opt = (value, label, selected) => '<option value="' + esc(value) + '"' + (selected ? ' selected' : '') + '>' + esc(label) + '</option>';
@@ -195,15 +386,28 @@
         field('Link to the item (optional)', '<input class="prl-input" name="url" type="url" maxlength="500" autocomplete="off">', 'An https link on that supplier\'s own site.') +
         field('Sold by the', '<select class="prl-input" name="purchaseUnit" data-prl-change="packUnit">' + unitOptions('EA') + '</select>') +
         '<div id="prlPackFields">' + packFields('EA', null) + '</div>' +
+        tierTicks(['good']) +
         foot + '</form>';
     }
     const offer = (S.offers || []).find((o) => o.id === f.offerId) || {};
+    if (f.type === 'link') {
+      const products = (((w._productLib && typeof w._productLib.getProducts === 'function') ? w._productLib.getProducts() : (w.NBD_PRODUCTS || [])) || [])
+        .filter((p) => p && p.id && p.isActive !== false)
+        .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+      return '<form class="prl-form" data-prl-form="link" novalidate>' +
+        '<h3 class="prl-h3">Link to a product</h3>' +
+        field('Product in your library', '<select class="prl-input" name="productId" required>' + opt('', 'Choose…', true) + products.map((p) => opt(p.id, (p.name || p.id) + (p.unit ? ' (per ' + catalogUnitLabel(p.unit) + ')' : ''))).join('') + '</select>',
+          'After linking, open the product\'s Stores & prices to set the pack size.') +
+        tierTicks(offer.tiers) +
+        foot + '</form>';
+    }
     if (f.type === 'pack') {
       const pu = (offer.pack && offer.pack.purchaseUnit) || 'EA';
       return '<form class="prl-form" data-prl-form="pack" novalidate>' +
         '<h3 class="prl-h3">Pack size</h3>' +
         field('Sold by the', '<select class="prl-input" name="purchaseUnit" data-prl-change="packUnit">' + unitOptions(pu) + '</select>') +
         '<div id="prlPackFields">' + packFields(pu, packState(offer) === 'ok' ? offer.pack : null) + '</div>' +
+        tierTicks(offer.tiers) +
         foot + '</form>';
     }
     // price
@@ -235,8 +439,38 @@
       foot + '</form>';
   }
 
+  // The "Unlinked items" list: receipt lines for SKUs no product is linked to yet.
+  function unlinkedHtml() {
+    const admin = PL().canSave();
+    const offers = (S.offers || []).filter((o) => o.active !== false);
+    if (!offers.length) return '<div class="prl-empty">Nothing is waiting to be linked. Items from your store receipts show up here until they are linked to a product.</div>';
+    const products = admin ? allProducts() : [];
+    return offers.map((o) => {
+      const lp = o.latest && o.latest.lastPaid;
+      // A suggestion only: nothing links until the owner or an admin taps it.
+      const sug = admin ? LG().suggestLink(o, products) : null;
+      const sp = sug ? products.find((p) => p.id === sug.productId) : null;
+      return '<div class="prl-offer">' +
+        '<div class="prl-otitle"><span class="prl-store">' + esc(supplierLabel(o.supplierId)) + '</span>' + esc(o.title) + '</div>' +
+        '<div class="prl-src">' + (o.sku ? 'SKU ' + esc(o.sku) : 'No SKU') + '</div>' +
+        (lp ? '<div class="prl-best"><div class="prl-price"><span class="ui-money">' + statedText(lp) + '</span></div>' +
+          '<div class="prl-src">Last paid · ' + esc(dateText(lp.observedAtMs)) + ' (' + esc(ageText(lp.observedAtMs)) + ') · as printed on the receipt</div></div>'
+          : '<div class="prl-noprice">No price yet</div>') +
+        (sp ? '<div class="prl-src">Suggested: <strong>' + esc(sp.name || sp.id) + '</strong> <span class="ui-badge ' + (sug.kind === 'sku' ? 'is-success">SKU match' : 'is-info">Name match') + '</span></div>' : '') +
+        (admin ? '<div class="prl-actions">' + (sp ? '<button type="button" class="btn btn-orange prl-btn" data-prl-action="acceptSuggest" data-prl-id="' + esc(o.id) + '" data-prl-product="' + esc(sp.id) + '">Link to ' + esc(sp.name || sp.id) + '</button>' : '') +
+          '<button type="button" class="' + (sp ? 'ui-btn-quiet' : 'btn btn-ghost') + ' prl-btn" data-prl-action="showLink" data-prl-id="' + esc(o.id) + '">' + (sp ? 'Choose another product' : 'Link to a product') + '</button></div>' : '') +
+        (S.form && S.form.offerId === o.id ? formHtml() : '') +
+        '</div>';
+    }).join('');
+  }
+
+  function allProducts() {
+    return (((w._productLib && typeof w._productLib.getProducts === 'function') ? w._productLib.getProducts() : (w.NBD_PRODUCTS || [])) || []).filter((p) => p && p.id && p.isActive !== false);
+  }
+
   function bodyHtml() {
     if (S.loading) return '<div class="prl-empty">Loading…</div>';
+    if (S.mode === 'unlinked') return unlinkedHtml();
     const admin = PL().canSave();
     const offers = (S.offers || []).filter((o) => o.active !== false);
     const top = [];
@@ -247,32 +481,62 @@
       : (admin ? 'Start by adding a store or supplier you buy from.' : 'No stores or suppliers have been added yet. An owner or admin adds them.')) + '</div>';
     return '<div class="prl-actions">' + top.join('') + '</div>' +
       (S.form && !S.form.offerId ? formHtml() : '') +
+      photoBlock('product', S.productId, S.link && S.link.photo, (S.product && S.product.name) || 'this product') +
+      codesBlock() +
+      costNotesHtml() +
+      (w.NBDPriceCompareUI ? w.NBDPriceCompareUI.productBlock(S.product, offers, S.suppliers) : '') +
       empty + offers.map(offerCard).join('');
   }
 
   function paint() {
     const el = document.getElementById('prlBody');
-    if (el && S) el.innerHTML = bodyHtml();
+    if (el && S) {
+      el.innerHTML = bodyHtml();
+      if (typeof PL().paintPhotos === 'function') PL().paintPhotos(el).catch(() => { /* a picture that fails stays hidden */ });
+    }
   }
 
   async function reload() {
-    const [suppliers, offers] = await Promise.all([PL().suppliers(), PL().offersFor([S.productId])]);
+    const [suppliers, offers, links] = await Promise.all([PL().suppliers(), S.mode === 'unlinked' ? PL().unlinked() : PL().offersFor([S.productId]),
+      (S.mode !== 'unlinked' && typeof PL().productLinks === 'function') ? PL().productLinks() : Promise.resolve([])]);
     if (!S) return;
     S.suppliers = suppliers; S.offers = offers; S.loading = false;
+    S.links = links || [];
+    S.link = S.links.find((l) => l && l.id === S.productId) || null;
+    if (S.productId) S.product = productOf(S.productId) || S.product;
     paint();
   }
 
   async function openProduct(productId) {
-    if (!PL() || !PL().enabled() || !LG()) return;
+    // A sales_rep reads no supplier price (rules, Jo 2026-11-18): the sheet is for the owner, admins and managers.
+    if (!PL() || !PL().enabled() || !PL().canRecord() || !LG()) return;
     close();
     const product = productOf(productId);
-    S = { productId, product, suppliers: [], offers: [], history: {}, form: null, busy: false, error: '', loading: true, lastFocus: document.activeElement };
+    S = { productId, product, suppliers: [], offers: [], history: {}, form: null, cost: null, link: null, busy: false, error: '', loading: true, lastFocus: document.activeElement };
     const ov = document.createElement('div');
     ov.className = 'modal-bg open prl-bg';
     ov.id = 'prlOverlay';
     ov.innerHTML = '<div class="modal prl-modal" role="dialog" aria-modal="true" aria-labelledby="prlTitle">' +
       '<div class="prl-head"><h2 class="prl-title" id="prlTitle">Stores &amp; prices</h2><button type="button" class="prl-close" data-prl-action="close" aria-label="Close">✕</button></div>' +
       '<p class="prl-sub">' + esc(product ? product.name : 'This product') + (product && product.unit ? ' · priced per ' + esc(catalogUnitLabel(product.unit)) : '') + '. What your stores and suppliers charge you for it. Internal only.</p>' +
+      '<div id="prlBody"></div></div>';
+    document.body.appendChild(ov);
+    paint();
+    const closeBtn = ov.querySelector('.prl-close');
+    if (closeBtn) closeBtn.focus();
+    await reload();
+  }
+  /** The list of items no product is linked to yet (the Product Library's "Unlinked items" button). */
+  async function openUnlinked() {
+    if (!PL() || !PL().enabled() || !PL().canRecord() || !LG()) return;
+    close();
+    S = { mode: 'unlinked', productId: null, product: null, suppliers: [], offers: [], history: {}, form: null, busy: false, error: '', loading: true, lastFocus: document.activeElement };
+    const ov = document.createElement('div');
+    ov.className = 'modal-bg open prl-bg';
+    ov.id = 'prlOverlay';
+    ov.innerHTML = '<div class="modal prl-modal" role="dialog" aria-modal="true" aria-labelledby="prlTitle">' +
+      '<div class="prl-head"><h2 class="prl-title" id="prlTitle">Unlinked items</h2><button type="button" class="prl-close" data-prl-action="close" aria-label="Close">✕</button></div>' +
+      '<p class="prl-sub">Things on your store receipts that are not linked to a product in your library yet. Link one and its prices show on that product. Internal only.</p>' +
       '<div id="prlBody"></div></div>';
     document.body.appendChild(ov);
     paint();
@@ -292,8 +556,80 @@
 
   const actions = {
     openProduct,
+    openUnlinked,
     close,
     cancelForm() { setForm(null); },
+    showLink(id) { setForm({ type: 'link', offerId: id, submit: 'Link' }); },
+    async acceptSuggest(id, el) {
+      const productId = el && el.dataset.prlProduct;
+      if (!productId) return;
+      if (el) el.disabled = true;
+      const r = await PL().linkOffer(id, productId, 'exact');
+      if (!S) return;
+      if (!r.ok) { if (el) el.disabled = false; toast(r.message, 'error'); return; }
+      toast('Linked. Open that product\'s Stores & prices to set the pack size.', 'success');
+      await reload();
+    },
+    async showCost(id) {
+      const offer = (S.offers || []).find((o) => o.id === id);
+      const point = offer && offer.latest && offer.latest.bestComparable;
+      if (!offer || !point) return;
+      S.form = null; S.error = '';
+      S.cost = { offerId: id, loading: true, ticks: {} };
+      paint();
+      const row = (await PL().observation(point.obsId)) || point;
+      if (!S || !S.cost || S.cost.offerId !== id) return;
+      S.cost.row = row; S.cost.obsId = point.obsId;
+      S.cost.built = buildCost(offer, row);
+      S.cost.built.lines.forEach((l) => { if (!l.blocked) S.cost.ticks[l.tier] = true; });
+      S.cost.loading = false;
+      paint();
+    },
+    cancelCost() { S.cost = null; S.error = ''; paint(); },
+    async approveCost(_id, el, confirmed) {
+      const c = S.cost;
+      if (!c || c.loading || S.busy) return;
+      const lines = c.built.lines.filter((l) => !l.blocked && c.ticks[l.tier] === true);
+      if (!lines.length) { S.error = 'Tick at least one tier to update.'; paint(); return; }
+      const below = lines.some((l) => l.guard.belowFloor), above = lines.some((l) => l.guard.aboveSell);
+      const ask = w.nbdConfirm || ((m) => Promise.resolve(w.confirm(m)));
+      if (confirmed !== true && (below || above)) {
+        const yes = await ask((above ? 'This cost is above the sell price' : 'This takes the margin after labor under your floor') + '. Approve anyway?');
+        if (!yes || !S || S.cost !== c) return;
+      }
+      S.busy = true; S.error = ''; paint();
+      const r = await PL().approveCost({ productId: S.productId, offerId: c.offerId, obsId: c.obsId,
+        lines: lines.map((l) => ({ tier: l.tier, fromCents: l.fromCents, toCents: l.toCents })),
+        confirmBelowFloor: below || confirmed === true, confirmAboveSell: above || confirmed === true });
+      if (!S) return;
+      S.busy = false;
+      if (!r.ok && (r.reason === 'confirm_floor' || r.reason === 'confirm_above_sell') && confirmed !== true) {
+        // The server reads the company's own sell, which can differ from this device's: ask, then send again.
+        paint();
+        if (await ask(r.message + ' Approve anyway?') && S && S.cost === c) return actions.approveCost(null, el, true);
+        return;
+      }
+      if (!r.ok) { S.error = r.message || 'That did not go through. Try again.'; paint(); return; }
+      S.cost = null;
+      toast('Cost updated. Your other devices pick it up the next time they load.', 'success');
+      await reload();
+    },
+    async undoCost(tier, el) {
+      const auditId = el && el.dataset.prlAudit;
+      if (!auditId) return;
+      const ask = w.nbdConfirm || ((m) => Promise.resolve(w.confirm(m)));
+      if (!(await ask('Put the ' + (TIER_WORDS[tier] || tier) + ' cost back to what it was?')) || !S) return;
+      const r = await PL().undoCost(S.productId, tier, auditId);
+      if (!S) return;
+      if (!r.ok) { toast(r.message, 'error'); await reload(); return; }
+      toast('Cost put back.', 'success');
+      await reload();
+    },
+    async openCost(productId, el) {
+      const offerId = el && el.dataset.prlOffer;
+      await openProduct(productId);
+      if (S && offerId && PL().canSave()) await actions.showCost(offerId);
+    },
     showAddSupplier() { setForm({ type: 'supplier', submit: 'Save' }); },
     showAddOffer() { setForm({ type: 'offer', submit: 'Save item' }); },
     showAddPrice(id) { setForm({ type: 'price', offerId: id, submit: 'Save price' }); },
@@ -310,6 +646,48 @@
       if (!S) return;
       if (!r.ok) { toast(r.message, 'error'); return; }
       toast('Pack size confirmed.', 'success');
+      await reload();
+    },
+    async removeCode(code) {
+      if (!S || !S.productId || S.busy) return;
+      const next = LG().productEstimateCodes(S.productId, S.links || []).filter((c) => c !== code);
+      S.busy = true;
+      const r = await PL().setEstimateCodes(S.productId, next);
+      if (!S) return;
+      S.busy = false;
+      if (!r.ok) { toast(r.message, 'error'); return; }
+      toast('Code removed.', 'success');
+      await reload();
+    },
+    editRatio(code) { S.ratioEdit = code; paint(); },
+    cancelRatio() { S.ratioEdit = null; paint(); },
+    async removeRatio(code) {
+      if (!S || !S.productId) return;
+      const r = await PL().setCodeRatio(S.productId, code, null);
+      if (!S) return;
+      if (!r.ok) { toast(r.message, 'error'); return; }
+      toast('Ratio removed. Lines with that code are not priced until a new one is saved.', 'success');
+      await reload();
+    },
+    async resetCodes() {
+      if (!S || !S.productId) return;
+      const ask = w.nbdConfirm || ((m) => Promise.resolve(w.confirm(m)));
+      if (!(await ask('Go back to the starter list of estimate codes for this product?')) || !S) return;
+      const r = await PL().resetEstimateCodes(S.productId);
+      if (!S) return;
+      if (!r.ok) { toast(r.message, 'error'); return; }
+      toast('Back to the starter list.', 'success');
+      await reload();
+    },
+    async removePhoto(id, el) {
+      const target = el && el.dataset.prlTarget;
+      if (target !== 'product' && target !== 'offer') return;
+      const ask = w.nbdConfirm || ((m) => Promise.resolve(w.confirm(m)));
+      if (!(await ask('Remove this photo?')) || !S) return;
+      const r = await PL().removePhoto(target, id);
+      if (!S) return;
+      if (!r.ok) { toast(r.message, 'error'); return; }
+      toast('Photo removed.', 'success');
       await reload();
     },
     async archive(id) {
@@ -350,7 +728,21 @@
     const fail = (msg) => { S.error = msg; S.busy = false; paint(); };
     S.busy = true; S.error = '';
     let r;
-    if (kind === 'supplier') {
+    if (kind === 'ratio') {
+      const code = form.dataset.prlCode;
+      const ratio = LG().parseRatioText(fd.get('ratio'));
+      if (!code || !ratio) return fail('Type how many, as a number like 10 or 33.3.');
+      r = await PL().setCodeRatio(S.productId, code, ratio);
+      if (r && r.ok) { r.message = 'Ratio saved.'; S.ratioEdit = null; }
+    } else if (kind === 'codes') {
+      const code = String(fd.get('code') || '').replace(/\s+/g, ' ').trim().toUpperCase();
+      if (!code) return fail('Type an estimate code.');
+      const next = LG().productEstimateCodes(S.productId, S.links || []).concat([code]);
+      const chk = LG().sanitizeEstimateCodes(next);
+      if (!chk.ok) return fail('Check the code: letters, numbers, spaces and dashes.');
+      r = await PL().setEstimateCodes(S.productId, chk.value);
+      if (r && r.ok) r.message = 'Code added.';
+    } else if (kind === 'supplier') {
       let supplierId = fd.get('supplierId'), label = String(fd.get('label') || '').trim();
       const data = { active: true };
       if (supplierId === 'custom') {
@@ -366,13 +758,22 @@
       if (p.error) return fail(p.error);
       const title = String(fd.get('title') || '').trim();
       if (!title) return fail('Give the item a name.');
-      r = await PL().saveOffer({ supplierId: fd.get('supplierId'), sku: String(fd.get('sku') || '').trim(), title, url: String(fd.get('url') || '').trim() || null, productId: S.productId, pack: p.pack });
+      const tiers = tiersFrom(fd);
+      if (!tiers.length) return fail('Tick at least one tier this item is for.');
+      r = await PL().saveOffer({ supplierId: fd.get('supplierId'), sku: String(fd.get('sku') || '').trim(), title, url: String(fd.get('url') || '').trim() || null, productId: S.productId, tiers, pack: p.pack });
+    } else if (kind === 'link') {
+      const productId = String(fd.get('productId') || '');
+      if (!productId) return fail('Choose the product this item is.');
+      const tiers = tiersFrom(fd);
+      if (!tiers.length) return fail('Tick at least one tier this item is for.');
+      r = await PL().linkOffer(S.form.offerId, productId, 'exact', tiers);
+      if (r && r.ok) r.message = 'Linked. Open that product\'s Stores & prices to set the pack size.';
     } else if (kind === 'pack') {
       const p = packFrom(fd);
       if (p.error) return fail(p.error);
       const offer = (S.offers || []).find((o) => o.id === S.form.offerId);
       if (!offer) return fail('That item was not found. Close this and open it again.');
-      r = await PL().saveOffer({ offerId: offer.id, supplierId: offer.supplierId, sku: offer.sku, skuKind: offer.skuKind, altIds: offer.altIds, title: offer.title, brand: offer.brand, url: offer.url, productId: offer.productId, variant: offer.variant, tiers: offer.tiers, match: offer.match, watch: offer.watch, active: offer.active, pack: p.pack });
+      r = await PL().saveOffer({ offerId: offer.id, supplierId: offer.supplierId, sku: offer.sku, skuKind: offer.skuKind, altIds: offer.altIds, title: offer.title, brand: offer.brand, url: offer.url, productId: offer.productId, variant: offer.variant, tiers: tiersFrom(fd).length ? tiersFrom(fd) : offer.tiers, match: offer.match, watch: offer.watch, active: offer.active, pack: p.pack });
     } else if (kind === 'price') {
       const tax = fd.get('tax');
       if (tax !== 'yes' && tax !== 'no') return fail('Say whether sales tax is in this price.');
@@ -409,7 +810,7 @@
       if (t) {
         const fn = actions[t.dataset.prlAction];
         if (typeof fn !== 'function') return;
-        if (t.dataset.prlAction !== 'openProduct' && !S) return;
+        if (t.dataset.prlAction !== 'openProduct' && t.dataset.prlAction !== 'openUnlinked' && t.dataset.prlAction !== 'openCost' && !S) return;
         try { Promise.resolve(fn(t.dataset.prlId, t)).catch((e) => console.error('[price-offers-ui] ' + t.dataset.prlAction + ' failed:', e)); }
         catch (e) { console.error('[price-offers-ui] ' + t.dataset.prlAction + ' failed:', e); }
         return;
@@ -424,6 +825,20 @@
     });
     document.addEventListener('change', function (ev) {
       const el = ev.target;
+      if (S && el && el.dataset && el.dataset.prlChange === 'costTick' && S.cost) { S.cost.ticks[el.value] = el.checked === true; return; }
+      if (S && el && el.dataset && el.dataset.prlChange === 'photo') {
+        const file = el.files && el.files[0];
+        const target = el.dataset.prlTarget, id = el.dataset.prlId;
+        if (!file || (target !== 'product' && target !== 'offer') || !id) return;
+        toast('Saving the photo…', 'info');
+        PL().savePhoto(target, id, file).then(async (r) => {
+          if (!S) return;
+          if (!r.ok) { toast(r.message || 'That photo could not be saved.', 'error'); return; }
+          toast('Photo saved.', 'success');
+          await reload();
+        }).catch((e) => console.error('[price-offers-ui] photo failed:', e));
+        return;
+      }
       if (!S || !el || !el.dataset || el.dataset.prlChange !== 'packUnit') return;
       const box = document.getElementById('prlPackFields');
       if (box) box.innerHTML = packFields(el.value, null);
@@ -431,5 +846,5 @@
     document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && document.getElementById('prlOverlay')) close(); });
   }
 
-  w.NBDPriceOffersUI = { open: openProduct, close, _internal: { packState: (offer, product) => { const keep = S; S = { product }; try { return packState(offer); } finally { S = keep; } } } };
+  w.NBDPriceOffersUI = { open: openProduct, openUnlinked, close, _internal: { buildCost: (offer, row, state) => { const keep = S; S = state; try { return buildCost(offer, row); } finally { S = keep; } }, costNotesHtml: (state) => { const keep = S; S = state; try { return costNotesHtml(); } finally { S = keep; } }, costPanelHtml: (offer, state) => { const keep = S; S = state; try { return costPanelHtml(offer); } finally { S = keep; } }, packState: (offer, product) => { const keep = S; S = { product }; try { return packState(offer); } finally { S = keep; } } } };
 })();

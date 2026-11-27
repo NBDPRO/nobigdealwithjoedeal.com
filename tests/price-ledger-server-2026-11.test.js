@@ -369,6 +369,138 @@ const typed = (patch) => Object.assign({ offerId: OFFER, kind: 'paid', priceMicr
     ok('every audit row names the actor and carries no price', audits().every((p) => W.docs[p].actor.uid === 'u_ca' && !/Micros|price/i.test(JSON.stringify(W.docs[p].detail))));
   }
 
+  console.log('\nReceipt rows from a store export (slice 2: channel hd_csv)');
+  {
+    const HD = 'homedepot_TEST-HD-0001';
+    const stub = { supplierId: 'homedepot', sku: 'TEST-HD-0001', title: 'Test item one', internetSku: 'TEST-900001' };
+    const rcpt = (n) => ({ type: 'receipt', ref: 'TEST-RCPT-000' + n });
+    const hdRow = (patch) => Object.assign({ offerId: HD, kind: 'paid', priceMicros: 11110000, priceType: 'net', taxIncluded: false, observedOn: TODAY, doc: rcpt(1), offer: stub, storeNumber: 'TEST-S1' }, patch || {});
+    const other = (patch) => hdRow(Object.assign({ offerId: 'homedepot_TEST-HD-0002', offer: Object.assign({}, stub, { sku: 'TEST-HD-0002' }) }, patch || {}));
+    const offerPath = CO_A + 'priceOffers/' + HD;
+    const obs = (r, i) => W.docs[CO_A + 'priceObservations/' + r.value.results[i].obsId];
+
+    reset();
+    const r1 = await record('ca', [hdRow(), hdRow({ priceMicros: 22220000, doc: rcpt(2) })], { channel: 'hd_csv' });
+    const made = W.docs[offerPath];
+    ok('an unknown offer with a valid stub is created once, unlinked, pack unknown',
+      r1.value && r1.value.written === 2 && made && made.productId === null && made.pack.status === 'unknown' && made.pack.purchaseUnit === null
+      && made.skuKind === 'store_sku' && made.altIds.internetSku === 'TEST-900001' && made.latest && made.latest.count === 2
+      && W.effects.filter((e) => e === 'create:' + offerPath).length === 1, [r1, made]);
+    const d1 = obs(r1, 0);
+    ok('a row with no unit is accepted on hd_csv, stored with no per-unit price and counted as needs a unit',
+      d1.statedUnit === null && d1.per === 1 && d1.catalogMicros === null && r1.value.needsUnit === 2 && d1.source.channel === 'hd_csv'
+      && d1.kind === 'paid' && d1.attested === true && d1.locationId === null && !('offer' in d1) && !('storeNumber' in d1), d1);
+
+    ok('the same row with no unit is refused on the typed channel', (await record('ca', [other()])).value.results[0].reason === 'needs_unit');
+    const typedStub = await record('ca', [other({ statedUnit: 'EA' })]);
+    ok('a stub on the typed channel creates nothing: unknown_offer', typedStub.value.results[0].reason === 'unknown_offer' && !W.docs[CO_A + 'priceOffers/homedepot_TEST-HD-0002'], typedStub.value);
+    const legacy = await record('ca', [other()], { channel: 'legacy_pricebook' });
+    ok('a caller can not send the migration channel: it is read as typed', legacy.value.results[0].reason === 'needs_unit' && !W.docs[CO_A + 'priceOffers/homedepot_TEST-HD-0002'], legacy.value);
+    const wrongId = await record('ca', [hdRow({ offerId: 'homedepot_TEST-HD-0003', doc: rcpt(3) })], { channel: 'hd_csv' });
+    ok('a stub whose id is not the id of its supplier and SKU is refused: bad_offer', wrongId.value.results[0].reason === 'bad_offer' && !W.docs[CO_A + 'priceOffers/homedepot_TEST-HD-0003'], wrongId.value);
+
+    W.docs[offerPath].title = 'Edited by the owner';
+    await record('ca', [hdRow({ priceMicros: 33330000, doc: rcpt(4), offer: Object.assign({}, stub, { title: 'A different title' }) })], { channel: 'hd_csv' });
+    ok('an existing offer is never overwritten by a stub', W.docs[offerPath].title === 'Edited by the owner' && W.effects.filter((e) => e === 'create:' + offerPath).length === 1);
+
+    await save('ca', 'upsertSupplierAccount', { supplierId: 'homedepot', locations: [{ id: 'store-a', label: 'Test store', storeNumber: 'TEST-S1', preferred: true }] });
+    const st = await record('ca', [hdRow({ priceMicros: 44440000, doc: rcpt(5) }), hdRow({ priceMicros: 55550000, doc: rcpt(6), storeNumber: 'TEST-S9' })], { channel: 'hd_csv' });
+    ok('a store number the account lists becomes that branch; one it does not list is no branch, not a refusal',
+      st.value.written === 2 && obs(st, 0).locationId === 'store-a' && obs(st, 1).locationId === null, st.value);
+
+    const vp = await save('ca', 'verifyPack', { offerId: HD, pack: { purchaseUnit: 'BX', catalogUnit: 'BX', num: 1, den: 1, status: 'known' } });
+    const lp = W.docs[offerPath].latest.lastPaid;
+    ok('after the pack is confirmed, last paid carries the per-unit price', vp.value && vp.value.ok && lp && lp.catalogMicros === lp.priceMicros && W.docs[offerPath].latest.unitState === 'ok', [vp, lp]);
+
+    const before = writes().length;
+    const mg = await record('mgr', [hdRow({ priceMicros: 66660000, doc: rcpt(7) })], { channel: 'hd_csv' });
+    ok('a manager is refused on hd_csv with zero writes', mg.code === 'permission-denied' && writes().length === before, mg);
+
+    reset();
+    const ctxM = { origin: 'migration', channel: 'legacy_pricebook', actor: { uid: 'script', role: 'script', fn: 'migrate-price-book-v2' }, nowMs: Date.now() };
+    const mig = await Store.appendObservations(DB, 'co-a', [hdRow()], ctxM);
+    const md = W.docs[CO_A + 'priceObservations/' + mig.results[0].obsId];
+    ok('a migration row is stored paid, unattested, channel legacy_pricebook, no branch, actor script',
+      mig.written === 1 && md.kind === 'paid' && md.attested === false && md.source.channel === 'legacy_pricebook' && md.locationId === null && md.source.actor.type === 'script', md);
+    ok('a migration does not move the daily counter', Object.keys(W.docs).filter((p) => p.indexOf(CO_A + 'priceMeter/') === 0).length === 0);
+    const twin = await record('ca', [hdRow()], { channel: 'hd_csv' });
+    ok('the same receipt line imported afterwards is the same row: a duplicate', twin.value.written === 0 && twin.value.results[0].status === 'duplicate' && twin.value.results[0].obsId === mig.results[0].obsId, twin.value);
+    ok('a re-run of the migration adds nothing', (await Store.appendObservations(DB, 'co-a', [hdRow()], ctxM)).written === 0);
+  }
+
+  console.log('\nSupplier files (slice 3: channel csv_import)');
+  {
+    const NEW = L.offerIdFor('other_testco', 'TEST-0101');
+    const sheetRef = { type: 'price_sheet', ref: 'testco-sheet.csv' };
+    const sheet = (patch) => Object.assign({ offerId: NEW, kind: 'price_sheet', priceMicros: 11110000, per: 1, statedUnit: null, uomRaw: 'ZZ', priceType: 'account', taxIncluded: false,
+      observedOn: TODAY, doc: sheetRef, note: 'Imported from testco-sheet.csv', offer: { supplierId: 'other_testco', sku: 'TEST-0101', title: 'Testco new item' } }, patch || {});
+    const known = (patch) => sheet(Object.assign({ offerId: OFFER, offer: undefined, statedUnit: 'BDL', uomRaw: 'BD', priceMicros: 22220000 }, patch || {}));
+    reset(); await seed('ca');
+    const r = await record('ca', [sheet(), known()], { channel: 'csv_import' });
+    const made = W.docs[CO_A + 'priceOffers/' + NEW];
+    ok('a supplier-file row for a new item number creates one unlinked offer with an unknown pack',
+      r.value && r.value.written === 2 && made && made.productId === null && made.pack.status === 'unknown' && made.skuKind === 'item_number' && made.title === 'Testco new item', [r, made]);
+    const d0 = W.docs[CO_A + 'priceObservations/' + r.value.results[0].obsId];
+    const d1 = W.docs[CO_A + 'priceObservations/' + r.value.results[1].obsId];
+    ok('a row with an unknown unit is kept as stated: no unit, its own text, no per-unit price, counted as needs a unit',
+      d0.statedUnit === null && d0.uomRaw === 'ZZ' && d0.catalogMicros === null && r.value.needsUnit === 1 && d0.kind === 'price_sheet' && d0.attested === true && d0.source.channel === 'csv_import', d0);
+    ok('the file name and date are all that is kept of the file', d0.doc.ref === 'testco-sheet.csv' && d0.observedOn === TODAY && d0.note === 'Imported from testco-sheet.csv' && d0.doc.storagePath === null, d0.doc);
+    ok('a row for a known item with a unit gets its per-unit price from the pack', d1.catalogMicros === 22220000 * 3 && d1.statedUnit === 'BDL', d1);
+    const again = await record('ca', [sheet(), known()], { channel: 'csv_import' });
+    ok('the same file again adds nothing', again.value.written === 0 && again.value.duplicates === 2, again.value);
+    const refused = await record('ca', [sheet({ kind: 'manual', doc: { type: 'price_sheet', ref: 'x2' } }), sheet({ kind: 'quote', doc: { type: 'quote', ref: 'x3' } }), sheet({ doc: { type: 'price_sheet', ref: '' } })], { channel: 'csv_import' });
+    ok('a typed-note kind, a quote with no good-through date and a row with no reference are rejected',
+      refused.value.results.map((x) => x.reason).join(',') === 'bad_kind,quote_needs_date,needs_doc_ref', refused.value.results);
+    const before = writes().length;
+    const mg = await record('mgr', [sheet({ doc: { type: 'price_sheet', ref: 'x4' } })], { channel: 'csv_import' });
+    ok('a manager is refused on csv_import with zero writes', mg.code === 'permission-denied' && writes().length === before, mg);
+  }
+
+  console.log('\nSeen marks (slice 3: priceLedgerSave markSeen)');
+  {
+    reset(); await seed('ca');
+    const SEEN = CO_A + 'priceConfig/seen';
+    const m1 = await save('ca', 'markSeen', { alertId: 'cheaper_shingle_001', obsId: 'o_b1' });
+    const m2 = await save('ca', 'markSeen', { alertId: 'move_other_testco_TEST-0001', obsId: 'o_q1' });
+    const doc = W.docs[SEEN];
+    ok('a company admin marks two alerts seen; both are kept in one company doc',
+      m1.value && m2.value && doc && doc.marks['cheaper_shingle_001'].o === 'o_b1' && doc.marks['move_other_testco_TEST-0001'].o === 'o_q1', doc);
+    await save('ca', 'markSeen', { alertId: 'cheaper_shingle_001', obsId: 'o_b9' });
+    ok('marking the same alert again moves it to the newer price', W.docs[SEEN].marks['cheaper_shingle_001'].o === 'o_b9');
+    const before = writes().length;
+    const bad = await save('ca', 'markSeen', { alertId: 'cheaper_a/b', obsId: 'o_1' });
+    const badObs = await save('ca', 'markSeen', { alertId: 'cheaper_x', obsId: '' });
+    ok('a bad alert id or obsId is refused with zero writes', bad.code === 'invalid-argument' && badObs.code === 'invalid-argument' && writes().length === before, [bad, badObs]);
+    const mg = await save('mgr', 'markSeen', { alertId: 'cheaper_shingle_001', obsId: 'o_b1' });
+    ok('a manager can not mark seen (owner and company admins share one list)', mg.code === 'permission-denied' && writes().length === before, mg);
+    await save('owner', 'markSeen', { alertId: 'cheaper_shingle_001', obsId: 'o_b1' });
+    ok('a solo owner writes under their own company', !!W.docs['priceBook/u_owner/priceConfig/seen']);
+    reset();
+    const many = { marks: {} };
+    for (let i = 0; i < 2000; i++) many.marks['move_x' + i] = { o: 'o', at: i };
+    W.docs[SEEN] = many;
+    await save('ca', 'markSeen', { alertId: 'move_new', obsId: 'o_n' });
+    const marks = W.docs[SEEN].marks;
+    ok('the list is capped at 2000: the oldest mark goes', Object.keys(marks).length === 2000 && marks.move_new && !marks.move_x0 && marks.move_x1, Object.keys(marks).length);
+  }
+
+  console.log('\nSlice 4: approveCost and undoCost at the callable');
+  {
+    for (const who of ['mgr', 'rep', 'viewer']) {
+      reset(); await seed('ca');
+      const before = writes().length;
+      const a = await save(who, 'approveCost', { productId: 'shingle_001', offerId: OFFER, obsId: 'o_1', lines: [{ tier: 'good', fromCents: null, toCents: 1111 }] });
+      const u = await save(who, 'undoCost', { productId: 'shingle_001', tier: 'good', auditId: 'a_1' });
+      ok('a ' + who + ' can not approve or undo a cost change, and nothing is written', a.code === 'permission-denied' && u.code === 'permission-denied' && writes().length === before, [a.code, u.code]);
+    }
+    reset(); await seed('ca');
+    const r = await save('ca', 'approveCost', { productId: 'shingle_001', offerId: OFFER, obsId: 'o_missing', lines: [{ tier: 'good', fromCents: null, toCents: 1111 }] });
+    ok('a stale approval is refused as aborted with a plain message and no cost-book write', r.code === 'aborted' && r.details && r.details.reason === 'changed' && /changed/i.test(r.message) && writesUnder('catalogCosts/').length === 0, r);
+    const reasons = ['changed', 'no_lines', 'bad_tier', 'bad_product', 'no_price', 'not_paperwork', 'price_type', 'delivered', 'not_comparable', 'unit_suspect', 'stale', 'needs_pack', 'unit_changed', 'needs_tax_rate', 'no_cost_book', 'below_one_cent', 'no_change', 'confirm_floor', 'confirm_above_sell'];
+    const missing = reasons.filter((k) => typeof mod._internal.REASONS[k] !== 'string' || !mod._internal.REASONS[k]);
+    ok('every refusal an approval can give has a plain message', missing.length === 0, missing);
+  }
+
   console.log('\nThe store builds every path itself');
   {
     reset(); await seed('ca');

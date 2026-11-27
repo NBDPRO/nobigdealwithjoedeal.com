@@ -14,6 +14,20 @@
 (function () {
   'use strict';
 
+  // Form-funnel events (2026-11-26): the same names as /inspect, /storm-check
+  // and /estimate, with form:'quick' (GA4 adds the page path itself).
+  // documentation/projects/FORM-FUNNEL-EVENTS-2026-11-26.md. No PII: field
+  // names, never a value. GA4, plus Clarity when clarity-loader.js loaded it.
+  function track(name, params) {
+    try { if (typeof window.gtag === 'function') window.gtag('event', name, params || {}); } catch (e) {}
+    try { if (typeof window.clarity === 'function') window.clarity('event', name); } catch (e) {}
+  }
+  function trackStep(name, extra) {
+    var p = { form: 'quick', step: 1, step_name: 'contact' };
+    for (var k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) p[k] = extra[k];
+    track(name, p);
+  }
+
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -60,17 +74,33 @@
   function render(host) {
     var service = host.getAttribute('data-service') || '';
     var city = host.getAttribute('data-city') || '';
+    // data-service-query (homepage, 2026-11-17): the Care Plan page's buttons land on
+    // /?service=care-plan#contact. A whitelisted ?service= tags the lead with that
+    // service; it never changes the heading. An unknown value tags nothing.
+    var queryService = '';
+    if (host.getAttribute('data-service-query') !== null) {
+      try {
+        var want = new URLSearchParams(window.location.search).get('service');
+        var known = { 'care-plan': 'Roof Care Plan' };
+        if (want && Object.prototype.hasOwnProperty.call(known, want)) queryService = known[want];
+      } catch (e) { /* nothing tagged */ }
+    }
     var uid = 'qlf-' + Math.abs((service + city + host.offsetTop).split('').reduce(function (a, c) { return (a * 31 + c.charCodeAt(0)) | 0; }, 7));
     // Heading matches the button that brought them here (wave-3 CRO #3/#6,
     // 2026-11-15): town pages say "Book a free inspection", the siding and
     // gutter heroes say "Book a free estimate" and jump to this form.
     var heading = city ? ('Book a Free ' + esc(city) + ' Inspection')
       : (service ? ('Book a Free ' + esc(service) + ' Estimate') : 'Book a Free Inspection');
-    var sub = 'Name, phone and address. Joe reaches out, usually the same day. Or just call.';
+    // Optional per-host copy (2026-11-17, homepage): data-sub / data-ok / data-btn
+    // override the sub line, the success message and the button label. Absent, the
+    // defaults below apply, so every existing page renders exactly as before.
+    var sub = host.getAttribute('data-sub') || 'Name, phone and address. Joe reaches out, usually the same day. Or just call.';
+    var okMsg = host.getAttribute('data-ok') || 'Got it! Joe will reach out shortly — usually same day.';
+    var btnLabel = host.getAttribute('data-btn') || 'Send — Joe calls you back';
     host.innerHTML =
       '<form class="qlf" novalidate aria-labelledby="' + uid + '-h">' +
         '<h3 class="qlf-title" id="' + uid + '-h">' + heading + '</h3>' +
-        '<p class="qlf-sub">' + sub + '</p>' +
+        '<p class="qlf-sub">' + esc(sub) + '</p>' +
         '<div class="qlf-msg qlf-err" id="' + uid + '-err" role="alert" tabindex="-1"></div>' +
         '<div class="qlf-msg qlf-ok" id="' + uid + '-ok" role="status" tabindex="-1"></div>' +
         '<div class="qlf-row">' +
@@ -98,15 +128,39 @@
         // (true or false) for the record.
         '<label class="sc-consent"><input type="checkbox" id="' + uid + '-consent"><span>I agree to receive text messages and calls from No Big Deal Home Solutions (No Big Deal Solutions LLC) at the number above about my request, including my results, appointment confirmations and reminders, estimate and project updates, and replies to my questions. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></span></label>' +
         // Trust line above Submit (2026-10-03). Rating hydrated live (hydrateRating).
-        '<p class="qlf-trust"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating-wrap hidden><span data-nbd-gr-rating></span> on Google</span><span data-nbd-gr-rating-fallback>Real Google reviews</span> &middot; Fully insured &middot; Joe on every roof</p>' +
-        '<button class="qlf-btn" type="submit" id="' + uid + '-btn">Send &mdash; Joe calls you back</button>' +
+        '<p class="qlf-trust"><span data-nbd-gr-rating-wrap hidden><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating></span> on Google &middot; </span>Fully insured &middot; Joe on every roof</p>' +
+        '<button class="qlf-btn" type="submit" id="' + uid + '-btn">' + esc(btnLabel) + '</button>' +
         '<div class="qlf-alt">Rather talk now? <a href="tel:+18594207382">Call or text (859) 420-7382</a></div>' +
+        // Service pages (CRO open item 4, 2026-11-26): the newest real Google
+        // review, with its date, right under Send. google-reviews-widget.js
+        // fills it from the live payload (compact = one card, no pills).
+        (/^\/services\//.test((window.location && window.location.pathname) || '')
+          ? '<div class="qlf-review" data-nbd-google-reviews data-nbd-gr-limit="1" data-nbd-gr-compact></div>'
+          : '') +
       '</form>';
 
     var form = host.querySelector('form');
     var err = document.getElementById(uid + '-err');
     var ok = document.getElementById(uid + '-ok');
     var btn = document.getElementById(uid + '-btn');
+    // Seen = scrolled onto the screen (the homepage form sits far down the
+    // page, so "rendered" would count every visit). Started = first focus.
+    if (form && typeof window.IntersectionObserver === 'function') {
+      var seen = new window.IntersectionObserver(function (entries) {
+        if (!entries.some(function (en) { return en.isIntersecting; })) return;
+        seen.disconnect();
+        trackStep('form_step_view');
+      });
+      seen.observe(form);
+    } else {
+      trackStep('form_step_view');
+    }
+    var started = false;
+    if (form) form.addEventListener('focusin', function () {
+      if (started) return;
+      started = true;
+      track('form_start', { form: 'quick' });
+    });
     ensureIntake().then(function () {
       if (!window.NBDIntake) return;
       // Fill both blocks here too: when intake-extras.js was already loaded by
@@ -156,13 +210,14 @@
       var phoneOk = phone.replace(/\D/g, '').replace(/^1/, '').length === 10;
       var addressOk = address.length >= 6 && /\d/.test(address) && /[a-z]/i.test(address);
       var bad = [];
-      [[fnEl, !!firstName, 'your first name'], [phEl, phoneOk, 'a 10-digit phone number'], [adEl, addressOk, 'your street address']].forEach(function (c) {
+      [[fnEl, !!firstName, 'your first name', 'first_name'], [phEl, phoneOk, 'a 10-digit phone number', 'phone'], [adEl, addressOk, 'your street address', 'address']].forEach(function (c) {
         if (c[1]) c[0].removeAttribute('aria-invalid');
         else { c[0].setAttribute('aria-invalid', 'true'); bad.push(c); }
       });
       if (bad.length) {
         err.textContent = 'Please add ' + list(bad.map(function (c) { return c[2]; })) + '.';
         reveal(err, bad[0][0]);
+        trackStep('form_error', { fields: bad.map(function (c) { return c[3]; }).join(',') });
         return;
       }
       var consentEl = document.getElementById(uid + '-consent');
@@ -181,6 +236,7 @@
         if (intake.error) {
           if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid');
           err.textContent = intake.error;
+          trackStep('form_error', { fields: 'scheduling' });
           // The thing to fix is the choice, not the message: the form is tall,
           // so on a phone the message and the options are ~400px apart. Scroll
           // the fieldset (red border, legend) into view and focus its first
@@ -203,15 +259,16 @@
           phone: phone,
           address: address,
           email: email,
-          service: service,
-          message: (service || city) ? ('Page: ' + [service, city].filter(Boolean).join(' — ')) : '',
+          service: service || queryService,
+          message: (service || queryService || city) ? ('Page: ' + [service || queryService, city].filter(Boolean).join(' — ')) : '',
           nbd_hp: document.getElementById(uid + '-hp').value, // honeypot
           tcpaConsent: consent === true,
           source: 'page-form:' + (window.location.pathname || '')
         }, intake.fields));
       }).then(function (out) {
         if (!out || !out.ok) { var fail = new Error((out && out.reason) || 'failed'); fail.friendly = !!(out && out.friendly); throw fail; }
-        ok.textContent = 'Got it! Joe will reach out shortly — usually same day.';
+        trackStep('form_step_complete');
+        ok.textContent = okMsg;
         btn.textContent = 'Sent ✓';
         reveal(ok);
         if (window.NBDIntake) {
@@ -221,7 +278,7 @@
           form.insertBefore(after, ok.nextSibling);
           window.NBDIntake.afterSubmit(after, {
             prefix: uid + 'i', fields: intake.fields, files: intake.files, photoToken: out.photoToken || null,
-            firstName: firstName, phone: phone, email: email, address: address, service: service
+            firstName: firstName, phone: phone, email: email, address: address, service: service || queryService
           }).then(function () { form.reset(); });
         } else {
           form.reset();
@@ -230,8 +287,9 @@
         // The gateway's plain-language reason already says what to do; any
         // other failure gets the generic line. The raw text is console-only.
         console.warn('[quick-lead-form] send failed:', e2 && e2.message);
+        trackStep('form_error', { fields: 'submit' });
         err.textContent = e2 && e2.friendly ? e2.message : 'Could not send — please call or text (859) 420-7382.';
-        btn.disabled = false; btn.textContent = 'Send — Joe calls you back';
+        btn.disabled = false; btn.textContent = btnLabel;
         reveal(err);
       });
     });

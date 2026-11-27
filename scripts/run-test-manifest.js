@@ -484,9 +484,37 @@ const RUNNABLE = ['node', 'smoke'];
 //               price-ledger-server-2026-11, price-fixture-privacy) and one wired-individually (firestore-rules.price-ledger).
 //               The floor was already stale by 7 node / 7 disk on main before this PR. MEASURED via --check.
 //   2026-11-17  1127/74/1281 -> 1129/74/1283 after merging main (#3127 added two node suites). MEASURED via --check.
-//   2026-11-17  1132/74/1286 -> 1137/74/1291, the sweep follow-ups that merged since (#3128-#3138 suites) plus this PR's
+//   2026-11-17  1149/74/1303 -> 1151/74/1305: supplier pricing slice 3 adds price-import-2026-11 and price-change-2026-11 (node). MEASURED via --check.
+//   2026-11-17  1151/74/1305 -> 1154/74/1308: supplier pricing slice 4 adds price-change-approve-2026-11 and price-change-devices-2026-11 (node); the floor was already stale by 1 on main. MEASURED via --check.
+//   2026-11-18  1154/74/1308 -> 1156/74/1311: supplier pricing product photos add price-ledger-photos-2026-11 (node) and storage-rules.product-photos (wired-individually); the floor was already stale by 1 node on main. MEASURED via --check.
+//   2026-11-18  1156/74/1311 -> 1158/74/1313: supplier pricing slice 7 adds price-logic-materials-2026-11 (node), after merging main (#3164, #3166; main was stale by 1). MEASURED via --check.
+//   2026-11-18  -> 1161/74/1316: supplier pricing slice 9 adds price-import-doc-read-2026-11 (node); main was stale by the suites other PRs added. MEASURED via --check.
+//   2026-11-19  1177/75/1336 -> 1182/75/1342: phase 5 templates add phase5-templates-2026-11-19 and phase5-templates-server-2026-11-19 (node); main was stale by 3. MEASURED via --check.
+//   2026-11-19  -> 1189/75/1351: sub job board rules add firestore-rules.sub-jobs (wired-individually, own CI step); disk was stale by 1. MEASURED via --check.
+//   2026-11-19  1189/75/1351 -> 1191/75/1353: sub job board adds sub-job-board-2026-11-19 and sub-job-board-ui-2026-11-19 (node). MEASURED via --check.
+//   2026-11-19  -> 1192/75/1354: in-tab dialogs add nbd-dialog-2026-11-19 (node), after merging main. MEASURED via --check.
+//   2026-11-19  1192/75/1354 -> 1194/75/1356: labor-hours estimator logic adds labor-hours-2026-11-19 (node); main was stale by 1 (#3222 added a suite without raising the floor). MEASURED via --check.
+//   2026-11-19  1194/75/1356 -> 1195/75/1357: labor book fix adds labor-op-merge-2026-11-19 (node). MEASURED via --check.
+//   2026-11-19  1195/75/1357 -> 1197/75/1359: labor hours editor adds labor-book-2026-11-19 and labor-book-ui-2026-11-19 (node). MEASURED via --check.
+//   2026-11-20  1197/75/1359 -> 1199/75/1361: recordings Bin PR 1 adds recordings-bin-logic and recordings-bin-server (node). MEASURED via --check.
+//   2026-11-19  1199/75/1361 -> 1200/75/1362: book time per job type adds job-hours-2026-11-20 (node). MEASURED via --check.
+//   2026-11-20  1200/75/1362 -> 1202/75/1364: call center compact view adds two node suites. MEASURED via --check.
+const FLOORS = { node: 1244, smoke: 75, disk: 1409 };
+//   2026-11-27  1239/75/1404 -> 1244/75/1409: #3145 merged onto main adds sweep-leftovers-2026-11-17 and sw-sweep-lows-2026-11-17 (node); main was stale by 3. MEASURED via --check.
+//   2026-11-26  1235/75/1400 -> 1239/75/1404: storm-tips email adds storm-tips-email-2026-11-26 (node); main already held three more than its floor. MEASURED via --check.
+//   2026-11-20  1202/75/1364 -> 1203/75/1365: bottom-edge queue adds bottom-edge-queue-2026-11-19 (node). MEASURED via --check.
+//   2026-11-25  1204/75/1366 -> 1205/75/1368 (rebased onto the ai-fence suite; +1 node, +1 emulator): inbox dedupe_key adds agent-inbox-dedupe-2026-11-22 (node). MEASURED via --check.
+//   2026-11-25  1205/75/1368 -> 1208/75/1371: AI spend breaker adds ai-spend-breaker + ai-gate-entry-points + one more node suite (step 12). MEASURED via --check.
+//   2026-11-25  1208/75/1371 -> 1212/75/1375: AI client + model registry adds ai-client-registry-2026-11-25 (node, step 15); the base was stale by 3 (main's suites since step 12). MEASURED via --check.
+//   2026-11-25  1212/75/1375 -> 1213/75/1376: one call record adds thursday-one-call-record-2026-11-25 (node, step 17C). MEASURED via --check.
+//   2026-11-25  1205/75/1368 -> 1207/75/1371 (main already held one more node suite than the floor): the Quinn gate adds quinn-gate-2026-11-25 (node) + quinn-gate.integration (emulator). MEASURED via --check.
+//   2026-11-25  1210/75/1374 -> 1212/75/1376: the bot door (roadmap 9b + 10) adds agent-door-hardening-2026-11-25 + thursday-kill-switch-2026-11-25 (node). MEASURED via --check.
+//   2026-11-25  1212/75/1376 -> 1213/75/1378: the office planner (roadmap 17B) adds office-planner-2026-11-25 (node) + office-planner.integration (emulator). MEASURED via --check.
+//   2026-11-25  1205/75/1368 -> 1208/75/1371: AI spend breaker adds ai-spend-breaker + ai-gate-entry-points + one more node suite (step 12). MEASURED via --check.
+//   2026-11-25  1208/75/1371 -> 1211/75/1374: server mail feed adds mail-feed-2026-11-25 (node); the floor had gone 2 stale on main. MEASURED via --check.
+//   2026-11-25  1205/75/1368 -> 1207/75/1370: one notify path (roadmap step 13) adds owner-notify-one-path-2026-11-25 (node); +1 node already on main above the old floor. MEASURED via --check.
+//   2026-11-17  (#3145, merged onto main 2026-11-27), the sweep follow-ups that merged since (#3128-#3138 suites) plus this PR's
 //               sweep-leftovers suite, on a branch rebased onto #3137. MEASURED via --check.
-const FLOORS = { node: 1137, smoke: 74, disk: 1291 };
 
 // ── Argument parsing ───────────────────────────────────────────────
 const argv = process.argv.slice(2);
@@ -771,13 +799,13 @@ const queue = buckets[RUN_BUCKET];
 if (!queue.length) die('RUNNER ERROR: bucket "' + RUN_BUCKET + '" is empty — refusing to report success over zero suites.');
 
 const PER_SUITE_TIMEOUT_MS = 60000;    // slowest measured suite is 18.7s
-// CI: the job cap is 10 min, so fail with a report at 8, not a kill. A local
-// run has no job cap, and a Windows machine spawns ~1,100 node processes much
+// CI: the job cap is 14 min (ci.yml 'Unit suites (manifest)'), so fail with a report at 11, not a kill.
+// A local run has no job cap, and a Windows machine spawns ~1,100 node processes much
 // slower than CI (2026-11-17: 762 of 1,050 suites in 8 min, none hanging), so
 // it gets 40 min. NBD_TEST_BUDGET_MIN overrides either.
 const BUCKET_BUDGET_MS = (Number(process.env.NBD_TEST_BUDGET_MIN) > 0
   ? Number(process.env.NBD_TEST_BUDGET_MIN)
-  : (process.env.GITHUB_ACTIONS ? 8 : 40)) * 60000;
+  : (process.env.GITHUB_ACTIONS ? 11 : 40)) * 60000;   // Raised from 8 min 2026-11-18: normal runs took ~6.5 min and one queue run timed out at 8.9 min as suites were added
 const MAX_BUFFER = 32 * 1024 * 1024;   // default 1 MiB turns a chatty PASS into ENOBUFS
 
 const gh = !!process.env.GITHUB_ACTIONS;

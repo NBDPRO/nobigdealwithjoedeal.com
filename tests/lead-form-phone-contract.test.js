@@ -27,6 +27,8 @@
 'use strict';
 
 const fs = require('fs');
+const K = require('./lib/src-kit');
+const { renderQuickForm } = require('./lib/quick-form-render');
 const path = require('path');
 const vm = require('vm');
 
@@ -63,9 +65,8 @@ function sliceBefore(rel, fromMarker, toMarker) {
   return src.slice(from, to).split(/\r?\n/).filter((l) => !l.trim().startsWith('//')).join('\n');
 }
 const FORMS = [
-  ['docs/assets/js/storm-report-page.js', 'function unlock()', "window.submitPublicLead('inspect', payload)"],
-  ['docs/assets/js/storm-check.js', 'function submitLead()', "window.submitPublicLead('inspect', payload)"],
-  ['docs/assets/js/roof-score.js', 'function submitLead()', "window.submitPublicLead('inspect', payload)"],
+  // /storm-report, /storm-check and /roof-score merged into /roof-check (2026-11-25).
+  ['docs/assets/js/roof-check.js', 'function submitLead()', "window.submitPublicLead('inspect', payload)"],
   ['docs/assets/js/inline/c5a2295382.js', "const hp = document.getElementById('alertHoneypot')", 'window._saveStormAlert'],
   ['docs/assets/js/inline/72f02d79d0.js', 'async function submitForm()', 'window._captureContactLead(lead)'],
   ['docs/assets/js/inspect-form.js', 'function isUsPhone(v)', "window.submitPublicLead('inspect', data)"],
@@ -96,9 +97,7 @@ function extractInputHandler(rel, anchor) {
 }
 const FORMATTERS = [
   ['docs/assets/js/inline/4053149b2f.js', "var phoneNumberEl = document.getElementById('phoneNumber')"],
-  ['docs/assets/js/storm-check.js', "var el = $('sc-phone')"],
-  ['docs/assets/js/roof-score.js', "var el = $('rs-phone')"],
-  ['docs/assets/js/storm-report-page.js', "var el = $('sr-phone')"],
+  ['docs/assets/js/roof-check.js', "var el = $('rc-phone')"],
 ];
 for (const [rel, anchor] of FORMATTERS) {
   const fn = extractInputHandler(rel, anchor);
@@ -189,7 +188,8 @@ function runInspect({ name, address, phone, response }) {
     ok('/inspect labels the field "Mobile phone"', /<label for="f-phone">Mobile phone<\/label>/.test(html));
     ok('/inspect phone input is type=tel with a placeholder', /<input type="tel" id="f-phone"[^>]*placeholder="\(859\) 555-1234"/.test(html));
     ok('/inspect carries the nbd_hp honeypot, keyboard-invisible, autocomplete off', /<input type="text" id="f-nbd-hp" name="nbd_hp" tabindex="-1" autocomplete="off">/.test(html));
-    ok('the homepage contact form labels the field "Mobile phone"', /<label for="fieldPhone">Mobile phone <span class="req">\*<\/span><\/label>/.test(read('docs/index.html')));
+    const qfPhone = renderQuickForm().$('input[type="tel"]');
+    ok('the homepage contact form (the quick form) labels the field "Mobile phone"', !!K.parseTags(read('docs/index.html')).$('#contact [data-nbd-quick-form]') && !!qfPhone && qfPhone.parent.text.trim() === 'Mobile phone *');
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);

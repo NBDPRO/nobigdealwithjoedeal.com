@@ -198,9 +198,9 @@ const sentToast = (h) => h.toasts.some(([, m]) => /text sent to/i.test(m));
     await flush();
     const opens = smsOpens(h);
     ok('NBDComms absent: exactly one sms: handoff to the cleaned number',
-      opens.length === 1 && /^sms:5135550123\?body=/.test(opens[0][0]), JSON.stringify(h.opened));
+      opens.length === 1 && /^sms:5135550123\?&body=/.test(opens[0][0]), JSON.stringify(h.opened));
     ok('NBDComms absent: body is the filled template',
-      opens.length === 1 && /Dana/.test(decodeURIComponent(opens[0][0].split('?body=')[1] || '')),
+      opens.length === 1 && /Dana/.test(decodeURIComponent(opens[0][0].split('?&body=')[1] || '')),
       opens.length ? opens[0][0] : '(none)');
     ok('NBDComms absent: "Opening SMS..." toast', openingToast(h), JSON.stringify(h.toasts));
   }

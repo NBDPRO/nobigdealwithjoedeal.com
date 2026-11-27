@@ -49,7 +49,6 @@ const TEXT_SOURCE = 'auto-text';
 const flagOn = (env, name) => !!env && env[name] === 'true';
 const truthy = (v) => v === true || v === 1 || (typeof v === 'string' && /^(true|yes|y|1|on)$/i.test(v.trim()));
 const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e || '').trim());
-const safeUrl = (u) => (typeof u === 'string' && /^https:\/\/[^\s"'<>]+$/i.test(u.trim()) ? u.trim().slice(0, 500) : '');
 
 function ms(t) {
   if (!t) return 0;
@@ -160,12 +159,28 @@ function planText(args) {
  * the nudge goes back to normal for it.
  */
 function willHandle(args) {
+  // v2 (review-ask-v2-logic.js, 2026-11-26) skips a job with an open warranty
+  // claim: that job stays with the rep nudge. Flag off: unchanged.
+  const a = args || {};
+  if (a.env && a.env.REVIEW_ASK_V2_ENABLED === 'true' && require('./review-ask-v2-logic').eligibility(a).reason === 'open_claim') return false;
   return planEmail(args).send || planText(Object.assign({}, args, { ignoreHours: true })).send;
 }
 
-/** The review link: the rep's own (https) → NBD's. '' = nothing to link. */
+/**
+ * The review link. NBD always gets NBD's own link and every team member's
+ * saved link is ignored (Jo, 2026-11-26, R12: "Always NBD's link"). Another
+ * company gets its rep's link only when it is a Google review / Maps page
+ * (google-review-url.js; any https link used to pass). '' = nothing to link.
+ */
 function reviewUrlFor(lead, repUrl) {
-  return safeUrl(repUrl) || (isNbd(lead) ? NBD_REVIEW_URL : '');
+  if (isNbd(lead)) return NBD_REVIEW_URL;
+  return require('./google-review-url').cleanReviewUrl(repUrl);
+}
+
+/** The portal's review button and rating response: same rule, null = no button. */
+function portalReviewUrlFor(repUrl, nbd) {
+  if (nbd) return NBD_REVIEW_URL;
+  return require('./google-review-url').cleanReviewUrl(repUrl) || null;
 }
 
 function esc(s) {
@@ -249,6 +264,6 @@ function textBody(lead, reviewUrl) {
 
 module.exports = {
   EMAIL_FLAG, TEXT_FLAG, MIN_DAYS, MAX_DAYS, NBD_OWNER_UID, NBD_REVIEW_URL, SOURCE, TEXT_SOURCE,
-  receivedMs, inWindow, baseEligibility, planEmail, planText, willHandle, reviewUrlFor,
+  receivedMs, inWindow, baseEligibility, planEmail, planText, willHandle, reviewUrlFor, portalReviewUrlFor,
   emailContent, textBody, jobKey, attempted, isNbd, validEmail,
 };

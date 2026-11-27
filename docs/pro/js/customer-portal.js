@@ -142,7 +142,7 @@
     const body = encodeURIComponent(
       `Hi${name ? ' ' + name.split(' ')[0] : ''}, here's your project portal from ${BRAND.name}! Track your progress, view photos, and more: ${url}`
     );
-    window.open(`sms:${phone}?body=${body}`, '_self');
+    window.open(`sms:${phone}?&body=${body}`, '_self');
   }
 
   /**

@@ -420,7 +420,7 @@ jobs:
   unit-suite-manifest:
     name: Unit suites (manifest)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 14
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -523,6 +523,24 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project demo-nbd-thursday-pb 'node ./thursday-label-playbooks.integration.test.js'
+      # Agent inbox dedupe_key (2026-11-22, roadmap step 6): the real crmMcp handler
+      # end to end, incl. two same-key filings at once -> one item.
+      - name: Run Agent-inbox dedupe tests under firestore emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project demo-nbd-inbox-dedupe 'node ./agent-inbox-dedupe.integration.test.js'
+      # The Quinn gate (2026-11-25, roadmap step 8): the real crmMcp handler + agentDraftAction
+      # end to end: unchecked drafts need the owner's confirm, withdraw_item, no self-verify.
+      - name: Run Quinn-gate tests under firestore emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project demo-nbd-quinn-gate 'node ./quinn-gate.integration.test.js'
+      # The office planner (2026-11-25, roadmap step 17B): the real run through crmMcp's filing path:
+      # each lane files once, the second run dedupes, drafts land unchecked, opted-out companies untouched.
+      - name: Run office-planner tests under firestore emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project demo-nbd-office-planner 'node ./office-planner.integration.test.js'
 
   syntax-check:
     name: Node syntax check
@@ -659,11 +677,21 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-subpaper-test 'node firestore-rules.sub-paperwork.test.js'
+      # Agreed sub pay per job (2026-11-19, flag subJobBoard): companies/{cid}/subJobs/{leadId}. Cost data: owner + company_admin + manager only. Own file (positive controls inside).
+      - name: Run sub-jobs rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-subjobs-test 'node firestore-rules.sub-jobs.test.js'
       # W-9 / insurance certificates (2026-10-19): sub-papers/{companyId}/{subId}/ is owner + company_admin only. Own file (positive control inside).
       - name: Run sub-papers storage rules tests under emulator
         run: |
           cd tests
           firebase emulators:exec --only storage --project nbd-subpapers-test 'node storage-rules.sub-papers.test.js'
+      # Product photos (2026-11-18, supplier price ledger): product-photos/{companyId}/ is read by the company's staff and reps, written only by the server. Own file (positive control inside).
+      - name: Run product-photos storage rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only storage --project nbd-prodphotos-test 'node storage-rules.product-photos.test.js'
       # Apple Health weight Shortcut (2026-10-20): health_shortcut_keys / health_shortcut_state / system flag are Admin-SDK only. Own file (positive controls inside).
       - name: Run health-shortcut rules tests under emulator
         run: |
@@ -744,6 +772,26 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-cbsettings-test 'node firestore-rules.call-brief-settings.test.js'
+      # Evidence and clause foundation (2026-11-18): documents.signatureEvidence and deal_rooms.acceptedEvidence are server-owned. Own file (positive controls inside).
+      - name: Run doc-evidence rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-docevidence-test 'node firestore-rules.doc-evidence-2026-11-18.test.js'
+      # Attic acknowledgment (2026-11-18): documents.atticAckResult server-owned, attic_overrides write:false. Own file (positive controls inside).
+      - name: Run attic-ack rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-atticack-test 'node firestore-rules.attic-ack-2026-11-18.test.js'
+      # Clause set v1 review (2026-11-18): companyProfile.paymentTerms bounds and the server-only deal_accept_tokens clause block. Own file (positive controls inside).
+      - name: Run clause-set v1 review rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-clausev1-test 'node firestore-rules.clause-set-v1-review-2026-11-18.test.js'
+      # Paper certification (2026-11-18): wetSignedAttestation / wetSignedEvidence server-owned, the wet_signed_uploaded status is not client-movable. Own file (positive controls inside).
+      - name: Run paper-cert rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-papercert-test 'node firestore-rules.paper-cert-2026-11-18.test.js'
       # Call to Close P2 (2026-11-09): integrations/callCenter_{companyId} — another tenant's call feed config (owner uid, Drive folder, enabled); server-only. Own file (positive controls inside).
       - name: Run call-feed config rules tests under emulator
         run: |
@@ -1463,6 +1511,11 @@ jobs:
         run: |
           cd tests
           node ds-phone-fit-2026-11-14.test.js
+      # Coach field size (phone pass 2026-11-18): every field in the open coach, on Daily Success and the Workout app, is 16 px so iOS does not zoom. Same server, same Chromium.
+      - name: Run the coach field-size check
+        run: |
+          cd tests
+          node coach-rpe-select-16px-2026-11-18.test.js
       # The Daily Success quick wins (UX audit 2026-11-09): save on the way out, red failures, safe-area offsets,
       # Today-bar buttons, search lands on the match, scroll kept per view, the two named streaks. Same server, same Chromium.
       - name: Run the Daily Success quick-wins check
@@ -1628,7 +1681,7 @@ jobs:
         run: |
           cd tests
           npx firebase-tools emulators:exec --only hosting --project nobigdeal-pro \
-            'PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 playwright test --config=playwright.config.js --project=chromium --workers=1 pro-public.spec.js marketing.spec.js site-search.spec.js'
+            'PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 playwright test --config=playwright.config.js --project=chromium --workers=1 pro-public.spec.js pro-dialogs.spec.js marketing.spec.js site-search.spec.js'
       - name: Upload Playwright traces on failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

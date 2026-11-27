@@ -36,7 +36,7 @@ console.log('\n1. Reg Z 1026.24(d): no financed $/month figure without its APR')
 // Any public paragraph that pairs financing words with a $/month figure
 // must say "APR" in the same paragraph or point to a footnote (*).
 const PUB = ['docs/index.html', 'docs/estimate.html', 'docs/services/financing.html', 'docs/services/roof-replacement.html',
-  'docs/guides/roof-financing-explained.html', 'docs/blog/how-roof-financing-actually-works.html', 'docs/blog/roof-financing-cincinnati-explained.html'];
+  'docs/guides/roof-financing-explained.html', 'docs/blog/roof-financing-cincinnati-explained.html'];
 for (const f of PUB) {
   if (!fs.existsSync(path.join(ROOT, f))) continue;
   const paras = read(f).match(/<(p|li|div)[^>]*>[^<]*(?:<(?!\/?(?:p|li|div)\b)[^>]*>[^<]*)*<\/\1>/g) || [];
@@ -63,7 +63,7 @@ console.log('\n4. Credentials: GAF Certified #1162011, no stale "application in 
   ok('no public page says a credential is "in progress" / "pending"', stale.length === 0, stale.join(', '));
   ok('field-notes footer names the GAF certification', /GAF Certified Contractor #1162011/.test(read('docs/blog/field-notes-joes-notebook-goes-public.html')));
 }
-ok('storm-check.js: no "files the claim" note left to copy', !/files the claim/i.test(read('docs/assets/js/storm-check.js')));
+ok('roof-check.js (was storm-check.js): no "files the claim" note left to copy', !/files the claim/i.test(read('docs/assets/js/roof-check.js')));
 
 console.log('\n' + (fail ? 'FAILED' : 'OK') + ' -- ' + pass + ' passed, ' + fail + ' failed');
 if (fail) process.exit(1);

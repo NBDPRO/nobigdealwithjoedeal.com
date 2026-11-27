@@ -1,0 +1,20 @@
+/* css/payment-terms-settings.css - Settings > Company Profile > Payment terms
+   (js/payment-terms-settings.js loads it on first paint, never at boot).
+   Theme tokens only; 44px targets; no motion. */
+.ptset-ready { padding: 10px 12px; border-radius: 7px; border: 1px solid var(--br); background: var(--s2); color: var(--t); font-size: 14px; font-weight: 600; }
+.ptset-ready-ok { border-color: var(--green, var(--br)); }
+.ptset-ready-no { border-color: var(--orange); }
+.ptset-note { margin: 8px 0 0; font-size: 12px; line-height: 1.45; color: var(--m); }
+.ptset-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.ptset-input {
+  width: 100%; max-width: 220px; min-height: 44px; padding: 10px 12px; box-sizing: border-box;
+  background: var(--s2); color: var(--t); border: 1px solid var(--br); border-radius: 7px; font: inherit; font-size: 14px;
+}
+.ptset-input:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+.ptset-input[aria-invalid="true"] { border-color: var(--orange); }
+.ptset-input:disabled { opacity: 0.8; }
+.ptset-unit { font-weight: 400; color: var(--m); }
+.ptset-hint { margin-top: 4px; font-size: 11px; color: var(--m); }
+.ptset-err { margin-top: 4px; min-height: 0; font-size: 12px; line-height: 1.4; color: var(--orange); }
+.ptset-row { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ptset-save { min-height: 44px; }
