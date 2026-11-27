@@ -754,7 +754,7 @@ exports.runAbandonRecovery = funnelRecovery.runAbandonRecovery;
 // Daily 7am ET summary of the last 24h of public leads (functions/lead-digest.js).
 exports.dailyLeadDigest = require('./lead-digest').dailyLeadDigest;
 
-// Every-3h sweep: one follow-up email to 20-48h-old leads whose bridged CRM
+// Every-3h sweep: one follow-up email to 24-48h-old leads whose bridged CRM
 // card is still untouched (functions/lead-followup.js).
 exports.leadFollowUpSweep = require('./lead-followup').leadFollowUpSweep;
 
