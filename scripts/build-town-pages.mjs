@@ -18,6 +18,9 @@
  *     <!-- TOWNWHY:START -->   … the four "why NBD" cards (varied phrasings)
  *     <!-- TOWNFACTS:START --> … housing age, storm list, permits, local facts
  *     <!-- TOWNFAQ:START -->   … 4-5 visible town Q&As + their FAQPage JSON-LD
+ *     <!-- TOWNDEPTH:START --> … only towns with a `depth` entry (2026-11-27):
+ *                               Census year-built mix, sourced neighborhoods,
+ *                               and links to the jobs posted in that town
  *   docs/services/{roof-inspection,siding-replacement,siding-repair}-<slug>.html
  *     <!-- TOWNLOCAL:START --> … a 2-3 sentence "In <Town>" paragraph
  *     <!-- TOWNSCOPE:START --> … the scope checklist, ordered and annotated for
@@ -285,6 +288,85 @@ function townFacts(t) {
 ${stormBox(t)}
 ${permitBox(t)}
 ${factCards(t)}
+  </div>
+</section>`;
+}
+
+// ── TOWNDEPTH (optional, 2026-11-27) ──────────────────────────────────
+// A "street by street" section for the towns with the most Search Console
+// impressions: the Census year-built mix (B25034), named neighborhoods with
+// a source each, and links to the jobs posted in that town. Only towns with
+// a `depth` entry get it; their area page carries TOWNDEPTH markers.
+const PROJECTS = JSON.parse(readFileSync(path.join(ROOT, 'docs', 'assets', 'data', 'projects.json'), 'utf8')).projects;
+const PRE_NBD = "my work from before I started No Big Deal";
+const pct = (n, d) => Math.round((n / d) * 100);
+function builtParagraphs(t) {
+  const b = t.depth.built, T = esc(t.town);
+  const total = b.units;
+  const share = {
+    pre1960: pct(b.pre1940 + b.y1940s + b.y1950s, total),
+    y6079: pct(b.y1960s + b.y1970s, total),
+    y8099: pct(b.y1980s + b.y1990s, total),
+    since2000: pct(b.y2000s + b.y2010s + b.since2020, total),
+  };
+  const src = link(b.source, 'Census ACS 2020–2024, table B25034');
+  const p1 = `The Census counts about ${total.toLocaleString('en-US')} homes and apartments in ${T}. About ${share.pre1960}% went up before 1960, ${share.y6079}% in the ’60s and ’70s, ${share.y8099}% in the ’80s and ’90s, and ${share.since2000}% since 2000 (${src}). About ${b.detachedPct}% are detached single-family houses.`;
+  const ERA = {
+    pre1960: 'Houses from before 1960 are usually on their third or fourth roof. On those I look for plank decking, sagging along the rafters, and an old layer left under the newer one.',
+    y6079: 'Houses from the ’60s and ’70s are usually on their second or third roof, and the first replacement often went on over the original instead of after a tear-off.',
+    y8099: 'Houses from the ’80s and ’90s are mostly on their first or second roof. Where a subdivision went up in a few years, its roofs tend to wear out in the same few years.',
+    since2000: 'Houses built since 2000 are getting to the age where the original builder-grade shingles start shedding granules and curling.',
+  };
+  const top = Object.keys(share).sort((a, b2) => share[b2] - share[a]).slice(0, 2);
+  const p2 = `${ERA[top[0]]} ${ERA[top[1]]} That’s the pattern for ${T}, not a diagnosis of your roof. Yours gets judged on what I find when I’m up there.`;
+  return [p1, p2];
+}
+function townJobs(t) {
+  const city = `${t.town}, ${t.state}`;
+  return PROJECTS.filter((p) => p.city === city && existsSync(path.join(ROOT, 'docs', 'our-work', `${p.slug}.html`)));
+}
+function jobsBox(t) {
+  const T = esc(t.town), jobs = townJobs(t);
+  if (!jobs.length) {
+    return `    <div class="storm-section">
+      <h3>Jobs I’ve posted from ${T}</h3>
+      <p>I haven’t posted a finished ${T} job yet. The <a href="#local-jobs">closest ones I have</a> are near the top of this page, each marked with its town and distance.</p>
+    </div>`;
+  }
+  const items = jobs.map((p) => {
+    const pre = !(Number.isInteger(p.year) && p.year >= 2026);
+    return `        <li><a href="/our-work/${esc(p.slug)}">${esc(p.title)}</a> · ${esc(p.tag)}${p.year ? `, ${p.year}` : ''}${pre ? ` (${PRE_NBD})` : ''}</li>`;
+  }).join('\n');
+  return `    <div class="storm-section">
+      <h3>Jobs I’ve posted from ${T}</h3>
+      <p>Each one has the photos and what we did:</p>
+      <ul>
+${items}
+      </ul>
+    </div>`;
+}
+function areaCards(t) {
+  const areas = t.depth.areas || [];
+  if (!areas.length) return '';
+  return `    <div class="eyebrow">${pick(t, 'da', ['Neighborhoods', 'Parts of town', 'Around ' + esc(t.town)])}</div>
+    <div class="why-grid">
+${areas.map((a) => `        <div class="why-card">
+          <h3>${esc(a.name)}</h3>
+          <p>${esc(a.text)} ${link(a.url, 'Source')}</p>
+        </div>`).join('\n')}
+    </div>`;
+}
+function townDepth(t) {
+  const T = esc(t.town);
+  const [p1, p2] = builtParagraphs(t);
+  const title = pick(t, 'dt', [`${T} Houses, <span>Decade by Decade</span>`, `${T}, <span>Street by Street</span>`, `What ${T} <span>Is Built From</span>`]);
+  return `<section id="local-depth">
+  <div class="section-inner">
+    <div class="eyebrow">Housing stock</div>
+    <h2 class="sec-title">${title}</h2>
+    <p class="sec-desc">${p1}</p>
+    <p class="sec-desc">${p2}</p>
+${[areaCards(t), jobsBox(t)].filter(Boolean).join('\n')}
   </div>
 </section>`;
 }
@@ -994,7 +1076,14 @@ let faqCount = 0;
 for (const t of TOWNS) {
   const faq = townFaq(t);
   faqCount += (faq.match(/"@type":"Question"/g) || []).length;
-  stampFile(path.join(AREAS, `${t.slug}.html`), [['TOWNWHY', townWhy(t)], ['TOWNFACTS', townFacts(t)], ['TOWNFAQ', faq]]);
+  const regions = [['TOWNWHY', townWhy(t)], ['TOWNFACTS', townFacts(t)], ['TOWNFAQ', faq]];
+  const hasDepthMarkers = readFileSync(path.join(AREAS, `${t.slug}.html`), 'utf8').includes('<!-- TOWNDEPTH:START -->');
+  if (t.depth) {
+    if (!/^https:\/\//.test(t.depth.built.source || '')) fail(`${t.slug}: depth.built has no https source URL`);
+    for (const a of t.depth.areas || []) if (!/^https:\/\//.test(a.url || '')) fail(`${t.slug}: depth area "${a.name}" has no https source URL`);
+    regions.push(['TOWNDEPTH', townDepth(t)]);
+  } else if (hasDepthMarkers) fail(`docs/areas/${t.slug}.html has TOWNDEPTH markers but towns.json has no depth entry for it`);
+  stampFile(path.join(AREAS, `${t.slug}.html`), regions);
 }
 let localCount = 0;
 for (const f of readdirSync(SERVICES)) {

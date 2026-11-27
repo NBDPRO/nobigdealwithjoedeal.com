@@ -18,6 +18,9 @@
    "region": "cincy-oh",
    "zips": ["45102"],
    "housing": {"medianYearBuilt":1995,"ownerOccupiedPct":61.3,"population":12871,"source":"https://censusreporter.org/profiles/16000US3901742/"},
+   "depth": {"built": {"units":5364,"pre1940":130,"y1940s":51,"y1950s":343,"y1960s":309,"y1970s":825,"y1980s":618,"y1990s":775,"y2000s":1549,"y2010s":650,"since2020":114,"detachedPct":62,"source":"https://censusreporter.org/data/table/?table=B25034&geo_ids=16000US3901742"}, "areas": [
+    {"name":"The old village","text":"Amelia was established as a village on December 20, 1900, and was Pierce Township's only village until it dissolved in 2019.","url":"https://piercetownship.org/history/"}
+   ]},
    "geo": {"lat":39.026864,"lng":-84.21806,"geoid":"3901742"},
    "storms": {"radiusKm": 6.1, "nearbyCount": 14, "hailReports": 1, "hailDays": 1, "maxHailIn": 1.25, "maxHail": {"in":1.25,"date":"2020-05-23","place":"Amelia","noaa":882799}, "lastHail": {"in":1.25,"date":"2020-05-23","place":"Amelia","noaa":882799}, "tornadoes": 0, "events": [
     {"date":"2020-05-23","kind":"hail","hailIn":1.25,"place":"Amelia","km":0.4,"noaa":882799},
@@ -60,6 +63,9 @@
    "region": "cincy-oh",
    "zips": ["45103"],
    "housing": {"medianYearBuilt":1955,"ownerOccupiedPct":58.4,"population":2794,"source":"https://censusreporter.org/profiles/16000US3904150/"},
+   "depth": {"built": {"units":997,"pre1940":336,"y1940s":55,"y1950s":211,"y1960s":132,"y1970s":112,"y1980s":16,"y1990s":13,"y2000s":13,"y2010s":73,"since2020":36,"detachedPct":67,"source":"https://censusreporter.org/data/table/?table=B25034&geo_ids=16000US3904150"}, "areas": [
+    {"name":"The courthouse square","text":"The Clermont County Courthouse on Main Street was built by the WPA and dedicated on December 19, 1936. Batavia's first courthouse was occupied in 1829.","url":"https://clermontcommonpleas.com/court-and-judge-information/courthouses-history/"}
+   ]},
    "geo": {"lat":39.075273,"lng":-84.176122,"geoid":"3904150"},
    "storms": {"radiusKm": 5.6, "nearbyCount": 15, "hailReports": 0, "hailDays": 0, "maxHailIn": null, "maxHail": null, "lastHail": null, "tornadoes": 0, "events": [
     {"date":"2019-05-23","kind":"wind","kt":50,"basis":"report","place":"Stonelick","km":5.2,"damageUsd":10000,"noaa":817189},
@@ -435,6 +441,9 @@
    "region": "cincy-oh",
    "zips": ["45150"],
    "housing": {"medianYearBuilt":1968,"ownerOccupiedPct":49.6,"population":6497,"source":"https://censusreporter.org/profiles/16000US3950176/"},
+   "depth": {"built": {"units":3490,"pre1940":685,"y1940s":68,"y1950s":653,"y1960s":406,"y1970s":622,"y1980s":207,"y1990s":395,"y2000s":357,"y2010s":97,"since2020":0,"detachedPct":43,"source":"https://censusreporter.org/data/table/?table=B25034&geo_ids=16000US3950176"}, "areas": [
+    {"name":"Promont","text":"Promont, an Italianate Victorian house built in 1865 on Goshen Pike, has been on the National Register since 1980. The Greater Milford Area Historical Society is based there.","url":"https://en.wikipedia.org/wiki/Promont"}
+   ]},
    "geo": {"lat":39.165209,"lng":-84.284784,"geoid":"3950176"},
    "storms": {"radiusKm": 5.7, "nearbyCount": 25, "hailReports": 1, "hailDays": 1, "maxHailIn": 1, "maxHail": {"in":1,"date":"2019-03-14","place":"Terrace Park","noaa":802815}, "lastHail": {"in":1,"date":"2019-03-14","place":"Terrace Park","noaa":802815}, "tornadoes": 1, "events": [
     {"date":"2020-04-08","kind":"tornado","rating":"EF0","pathMi":3.3,"place":"Silverton to Milford","county":"Hamilton","km":2.4,"damageUsd":45000,"noaa":876954},
@@ -641,6 +650,10 @@
    "region": "cincy-oh",
    "zips": ["45069","45241","45246","45011"],
    "housing": {"medianYearBuilt":1988,"ownerOccupiedPct":76.6,"population":65755,"source":"https://censusreporter.org/profiles/06000US3901783150/"},
+   "depth": {"built": {"units":25632,"pre1940":359,"y1940s":219,"y1950s":887,"y1960s":2171,"y1970s":4567,"y1980s":5661,"y1990s":6136,"y2000s":3252,"y2010s":2129,"since2020":251,"detachedPct":66,"source":"https://censusreporter.org/data/table/?table=B25034&geo_ids=06000US3901783150"}, "areas": [
+    {"name":"Wetherington","text":"Wetherington Golf & Country Club was established in 1991 and opened in 1992, on 450 acres of former farmland and forest.","url":"https://www.wetheringtongcc.com/history-2-updated"},
+    {"name":"How fast it grew","text":"The township went from 2,545 residents in 1950 to 54,895 in 2000.","url":"https://en.wikipedia.org/wiki/West_Chester_Township,_Butler_County,_Ohio"}
+   ]},
    "geo": {"lat":39.338194,"lng":-84.417103,"geoid":"3901783150"},
    "storms": {"radiusKm": 9.4, "nearbyCount": 32, "hailReports": 8, "hailDays": 6, "maxHailIn": 2, "maxHail": {"in":2,"date":"2025-05-16","place":"Kyles","noaa":1247257}, "lastHail": {"in":2,"date":"2025-05-16","place":"Kyles","noaa":1247257}, "tornadoes": 1, "events": [
     {"date":"2025-03-30","kind":"tornado","rating":"EF0","pathMi":9.73,"place":"Mason to Stubbs Mills","county":"Warren","km":6.3,"damageUsd":215000,"noaa":1241789},
@@ -683,6 +696,12 @@
    "region": "nky",
    "zips": ["41015","41017","41011","41014"],
    "housing": {"medianYearBuilt":1947,"ownerOccupiedPct":51.8,"population":41110,"source":"https://censusreporter.org/profiles/16000US2117848/"},
+   "depth": {"built": {"units":21048,"pre1940":9268,"y1940s":1683,"y1950s":1730,"y1960s":1477,"y1970s":1586,"y1980s":1275,"y1990s":1246,"y2000s":1063,"y2010s":1279,"since2020":441,"detachedPct":54,"source":"https://censusreporter.org/data/table/?table=B25034&geo_ids=16000US2117848"}, "areas": [
+    {"name":"MainStrasse and the West Side","text":"The West Side–Main Strasse Historic District went on the National Register in 1983. Its period of significance runs from 1825 to 1899.","url":"https://npgallery.nps.gov/AssetDetail/NRIS/83003650"},
+    {"name":"Wallace Woods","text":"The Wallace Woods residential historic district, roughly between 24th Street, Glenway, Wallace and Madison avenues, was listed on the National Register in 1983.","url":"https://npgallery.nps.gov/AssetDetail/NRIS/83002807"},
+    {"name":"Austinberg","text":"The Austinberg Historic District was added to the National Register in 1987.","url":"https://en.wikipedia.org/wiki/National_Register_of_Historic_Places_listings_in_Kenton_County,_Kentucky"},
+    {"name":"West Covington","text":"West Covington joined the city by annexation in 1916.","url":"https://www.kentonlibrary.org/genealogy/regional-history/annexation-to-covington/"}
+   ]},
    "geo": {"lat":39.035109,"lng":-84.519648,"geoid":"2117848"},
    "storms": {"radiusKm": 7.3, "nearbyCount": 35, "hailReports": 4, "hailDays": 3, "maxHailIn": 1, "maxHail": {"in":1,"date":"2019-03-14","place":"Erlanger","noaa":802778}, "lastHail": {"in":1,"date":"2024-04-02","place":"Covington","noaa":1168930}, "tornadoes": 0, "events": [
     {"date":"2019-04-12","kind":"wind","kt":61,"basis":"estimated","place":"South Fort Mitchell","km":4.5,"noaa":808048},
@@ -728,6 +747,10 @@
    "region": "nky",
    "zips": ["41042","41091","41018"],
    "housing": {"medianYearBuilt":1985,"ownerOccupiedPct":57.5,"population":32803,"source":"https://censusreporter.org/profiles/16000US2127982/"},
+   "depth": {"built": {"units":14499,"pre1940":254,"y1940s":328,"y1950s":1345,"y1960s":1215,"y1970s":3083,"y1980s":1875,"y1990s":1922,"y2000s":3208,"y2010s":907,"since2020":362,"detachedPct":44,"source":"https://censusreporter.org/data/table/?table=B25034&geo_ids=16000US2127982"}, "areas": [
+    {"name":"Old Florence, around Main Street","text":"The Florence Main Street district holds buildings back to the 1840s. The area was once called Stringtown, and the oldest standing houses there date to about 1840 and 1842.","url":"https://cms7files.revize.com/boonecountyky/document_center/PlanningCommission/FlorenceMainStreetStudy.pdf"},
+    {"name":"Main Street design review","text":"Since 1994, exterior changes inside the Florence Main Street zoning district need a Certificate of Appropriateness. The 2022 county study lists small roofing repairs that match the existing material, design and color as maintenance that does not, and it lists changing a roof's pitch or raising its height as inappropriate or prohibited.","url":"https://cms7files.revize.com/boonecountyky/document_center/PlanningCommission/FlorenceMainStreetStudy.pdf"}
+   ]},
    "geo": {"lat":38.993405,"lng":-84.648186,"geoid":"2127982"},
    "storms": {"radiusKm": 7, "nearbyCount": 44, "hailReports": 4, "hailDays": 4, "maxHailIn": 1.75, "maxHail": {"in":1.75,"date":"2021-06-18","place":"Burlington","noaa":954924}, "lastHail": {"in":1,"date":"2025-04-30","place":"Erlanger","noaa":1246711}, "tornadoes": 1, "events": [
     {"date":"2026-06-17","kind":"tornado","rating":"EF1","pathMi":4.77,"place":"Limaburg to Florence","km":3.1,"damageUsd":250000,"noaa":1340869},

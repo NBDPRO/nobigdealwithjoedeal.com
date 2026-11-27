@@ -37,6 +37,9 @@ const LEX = new Set(['areas/lexington-ky', 'areas/georgetown-ky', 'areas/richmon
 const LEX_CAL = 'https://cal.com/nobigdeal/roof-inspection-lexington';
 // Eight towns keep their 2026-10-07 Search Console titles; six keep that pass's descriptions too
 const GSC_TITLE = new Set(['fort-mitchell-ky', 'indian-hill-oh', 'amelia-oh', 'mt-orab-oh', 'loveland-oh', 'montgomery-oh', 'mason-oh', 'cincinnati-oh']);
+// Title test started 2026-11-27 (documentation/audit/TOWN-TITLE-TEST-2026-11-27.md): seven towns take the
+// "Roofer" title; each has a matched control town that keeps "Roofing, Siding & Gutters in ...". Re-check after 2027-01-15.
+const TITLE_TEST = new Set(['west-chester-oh', 'milford-oh', 'covington-ky', 'erlanger-ky', 'fairfield-oh', 'blue-ash-oh', 'lebanon-oh']);
 const GSC_DESC = new Set(['fort-mitchell-ky', 'indian-hill-oh', 'amelia-oh', 'mt-orab-oh', 'loveland-oh', 'montgomery-oh']);
 const pages = [...walk(path.join(DOCS, 'areas'), []), ...walk(path.join(DOCS, 'services'), [])];
 const docs = new Map(pages.map((r) => [r, doc(r)]));
@@ -123,7 +126,8 @@ section('5. town pages: one title pattern, own description, own Cincinnati H1');
     const d = docs.get(r);
     const title = squash(d.$('title').text).replace(/&amp;/g, '&');
     const desc = meta(d, 'name', 'description');
-    if (!GSC_TITLE.has(t.slug) && (title !== 'Roofing, Siding & Gutters in ' + t.town + ', ' + t.state + ' | NBD' || title.length > 60)) titleBad.push(r + ' => ' + title);
+    if (TITLE_TEST.has(t.slug) && (title !== t.town + ', ' + t.state + ' Roofer | Roofing, Siding & Gutters | NBD' || title.length > 60)) titleBad.push(r + ' (title test) => ' + title);
+    if (!GSC_TITLE.has(t.slug) && !TITLE_TEST.has(t.slug) && (title !== 'Roofing, Siding & Gutters in ' + t.town + ', ' + t.state + ' | NBD' || title.length > 60)) titleBad.push(r + ' => ' + title);
     if (GSC_TITLE.has(t.slug) && !title.startsWith(t.town + ', ' + t.state + ' Roofer | ')) titleBad.push(r + ' lost its GSC title => ' + title);
     if (!d.$('title').html.includes('&amp;') || /&(?!amp;)/.test(d.$('title').html)) ampBad.push(r);
     if (desc.length < 120 || desc.length > 155 || (!GSC_DESC.has(t.slug) && (!desc.includes(t.town + ', ' + t.state) || !desc.includes(String(t.housing.medianYearBuilt))))) descBad.push(r + ' (' + desc.length + ')');
@@ -132,7 +136,7 @@ section('5. town pages: one title pattern, own description, own Cincinnati H1');
     if (ogt !== meta(d, 'name', 'twitter:title') || !ogt.startsWith('Roofing, Siding & Gutters in ' + t.town) ||
       meta(d, 'property', 'og:description') !== desc || meta(d, 'name', 'twitter:description') !== desc) socialBad.push(r);
   }
-  ok((towns.length - GSC_TITLE.size) + ' town pages share the title "Roofing, Siding & Gutters in <Town>, <ST> | NBD" (<= 60 chars); the 8 GSC towns keep "<Town>, <ST> Roofer | ..."', titleBad.length === 0, titleBad.slice(0, 3).join(' | '));
+  ok((towns.length - GSC_TITLE.size - TITLE_TEST.size) + ' town pages share the title "Roofing, Siding & Gutters in <Town>, <ST> | NBD" (<= 60 chars); the 8 GSC towns keep "<Town>, <ST> Roofer | ..."; the ' + TITLE_TEST.size + ' title-test towns read "<Town>, <ST> Roofer | Roofing, Siding & Gutters | NBD"', titleBad.length === 0, titleBad.slice(0, 3).join(' | '));
   ok('every & in a title is written &amp;', ampBad.length === 0, ampBad.slice(0, 3).join(', '));
   ok('every description is 120-155 chars; the generated ones name their town and Census build year', descBad.length === 0, descBad.slice(0, 3).join(' | '));
   ok('no two town descriptions are the same', dup.length === 0, dup.slice(0, 3).join(' | '));
