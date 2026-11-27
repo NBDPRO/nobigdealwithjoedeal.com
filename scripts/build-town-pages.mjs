@@ -308,7 +308,8 @@ function answer(t, segs, q) {
     const h = esc(s.text);
     if (!s.href) return h;
     if (!h.includes(esc(s.anchor))) fail(`${t.slug}: link anchor "${s.anchor}" not in its sentence`);
-    return h.replace(esc(s.anchor), link(s.href, esc(s.anchor)));
+    // Site-internal links (the NKY hub) open in the same tab; sources open a new one.
+    return h.replace(esc(s.anchor), s.href.startsWith('/') ? `<a href="${esc(s.href)}">${esc(s.anchor)}</a>` : link(s.href, esc(s.anchor)));
   }).join(' ');
   return { q, a: text(list), html };
 }
@@ -400,12 +401,14 @@ function faqZips(t) {
   const many = z.length > 6 ? ', among others' : '';
   const region = {
     'cincy-oh': pick(t, 'zr', [`${T} is part of my regular Greater Cincinnati service area.`, `${t.county.split(' / ')[0]} is part of my regular Greater Cincinnati territory.`]),
-    nky: pick(t, 'zr', ['Northern Kentucky is part of my regular service area, just across the river from Cincinnati.', `${T} is a short drive over the river from my Cincinnati base.`]),
+    nky: pick(t, 'zr', ['Northern Kentucky is part of my regular service area, just across the river from Cincinnati.', `${T} is a short drive over the river from my Cincinnati base, and I cover the rest of Northern Kentucky too.`]),
     'central-ky': `${T} work runs on scheduled trips from my Cincinnati base, so I batch inspections and give you an exact window.`,
   }[t.region];
+  // NKY towns link their region hub (/areas/northern-kentucky, 2026-11-27).
+  const hub = t.region === 'nky' ? { href: '/areas/northern-kentucky', anchor: 'Northern Kentucky' } : {};
   const segs = [
     seg(`${yes} Most of ${T}’s land falls in ${list}${many}, and I work every street.`),
-    seg(region),
+    seg(region, hub),
     seg(pick(t, 'q5o', ['Every inspection is free, and I do it myself, on the roof, with photos.', 'Inspections are free and I do them personally, with photos you keep.', 'I do every inspection myself, free, and send the photos.']), { opt: true }),
     seg('Call or text (859) 420-7382 to set a time.', { pad: true }),
     seg('The estimate comes in writing, itemized, with no deadline attached.', { pad: true }),
@@ -982,7 +985,8 @@ function stampFile(file, regions) {
 }
 
 // Every area page needs data and every town needs a page.
-const areaFiles = readdirSync(AREAS).filter((f) => f.endsWith('.html') && f !== 'index.html');
+// Town pages end in -oh/-ky; index.html and region hubs (northern-kentucky.html) are hand-authored.
+const areaFiles = readdirSync(AREAS).filter((f) => /-(oh|ky)\.html$/.test(f));
 for (const f of areaFiles) if (!bySlug.has(f.replace(/\.html$/, ''))) fail(`docs/areas/${f} has no entry in site-src/data/towns.json`);
 for (const t of TOWNS) {
   if (!existsSync(path.join(AREAS, `${t.slug}.html`))) fail(`towns.json has ${t.slug} but docs/areas/${t.slug}.html does not exist`);

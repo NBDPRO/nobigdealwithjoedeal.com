@@ -395,6 +395,13 @@
         ]
       },
       {
+        "_comment": "The public /pro landing page, the last entry of /pro/sw.js's NO_CACHE_HTML ('/pro/'; trailingSlash:false serves it at /pro). Same reason as the block above: the SW no longer intercepts navigations, so its never-cache promise rests on this header (2026-11-17, Jo).",
+        "source": "/pro",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
+        ]
+      },
+      {
         "source": "/admin",
         "headers": [
           { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" },
