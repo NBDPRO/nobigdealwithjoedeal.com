@@ -931,6 +931,11 @@ exports.reviewAskTenantSweep = require('./review-ask-tenant').reviewAskTenantSwe
 exports.setReviewAskProfile = require('./review-ask-tenant').setReviewAskProfile;
 exports.manageReviewAskTenant = require('./review-ask-tenant').manageReviewAskTenant;
 
+// Review-ask carrier health + auto-pause (2026-11-26, S3), DARK (REVIEW_ASK_HEALTH_ENABLED):
+// the Twilio status callback for review texts, POST /api/review-ask/status?s=<send id>,
+// verified with the stored send's own sender token. functions/review-ask-health.js.
+exports.reviewAskTextStatus = require('./review-ask-health').reviewAskTextStatus;
+
 // ═══════════════════════════════════════════════════════════════
 // MORNING BRIEF — 06:45 ET appointment brief for the owner
 // ═══════════════════════════════════════════════════════════════

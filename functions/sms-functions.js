@@ -1747,6 +1747,12 @@ exports.incomingSMS = onRequest(
         // enforces it). Best-effort and bounded: a failure here never undoes
         // the opt-out or delays the confirmation.
         await copyStopToTenantLists(db, fromPhone);
+        // S3: a STOP to a recent review text counts toward that company's carrier health
+        // (review-ask-health.js; dark = nothing written; never throws, never delays the confirmation much).
+        await require('./review-ask-health').noteStop(db, {
+          from: fromPhone, messageSid: req.body.MessageSid,
+          toNbdLine: OptOut.optOutKey(req.body.To) !== '' && OptOut.optOutKey(req.body.To) === OptOut.optOutKey(secretValue(TWILIO_PHONE_NUMBER) || ''),
+        });
         // TwiML reply confirming opt-out. Twilio sends this back. It names
         // the BUSINESS the homeowner texted (sms-keyword-replies.js), never
         // the CRM product. Resolved AFTER the opt-out is recorded: a lookup
