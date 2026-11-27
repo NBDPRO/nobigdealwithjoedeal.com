@@ -6695,15 +6695,24 @@
     link.textContent = window.location.origin + url;
     link.href = url;
   }
-  async function _loadSiteSlug() {
+  // Only the newest load paints: opening the tab starts one behind a slow
+  // profile read, and if it resolves after Publish's own load its older read
+  // would repaint "private" over "published" (2026-11-27).
+  let _siteLoadSeq = 0;
+  async function _loadSiteSlug(published) {
     const key = _siteCompanyKey();
     if (!key || !db) return;
+    const seq = ++_siteLoadSeq;
     let slug = '';
     let co = null;
     try {
       const snap = await getDoc(doc(db, 'companies', key));
       if (snap.exists()) { co = snap.data() || {}; slug = co.siteSlug || ''; }
     } catch (_) { /* solo owners may have no doc yet */ }
+    if (seq !== _siteLoadSeq) return;
+    // publishTenantSite's own answer beats this read, which can be the
+    // device's cached copy from before the write.
+    if (co && typeof published === 'boolean') co.sitePublished = published;
     const input = document.getElementById('cp_siteSlug');
     if (input) input.value = slug;
     _renderSiteLink(slug);
@@ -6741,8 +6750,10 @@
       window._httpsCallable = window._httpsCallable || mod.httpsCallable;
     }
     const fn = window._httpsCallable(window._functions, 'publishTenantSite');
+    let verdict;
     try {
-      await fn({ publish: publish });
+      const res = await fn({ publish: publish });
+      verdict = res && res.data && res.data.published;
       if (typeof showToast === 'function') {
         showToast(publish ? '✓ Your site is published' : 'Your site is private again', 'success');
       }
@@ -6750,7 +6761,7 @@
       // failed-precondition carries the human "add your phone, service area…" message.
       if (typeof showToast === 'function') showToast((e && e.message) || 'Could not change your site', 'error');
     }
-    await _loadSiteSlug().catch(() => {});
+    await _loadSiteSlug(verdict).catch(() => {});
   }
   const _publishSite = function () { return _callPublishTenantSite(true); };
   const _unpublishSite = function () { return _callPublishTenantSite(false); };

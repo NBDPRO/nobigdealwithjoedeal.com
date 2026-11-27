@@ -172,6 +172,12 @@ const STRANGER = {
   password: 'nbd-e2e-stranger-pw-1',
   company: `[E2E] Stranger Roofing ${stamp}`,
   primaryColor: '#123456',
+  // Seals are globally unique (reserveCompanyPrefix claims docPrefixes/{SEAL}).
+  // Left blank, the wizard derives one from the company name — "[E2E] Stranger
+  // Roofing 17…" → "ESR1" on EVERY attempt, so a CI retry (new worker, same
+  // emulator) hit "initials already used" and never left the wizard
+  // (2026-11-26). Four base-36 digits of the stamp differ per attempt.
+  seal: (stamp % (36 ** 4)).toString(36).toUpperCase().padStart(4, '0'),
   uid: '',
 };
 const REP = {
@@ -208,11 +214,19 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
     // Step 2: a deliberate color choice — buildOverrides only persists colors
     // the rep actually touched (the M1 NBD-bleed rule this asserts later).
     await page.fill('#obColorPrimary', STRANGER.primaryColor);
+    await page.fill('#obSeal', STRANGER.seal);
     await page.click('#next2');
     const finish = page.locator('#finishBtn');
     await expect(finish, 'review step reached').toBeVisible({ timeout: 10_000 });
     await finish.click();
-    await page.waitForURL(/\/pro\/dashboard(\.html)?([?#]|$)/, { timeout: 30_000 });
+    try {
+      await page.waitForURL(/\/pro\/dashboard(\.html)?([?#]|$)/, { timeout: 30_000 });
+    } catch (e) {
+      // finish() reports every blocking refusal in #wizErr and stays put.
+      const wizErr = await page.locator('#wizErr').textContent().catch(() => '');
+      throw new Error('onboarding Finish never reached the dashboard'
+        + (wizErr ? ` — #wizErr: "${wizErr.trim()}"` : ' — #wizErr empty (silent hang)'));
+    }
 
     // Dashboard resolves, unwalled, on the free plan.
     await page.waitForFunction(() => typeof window.goTo === 'function', null, { timeout: 20_000 });
