@@ -45,23 +45,24 @@ let nudge = null;
 try { nudge = require(path.join(ROOT, 'functions/review-request-nudge.js')); } catch (e) { console.log('  (review-request-nudge not loadable here: ' + String(e.message).split('\n')[0] + ')'); }
 Module._load = origLoad;
 
-async function rate(invoices) {
-  store = {
-    'portal_tokens/TOKEN1234567': { leadId: 'L1', companyId: 'co', ownerUid: 'u1' },
-    'leads/L1': { companyId: 'co', userId: 'u1', firstName: 'Sample', stage: 'closed', stageRole: 'won', stageHistory: [] },
-  };
-  invoices.forEach((inv, i) => { store['invoices/i' + i] = Object.assign({ leadId: 'L1', companyId: 'co', createdBy: 'u1' }, inv); });
+async function rate(invoices, o) {
+  const co = (o && o.tenant) || 'co';
+  store = Object.assign({
+    'portal_tokens/TOKEN1234567': { leadId: 'L1', companyId: co, ownerUid: 'u1' },
+    'leads/L1': { companyId: co, userId: 'u1', firstName: 'Sample', stage: 'closed', stageRole: 'won', stageHistory: [] },
+  }, (o && o.seed) || {});
+  invoices.forEach((inv, i) => { store['invoices/i' + i] = Object.assign({ leadId: 'L1', companyId: co, createdBy: 'u1' }, inv); });
   added = [];
   const out = { status: 200, body: null };
   const res = { status(s) { out.status = s; return res; }, json(b) { out.body = b; return res; }, end() { return res; }, set() { return res; }, setHeader() { return res; } };
   await portal.submitCustomerRating({ method: 'POST', body: { token: 'TOKEN1234567', stars: 5 }, headers: {}, ip: '127.0.0.1', get() { return ''; } }, res);
   return { out, rated: store['leads/L1'].customerRating };
 }
-async function view(invoices, tenant) {
-  store = {
+async function view(invoices, tenant, seed) {
+  store = Object.assign({
     'portal_tokens/TOKEN1234567': { leadId: 'L1', companyId: tenant, ownerUid: tenant },
     'leads/L1': { companyId: tenant, userId: tenant, firstName: 'Sample', stage: 'closed', stageRole: 'won', stageHistory: [] },
-  };
+  }, seed || {});
   invoices.forEach((inv, i) => { store['invoices/i' + i] = Object.assign({ leadId: 'L1', companyId: tenant, createdBy: tenant }, inv); });
   const out = { status: 200, body: null };
   const res = { status(s) { out.status = s; return res; }, json(b) { out.body = b; return res; }, end() { return res; }, set() { return res; }, setHeader() { return res; }, send(b) { out.body = b; return res; } };
@@ -91,6 +92,35 @@ const paid = (extra) => Object.assign({ status: 'paid', total: 500, amountPaid: 
   ok('a backfill-only customer: no rating card and NO Google review link', v2.status === 200 && v2.body.rating.canRate === false && v2.body.rating.googleReviewUrl === null, v2.body && v2.body.rating);
   const v3 = await view([paid({ source: 'backfill', backfilled: true }), paid()], NBD);
   ok('real paid money beside an old backfilled check: card and link stay', v3.body.rating.canRate === true && !!v3.body.rating.googleReviewUrl, v3.body && v3.body.rating);
+
+  // ── Which review link: NBD always its own (R12, Jo 2026-11-26); another company, with
+  // REVIEW_LINK_APPROVED_ENABLED on, only its platform-approved link (Jo, 2026-11-27).
+  console.log('\n— the review link after rating and on the view —');
+  const RA = require(path.join(ROOT, 'functions/review-ask-auto-logic.js'));
+  const REP = 'https://g.page/r/RepOwnPlace7/review';
+  const APPR = 'https://search.google.com/local/writereview?placeid=ChIJcoApproved01';
+  const OTHER = 'https://search.google.com/local/writereview?placeid=ChIJcoBApproved9';
+  const approvedDoc = (url) => ({ approved: { displayName: 'Acme Roofing', reviewUrl: url, replyTo: 'office@acme.example', postalAddress: '123 Main St, Cincinnati, OH 45202' } });
+  const withFlag = async (on, fn) => {
+    const prev = process.env.REVIEW_LINK_APPROVED_ENABLED;
+    if (on) process.env.REVIEW_LINK_APPROVED_ENABLED = 'true'; else delete process.env.REVIEW_LINK_APPROVED_ENABLED;
+    try { return await fn(); } finally { if (prev === undefined) delete process.env.REVIEW_LINK_APPROVED_ENABLED; else process.env.REVIEW_LINK_APPROVED_ENABLED = prev; }
+  };
+  const repSeed = { 'users/u1': { googleReviewUrl: REP } };
+  let r = await withFlag(false, () => rate([paid()], { tenant: NBD, seed: repSeed }));
+  ok('NBD rater, flag off: NBD\'s own link, never the rep\'s', r.out.status === 200 && r.out.body.googleReviewUrl === RA.NBD_REVIEW_URL, r.out.body);
+  r = await withFlag(true, () => rate([paid()], { tenant: NBD, seed: repSeed }));
+  ok('NBD rater, flag on: NBD\'s own link', r.out.body.googleReviewUrl === RA.NBD_REVIEW_URL, r.out.body);
+  r = await withFlag(true, () => rate([paid()], { seed: Object.assign({ 'review_ask_tenants/co': approvedDoc(APPR) }, repSeed) }));
+  ok('another company\'s rater, flag on: its approved link', r.out.body.googleReviewUrl === APPR, r.out.body);
+  r = await withFlag(true, () => rate([paid()], { seed: Object.assign({ 'review_ask_tenants/co-b': approvedDoc(OTHER), 'review_ask_tenants/[object Object]': approvedDoc(OTHER) }, repSeed) }));
+  ok('flag on, only ANOTHER company approved: no link (never another company\'s copy, never the rep\'s)', r.out.body.googleReviewUrl === null, r.out.body);
+  r = await withFlag(false, () => rate([paid()], { seed: Object.assign({ 'review_ask_tenants/co': approvedDoc(APPR) }, repSeed) }));
+  ok('another company, flag off: today\'s rule, the rep\'s Google link', r.out.body.googleReviewUrl === REP, r.out.body);
+  const vo = await withFlag(true, () => view([paid()], 'co', { 'review_ask_tenants/co-b': approvedDoc(OTHER) }));
+  ok('view, flag on, only another company approved: no link', vo.status === 200 && vo.body.rating.googleReviewUrl === null, vo.body && vo.body.rating);
+  const va = await withFlag(true, () => view([paid()], 'co', { 'review_ask_tenants/co': approvedDoc(APPR) }));
+  ok('view, flag on: the company\'s approved link', va.body.rating.googleReviewUrl === APPR, va.body && va.body.rating);
   if (nudge && nudge._test) {
     console.log('\n— rep review nudge —');
     const anchor = async (invoices) => {

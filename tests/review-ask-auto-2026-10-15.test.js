@@ -366,7 +366,7 @@ const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowM
     const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[\s;{}(),])\/\/.*$/gm, '$1');
     const srv = strip(read('functions/portal.js'));
     const rate = srv.slice(srv.indexOf('exports.submitCustomerRating'));
-    ok('submitCustomerRating returns the review link for EVERY rating (no starsNum >= 4 gate)', !/if \(starsNum >= 4\)/.test(rate) && /googleReviewUrl = \(function/.test(rate));
+    ok('submitCustomerRating returns the review link for EVERY rating (no starsNum >= 4 gate)', !/if \(starsNum >= 4\)/.test(rate) && /googleReviewUrl = portalReviewUrl\(raw, isNbd, approved\);/.test(rate));
     ok('the view carries the link with NBD\'s as the fallback', /googleReviewUrl: \(isQuietBackfill\(lead\) \|\| backfillBlocksRating\(lead, tenantInvoices, paidInFullFor\)\) \? null : portalReviewUrl\(rep\.googleReviewUrl, _portalIsNbd, _approvedTenant\)/.test(srv));
     const P = require(path.join(FN, 'review-ask-auto-logic.js'));
     ok('NBD\'s review URL is the one Joe gave', P.NBD_REVIEW_URL === 'https://g.page/r/CXzIjLwvtRPdEBM/review');
