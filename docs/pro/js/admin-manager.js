@@ -693,7 +693,7 @@
   // sees the button land — the server returns 403 otherwise.
   async function rotateAccessCodes() {
     const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
-    if (!(await ask('Rotate access codes?\n\nThis deactivates NBD-2026, NBD-DEMO, TRYIT, DEAL-2026, ROOFCON26, NBD-STORM in Firestore. You\'ll need to run the seed script (BETA_COUNT=... scripts/seed-access-codes.js) to mint replacements.'))) return;
+    if (!(await ask('Rotate access codes?\n\nThis deactivates NBD-2026, NBD-DEMO, TRYIT, DEAL-2026, ROOFCON26, NBD-STORM in Firestore. To mint replacements, run the seed script with --apply (BETA_COUNT=... node scripts/seed-access-codes.js --apply); without --apply it only shows the plan. The public DEMO code is not touched.'))) return;
     try {
       const fn = await callable('rotateAccessCodes');
       const res = await fn({});

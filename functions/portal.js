@@ -118,11 +118,23 @@ const PORTAL_NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQ
 
 /**
  * The Google review link the portal shows: NBD's own for an NBD job (Jo,
- * 2026-11-26, R12: "Always NBD's link"), else the rep's link when it is a
- * Google review / Maps page (W134: never a javascript: URL), else null.
+ * 2026-11-26, R12: "Always NBD's link"). Another company: with
+ * REVIEW_LINK_APPROVED_ENABLED on, only its platform-approved link (Jo,
+ * 2026-11-27); off, the rep's link when it is a Google review / Maps page
+ * (W134: never a javascript: URL). Else null.
  */
-function portalReviewUrl(raw, isNbd) {
-  return require('./review-ask-auto-logic').portalReviewUrlFor(raw, isNbd);
+function portalReviewUrl(raw, isNbd, approvedTenant) {
+  return require('./review-ask-tenant-logic').companyReviewLink({ isNbd, repUrl: raw, tenant: approvedTenant, env: process.env });
+}
+// The tenant key the review link is chosen by: the lead's company, else the token's owner
+// (a solo tenant's uid). One rule for the view and the rating response.
+function reviewTenantKey(tok, lead) {
+  return String((lead && lead.companyId) || (tok && tok.ownerUid) || '');
+}
+// The company's review_ask_tenants doc, read only when the flag is on and it is not NBD.
+async function approvedTenantFor(db, tenantKey, isNbd) {
+  if (isNbd || !tenantKey || !require('./review-ask-tenant-logic').linkFlagOn(process.env)) return null;
+  try { const s = await db.doc('review_ask_tenants/' + String(tenantKey)).get(); return s.exists ? (s.data() || null) : null; } catch (_) { return null; }
 }
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 function otherJobsFor(lead, jobs) {
@@ -745,7 +757,7 @@ exports.getHomeownerPortalView = onRequest(
     // The tenant's time zone for the Kentucky pay-link hold (the same read as
     // functions/stripe.js: KyLaw.resolveTimeZone(companyProfile)).
     let kyTz = KyLaw.DEFAULT_TIME_ZONE;
-    const tenantKey = lead.companyId || tok.ownerUid;
+    const tenantKey = reviewTenantKey(tok, lead);
     // Where a Zelle payment goes (2026-10-04, zelle-contact.js): the tenant's
     // own brand.contact.zelle* pair; NBD's defaults ((859) 420-7382 or jd@ —
     // never info@) only when tenantKey IS the NBD platform tenant — keyed on
@@ -754,6 +766,7 @@ exports.getHomeownerPortalView = onRequest(
     // unless this IS the platform owner.
     let zelleBrand = (tenantKey && String(tenantKey) === PORTAL_NBD_OWNER_UID) ? null : undefined;
     const _portalIsNbd = !tenantKey || String(tenantKey) === PORTAL_NBD_OWNER_UID;
+    const _approvedTenant = await approvedTenantFor(db, tenantKey, _portalIsNbd);
     if (tenantKey) {
       try {
         const cpSnap = await db.doc(`companyProfile/${tenantKey}`).get();
@@ -1342,7 +1355,7 @@ exports.getHomeownerPortalView = onRequest(
         // 2026-10-15 (Joe): the card links STRAIGHT to the review page for
         // everyone, before and without a rating (no review gating). NBD's own
         // link for NBD; another company's rep link only if Google's (portalReviewUrl).
-        googleReviewUrl: (isQuietBackfill(lead) || backfillBlocksRating(lead, tenantInvoices, paidInFullFor)) ? null : portalReviewUrl(rep.googleReviewUrl, _portalIsNbd),
+        googleReviewUrl: (isQuietBackfill(lead) || backfillBlocksRating(lead, tenantInvoices, paidInFullFor)) ? null : portalReviewUrl(rep.googleReviewUrl, _portalIsNbd, _approvedTenant),
       },
     };
 
@@ -2299,10 +2312,12 @@ exports.submitCustomerRating = onRequest(
       try {
         const repSnap = await db.doc(`users/${tok.ownerUid}`).get();
         const raw = repSnap.exists ? (repSnap.data() || {}).googleReviewUrl : null;
-        googleReviewUrl = (function () {
-          const t = ratedLead ? portalTenant(tok, ratedLead) : null;
-          return portalReviewUrl(raw, !t || String(t) === PORTAL_NBD_OWNER_UID);   // same rule as the view's _portalIsNbd
-        })();
+        // The view's rule exactly (reviewTenantKey). portalTenant() is an object, so String() of it
+        // never matched NBD and read review_ask_tenants/[object Object] (security review, 2026-11-27).
+        const t0 = reviewTenantKey(tok, ratedLead || {});
+        const isNbd = !t0 || t0 === PORTAL_NBD_OWNER_UID;
+        const approved = await approvedTenantFor(db, t0, isNbd);
+        googleReviewUrl = portalReviewUrl(raw, isNbd, approved);
       } catch (_) { /* non-critical */ }
 
       res.status(200).json({

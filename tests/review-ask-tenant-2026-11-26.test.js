@@ -182,8 +182,16 @@ const sends = (db) => [...db.store.entries()].filter(([p]) => p.startsWith('revi
     for (const a of ['www.acme.example 123', 'Visit acmeroofing.com, 12 Main', '12 Main St http://x', 'mail@acme 12', 'Main Street Cincinnati', 'short 1']) {
       ok('postal address refused: ' + a, !T.validatePostalAddress(a).ok);
     }
-    const ex = T.validateProfileRequest({ action: 'set', displayName: 'Acme Roofing', googleReviewUrl: APPROVED.reviewUrl, replyTo: 'office@acme.example', dailyCap: 999 });
+    const ex = T.validateProfileRequest({ action: 'set', displayName: 'Acme Roofing', replyTo: 'office@acme.example', dailyCap: 999 }, APPROVED.reviewUrl);
     ok('a request with an extra key (dailyCap) is refused, not silently dropped', !ex.ok && ex.reason === 'unknown_field' && ex.field === 'dailyCap', JSON.stringify(ex));
+    // Jo, 2026-11-27: "use each company's own link from their profile". The link is never a request field.
+    const typed = T.validateProfileRequest({ action: 'set', displayName: 'Acme Roofing', replyTo: 'office@acme.example', googleReviewUrl: APPROVED.reviewUrl }, APPROVED.reviewUrl);
+    ok('a request that types its own review link is refused (the link comes from the company profile)', !typed.ok && typed.reason === 'unknown_field' && typed.field === 'googleReviewUrl', JSON.stringify(typed));
+    const fromProfile = T.validateProfileRequest({ displayName: 'Acme Roofing', replyTo: 'office@acme.example' }, APPROVED.reviewUrl);
+    ok('the request carries the profile\'s link', fromProfile.ok && fromProfile.value.googleReviewUrl === APPROVED.reviewUrl, JSON.stringify(fromProfile));
+    const badProfile = T.validateProfileRequest({ displayName: 'Acme Roofing', replyTo: 'office@acme.example' }, 'https://g.page.evil.example/r/x/review');
+    const noProfile = T.validateProfileRequest({ displayName: 'Acme Roofing', replyTo: 'office@acme.example' }, undefined);
+    ok('a profile link that is not a Google review page, or none, is refused (fail closed)', !badProfile.ok && badProfile.reason === 'link_not_google_review' && !noProfile.ok && noProfile.reason === 'link_not_google_review');
   }
 
   console.log('B. the platform switches');
@@ -262,20 +270,27 @@ const sends = (db) => [...db.store.entries()].filter(([p]) => p.startsWith('revi
 
   console.log('F. setReviewAskProfile');
   {
-    const db = fakeDb({});
+    const PROFILE = { brand: { integrations: { reviewUrl: APPROVED.reviewUrl } } };
+    const db = fakeDb({ 'companyProfile/co-a': PROFILE });
     const asAdmin = async () => ({ uid: 'adm-a', companyId: 'co-a' });
     const call = (data, rta) => H.handleSetProfile({ auth: { uid: 'adm-a', token: {} }, data }, { db, FieldValue: FV, nowMs: NOW, requireTeamAdmin: rta || asAdmin });
-    const REQ = { displayName: 'Acme Roofing', googleReviewUrl: APPROVED.reviewUrl, replyTo: 'office@acme.example' };
+    const REQ = { displayName: 'Acme Roofing', replyTo: 'office@acme.example' };
     const viewer = async () => { const e = new Error('Owner or admin access required'); e.code = 'permission-denied'; throw e; };
     ok('a viewer / rep / manager (requireTeamAdmin refuses) → permission-denied', await throwsCode(call(Object.assign({ action: 'set' }, REQ), viewer), 'permission-denied'));
     ok('NBD itself → failed-precondition (NBD has its own ask)', await throwsCode(call({ action: 'get' }, async () => ({ uid: 'joe', companyId: 'nbd-owner' })), 'failed-precondition'));
     ok('an extra key → invalid-argument', await throwsCode(call(Object.assign({ action: 'set', paused: false }, REQ)), 'invalid-argument'));
-    ok('a non-Google link → invalid-argument', await throwsCode(call(Object.assign({ action: 'set' }, REQ, { googleReviewUrl: 'https://bit.ly/x' })), 'invalid-argument'));
+    ok('a typed review link (even a Google one) → invalid-argument', await throwsCode(call(Object.assign({ action: 'set' }, REQ, { googleReviewUrl: APPROVED.reviewUrl })), 'invalid-argument') && !db.store.has('review_ask_profile/co-a'));
+    db.store.set('companyProfile/co-a', { brand: { integrations: { reviewUrl: 'https://bit.ly/x' } } });
+    ok('a profile link that is not a Google review page → invalid-argument, nothing saved', await throwsCode(call(Object.assign({ action: 'set' }, REQ)), 'invalid-argument') && !db.store.has('review_ask_profile/co-a'));
+    db.store.delete('companyProfile/co-a');
+    ok('no company profile link → invalid-argument (fail closed)', await throwsCode(call(Object.assign({ action: 'set' }, REQ)), 'invalid-argument') && !db.store.has('review_ask_profile/co-a'));
+    db.store.set('companyProfile/co-a', PROFILE);
     const r = await call(Object.assign({ action: 'set', companyId: 'co-b' }, REQ)).catch((e) => e);
     ok('a body companyId is not a key the request accepts → invalid-argument (never writes another company)', r && r.code === 'invalid-argument' && !db.store.has('review_ask_profile/co-b'), JSON.stringify(r && r.message));
     const s = await call(Object.assign({ action: 'set' }, REQ));
     const doc = db.store.get('review_ask_profile/co-a') || {};
     ok('set → a pending request on the caller\'s own company, nothing approved', s.status === 'pending_approval' && doc.pending === true && doc.requested.displayName === 'Acme Roofing' && !db.store.has('review_ask_tenants/co-a'));
+    ok('the request records the company profile\'s link', doc.requested.googleReviewUrl === APPROVED.reviewUrl, JSON.stringify(doc.requested));
     ok('every change writes an audit row', [...db.store.keys()].some((k) => k.startsWith('review_ask_audit/')));
     const g = await call({ action: 'get' });
     ok('get → the request and a one-word status, no reasons or counts', g.status === 'pending_approval' && g.requested && Object.keys(g).sort().join() === 'requested,status');
@@ -287,8 +302,8 @@ const sends = (db) => [...db.store.entries()].filter(([p]) => p.startsWith('revi
   {
     const db = fakeDb({
       'review_ask_profile/co-a': { pending: true, requested: { displayName: 'Acme Roofing', googleReviewUrl: APPROVED.reviewUrl, replyTo: 'office@acme.example' } },
-      'companyProfile/co-a': { brand: { contact: { mailingAddress: '123 Main St, Cincinnati, OH 45202' } } },
-      'companyProfile/co-bad': { brand: { contact: { mailingAddress: 'visit acmeroofing.com' } } },
+      'companyProfile/co-a': { brand: { contact: { mailingAddress: '123 Main St, Cincinnati, OH 45202' }, integrations: { reviewUrl: APPROVED.reviewUrl } } },
+      'companyProfile/co-bad': { brand: { contact: { mailingAddress: 'visit acmeroofing.com' }, integrations: { reviewUrl: APPROVED.reviewUrl } } },
       'review_ask_profile/co-bad': { pending: true, requested: { displayName: 'Bad Co', googleReviewUrl: APPROVED.reviewUrl, replyTo: 'b@bad.example' } },
     });
     let disabled = false;
@@ -306,6 +321,7 @@ const sends = (db) => [...db.store.entries()].filter(([p]) => p.startsWith('revi
     disabled = false;
     const seen = await call('admin', { action: 'get', companyId: 'co-a' });
     ok('get shows the mailing address an approve would freeze', seen.wouldFreeze && seen.wouldFreeze.postalAddress === '123 Main St, Cincinnati, OH 45202', JSON.stringify(seen.wouldFreeze));
+    ok('get shows the company profile\'s current review link', seen.wouldFreeze && seen.wouldFreeze.reviewUrl === APPROVED.reviewUrl, JSON.stringify(seen.wouldFreeze));
     const rq = seen.profile.requested;
     const expect = { displayName: rq.displayName, googleReviewUrl: rq.googleReviewUrl, replyTo: rq.replyTo, postalAddress: seen.wouldFreeze.postalAddress, requestedAtMs: rq.atMs };
     ok('approve without the reviewed values (no expect) → failed-precondition', await throwsCode(call('admin', { action: 'approve', companyId: 'co-a', confirmPlace: true }), 'failed-precondition'));
@@ -314,9 +330,13 @@ const sends = (db) => [...db.store.entries()].filter(([p]) => p.startsWith('revi
     db.store.set('review_ask_profile/co-a', Object.assign({}, swapped, { requested: Object.assign({}, swapped.requested, { googleReviewUrl: 'https://g.page/r/OtherPlace99/review' }) }));
     ok('the request changed after the admin looked → failed-precondition, nothing approved', await throwsCode(call('admin', { action: 'approve', companyId: 'co-a', confirmPlace: true, expect }), 'failed-precondition') && !(db.store.get('review_ask_tenants/co-a') || {}).approved);
     db.store.set('review_ask_profile/co-a', swapped);
-    db.store.set('companyProfile/co-a', { brand: { contact: { mailingAddress: '999 Other Rd, Dayton, OH 45402' } } });
+    db.store.set('companyProfile/co-a', { brand: { contact: { mailingAddress: '999 Other Rd, Dayton, OH 45402' }, integrations: { reviewUrl: APPROVED.reviewUrl } } });
     ok('the mailing address changed after the admin looked → failed-precondition', await throwsCode(call('admin', { action: 'approve', companyId: 'co-a', confirmPlace: true, expect }), 'failed-precondition'));
-    db.store.set('companyProfile/co-a', { brand: { contact: { mailingAddress: '123 Main St, Cincinnati, OH 45202' } } });
+    // The company edits its profile link after asking: the admin must not approve a link nobody requested.
+    db.store.set('companyProfile/co-a', { brand: { contact: { mailingAddress: '123 Main St, Cincinnati, OH 45202' }, integrations: { reviewUrl: 'https://g.page/r/OtherPlace99/review' } } });
+    ok('the profile link changed after the request → failed-precondition, nothing approved', await throwsCode(call('admin', { action: 'approve', companyId: 'co-a', confirmPlace: true, expect }), 'failed-precondition') && !(db.store.get('review_ask_tenants/co-a') || {}).approved);
+    db.store.set('companyProfile/co-a', { brand: { contact: { mailingAddress: '123 Main St, Cincinnati, OH 45202' }, integrations: { reviewUrl: APPROVED.reviewUrl } } });
+    ok('a company_admin cannot approve its own request', await throwsCode(call('company_admin', { action: 'approve', companyId: 'co-a', confirmPlace: true, expect }), 'permission-denied') && !(db.store.get('review_ask_tenants/co-a') || {}).approved);
     await call('admin', { action: 'approve', companyId: 'co-a', confirmPlace: true, expect });
     const t = db.store.get('review_ask_tenants/co-a') || {};
     ok('approve → the frozen approved copy with the mailing address; still not enabled', t.approved && t.approved.postalAddress === '123 Main St, Cincinnati, OH 45202' && t.approved.reviewUrl === APPROVED.reviewUrl && t.enabled !== true && (db.store.get('review_ask_profile/co-a') || {}).pending === false);
@@ -419,6 +439,19 @@ const sends = (db) => [...db.store.entries()].filter(([p]) => p.startsWith('revi
     const m2 = r.resend.sent[0] || {};
     ok('companyProfile edits after approval never reach the email (name, Reply-To, address are the approved copy)',
       m2.from === '"Acme Roofing" <reviews@mail.nobigdealwithjoedeal.com>' && m2.reply_to === APPROVED.replyTo && !(m2.text || '').includes('evil.example') && !(m2.html || '').includes('No Big Deal'));
+
+    // Jo, 2026-11-27: the company changes its profile review link after approval. Until a platform
+    // admin approves the change, every send keeps the last approved link; a team member's saved link never counts.
+    w = world({
+      'companyProfile/co-a': { brand: { integrations: { reviewUrl: 'https://g.page/r/UnapprovedNew9/review' } } },
+      'users/rep-a': { companyId: 'co-a', googleReviewUrl: 'https://g.page/r/RepOwnPlace7/review' },
+    });
+    r = await sweep(w);
+    const m3 = r.resend.sent[0] || {};
+    ok('an unapproved profile link change, and the rep\'s own link, never reach the email: the approved link does',
+      (m3.text || '').includes(APPROVED.reviewUrl) && !(m3.text || '').includes('UnapprovedNew9') && !(m3.text || '').includes('RepOwnPlace7'), (m3.text || '').slice(0, 200));
+    const sentRow = sends(w).find((s) => s.outcome === 'sent') || {};
+    ok('the send log records which approved link the email used', sentRow.reviewUrl === APPROVED.reviewUrl, JSON.stringify(sentRow));
 
     // Resend answers that are NOT a definite "not sent" keep every claim (security review M1)
     for (const mode of ['500', 'appErr', '429']) {
@@ -525,6 +558,28 @@ const sends = (db) => [...db.store.entries()].filter(([p]) => p.startsWith('revi
     w = world({ 'invoices/I1': invoiceOf('L1', { payments: [{ amount: 1, at: NOW - 5 * DAY, method: 'cash' }], total: 1 }) });
     r = await sweep(w);
     ok('end to end: a $1 cash "payment" is never enough', r.resend.sent.length === 0 && r.out.counts.payment_unproven === 1);
+  }
+
+  console.log('I. the portal button and the review sprint: the company\'s approved link (Jo, 2026-11-27)');
+  {
+    const RA = require(path.join(FN, 'review-ask-auto-logic.js'));
+    const ON = { REVIEW_LINK_APPROVED_ENABLED: 'true' };
+    const REP = 'https://g.page/r/RepOwnPlace7/review';
+    const L = (o) => typeof T.companyReviewLink === 'function' ? T.companyReviewLink(o) : 'missing';
+    ok('the flag is registered dark: off unless the literal "true"', typeof T.linkFlagOn === 'function' && !T.linkFlagOn({}) && !T.linkFlagOn({ REVIEW_LINK_APPROVED_ENABLED: 'yes' }) && T.linkFlagOn(ON));
+    ok('NBD: always NBD\'s own link, flag on or off', L({ isNbd: true, repUrl: REP, tenant: tenantDoc(), env: ON }) === RA.NBD_REVIEW_URL && L({ isNbd: true, repUrl: REP, env: {} }) === RA.NBD_REVIEW_URL);
+    ok('flag on: the approved link, never the rep\'s', L({ isNbd: false, repUrl: REP, tenant: tenantDoc(), env: ON }) === APPROVED.reviewUrl);
+    ok('flag on: approved even while the ask is paused or not enabled (a link, not a send)', L({ isNbd: false, repUrl: REP, tenant: tenantDoc({ paused: true, enabled: false }), env: ON }) === APPROVED.reviewUrl);
+    ok('flag on, nothing approved → no link (fail closed), even with a rep link', L({ isNbd: false, repUrl: REP, tenant: null, env: ON }) === null && L({ isNbd: false, repUrl: REP, tenant: { companyId: 'co-a' }, env: ON }) === null);
+    ok('flag on, a tampered approved link → no link', L({ isNbd: false, repUrl: REP, tenant: tenantDoc({ approved: Object.assign({}, APPROVED, { reviewUrl: 'https://evil.example/review' }) }), env: ON }) === null);
+    ok('flag off: today\'s rule (R12): the rep\'s Google link, else none', L({ isNbd: false, repUrl: REP, tenant: tenantDoc(), env: {} }) === REP && L({ isNbd: false, repUrl: 'https://evil.example', env: {} }) === null);
+    const fs = require('fs');
+    const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+    const portalSrc = strip(fs.readFileSync(path.join(FN, 'portal.js'), 'utf8'));
+    ok('the portal view and the rating response pass the approved tenant to portalReviewUrl, which uses companyReviewLink',
+      /function portalReviewUrl\([^)]*\)\s*\{[^}]*companyReviewLink\(/.test(portalSrc)
+      && portalSrc.includes('portalReviewUrl(rep.googleReviewUrl, _portalIsNbd, _approvedTenant)') && portalSrc.includes('portalReviewUrl(raw, isNbd, approved)'));
+    ok('the agent review sprint resolves the link through companyReviewLink', /companyReviewLink\(/.test(strip(fs.readFileSync(path.join(FN, 'agent-mcp.js'), 'utf8'))));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

@@ -23,6 +23,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { parseTags } = require('./lib/src-kit');
 
 const ROOT = path.join(__dirname, '..');
 const DATA = path.join(ROOT, 'docs', 'assets', 'data', 'projects.json');
@@ -89,10 +90,15 @@ for (const p of live) {
     const tm = html.match(/<title>([^<]*)<\/title>/);
     const shown = tm ? unesc(tm[1]) : '';
     const reEsc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const lead = new RegExp(`^[A-Z][A-Za-z&' -]+ in ${reEsc(p.city)} — `);
+    // Since 2026-11-27 the work year follows the town when the job has one —
+    // "Roof Replacement in Milford, OH (2026) — Forty-Five Squares | NBD" — and
+    // the bare "<Service> in <Town> | NBD" form is gone: it is the title of
+    // the service-by-city page, which a case page must never copy.
+    const yr = p.year ? reEsc(` (${p.year})`) : '';
+    const lead = new RegExp(`^[A-Z][A-Za-z&' -]+ in ${reEsc(p.city)}${yr} — `);
     const town = p.city.replace(/, [A-Z]{2}$/, '');
-    const titleLead = new RegExp(`^[A-Z][A-Za-z&' -]+ in ${reEsc(town)}(, [A-Z]{2})? — `);
-    ok(`${p.slug}: <title> leads with "<Service> in ${p.city} — " (state optional), <= 65 chars`,
+    const titleLead = new RegExp(`^[A-Z][A-Za-z&' -]+ in ${reEsc(town)}(, [A-Z]{2})?${yr} — `);
+    ok(`${p.slug}: <title> leads with "<Service> in ${p.city}${p.year ? ` (${p.year})` : ''} — " (state optional), <= 65 chars`,
       titleLead.test(shown) && shown.length <= 65 && (shown.endsWith(' | NBD') || !shown.includes('|')),
       `got "${shown}" (${shown.length} chars)`);
     ok(`${p.slug}: <title> drops the state only once "| NBD" is gone`,
@@ -134,11 +140,34 @@ for (const p of live) {
   ok(`${p.slug}: every photo appears in the gallery`,
     p.photos.every((ph) => html.includes(esc(ph.src))));
   ok(`${p.slug}: links back to the listing`, html.includes('href="/our-work"'));
-  // "Book an inspection like this" (2026-10-05): right under the write-up and
-  // again at the end; a plain /inspect link (no slug/UTM on an internal link).
-  ok(`${p.slug}: "Book an inspection like this" under the write-up and at the end`,
-    (html.match(/<div class="pd-book(?: pd-book-end)?"><a class="project-book" href="\/inspect">Book an inspection like this &rarr;<\/a><\/div>/g) || []).length === 2
+  // "Book an inspection like this" (2026-10-05): right under the write-up; a
+  // plain /inspect link (no slug/UTM on an internal link). Since 2026-11-27 the
+  // end of the page carries the LOCAL CTA instead: "Need a roof looked at in
+  // <Town>?" + "Book a free inspection" + the town's /areas page when one
+  // exists; an out-of-area job names no town.
+  ok(`${p.slug}: "Book an inspection like this" under the write-up`,
+    (html.match(/<div class="pd-book"><a class="project-book" href="\/inspect">Book an inspection like this &rarr;<\/a><\/div>/g) || []).length === 1
       && html.indexOf('class="pd-book"') > html.indexOf('class="pd-desc"'));
+  {
+    const town = p.city.replace(/, [A-Z]{2}$/, '');
+    const areaSlug = p.city.toLowerCase().replace(/\./g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const hasArea = fs.existsSync(path.join(__dirname, '..', 'docs', 'areas', `${areaSlug}.html`));
+    // Asserted on parsed structure (tests/lib/src-kit.js parseTags), not file text.
+    const doc = parseTags(html);
+    const sec = doc.$('section.pd-local');
+    const h2 = sec && sec.$('h2#pd-local-h');
+    const book = sec && sec.$('a.project-book');
+    const areaLinks = sec ? sec.$$('a').filter((a) => (a.attr('href') || '').startsWith('/areas/')) : [];
+    const photos = doc.$('div.pd-photos');
+    const heading = h2 ? h2.text.trim() : '';
+    const wantHead = ['Need a roof looked at', 'Need siding looked at', 'Need gutters looked at'].map((s) => (hasArea ? `${s} in ${town}?` : `${s}?`));
+    ok(`${p.slug}: local CTA at the end — free inspection to /inspect${hasArea ? `, named for ${town}, linking /areas/${areaSlug}` : ', no town named (no area page)'}`,
+      !!sec && !!book && book.attr('href') === '/inspect' && book.text.trim().replace('&rarr;', '→') === 'Book a free inspection →'
+        && wantHead.indexOf(heading) !== -1
+        && (hasArea ? areaLinks.length === 1 && areaLinks[0].attr('href') === `/areas/${areaSlug}` : areaLinks.length === 0)
+        && !!photos && sec.start > photos.start,
+      `heading "${heading}", ${areaLinks.length} area link(s)`);
+  }
   ok(`${p.slug}: photo figures carry no inline style attributes`,
     !/<figure[^>]*style=|<figcaption[^>]*style=/.test(html));
 }

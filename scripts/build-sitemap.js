@@ -116,6 +116,8 @@ const PREMIUM_DIR_SERVICES = [
   ['lumanail',          '0.85'],
   ['roofivent',         '0.85'],
   ['gaf-pivot-boot',    '0.85'],
+  ['ice-and-water-shield',        '0.8'],
+  ['drip-edge-and-starter-strip', '0.8'],
 ];
 const GAF_TIMBERLINE_SERVICE = ['gaf-timberline', '0.85'];
 // Renamed from /services/tamko-storm-series 2026-09-27 ("Storm Series" was our

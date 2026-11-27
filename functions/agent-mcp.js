@@ -373,15 +373,22 @@ async function runTool(name, args, key) {
       db().collection('agent_inbox').where('companyId', '==', company).limit(5000).get().then((s) => s.docs.map((d) => d.data())),
       db().collection('users').doc(String(key.routeUid)).get().then((s) => (s.exists ? s.data() || {} : null)).catch(() => null),
     ]);
-    const RA = require('./review-ask-auto-logic');
-    // The rep's own link, else NBD's for NBD (review-ask-auto-logic.js reviewUrlFor).
-    const reviewUrl = RA.reviewUrlFor(key.isNbd ? { companyId: RA.NBD_OWNER_UID } : {}, rep && rep.googleReviewUrl);
+    const RAT = require('./review-ask-tenant-logic');
+    // NBD: NBD's own link. Another company: its platform-approved link when
+    // REVIEW_LINK_APPROVED_ENABLED is on (Jo, 2026-11-27), else the rep's Google link (R12).
+    const approvedOnly = !key.isNbd && RAT.linkFlagOn(process.env);
+    const approvedTenant = approvedOnly
+      ? await db().collection('review_ask_tenants').doc(String(company)).get().then((s) => (s.exists ? s.data() || null : null)).catch(() => null)
+      : null;
+    const reviewUrl = RAT.companyReviewLink({ isNbd: key.isNbd, repUrl: rep && rep.googleReviewUrl, tenant: approvedTenant, env: process.env });
     const out = L.reviewSprint(leads, invoices, jobsByLead, inbox, company, Date.now(), args, tz);
     const co = key.isNbd ? 'No Big Deal Home Solutions' : (L.companyNames(key.profile, false)[0] || '');
     return L.toolText(Object.assign(out, {
       review_url: reviewUrl || null,
       ask: reviewUrl ? L.reviewSprintAsk(reviewUrl, co) : null,
-      note: (reviewUrl ? '' : (rep && typeof rep.googleReviewUrl === 'string' && rep.googleReviewUrl.trim()
+      note: (reviewUrl ? '' : approvedOnly
+        ? 'No approved Google review link: set it in the company profile and send the review-ask request for approval before drafting. '
+        : (rep && typeof rep.googleReviewUrl === 'string' && rep.googleReviewUrl.trim()
         // R12 (2026-11-26): a saved link that is not one of Google's own review pages is not used.
         ? 'The Google review link in Settings is not a Google review page, so it is not used: paste the link from your Google Business Profile ("Ask for reviews") before drafting. '
         : 'No Google review link is set (Settings → Google review link): add one before drafting. '))

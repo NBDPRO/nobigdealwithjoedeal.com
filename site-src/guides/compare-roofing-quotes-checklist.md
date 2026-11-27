@@ -30,8 +30,8 @@ Two roof quotes can differ by thousands of dollars and still both be fair, becau
 - [ ] **Tear-off:** all the way to the deck, and how many layers are included
 - [ ] **Decking:** how rotted boards are handled, and the price per sheet if more are needed
 - [ ] **Underlayment:** synthetic over the whole deck, and the brand
-- [ ] **Ice and water shield:** where it goes (at minimum the eaves and valleys)
-- [ ] **Drip edge** at every eave and rake, and a starter strip
+- [ ] **Ice and water shield:** where it goes (at minimum the eaves and valleys). [Where it goes on my roofs](/services/ice-and-water-shield)
+- [ ] **Drip edge** at every eave and rake, and a starter strip. [Why both matter](/services/drip-edge-and-starter-strip)
 - [ ] **Shingle:** the manufacturer, the exact product line and the color
 - [ ] **Flashing:** new step and counter flashing, kick-out flashing where a roof edge meets a wall
 - [ ] **Pipe boots and vents:** new, and which kind

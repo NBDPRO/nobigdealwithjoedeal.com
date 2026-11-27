@@ -40,7 +40,11 @@ const summarise = (rows) => rows.length + ' fail, e.g. ' + rows.slice(0, 3).join
 
 console.log('\n1. Case-study descriptions end on a sentence or a whole word');
 const manifest = JSON.parse(read('assets/data/projects.json'));
-const LABEL = "Joe's work before No Big Deal: ";
+// Since 2026-11-27 a case description opens "<Service> in <Town, ST>[, <year>]: ",
+// then the job's materials list (when it has one), then its own description;
+// a pre-NBD job's opens with the label sentence first.
+const LABEL = "Joe's work before No Big Deal. ";
+const reEsc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const pages = fs.readdirSync(path.join(DOCS, 'our-work')).filter((f) => f.endsWith('.html'));
 ok('every live project has a detail page to check', pages.length >= 40 && manifest.projects.filter((p) => p.published !== false).length >= pages.length - 2, pages.length + ' pages');
 const bad = { len: [], end: [], prefix: [], word: [], cards: [] };
@@ -54,7 +58,14 @@ for (const f of pages) {
   if (m.desc !== m.ogd || m.desc !== m.twd) bad.cards.push(slug);
   if (p) {
     const core = d.replace(/…$/, '');
-    const src = [p.description, LABEL + p.description].map((s) => s.replace(/\s+/g, ' ').trim()).find((s) => s.startsWith(core));
+    const lead = new RegExp(`^(${reEsc(LABEL)})?[A-Z][A-Za-z&' -]+ in ${reEsc(p.city)}${p.year ? `, ${p.year}` : ''}: `);
+    const head = (core.match(lead) || [''])[0];
+    // Materials: same words in the same order; only a list item's first
+    // letter may change case (bullet capital vs mid-sentence).
+    const mats = [].concat(p.materials || []).join(', ');
+    const full = (head + (mats ? `${mats}. ` : '') + p.description).replace(/\s+/g, ' ').trim();
+    const fold = (s) => s.replace(/(^|, )(\w)/g, (_, a, c) => a + c.toLowerCase());
+    const src = head && fold(full.slice(head.length)).startsWith(fold(core.slice(head.length))) ? full : null;
     if (!src) bad.prefix.push(slug);
     // a trimmed description stops at a space (or at punctuation trimmed off before the ellipsis), never inside a word
     else if (d.endsWith('…') && !/^[\s,;:–—-]$/.test(src[core.length] || ' ')) bad.word.push(slug + ' …' + core.slice(-20));
