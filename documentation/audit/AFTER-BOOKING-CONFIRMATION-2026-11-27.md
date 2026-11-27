@@ -38,7 +38,16 @@ The subject stays "Got it — Joe here. What happens next" (`tests/public-intake
 
 No credentials or sales lines, so it stays transactional under CAN-SPAM (primary-purpose test, 16 CFR 316.3). The Free Roof and storm-signup branches fit the transactional definition less well. The cheap hedge is the follow-up email's `Suppression.applyFooter`, which is a code change for Jo and counsel.
 
-## For Jo (not done)
+## Jo's answers (2026-11-27, same PR)
+
+1. Ack text: **hold** until Jo hears back from Twilio about editing the campaign sample. Text and sample unchanged.
+2. Follow-up timing: **done.** `WINDOW_YOUNGEST_H` is now 24, so the follow-up window is 24-48 h.
+3. Follow-up after a booking: **done.** The sweep skips a lead with a live cal.com booking: an `appointments` doc linked to its card, or one under its email (as typed or lowercased), that isn't cancelled. `tests/followup-after-booking-2026-11-27.test.js` was red first.
+4. Cal.com wording: Jo edits it in cal.com.
+
+Item 4 below (the storm signup header) is still open. The original list, as first written:
+
+## For Jo (as first written)
 
 1. **Ack text.** Today it says "Got your estimate request… I'll call you shortly" to `/inspect` requesters too. The two em dashes also force the slower encoding, so it can bill as 3 segments. Proposed body (plain ASCII, about 154 characters): `{First}, it's Joe with No Big Deal Home Solutions. Got your request. I'll call or text within 24 hrs, usually same day: (859) 420-7382. Reply STOP to opt out.` It would **not** match sample #1 word for word. So: update the sample in the Twilio console first, ask Twilio whether editing a Verified campaign's samples triggers a review, then change the code and its test pins (`sms-optional-consent-brand`, `messaging-automations`, `estimate-step1-save`).
 2. **Follow-up email timing.** The follow-up email starts at 20 h (`WINDOW_YOUNGEST_H`), so "we haven't connected yet" can land inside the 24-hour promise. Raising it to 24 is a one-line code change.
