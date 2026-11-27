@@ -170,8 +170,9 @@ const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowM
     const rated1 = RA.planEmail({ env: ON, lead: leadOf({ customerRating: 1 }), recvMs: ago(8), nowMs: NOW });
     ok('a customer who rated 1 star privately is asked exactly the same (no gating on rating)', rated1.send === true);
     ok('the rating fields are never read by the planner', !/customerRating/.test(read('functions/review-ask-auto-logic.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')));
-    ok('the reviewUrl resolver: the rep\'s https link wins, else NBD\'s, never a javascript: link',
-      RA.reviewUrlFor(leadOf(), 'https://g.page/r/rep/review') === 'https://g.page/r/rep/review'
+    // Jo, 2026-11-26 (R12): "Always NBD's link" for NBD's automatic ask.
+    ok('the reviewUrl resolver: NBD always gets NBD\'s link (a rep\'s saved link is ignored), never a javascript: link',
+      RA.reviewUrlFor(leadOf(), 'https://g.page/r/rep/review') === RA.NBD_REVIEW_URL
       && RA.reviewUrlFor(leadOf(), 'javascript:alert(1)') === RA.NBD_REVIEW_URL
       && RA.reviewUrlFor(leadOf({ companyId: 'x', userId: 'x' }), '') === '');
   }

@@ -167,12 +167,14 @@ function willHandle(args) {
 }
 
 /**
- * The review link: the rep's own when it is a Google review / Maps page
- * (google-review-url.js; R12, 2026-11-26: any https link used to pass), else
- * NBD's for NBD. '' = nothing to link.
+ * The review link. NBD always gets NBD's own link and every team member's
+ * saved link is ignored (Jo, 2026-11-26, R12: "Always NBD's link"). Another
+ * company gets its rep's link only when it is a Google review / Maps page
+ * (google-review-url.js; any https link used to pass). '' = nothing to link.
  */
 function reviewUrlFor(lead, repUrl) {
-  return require('./google-review-url').cleanReviewUrl(repUrl) || (isNbd(lead) ? NBD_REVIEW_URL : '');
+  if (isNbd(lead)) return NBD_REVIEW_URL;
+  return require('./google-review-url').cleanReviewUrl(repUrl);
 }
 
 function esc(s) {

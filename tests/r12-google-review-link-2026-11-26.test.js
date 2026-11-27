@@ -69,7 +69,10 @@ console.log('B. the live review-ask email (review-ask-auto-logic.js reviewUrlFor
 {
   ok('NBD: a rep\'s non-Google https link → NBD\'s own review link, never the saved one',
     RA.reviewUrlFor(NBD_LEAD, 'https://evil.example/review') === RA.NBD_REVIEW_URL, RA.reviewUrlFor(NBD_LEAD, 'https://evil.example/review'));
-  ok('NBD: a rep\'s Google review link is used', RA.reviewUrlFor(NBD_LEAD, 'https://g.page/r/rep/review') === 'https://g.page/r/rep/review');
+  // Jo, 2026-11-26: "Always NBD's link". NBD's automatic ask ignores every team member's saved link.
+  ok('NBD: even a rep\'s Google review link is ignored, NBD\'s own link is used',
+    RA.reviewUrlFor(NBD_LEAD, 'https://g.page/r/rep/review') === RA.NBD_REVIEW_URL, RA.reviewUrlFor(NBD_LEAD, 'https://g.page/r/rep/review'));
+  ok('NBD: no saved link → NBD\'s own link', RA.reviewUrlFor(NBD_LEAD, '') === RA.NBD_REVIEW_URL && RA.reviewUrlFor(NBD_LEAD, undefined) === RA.NBD_REVIEW_URL);
   ok('another company: a non-Google link → no link at all', RA.reviewUrlFor(OTHER_LEAD, 'https://evil.example/review') === '');
   ok('another company: its Google link is used', RA.reviewUrlFor(OTHER_LEAD, 'https://search.google.com/local/writereview?placeid=ChIJacme1234567') === 'https://search.google.com/local/writereview?placeid=ChIJacme1234567');
 }

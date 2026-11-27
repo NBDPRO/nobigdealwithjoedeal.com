@@ -228,7 +228,8 @@ const rows = (db, pred) => [...db.store.entries()].filter(([k, v]) => k.startsWi
     ok('Google review shapes allowed: g.page/r/<id>/review and writereview?placeid=', V2.isGoogleReviewUrl(NBD_LINK) && V2.isGoogleReviewUrl('https://search.google.com/local/writereview?placeid=ChIJabcdefghij123'));
     ok('anything else refused: shorteners, other hosts, http, extra path, javascript:',
       !['https://bit.ly/abc123', 'https://g.page.evil.com/r/abc123/review', 'http://g.page/r/CXzIjLwvtRPdEBM/review', 'https://g.page/r/CXzIjLwvtRPdEBM/review/x', 'javascript:alert(1)'].some(V2.isGoogleReviewUrl));
-    ok('a rep\'s non-Google saved link is replaced by NBD\'s Google page', V2.reviewUrlFor('https://bit.ly/abc123') === NBD_LINK && V2.reviewUrlFor('https://g.page/r/RepOwnId123/review') === 'https://g.page/r/RepOwnId123/review');
+    // Jo, 2026-11-26 (R12): "Always NBD's link". v2 is NBD only, so a rep's saved link is never used.
+    ok('a rep\'s saved link, Google or not, is replaced by NBD\'s Google page', V2.reviewUrlFor('https://bit.ly/abc123') === NBD_LINK && V2.reviewUrlFor('https://g.page/r/RepOwnId123/review') === NBD_LINK && V2.reviewUrlFor('') === NBD_LINK);
     ok('both templates pass the guard', V2.smsContentOk(V2.textBody(leadOf(), NBD_LINK), NBD_LINK) === '' && V2.smsContentOk(V2.reminderText(leadOf(), NBD_LINK), NBD_LINK) === '');
     ok('no STOP line → refused', V2.smsContentOk('Hi Pat, review us ' + NBD_LINK, NBD_LINK) === 'no_stop_line');
     ok('a second URL → refused', V2.smsContentOk('Hi https://evil.example ' + NBD_LINK + ' ' + V2.STOP_LINE, NBD_LINK) === 'link_not_allowed');
