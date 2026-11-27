@@ -23,6 +23,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { parseTags } = require('./lib/src-kit');
 
 const ROOT = path.join(__dirname, '..');
 const DATA = path.join(ROOT, 'docs', 'assets', 'data', 'projects.json');
@@ -151,15 +152,21 @@ for (const p of live) {
     const town = p.city.replace(/, [A-Z]{2}$/, '');
     const areaSlug = p.city.toLowerCase().replace(/\./g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     const hasArea = fs.existsSync(path.join(__dirname, '..', 'docs', 'areas', `${areaSlug}.html`));
-    const cta = (html.match(/<section class="pd-local"[\s\S]*?<\/section>/) || [''])[0];
+    // Asserted on parsed structure (tests/lib/src-kit.js parseTags), not file text.
+    const doc = parseTags(html);
+    const sec = doc.$('section.pd-local');
+    const h2 = sec && sec.$('h2#pd-local-h');
+    const book = sec && sec.$('a.project-book');
+    const areaLinks = sec ? sec.$$('a').filter((a) => (a.attr('href') || '').startsWith('/areas/')) : [];
+    const photos = doc.$('div.pd-photos');
+    const heading = h2 ? h2.text.trim() : '';
+    const wantHead = ['Need a roof looked at', 'Need siding looked at', 'Need gutters looked at'].map((s) => (hasArea ? `${s} in ${town}?` : `${s}?`));
     ok(`${p.slug}: local CTA at the end — free inspection to /inspect${hasArea ? `, named for ${town}, linking /areas/${areaSlug}` : ', no town named (no area page)'}`,
-      cta.includes('<a class="project-book" href="/inspect">Book a free inspection &rarr;</a>')
-        && /<h2 class="pd-h2" id="pd-local-h">Need (a roof|siding|gutters) looked at/.test(cta)
-        && (hasArea
-          ? cta.includes(` in ${esc(town)}?</h2>`) && cta.includes(`href="/areas/${areaSlug}"`)
-          : !cta.includes(' looked at in ') && !cta.includes('/areas/'))
-        && html.indexOf('class="pd-local"') > html.indexOf('class="pd-photos"'),
-      cta.slice(0, 300));
+      !!sec && !!book && book.attr('href') === '/inspect' && book.text.trim().replace('&rarr;', '→') === 'Book a free inspection →'
+        && wantHead.indexOf(heading) !== -1
+        && (hasArea ? areaLinks.length === 1 && areaLinks[0].attr('href') === `/areas/${areaSlug}` : areaLinks.length === 0)
+        && !!photos && sec.start > photos.start,
+      `heading "${heading}", ${areaLinks.length} area link(s)`);
   }
   ok(`${p.slug}: photo figures carry no inline style attributes`,
     !/<figure[^>]*style=|<figcaption[^>]*style=/.test(html));
