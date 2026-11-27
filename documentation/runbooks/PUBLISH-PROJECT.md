@@ -50,6 +50,17 @@
 > optional per-photo `caption` (falls back to `alt`). Only write what is true
 > of the job.
 >
+> **Update 2026-11-27 — case pages are local search pages.** The `<title>` is
+> `<Service> in <Town, ST> (<year>) — <job phrase> | NBD` (no year when the
+> job has none; never the bare `<Service> in <Town> | NBD`, which is the
+> service-by-city page's title). The meta description opens
+> `<Service> in <Town, ST>, <year>: ` then the `materials` list, then the
+> `description`, so name products in `materials` (only ones the write-up
+> states). The end of every case page carries "Need a roof looked at in
+> <Town>? Book a free inspection" plus the town's `/areas/` link (no town
+> named when there is no area page). Guards: `tests/ourwork-detail-pages.test.js`,
+> `tests/meta-description-cuts-2026-10-26.test.js`.
+>
 > **Update 2026-09-27 (later) — `year` is required on a priced job.** A live
 > entry with `priceLow`/`priceHigh` and no `year` now fails the build, and the
 > message names the slug. The only exceptions are the seven legacy jobs listed
