@@ -212,9 +212,10 @@ function cachedAnywhere(sw, url) {
   console.log('\n#28 hosting: every page the SW never caches goes out no-store');
   {
     const sw = boot();
+    // '/pro/' is the public /pro landing page; trailingSlash:false serves it
+    // at /pro, which is no-store too since 2026-11-17 (it was left out first).
     const pages = [...sw.ctx.__NO_CACHE_HTML]
-      .filter((p) => p !== '/pro/') // the public /pro landing page, not an app page
-      .map((p) => p.replace(/\.html$/, ''));
+      .map((p) => (p === '/pro/' ? '/pro' : p.replace(/\.html$/, '')));
     ok('the never-cache list is read from the worker (control)', pages.length >= 18, String(pages.length));
     for (const p of ['/pro/portal', '/pro/estimate-view', '/pro/analytics', '/pro/leaderboard', '/pro/ask-joe', '/pro/ai-tree', '/pro/ai-tool-finder', '/pro/understand', '/pro/project-codex', '/pro/stripe-success', '/pro/account-erasure']) {
       ok('control: ' + p + ' is in the never-cache list', pages.includes(p));
