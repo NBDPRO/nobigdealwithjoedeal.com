@@ -57,6 +57,26 @@ session, the same shape as a CI serial retry.
   during run 2, more than 45 s later. A cold first-trigger delay in the local
   emulator, not seen in any of the four CI logs; not touched here.
 
+### Why run 1's bridge was late (emulator mechanics, not product code)
+
+- **Trigger delivery is serial.** Across 604 background executions in the
+  local log (and every CI log checked), no Firestore trigger ever began while
+  another was running. firebase-tools 15.28.2's own work queue allows 50 at
+  once (`workQueue.js` `DEFAULT_MAX_PARALLEL`), so the Firestore emulator is
+  what hands events over one at a time, waiting on each response.
+- **Each trigger's first call boots a worker that loads ALL of
+  `functions/index.js`** (~300 exports). Measured here: 2.5-5 s alone, ~7 s
+  with 16 at once, ~15 s with 32 at once. CI's boots: median 0.6-1.0 s, max
+  1.9 s.
+- So one cold boot delays every event behind it. Run 1 did 32 cold boots
+  (runs 2-4: 4, 0, 0); the `contact_leads` event queued behind them and its
+  two triggers (`leadAlertContact`, `leadBridgeContact`) only started during
+  run 2. In a passing CI job the first microsite lead took 10.9 s from submit
+  to bridge and the second 92 ms: about 4x margin under the spec's 45 s wait in
+  CI, none on this Windows box.
+- Production is unaffected: deployed functions get their own instances and
+  events are not serialized behind other functions' cold starts.
+
 Port 8080 had to be freed first (a local open-webui server holds it and the
 client hard-codes the Firestore emulator there).
 
