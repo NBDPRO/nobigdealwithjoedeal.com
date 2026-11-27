@@ -120,7 +120,7 @@ const LINKED_FROM = {
   // multi-tenant and pinned to a single "Open review page" link, so the card
   // is not linked from there yet (noted for Jo in the PR).
   'home-care-warranty-card': ['docs/review.html', 'docs/services/roof-care-plan.html', 'docs/free-tools/index.html'],
-  'roof-financing-explained': ['docs/services/financing.html', 'docs/blog/how-roof-financing-actually-works.html', 'docs/guides/compare-roofing-quotes-checklist.html', 'docs/free-tools/index.html'],
+  'roof-financing-explained': ['docs/services/financing.html', 'docs/blog/roof-financing-cincinnati-explained.html', 'docs/guides/compare-roofing-quotes-checklist.html', 'docs/free-tools/index.html'],
   'siding-gutter-buyers-guide': ['docs/services/siding-replacement.html', 'docs/services/gutter-replacement.html', 'docs/free-tools/index.html'],
 };
 

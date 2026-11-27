@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en" data-theme="nbd-original">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Storm Tips Email · NBD Pro</title>
+<link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
+<!-- Owner screen for the storm-season tips email (2026-11-26). Rep-facing:
+     uses the dashboard theme tokens. All logic is in js/pages/storm-tips.js
+     (no inline script, CSP); the server (stormTipsAdmin) decides every gate. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="css/theme-system.css">
+<link rel="stylesheet" href="css/storm-tips.css?v=2">
+</head>
+<body>
+<header class="st-header">
+  <a class="st-back" href="/pro/dashboard.html">&larr; Dashboard</a>
+  <div class="st-title">
+    <div class="st-eyebrow">Email</div>
+    <h1>Storm tips</h1>
+  </div>
+</header>
+
+<main class="st-main" id="stMain" aria-busy="true">
+  <p class="st-loading" id="stLoading">Loading&hellip;</p>
+
+  <section class="st-card" id="stGates" hidden>
+    <h2>Is it on?</h2>
+    <ul class="st-gates" id="stGateList"></ul>
+    <p class="st-note">Nothing sends unless every line above says on. Test mode sends each email to you instead of the homeowner and does not count as sent.</p>
+  </section>
+
+  <section class="st-card" id="stSend" hidden>
+    <h2>Send an email</h2>
+    <p class="st-note">The first email anyone gets is always &ldquo;first hello&rdquo;. Nobody gets more than one storm-tips email every 14 days.</p>
+    <div class="st-row">
+      <label for="stIssue">Email</label>
+      <select id="stIssue"></select>
+    </div>
+    <div class="st-row">
+      <label for="stTarget">Who</label>
+      <select id="stTarget">
+        <option value="all">Everyone it can go to</option>
+        <option value="storm">People near a storm (by ZIP)</option>
+        <option value="keys">Only the people I tick below</option>
+      </select>
+    </div>
+    <div class="st-row" id="stStormRow" hidden>
+      <label for="stStorm">Storm</label>
+      <select id="stStorm"></select>
+    </div>
+    <div class="st-actions">
+      <button type="button" class="st-btn st-btn-quiet" id="stPreviewBtn">Preview</button>
+      <button type="button" class="st-btn st-btn-primary" id="stSendBtn">Send</button>
+    </div>
+    <p class="st-msg" id="stSendMsg" role="status" aria-live="polite" hidden></p>
+    <div class="st-preview" id="stPreview" hidden>
+      <p class="st-preview-subject" id="stPreviewSubject"></p>
+      <iframe id="stPreviewFrame" title="Email preview" sandbox=""></iframe>
+    </div>
+  </section>
+
+  <section class="st-card" id="stSchedule" hidden>
+    <h2>Schedule</h2>
+    <p class="st-note">People you put on the schedule get the next in-season email they haven&rsquo;t had, no more often than this. The schedule never sends the first email; you do.</p>
+    <div class="st-row">
+      <label for="stInterval">Days between emails (14 or more)</label>
+      <input type="number" id="stInterval" min="14" max="365" step="1" inputmode="numeric">
+    </div>
+    <div class="st-actions">
+      <button type="button" class="st-btn st-btn-quiet" id="stIntervalSave">Save</button>
+    </div>
+    <p class="st-msg" id="stScheduleMsg" role="status" aria-live="polite" hidden></p>
+  </section>
+
+  <section class="st-card" id="stSubs" hidden>
+    <h2>Subscribers <span class="st-count" id="stSubCount"></span></h2>
+    <div class="st-empty" id="stSubEmpty" hidden>
+      <p>Nobody has ticked the storm-tips box on a guide page yet.</p>
+      <a class="st-btn st-btn-quiet" href="/guides/hail-photo-baseline-sheet" target="_blank" rel="noopener">See the guide box</a>
+    </div>
+    <ul class="st-subs" id="stSubList"></ul>
+  </section>
+</main>
+
+<script src="/pro/js/nbd-dialog.js?v=1" defer></script>
+<script src="/pro/js/toast.js?v=1"></script>
+<script src="/pro/js/dashboard-appcheck-config.js?v=1"></script>
+<script type="module" src="js/pages/storm-tips.js?v=1"></script>
+</body>
+</html>

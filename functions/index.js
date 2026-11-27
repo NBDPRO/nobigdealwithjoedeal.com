@@ -284,6 +284,9 @@ Object.assign(exports, stormReportFn);
 exports.stormReportEmail = require('./storm-report-email').stormReportEmail;
 // "Email me this guide" (2026-11-26): one copy with the guide's PDF attached.
 exports.guideCopyEmail = require('./guide-copy-email').guideCopyEmail;
+// Storm-season tips email for guide subscribers who opted in (2026-11-26, DARK).
+exports.stormTipsAdmin = require('./storm-tips-email').stormTipsAdmin;
+exports.stormTipsSweep = require('./storm-tips-email').stormTipsSweep;
 
 // Text + email Joe the moment any public marketing lead lands (additive triggers).
 const leadAlertFns = require('./lead-alert');
@@ -291,6 +294,10 @@ Object.assign(exports, leadAlertFns);
 // Every 10 min: a new NBD lead that no channel confirmed reaching Joe is
 // re-sent by email + push (2026-10-07). LEAD_ALERT_WATCHDOG_DISABLED=true → dry run.
 exports.leadAlertWatchdog = require('./lead-alert-watchdog').leadAlertWatchdog;
+// Daily 09:00 ET: probe the live submitPublicLead for every lead kind (stores
+// nothing) and text Joe if a homeowner submit would fail; bell-only notice
+// after 14 days with no stored website lead (2026-11-26, outage follow-up 5).
+exports.leadGatewayProbe = require('./lead-gateway-probe').leadGatewayProbe;
 // Every 30 min: judge each cron on its own heartbeat ledger doc (a shared
 // Healthchecks check hides a dead member) and tell Joe, daytime only except
 // call/text ingest (2026-11-22). CRON_DEADMAN_DISABLED=true → dry run.
@@ -915,6 +922,14 @@ exports.reviewRequestNudge = require('./review-request-nudge').reviewRequestNudg
 // paid-in-full job (REVIEW_ASK_AUTO_EMAIL_ENABLED), text dark
 // (REVIEW_ASK_AUTO_TEXT_ENABLED). functions/review-ask-auto.js.
 exports.reviewAskAutoSweep = require('./review-ask-auto').reviewAskAutoSweep;
+
+// The review ask for OTHER companies (2026-11-26), EMAIL ONLY, DARK
+// (REVIEW_ASK_TENANTS_ENABLED + automations reviewAskTenantEmail): daily 11:00 ET
+// sweep, the company's profile request and the platform admin's approval /
+// switches. functions/review-ask-tenant.js.
+exports.reviewAskTenantSweep = require('./review-ask-tenant').reviewAskTenantSweep;
+exports.setReviewAskProfile = require('./review-ask-tenant').setReviewAskProfile;
+exports.manageReviewAskTenant = require('./review-ask-tenant').manageReviewAskTenant;
 
 // ═══════════════════════════════════════════════════════════════
 // MORNING BRIEF — 06:45 ET appointment brief for the owner

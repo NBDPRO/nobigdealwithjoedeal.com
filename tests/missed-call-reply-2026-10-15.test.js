@@ -11,6 +11,9 @@
  * Pure Node, no emulator. Run: node tests/missed-call-reply-2026-10-15.test.js
  */
 'use strict';
+// Only NBD texts on NBD's Twilio sender (review-ask guardrail plan S0, 2026-11-26): this suite's
+// fixture tenant stands in for NBD. sms-texting-gate.js refuses every other company (no_own_sender).
+process.env.NBD_OWNER_UID = 'O';
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -159,7 +162,7 @@ function fakeDb(seed) {
   ok('flag unset → off', plan({}, consented).reason === 'flag_disabled');
   ok('flag "false" / "TRUE" / "1" → off (only the literal "true")', ['false', 'TRUE', '1', 'yes'].every((v) => plan({ MISSED_CALL_AUTOTEXT_ENABLED: v }, consented).reason === 'flag_disabled'));
   const envFile = fs.readFileSync(path.join(FN, '.env.nobigdeal-pro'), 'utf8');
-  ok('.env.nobigdeal-pro ships it false', /^MISSED_CALL_AUTOTEXT_ENABLED=false\s*$/m.test(envFile) && !/^MISSED_CALL_AUTOTEXT_ENABLED=true/m.test(envFile));
+  ok('.env.nobigdeal-pro ships it true (Joe turned on 2026-11-26)', /^MISSED_CALL_AUTOTEXT_ENABLED=true\s*$/m.test(envFile) && !/^MISSED_CALL_AUTOTEXT_ENABLED=false/m.test(envFile));
   ok('consented customer, in hours, fresh call → send to +1 number with the STOP body', (() => { const p = plan(ON, consented); return p.send && p.to === '+15135550100' && p.body === R.AUTO_BODY; })());
   ok('cold caller (no customer on file) → refused', plan(ON, null, Object.assign({}, fresh, { leadId: null })).reason === 'no_lead');
   ok('customer without consent → refused', plan(ON, Object.assign({}, consented, { tcpaConsent: undefined })).reason === 'no_consent');
