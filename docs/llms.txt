@@ -104,6 +104,7 @@ Joe Deal also built **NBD Pro** — a roofing business management SaaS platform 
 - [GAF Master Flow Pivot Boot](https://nobigdealwithjoedeal.com/services/gaf-pivot-boot): All-metal pipe boot (Build component)
 - [Roofivent](https://nobigdealwithjoedeal.com/services/roofivent): Polypropylene exhaust + pipe flashing (Build component)
 - [Service Areas](https://nobigdealwithjoedeal.com/areas): Hub page for every town served (each town page is listed under Service Areas below)
+- [Northern Kentucky](https://nobigdealwithjoedeal.com/areas/northern-kentucky): Region hub for Boone, Kenton and Campbell counties (Covington, Erlanger, Florence, Fort Mitchell, Independence, Newport, Union), with the NKY storm record and Kentucky insurance-job rules
 - [Blog](https://nobigdealwithjoedeal.com/blog): Homeowner-focused roofing and insurance-claim guides
 - [Reviews](https://nobigdealwithjoedeal.com/review): Customer testimonials
 
