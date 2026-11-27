@@ -11,32 +11,44 @@ below. Google needs a few weeks to pick up new titles, so don't read it earlier.
 ## The data (before)
 
 Search Console, apex URL-prefix property, **Sep 26 - Nov 24 2026** (about 2
-months; nothing earlier exists in the property). Town pages: 14.8K
-impressions, 6 clicks, average positions 20-28.
+months; nothing earlier exists in the property). 41 `/areas` pages had
+impressions: **14,774 impressions, 6 clicks**, average positions 20-28.
 
-| Town | Impressions | Avg position | Title before 2026-11-27 |
-|---|---:|---:|---|
-| Florence KY | 2,181 | 23.8 | Roofing, Siding & Gutters in … |
-| West Chester OH | 1,774 | 19.9 | Roofing, Siding & Gutters in … |
-| Milford OH | 1,625 | 25.8 | Roofing, Siding & Gutters in … |
-| Covington KY | 1,343 | 28.1 | Roofing, Siding & Gutters in … |
-| Batavia OH | 1,222 | 14.1 | Roofing, Siding & Gutters in … |
-| Amelia OH | 911 | 13.3 | Roofer |
-| Cincinnati OH | 805 | 24.6 | Roofer |
-| Fort Mitchell KY | 671 | 9.7 | Roofer |
-| Indian Hill OH | 637 | 9.8 | Roofer |
-| Loveland OH | 538 | 16.1 | Roofer |
-| Mt Orab OH | 430 | 10.5 | Roofer |
-| Mason OH | 385 | 24.4 | Roofer |
-| Montgomery OH | 41 | 13.9 | Roofer |
+| Town | Impressions | Clicks | Avg position | Title before 2026-11-27 |
+|---|---:|---:|---:|---|
+| Florence KY | 2,181 | 2 | 23.8 | Roofing, Siding & Gutters in … |
+| West Chester OH | 1,774 | 0 | 19.9 | Roofing, Siding & Gutters in … |
+| Milford OH | 1,625 | 0 | 25.8 | Roofing, Siding & Gutters in … |
+| Covington KY | 1,343 | 0 | 28.1 | Roofing, Siding & Gutters in … |
+| Batavia OH | 1,222 | 0 | 14.1 | Roofing, Siding & Gutters in … |
+| Amelia OH | 911 | 0 | 13.3 | Roofer |
+| Cincinnati OH | 805 | 0 | 24.6 | Roofer |
+| Fort Mitchell KY | 671 | 0 | 9.7 | Roofer |
+| Indian Hill OH | 637 | 0 | 9.8 | Roofer |
+| Loveland OH | 538 | 2 | 16.1 | Roofer |
+| Mt Orab OH | 430 | 0 | 10.5 | Roofer |
+| Mason OH | 385 | 1 | 24.4 | Roofer |
+| Montgomery OH | 41 | 0 | 13.9 | Roofer |
 
 Example query: "roofing west chester ohio", 257 impressions, 0 clicks.
 
-The 13 towns above make up about 12.6K of the 14.8K. The other ~2.2K is spread
-over the remaining 32 towns, whose per-town numbers were **not captured**
-(Claude in Chrome was not connected on 2026-11-27). Pull them from Search
-Console for the same date range at the re-check, so the small towns' "before"
-is read from the same window.
+The 13 towns above make up 12,563 of the 14,774. The other 2,211 are spread
+over the remaining 28 `/areas` pages that had impressions. Their per-town
+numbers were **not captured; pull retroactively** (Claude in Chrome was not
+connected on 2026-11-27). Search Console keeps 16 months of data, so they can
+still be read later.
+
+**Re-check instructions (for the scheduled task `nbd-gsc-january-recheck`,
+runs 2027-01-20):** in the apex property's Performance report, filter pages to
+`/areas/`, then:
+
+1. Set a **custom date range of Sep 26 - Nov 24 2026** and record impressions,
+   clicks and position for every test and control town marked "not captured"
+   below. Those are the before numbers.
+2. Set the range **Nov 28 2026 - Jan 19 2027** (after the change) and record the
+   same three numbers for all 14 towns.
+3. Compare each pair's change (after minus before), not the raw gap between
+   the groups.
 
 ## 1. Title test
 
@@ -65,6 +77,10 @@ are the main controls.
 | 5 | Fairfield OH (not captured) | Liberty Township OH (not captured) | Butler County |
 | 6 | Blue Ash OH (not captured) | Sharonville OH (not captured) | NE Hamilton County |
 | 7 | Lebanon OH (not captured) | Springboro OH (not captured) | Warren County |
+
+"Not captured" = not captured; pull retroactively (see the re-check
+instructions above). The coordinating session chose this design on
+2026-11-27, since no other per-town numbers were available.
 
 Known totals: test 4,742 impressions over 3 towns (weighted position ~24.3);
 control 3,403 over 2 towns (~20.3). The test side starts heavier and ranks
