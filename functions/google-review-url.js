@@ -34,6 +34,8 @@ function cleanReviewUrl(raw) {
   // What a browser will actually open must be exactly this string: dot segments
   // (../, %2e%2e/) would resolve onto another google.com path (security review, R12).
   if (/(^|\/)(\.|%2e){1,2}(\/|$|\?)/i.test(s.replace(/^https:\/\/[^/]+/, ''))) return '';
+  // Encoded slashes / backslashes could hide a path a server decodes (security review, #3293).
+  if (/%2f|%5c/i.test(s)) return '';
   let href = '';
   try { href = new URL(s).href; } catch (_) { return ''; }
   return href === s ? s : '';

@@ -79,10 +79,20 @@ console.log('B. the live review-ask email (review-ask-auto-logic.js reviewUrlFor
 
 console.log('C. the portal review button and the agent review sprint use the same allowlist');
 {
+  // Security review of #3293: the portal button and the rating response also use NBD's own link for NBD.
+  ok('portal, NBD: a rep\'s Google review link is ignored, NBD\'s own link is shown',
+    typeof RA.portalReviewUrlFor === 'function' && RA.portalReviewUrlFor('https://g.page/r/rep/review', true) === RA.NBD_REVIEW_URL);
+  ok('portal, NBD: a non-Google or missing link → NBD\'s own link',
+    typeof RA.portalReviewUrlFor === 'function' && RA.portalReviewUrlFor('https://evil.example', true) === RA.NBD_REVIEW_URL && RA.portalReviewUrlFor(null, true) === RA.NBD_REVIEW_URL);
+  ok('portal, another company: its Google link is shown, anything else → null',
+    typeof RA.portalReviewUrlFor === 'function' && RA.portalReviewUrlFor('https://g.page/r/rep/review', false) === 'https://g.page/r/rep/review'
+    && RA.portalReviewUrlFor('https://evil.example', false) === null && RA.portalReviewUrlFor('', false) === null);
+  ok('the maps/place shape refuses encoded slashes and backslashes',
+    ['https://www.google.com/maps/place/..%2f..%2furl', 'https://www.google.com/maps/place/x%5c..%5cy', 'https://www.google.com/maps/place/a%2Fb'].every((u) => G.cleanReviewUrl(u) === ''));
   const portal = strip(fs.readFileSync(path.join(FN, 'portal.js'), 'utf8'));
   const fnBody = (portal.match(/function portalReviewUrl\([^)]*\)\s*\{[\s\S]*?\n\}/) || [''])[0];
   ok('control: found portalReviewUrl', fnBody.length > 40);
-  ok('portalReviewUrl checks the Google allowlist', /isGoogleReviewUrl|cleanReviewUrl/.test(fnBody), fnBody.slice(0, 200));
+  ok('portalReviewUrl delegates to RA.portalReviewUrlFor (covered above)', /portalReviewUrlFor\(/.test(fnBody), fnBody.slice(0, 200));
   const agent = strip(fs.readFileSync(path.join(FN, 'agent-mcp.js'), 'utf8'));
   ok('the agent review sprint resolves the link through RA.reviewUrlFor (covered by B), and says a saved non-Google link is not used',
     /RA\.reviewUrlFor\(/.test(agent) && /is not a Google review page, so it is not used/.test(agent) && /No Google review link is set/.test(agent));

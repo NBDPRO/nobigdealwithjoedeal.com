@@ -177,6 +177,12 @@ function reviewUrlFor(lead, repUrl) {
   return require('./google-review-url').cleanReviewUrl(repUrl);
 }
 
+/** The portal's review button and rating response: same rule, null = no button. */
+function portalReviewUrlFor(repUrl, nbd) {
+  if (nbd) return NBD_REVIEW_URL;
+  return require('./google-review-url').cleanReviewUrl(repUrl) || null;
+}
+
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (ch) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -258,6 +264,6 @@ function textBody(lead, reviewUrl) {
 
 module.exports = {
   EMAIL_FLAG, TEXT_FLAG, MIN_DAYS, MAX_DAYS, NBD_OWNER_UID, NBD_REVIEW_URL, SOURCE, TEXT_SOURCE,
-  receivedMs, inWindow, baseEligibility, planEmail, planText, willHandle, reviewUrlFor,
+  receivedMs, inWindow, baseEligibility, planEmail, planText, willHandle, reviewUrlFor, portalReviewUrlFor,
   emailContent, textBody, jobKey, attempted, isNbd, validEmail,
 };
