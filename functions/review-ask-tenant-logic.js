@@ -124,14 +124,22 @@ function validatePostalAddress(v) {
   return { ok: true, value: s };
 }
 
-/** The request a company sends: exactly these keys, each valid. → { ok, value } | { ok: false, reason } */
-function validateProfileRequest(data) {
+/** The review link in the company's own profile (companyProfile/{companyId}), as stored. */
+const profileReviewLink = (cp) => str(cp && cp.brand && cp.brand.integrations && cp.brand.integrations.reviewUrl);
+
+/**
+ * The request a company sends: exactly these keys, each valid. The review link is
+ * never typed into the request: it is the company profile's link, read by the
+ * server (Jo, 2026-11-27: "use each company's own link from their profile").
+ * → { ok, value } | { ok: false, reason }
+ */
+function validateProfileRequest(data, profileLink) {
   const d = data && typeof data === 'object' ? data : {};
-  const allowed = ['displayName', 'googleReviewUrl', 'replyTo'];
+  const allowed = ['displayName', 'replyTo'];
   const extra = Object.keys(d).filter((k) => k !== 'action' && !allowed.includes(k));
   if (extra.length) return { ok: false, reason: 'unknown_field', field: extra[0] };
   const n = validateDisplayName(d.displayName); if (!n.ok) return n;
-  const u = validateReviewUrl(d.googleReviewUrl); if (!u.ok) return u;
+  const u = validateReviewUrl(profileLink); if (!u.ok) return u;
   const r = validateReplyTo(d.replyTo); if (!r.ok) return r;
   return { ok: true, value: { displayName: n.value, googleReviewUrl: u.value, replyTo: r.value } };
 }
@@ -145,6 +153,30 @@ function validateApproved(a) {
   const r = validateReplyTo(x.replyTo); if (!r.ok) return r;
   const p = validatePostalAddress(x.postalAddress); if (!p.ok) return p;
   return { ok: true, value: { displayName: n.value, reviewUrl: u.value, replyTo: r.value, postalAddress: p.value } };
+}
+
+// ── The link a customer is shown outside the ask (portal button, review sprint) ──
+
+// Dark: off = today's rule (a team member's saved link, Google pages only; R12).
+const LINK_FLAG = 'REVIEW_LINK_APPROVED_ENABLED';
+const linkFlagOn = (env) => !!env && env.REVIEW_LINK_APPROVED_ENABLED === 'true';
+
+/**
+ * NBD: always NBD's own link. Another company, flag on: only the link a platform
+ * admin approved (review_ask_tenants approved.reviewUrl, re-checked here), never a
+ * team member's; none approved = no link. A link, not a send, so the ask's
+ * enabled / paused switches don't matter here. Flag off: R12's rule.
+ * → a URL or null
+ */
+function companyReviewLink(o) {
+  const x = o || {};
+  if (x.isNbd) return RA.NBD_REVIEW_URL;
+  if (linkFlagOn(x.env)) {
+    const a = x.tenant && typeof x.tenant === 'object' ? x.tenant.approved : null;
+    const u = validateReviewUrl(a && a.reviewUrl);
+    return u.ok ? u.value : null;
+  }
+  return RA.portalReviewUrlFor(x.repUrl, false);
 }
 
 // ── The company's switches (review_ask_tenants) ────────────────────────────
@@ -372,6 +404,7 @@ module.exports = {
   MIN_LEAD_AGE_DAYS, MANUAL_MIN_CENTS, RAMP, PROFILE_CHANGES_PER_DAY, TRIGGERED_BY, PLATFORM_DOMAINS,
   flagOn, ms, validateDisplayName, validateReviewUrl, validateReplyTo, validatePostalAddress,
   validateProfileRequest, validateApproved, rampStage, capsFor, tenantReady,
+  profileReviewLink, LINK_FLAG, linkFlagOn, companyReviewLink,
   paymentProof, serverIntake, markedComplete, openProblem, tenantOf, eligibility, preReadReason, FINAL_REASONS,
   canonicalEmail, baseEmail, resendDefinite,
   emailHash, periodKeys, claimDecision, emailContent, fromHeader, firstNameOf,
