@@ -455,6 +455,8 @@ const VERDICTS = {
   carePlanAdmin: 'role-gated', carePlanPublic: 'public', carePlanWebhook: 'public',
   // NBD's Twilio line (twilio-line.js, 2026-10-06): Twilio webhooks — no user
   // auth, X-Twilio-Signature verified instead (like incomingSMS).
+  // reviewAskTextStatus (S3, 2026-11-26): Twilio's signed status callback for review texts, no user auth.
+  reviewAskTextStatus: 'public',
   twilioSmsWebhook: 'public', twilioSmsStatus: 'public', twilioVoiceWebhook: 'public', twilioVoiceDialStatus: 'public',
   // Google Calendar sync (2026-09-29): owner / owner's company_admin / platform admin only.
   setupGoogleCalendar: 'role-gated', getGoogleCalendarStatus: 'role-gated', getBusyTimes: 'role-gated',
@@ -493,9 +495,14 @@ const VERDICTS = {
   // viewer / member itself; remove goes through requireTeamAdmin. Proven in
   // tests/sms-dnc-2026-10-05.test.js section D.
   manageSmsCompliance: 'already',
+  // The review ask for other companies (2026-11-26): requireTeamAdmin (owner / company_admin) and platform admin only.
+  setReviewAskProfile: 'role-gated', manageReviewAskTenant: 'role-gated',
   // The customer kill switch (2026-10-19, messaging-controls-fns.js): Jo's own uid only
   // (uid === NBD_OWNER_UID), proven in tests/messaging-controls-2026-10-19.test.js section E.
   manageMessagingControls: 'role-gated',
+  // Storm-tips email screen (2026-11-26, storm-tips-email.js): NBD owner's uid only,
+  // proven in tests/storm-tips-email-2026-11-26.test.js (a non-owner is refused).
+  stormTipsAdmin: 'role-gated',
   // Invoice + supplement stamps on the server (2026-11-14, supplement-invoice.js): assertNotViewer first, then the
   // estimate's author / same-company staff / platform admin only (billingTenant), proven in
   // tests/supplement-invoice-callable-2026-11-14.test.js section A.

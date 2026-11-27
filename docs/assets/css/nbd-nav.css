@@ -255,6 +255,14 @@ nav#mainNav {
       the social circles keep their own layout; the circles grow to 44px. */
 @media (max-width: 768px) {
   html body .ann-bar { display: none !important; }
+  /* Seasonal exception (Jo, 2026-11-26): while scripts/seasonal-ann-slide.js has a season on, phones show the bar
+     with ONLY that slide, as one fixed line; the standing slides stay hidden. `--off` removes the slide, and this
+     rule goes quiet with it. */
+  html body .ann-bar:has(> [data-nbd-season-ann]) { display: flex !important; align-items: center; justify-content: center; }
+  html body .ann-bar:has(> [data-nbd-season-ann]) > .ann-slide:not([data-nbd-season-ann]) { display: none !important; }
+  html body .ann-bar > [data-nbd-season-ann] {
+    position: static !important; opacity: 1 !important; transform: none !important; pointer-events: auto !important;
+  }
 }
 html body > footer:not([class]) p:not(.footer-desc) { color: rgba(255, 255, 255, 0.78) !important; }
 html body > footer:not([class]) .footer-bottom a,

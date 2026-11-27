@@ -51,8 +51,8 @@ const GOOGLE_REVIEW_URL = [
   /^https:\/\/search\.google\.com\/local\/writereview\?placeid=[A-Za-z0-9_-]{10,200}$/,
 ];
 const isGoogleReviewUrl = (u) => typeof u === 'string' && GOOGLE_REVIEW_URL.some((re) => re.test(u));
-/** The link for a v2 ask: the rep's saved link when it is a Google review page, else NBD's. */
-const reviewUrlFor = (repUrl) => (isGoogleReviewUrl(String(repUrl || '').trim()) ? String(repUrl).trim() : RA.NBD_REVIEW_URL);
+/** The link for a v2 ask: always NBD's own (v2 is NBD only; Jo, 2026-11-26, R12: "Always NBD's link"). */
+const reviewUrlFor = (_repUrl) => RA.NBD_REVIEW_URL;
 
 /** An open warranty claim (or a warranty / service stage): no ask, no reminder. */
 function openClaim(rec) {

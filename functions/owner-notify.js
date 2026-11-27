@@ -47,6 +47,15 @@ const { envCap } = require('./env-number');
 
 const STATE_DOC = 'system/ownerNotify';
 const DEFAULT_SMS_PER_DAY = 4;
+/**
+ * Alert buckets with their OWN day ledger (system/ownerNotify_<bucket>, the same
+ * per-day cap) and their own hourly internal-alert allowance, so they can never
+ * use up the 4-a-day ops alerts (and the reverse). 'review_ask': the review-ask
+ * health pause (review-ask-health.js, 2026-11-26). No bucket = the ops ledger.
+ */
+const BUCKETS = ['review_ask'];
+const cleanBucket = (b) => String(b || '').replace(/[^a-z0-9_]/gi, '').slice(0, 20);
+const stateDocFor = (bucket) => (cleanBucket(bucket) ? STATE_DOC + '_' + cleanBucket(bucket) : STATE_DOC);
 const SEVERITIES = ['info', 'alert', 'critical'];
 const MAX_QUEUE = 20;
 const MAX_KEYS = 200;
@@ -146,8 +155,8 @@ async function preflight(db, key, nowMs) {
 }
 
 /** The full guard (spends the hourly internal allowance): { ok, to } or a 'skipped:<reason>' string. */
-async function smsTarget(db, key, nowMs) {
-  const ia = await MessagingControls.internalAlertStatus(db, 'sms', { key: 'owner-notify/' + key, bucket: 'ops', nowMs });
+async function smsTarget(db, key, nowMs, bucket) {
+  const ia = await MessagingControls.internalAlertStatus(db, 'sms', { key: 'owner-notify/' + key, bucket: bucket ? cleanBucket(bucket) : 'ops', nowMs });
   if (!ia.allowed) {
     log().warn('[ownerNotify] text held, bell only', { key, reason: ia.reason });
     return 'skipped:' + ia.reason;
@@ -164,9 +173,9 @@ async function twilioSend(to, body) {
 }
 
 /** Run one ledger transaction; null when the ledger cannot be read or written. */
-async function ledger(db, fn) {
+async function ledger(db, fn, bucket) {
   try {
-    const ref = db.doc(STATE_DOC);
+    const ref = db.doc(stateDocFor(bucket));
     return await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       const r = fn(snap && snap.exists ? (snap.data() || {}) : {});
@@ -184,10 +193,10 @@ async function textOwner(db, req, nowMs) {
   if (held) return held;
   const cap = smsPerDay();
   const daytime = isDaytime(nowMs);
-  const r = await ledger(db, (st) => decide(st, req, nowMs, cap, daytime));
+  const r = await ledger(db, (st) => decide(st, req, nowMs, cap, daytime), req.bucket);
   const action = r ? r.action : (req.severity === 'critical' ? 'send' : 'failed:ledger');
   if (action !== 'send' && action !== 'overflow') return action;
-  const target = await smsTarget(db, req.key, nowMs);
+  const target = await smsTarget(db, req.key, nowMs, req.bucket);
   if (typeof target === 'string') return target;
   try {
     await twilioSend(target.to, smsText(action, Object.assign({ cap }, req)));
@@ -227,7 +236,8 @@ async function notifyOwner(db, msg) {
   }
   let sms = 'none';
   if (severity !== 'info') {
-    try { sms = await textOwner(db, { title, body, severity, key }, nowMs); }
+    const bucket = BUCKETS.includes(cleanBucket(m.bucket)) ? cleanBucket(m.bucket) : '';
+    try { sms = await textOwner(db, { title, body, severity, key, bucket }, nowMs); }
     catch (e) { sms = 'failed:guard'; log().error('[ownerNotify] text step failed', { key, err: e && e.message }); }
     log().info('[ownerNotify] text', { key, severity, sms });
   }
@@ -237,22 +247,31 @@ async function notifyOwner(db, msg) {
 /** ONE summary text of the alerts queued overnight, on the first call at or after 07:00 ET. */
 async function flushOwnerQueue(db, opts) {
   const nowMs = opts && Number.isFinite(opts.nowMs) ? opts.nowMs : Date.now();
+  const main = await flushOne(db, nowMs, '');
+  // Each bucket's own overnight queue (its own ledger and allowance); never changes the ops answer.
+  for (const b of BUCKETS) {
+    try { await flushOne(db, nowMs, b); } catch (e) { log().warn('[ownerNotify] bucket flush failed', { bucket: b, err: e && e.message }); }
+  }
+  return main;
+}
+
+async function flushOne(db, nowMs, bucket) {
   const daytime = isDaytime(nowMs);
   if (!daytime) return { sms: 'none' };
   const cap = smsPerDay();
   // Peek first: no guard read, no ledger write on the usual empty morning.
   try {
-    const snap = await db.doc(STATE_DOC).get();
+    const snap = await db.doc(stateDocFor(bucket)).get();
     const q = snap && snap.exists ? ((snap.data() || {}).queue || []) : [];
     if (!q.some((e) => e && Number(e.atMs) > nowMs - QUEUE_TTL_MS)) return { sms: 'none' };
   } catch (e) { return { sms: 'failed:ledger' }; }
-  const skey = 'overnight-summary-' + etYmd(nowMs);
+  const skey = 'overnight-summary-' + (bucket ? bucket + '-' : '') + etYmd(nowMs);
   const held = await preflight(db, skey, nowMs);
   if (held) return { sms: held };
-  const r = await ledger(db, (st) => decideFlush(st, nowMs, cap, daytime));
+  const r = await ledger(db, (st) => decideFlush(st, nowMs, cap, daytime), bucket);
   if (!r) return { sms: 'failed:ledger' };
   if (r.action !== 'summary' && r.action !== 'overflow') return { sms: r.action };
-  const target = await smsTarget(db, skey, nowMs);
+  const target = await smsTarget(db, skey, nowMs, bucket);
   if (typeof target === 'string') return { sms: target };
   try {
     await twilioSend(target.to, smsText(r.action, { cap, items: r.items }));
@@ -263,4 +282,4 @@ async function flushOwnerQueue(db, opts) {
   }
 }
 
-module.exports = { notifyOwner, flushOwnerQueue, SMS_SECRETS, STATE_DOC, DEFAULT_SMS_PER_DAY, QUEUE_TTL_MS, _overrides, _test: { decide, decideFlush, smsText, roll } };
+module.exports = { notifyOwner, flushOwnerQueue, SMS_SECRETS, STATE_DOC, DEFAULT_SMS_PER_DAY, QUEUE_TTL_MS, _overrides, BUCKETS, _test: { decide, decideFlush, smsText, roll, stateDocFor } };

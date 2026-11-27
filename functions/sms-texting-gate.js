@@ -62,7 +62,7 @@ const SETTINGS_COLLECTION = 'sms_settings';
 /**
  * @param {{ignoreGlobal?: boolean}} [opts] ignoreGlobal: the company-only answer,
  *   for the settings screen (it shows THIS company's toggle, not the owner's pause).
- * @returns {Promise<{allowed: boolean, reason: null|'no_tenant'|'not_registered'|'switched_off'|'messaging_paused',
+ * @returns {Promise<{allowed: boolean, reason: null|'no_tenant'|'not_registered'|'switched_off'|'no_own_sender'|'messaging_paused',
  *   isNbd: boolean, registered: boolean, enabled: boolean, pausedReason?: string}>}
  *   REJECTS on a read error (callers: do not send).
  */
@@ -76,7 +76,12 @@ async function textingStatus(db, tenantKey, opts) {
   const isNbd = key === module.exports.NBD_OWNER_UID;
   const registered = isNbd || d.registered === true;
   const enabled = d.enabled !== false;
-  const reason = !registered ? 'not_registered' : (!enabled ? 'switched_off' : null);
+  // No per-company sender exists yet: every send path that asks this gate then
+  // sends with NBD's Twilio account and number. So `registered` alone must never
+  // let another company text, or its messages go out on NBD's A2P campaign
+  // (review-ask guardrail plan S0, 2026-11-26). Lifted only when each company
+  // has its own Twilio subaccount and number and the send paths use it.
+  const reason = !registered ? 'not_registered' : (!enabled ? 'switched_off' : (!isNbd ? 'no_own_sender' : null));
   if (!reason && !(opts && opts.ignoreGlobal)) {
     const g = await MessagingControls.channelStatus(db, 'sms');
     if (!g.allowed) return { allowed: false, reason: 'messaging_paused', pausedReason: g.reason, isNbd, registered, enabled };
@@ -87,6 +92,7 @@ async function textingStatus(db, tenantKey, opts) {
 const REFUSAL_MESSAGES = Object.freeze({
   not_registered: 'Texting needs registration for your company — coming soon. Nothing was sent.',
   switched_off: 'Texting is switched off for your company (Settings → Texting). Nothing was sent.',
+  no_own_sender: 'Texting needs your company\'s own registered number — coming soon. Nothing was sent.',
   no_tenant: 'Texting is not set up for this account. Nothing was sent.',
   messaging_paused: 'Customer messaging is paused by the owner. Nothing was sent.',
 });

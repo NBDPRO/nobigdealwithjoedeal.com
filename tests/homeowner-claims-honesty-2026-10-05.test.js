@@ -276,10 +276,12 @@ console.log('\n10. no carrier-pays / claim-approval promises');
     .concat(fs.readdirSync(path.join(ROOT, 'site-src', 'partials')).map((n) => 'site-src/partials/' + n));
   const srcHits = SRC.filter((rel) => OUTCOME.test(stripComments(read(rel), rel.replace(/\.mjs$/, '.js'))));
   ok('no partial, town data or page generator carries one either', srcHits.length === 0, srcHits.join(', '));
-  const mason = stripComments(read('docs/services/hail-damage-mason-oh.html'), 'x.html');
-  ok('the Mason hail page uses the neutral documentation line', /how to document every strike, so you have clear photos and an itemized estimate to share with your insurer\./.test(mason));
+  // 2026-11-26: the Mason hail page was merged into storm-damage-mason-oh (GSC content merge).
+  const mason = stripComments(read('docs/services/storm-damage-mason-oh.html'), 'x.html');
+  ok('the Mason hail & storm page uses the neutral documentation line', /how to document every strike, so you have clear photos and an itemized estimate to share with your insurer\./.test(mason));
   const neutral = FILES.filter((f) => /so you have clear photos and an itemized estimate to share with your insurer/.test(f.text)).length;
-  ok('the neutral line replaced the promises across the hail/storm/area pages (>= 20 files)', neutral >= 20, String(neutral));
+  // 2026-11-26: 18 after the hail-damage-<town> pages were folded into their storm twins (one file per town now carries both).
+  ok('the neutral line replaced the promises across the hail/storm/area pages (>= 18 files)', neutral >= 18, String(neutral));
 }
 
 // ── 11. Jo's final warranty model (2026-10-06) ─────────────────────────
@@ -359,7 +361,8 @@ console.log('\n11. Pledge promise, written labor warranty, no "lifetime" warrant
     const src = read('docs/services/roof-replacement-' + t + '-oh.html');
     ok('roof-replacement-' + t + ': included list + schema carry the Pledge', /<strong>The NBD Pledge\.<\/strong> For as long as you own the home, we'll come back and make it right\./.test(src) && /"description": "Roof replacement in [^"]*Backed by the NBD Pledge\."/.test(src));
   }
-  const TOWNS = ['hail-damage-batavia', 'hail-damage-cincinnati', 'hail-damage-loveland', 'hail-damage-maineville', 'hail-damage-mason', 'hail-damage-west-chester',
+  // 2026-11-26: the hail-damage-<town> pages were merged into their storm twins (GSC content merge); storm-damage-maineville takes hail-damage-maineville's slot.
+  const TOWNS = ['storm-damage-maineville',
     'storm-damage-batavia', 'storm-damage-cincinnati', 'storm-damage-fayetteville', 'storm-damage-loveland', 'storm-damage-mason', 'storm-damage-west-chester'];
   const noMeta = TOWNS.filter((t) => { const m = /<meta name="description" content="([^"]*)"/.exec(read('docs/services/' + t + '-oh.html')); return !m || !/NBD Pledge/.test(m[1]) || m[1].length > 160; });
   ok('hail/storm town pages: meta description names the NBD Pledge (<= 160 chars)', noMeta.length === 0, noMeta.join(', '));

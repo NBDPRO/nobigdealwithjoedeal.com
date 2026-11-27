@@ -628,7 +628,7 @@ const request = (token, uid) => ({ auth: uid ? { uid, token: token || {} } : nul
   ok('dashboard: view mount + template', /id="view-messaging" data-view-template="tpl-view-messaging"/.test(dash) && /<template id="tpl-view-messaging">/.test(dash));
   ok('dashboard: nav script is deferred and external', /<script defer src="js\/messaging-nav\.js\?v=1"><\/script>/.test(dash));
   const loader = read('docs/pro/js/script-loader.js');
-  ok('script-loader: messaging bundle (css + js) and view mapping', /messaging: \[\s*'css\/messaging-center\.css\?v=1',\s*'js\/messaging-center\.js\?v=1'\s*\]/.test(loader) && /messaging:\s+\['messaging'\]/.test(loader));
+  ok('script-loader: messaging bundle (css + js) and view mapping', /messaging: \[\s*'css\/messaging-center\.css\?v=1',\s*'js\/messaging-center\.js\?v=2'\s*\]/.test(loader) && /messaging:\s+\['messaging'\]/.test(loader));
   ok('route registered in dashboard-state and init in dashboard-actions', /'messaging':\s+\{ label: 'Messaging'/.test(read('docs/pro/js/dashboard-state.js')) && /name==='messaging'.*NBDMessaging\.init/.test(read('docs/pro/js/dashboard-actions.js')));
   ok('functions: exports, function-map, heartbeat plan', /exports\.messagingCenter = require\('\.\/messaging-center'\)/.test(read('functions/index.js')) && /exports\.messagingWatch/.test(read('functions/index.js')) &&
     /"messagingCenter": "\.\/messaging-center"/.test(read('functions/function-map.json')) && /"messagingWatch": "\.\/messaging-center"/.test(read('functions/function-map.json')) && /messagingWatch:\s+\{ slug: 'hourly-crons' \}/.test(read('functions/integrations/heartbeat-plan.js')));

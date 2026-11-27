@@ -209,6 +209,7 @@ function agentDraftAction(p) {
 // Callables whose real job is to contact someone, publish something or move
 // money: answered with an explanation, never a fake success.
 const WOULD = {
+  stormTipsAdmin: 'send storm-season tips email to guide subscribers',
   sendEstimateEnvelope: 'email the estimate to the homeowner',
   sendEsignEnvelope: 'send the contract for e-signature',
   createEsignEnvelope: 'create an e-signature envelope',

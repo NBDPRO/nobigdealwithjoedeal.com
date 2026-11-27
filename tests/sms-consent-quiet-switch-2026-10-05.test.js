@@ -325,13 +325,14 @@ const queuedBody = (w, over) => Object.assign({
   {
     const r = await d2d({ token: CO1_TOKEN, clockMs: NOON, docs: { 'sms_settings/co-1': { registered: true } } },
       { userId: 'rep-1', companyId: 'co-1', phone: PHONE, smsConsent: true, repName: 'Al' });
-    ok('a registered company with NO company name → 403 no_company_name (never NBD\'s name)', r.res.statusCode === 403 && r.res.body.code === 'no_company_name' && r.w.twilioCalls.length === 0, JSON.stringify(r.res.body));
+    // S0 (2026-11-26): `registered` no longer lets another company text on NBD's sender at all.
+    ok('a registered company with NO company name → refused no_own_sender, Twilio untouched', r.res.statusCode === 403 && r.res.body.reason === 'no_own_sender' && r.w.twilioCalls.length === 0, JSON.stringify(r.res.body));
   }
   {
     const r = await d2d({ token: CO1_TOKEN, clockMs: NOON, docs: REGISTERED_CO1 },
       { userId: 'rep-1', companyId: 'co-1', phone: PHONE, smsConsent: true, repName: 'Al' }, 'not_home');
-    const sent = (r.w.twilioCalls[0] || {}).body || '';
-    ok('a registered company with a name → its own name, never NBD', r.res.statusCode === 200 && /Acme Roofing/.test(sent) && !/NBD/.test(sent), sent);
+    // Was: "its own name, never NBD" — sent on NBD's number and NBD's A2P campaign. Now refused (S0, 2026-11-26).
+    ok('a registered company with a name → refused no_own_sender, never sent on NBD\'s number', r.res.statusCode === 403 && r.res.body.reason === 'no_own_sender' && r.w.twilioCalls.length === 0, JSON.stringify(r.res.body));
   }
 
   // ═══ E. storm consent ══════════════════════════════════════════════════
