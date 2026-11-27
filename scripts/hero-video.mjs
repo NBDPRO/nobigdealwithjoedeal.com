@@ -56,7 +56,7 @@ const CONFIG = path.join(REPO, 'site-src', 'data', 'hero-video.json');
 
 // Bump when hero-video.css / hero-video.js change (the 24h /assets/{css,js}
 // cache would otherwise serve the old file to repeat visitors).
-export const ASSET_VERSION = 2;
+export const ASSET_VERSION = 3;
 export const CSS_HREF = `/assets/css/hero-video.css?v=${ASSET_VERSION}`;
 export const JS_SRC = `/assets/js/hero-video.js?v=${ASSET_VERSION}`;
 export const PORTRAIT = '(max-width: 600px) and (orientation: portrait)';

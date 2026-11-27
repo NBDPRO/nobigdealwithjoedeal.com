@@ -17,20 +17,9 @@
 })();
 
 // ── ANNOUNCEMENT BAR ROTATION ──
-(function(){
-  const slides = document.querySelectorAll('.ann-slide');
-  let current = 0;
-  if(slides.length < 2) return;
-  setInterval(()=>{
-    slides[current].classList.remove('active');
-    slides[current].classList.add('exit');
-    const prev = current;
-    current = (current + 1) % slides.length;
-    slides[current].classList.add('active');
-    slides[current].classList.remove('exit');
-    setTimeout(()=> slides[prev].classList.remove('exit'), 600);
-  }, 4000);
-})();
+// Moved to /assets/js/ann-bar.js (2026-11-27, a11y pass): this copy rotated
+// even under prefers-reduced-motion and had no pause (WCAG 2.2.2). The
+// homepage now loads ann-bar.js like the town and service pages.
 
 // ── SCROLL REVEALS ──
 // Content is visible by default (see .reveal CSS). We only hide pre-animation

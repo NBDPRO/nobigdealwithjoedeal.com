@@ -346,7 +346,10 @@ function fakeEls(ids) {
     submit({ preventDefault() {} }); await settle();
     const s = els.inspectSuccess;
     ok('the success card is shown', /visible/.test(s.className));
-    ok('…focusable (tabindex -1) and focused, so screen readers land on the confirmation', s.attrs.tabindex === '-1' && s.calls.some((c) => c[0] === 'focus'), s.calls);
+    // Since 2026-11-27 (a11y pass) focus goes to the card's heading, the way
+    // /estimate and /roof-check move between steps; the card itself is not focused.
+    const h = els.insThanksTitle;
+    ok('…its heading is focusable (tabindex -1) and focused, so screen readers land on the confirmation', h.attrs.tabindex === '-1' && h.calls.some((c) => c[0] === 'focus'), h.calls);
     ok('…it was already scrolled into view (unchanged)', s.calls.some((c) => c[0] === 'scrollIntoView'));
     // The plain reason from the gateway client is shown as is.
     const friendly = 'This is taking too long. Check your connection and try again, or call or text Joe at ' + JOE + '.';

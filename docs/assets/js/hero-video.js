@@ -15,6 +15,10 @@
  * where the clip has it; 720p otherwise.
  * Always muted, never controls, never sound. A rejected play() just leaves
  * the poster showing.
+ * Pause (WCAG 2.2.2, 2026-11-27): the loop runs longer than 5 s next to the
+ * page's words, so once it is playing a small Pause button sits in the hero's
+ * top-right corner (hero-video.css shows it only while the loop is live). A
+ * pause holds for the rest of the visit (sessionStorage), on every page.
  * Bump ASSET_VERSION in scripts/hero-video.mjs when this file changes. */
 (function () {
   'use strict';
@@ -35,16 +39,51 @@
     return v.getAttribute('data-src-' + ext + key) || v.getAttribute('data-src-mp4');
   }
 
+  var PAUSE_KEY = 'nbdHeroVideoPaused';
+  function storedPause() { try { return window.sessionStorage.getItem(PAUSE_KEY) === '1'; } catch (e) { return false; } }
+  function storePause(on) { try { if (on) window.sessionStorage.setItem(PAUSE_KEY, '1'); else window.sessionStorage.removeItem(PAUSE_KEY); } catch (e) { /* private mode: this page only */ } }
+  if (storedPause()) return; // paused earlier this visit: the still hero, like reduced motion
+
+  var PAUSE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg>';
+  var PLAY_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>';
+
   function wire(v) {
     var visible = false;
     var loaded = false;
+    var userPaused = false;
+    var btn = null;
     v.muted = true;
     v.defaultMuted = true;
-    v.addEventListener('playing', function () { v.classList.add('is-playing'); });
+
+    // The button goes beside the .hv layer, not inside it: .hv sits under the
+    // hero's words (pointer-events:none, z-index 0).
+    function syncBtn() {
+      if (!btn) return;
+      btn.setAttribute('aria-pressed', userPaused ? 'true' : 'false');
+      btn.setAttribute('aria-label', userPaused ? 'Play background video' : 'Pause background video');
+      btn.innerHTML = userPaused ? PLAY_ICON : PAUSE_ICON;
+    }
+    function addButton() {
+      var layer = v.parentNode;
+      if (btn || !layer || !layer.parentNode) return;
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'hv-toggle';
+      syncBtn();
+      btn.addEventListener('click', function () {
+        userPaused = !userPaused;
+        storePause(userPaused);
+        if (userPaused) v.pause(); else play();
+        syncBtn();
+      });
+      layer.parentNode.insertBefore(btn, layer.nextSibling);
+    }
+
+    v.addEventListener('playing', function () { v.classList.add('is-playing'); addButton(); });
     v.addEventListener('error', function () { v.classList.remove('is-playing'); });
 
     function play() {
-      if (!visible || document.hidden || reduce.matches) return;
+      if (userPaused || !visible || document.hidden || reduce.matches) return;
       if (!loaded) {
         var src = pickSrc(v);
         if (!src) return;

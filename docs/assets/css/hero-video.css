@@ -40,4 +40,18 @@
 .combo-hero:has(> .hv) h1 span,.city-hero:has(> .hv) h1 span,.service-hero:has(> .hv) h1 span,.service-hero:has(> .hv) .hero-badge,.service-hero:has(> .hv) .hero-trust-item span{color:#dd875f}
 .combo-hero:has(> .hv) .combo-badge,.city-hero:has(> .hv) .city-badge,.service-hero:has(> .hv) .hero-badge{background:rgba(18,34,61,.75)}
 
+/* Pause / play for the loop (WCAG 2.2.2, 2026-11-27). hero-video.js adds it
+   beside .hv once the clip is playing; it shows only while the clip is live
+   (a stopped loop has nothing to pause), above the hero's gradient and words.
+   44px tap target; navy pill so the white icon holds on any frame. */
+.hv-toggle{position:absolute;top:12px;right:12px;z-index:3;width:44px;height:44px;display:flex;align-items:center;justify-content:center;padding:0;border:2px solid rgba(255,255,255,.7);border-radius:100px;background:rgba(18,34,61,.78);color:#fff;cursor:pointer}
+.hv-toggle svg{width:20px;height:20px}
+.hv-toggle:hover{background:rgba(18,34,61,.95)}
+.hv:not(:has(> .hx-bg.is-playing)) + .hv-toggle{display:none}
+/* Homepage phones and tablets: the "crew I bring in" caption runs along the top
+   and would sit under the button, so it wraps short of it while the loop plays
+   (desktop moves the caption to the bottom right). */
+@media (max-width:1024px){.hx-hero:has(> .hv > .hx-bg.is-playing) .hx-cap{max-width:calc(100% - 92px)!important}}
+
 @media (prefers-reduced-motion:reduce){.hx-bg{display:none}}
+@media (prefers-reduced-motion:reduce){.hv-toggle{display:none}}

@@ -185,9 +185,12 @@
       // Focus the confirmation (2026-10-26): it used to leave focus on <body>,
       // and the status region inside it never changes for the default
       // "contact me" choice, so a screen reader announced nothing. Same as the
-      // homepage's #formSuccess.
-      ok.setAttribute('tabindex', '-1');
-      try { ok.focus({ preventScroll: true }); } catch (e) {}
+      // homepage's #formSuccess. Since 2026-11-27 the heading takes focus, the
+      // way /estimate and /roof-check move between steps: a screen reader says
+      // "Pick your time, heading level 3" and reading on gives the next step.
+      var head = document.getElementById('insThanksTitle') || ok;
+      head.setAttribute('tabindex', '-1');
+      try { head.focus({ preventScroll: true }); } catch (e) {}
       try { ok.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
     }
   }
@@ -338,6 +341,8 @@
       var bad = invalidFields();
       if (bad.length) {
         showError(btn, invalidMessage(bad), bad[0]);
+        // Every marked field names the message, not only the first (2026-11-27).
+        bad.forEach(function (el) { try { el.setAttribute('aria-describedby', 'inspectFormError'); } catch (e) {} });
         try { bad[0].focus(); } catch (e) {}
         return;
       }
@@ -357,7 +362,12 @@
         intake = window.NBDIntake.read(form, 'ins');
         if (intake.error) {
           if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid');
-          showError(btn, intake.error);
+          // The message goes right under the choices and focus to the first
+          // one (2026-11-27): it used to land at the form's far end with focus
+          // left on Send, so the thing to fix was off screen on a phone.
+          var radio = intake.el && intake.el.querySelector ? intake.el.querySelector('input') : null;
+          showError(btn, intake.error, intake.el || null);
+          if (radio) { try { radio.focus(); } catch (e) {} }
           return;
         }
       }

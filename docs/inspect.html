@@ -90,8 +90,10 @@ h1 span{color:#BD5728}
 .form-row{margin-bottom:16px}
 .form-row label{display:block;font-size:.74rem;font-weight:700;color:var(--navy);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
 .form-row label .opt{color:var(--gray);font-weight:600;text-transform:none;letter-spacing:0;margin-left:6px}
-.form-row input[type=text],.form-row input[type=tel],.form-row input[type=email],.form-row textarea{width:100%;padding:12px 14px;border:1.5px solid var(--light-gray);border-radius:8px;font:inherit;font-size:.95rem;color:#1a1a1a;background:#fff;transition:border-color .15s,box-shadow .15s}
-.form-row input:focus,.form-row textarea:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(189,87,40,.12)}
+.form-row input[type=text],.form-row input[type=tel],.form-row input[type=email],.form-row textarea{width:100%;padding:12px 14px;border:1.5px solid #858d99;border-radius:8px;font:inherit;font-size:.95rem;color:#1a1a1a;background:#fff;transition:border-color .15s,box-shadow .15s}
+/* a11y pass 2026-11-27: the field edge was #e8e5e0 (1.2:1 on white, under the 3:1 WCAG 1.4.11 asks; #858d99 is 3.35:1) and
+   focus was a 12%-opacity glow. A solid orange outline (4.6:1 on white) also survives the aria-invalid inset shadow below. */
+.form-row input:focus,.form-row textarea:focus{outline:3px solid var(--orange);outline-offset:1px;border-color:var(--orange)}
 /* inspect-form.js sets aria-invalid on EVERY bad field on submit; until now only the focused one looked wrong. #7f1d1d is this page's existing error colour. */
 .form-row input[aria-invalid="true"],.form-row textarea[aria-invalid="true"]{border-color:#7f1d1d;box-shadow:inset 0 0 0 1px #7f1d1d}
 .form-row textarea{resize:vertical;min-height:90px;font-family:inherit}
@@ -593,9 +595,9 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
 </footer>
 
 <script src="/assets/js/public-lead-submit.js" defer></script>
-<script src="/assets/js/intake-extras.js?v=4" defer></script>
+<script src="/assets/js/intake-extras.js?v=6" defer></script>
 <script src="/assets/js/inspect-region.js" defer></script>
-<script src="/assets/js/inspect-form.js?v=13" defer></script>
+<script src="/assets/js/inspect-form.js?v=14" defer></script>
 <script src="/assets/js/booking-clicks.js" defer></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
 <!-- nbd:partial mobile-cta book_href="#inspectForm" -->
