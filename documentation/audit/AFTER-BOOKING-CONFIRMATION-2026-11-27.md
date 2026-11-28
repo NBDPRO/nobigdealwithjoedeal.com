@@ -45,7 +45,9 @@ No credentials or sales lines, so it stays transactional under CAN-SPAM (primary
 3. Follow-up after a booking: **done.** The sweep skips a lead with a live cal.com booking: an `appointments` doc linked to its card, or one under its email (as typed or lowercased), that isn't cancelled. `tests/followup-after-booking-2026-11-27.test.js` was red first.
 4. Cal.com wording: Jo edits it in cal.com.
 
-Item 4 below (the storm signup header) is still open. The original list, as first written:
+**Update 2026-11-28:** item 4 below (the storm signup header) is **done**, in a follow-up PR. Only the "I already have damage — waiting on insurance" answer keeps "Got your storm damage report."; "Wind damage" and "General severe weather" signups now read "You're on my storm alert list." (`ackFirstLine` in [lead-alert.js](../../functions/lead-alert.js)). Subject and body are unchanged. `tests/storm-ack-header-2026-11-28.test.js` was red first.
+
+The original list, as first written:
 
 ## For Jo (as first written)
 
