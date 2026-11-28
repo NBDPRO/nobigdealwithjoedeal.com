@@ -148,7 +148,7 @@ const T0 = Date.UTC(2026, 9, 6, 15, 0, 0);
     ok('"live" → live', C.carePlanMode({ CARE_PLAN_MODE: 'live' }) === 'live');
     ok('anything else fails closed → off', C.carePlanMode({ CARE_PLAN_MODE: 'true' }) === 'off' && C.carePlanMode({ CARE_PLAN_MODE: 'on' }) === 'off');
     const env = fs.readFileSync(path.join(ROOT, 'functions', '.env.nobigdeal-pro'), 'utf8');
-    ok('production ships it OFF (functions/.env.nobigdeal-pro)', /^CARE_PLAN_MODE=off\r?$/m.test(env) && !/^CARE_PLAN_MODE=(test|live)\r?$/m.test(env));
+    ok('production runs it in TEST, never live (functions/.env.nobigdeal-pro; Joe, 2026-11-26)', /^CARE_PLAN_MODE=test\r?$/m.test(env) && !/^CARE_PLAN_MODE=(off|live)\r?$/m.test(env));
   }
 
   console.log('\n3. the Stripe Checkout session');

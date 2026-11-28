@@ -154,7 +154,7 @@ const ROWS = {
   // ── Money ───────────────────────────────────────────────────────────────
   STRIPE_LEDGER_DISABLED: { group: 'Money', doc: 'documentation/projects/STRIPE-FULL-INTEGRATION-2026-09-29.md',
     meaning: 'Books Stripe payments onto CRM invoices. PAUSED = payments are not booked automatically.' },
-  CARE_PLAN_MODE: { group: 'Money', kind: 'mode', dark: true, file: 'care-plan-logic.js', doc: 'documentation/projects/ROOF-CARE-PLAN-2026-10-05.md',
+  CARE_PLAN_MODE: { group: 'Money', kind: 'mode', file: 'care-plan-logic.js', doc: 'documentation/projects/ROOF-CARE-PLAN-2026-10-05.md',
     meaning: 'Roof Care Plan sales. off = nothing sells; test = only your invite links and ?preview=careplan; live = sells to everyone.' },
   NBD_MONEY_PAPER: { group: 'Money', kind: 'off-switch', file: 'money-paper.js', doc: ENV_DOC,
     meaning: 'Paper trail on invoice changes (money spine). "off" = the kill switch is on and it stops writing.' },
