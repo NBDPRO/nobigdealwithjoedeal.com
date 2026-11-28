@@ -8,6 +8,14 @@
 // ──────────────────────────────────────────────────────────────────
 const POSTS = [
   {
+    url: "/blog/buying-a-house-what-to-know-about-the-roof",
+    tag: "Home Tips",
+    title: "Buying a House? What to Know About the Roof",
+    meta: "By Joe Deal · March 2027 · 4 min read",
+    excerpt: "What to ask the seller about the roof, what to look at yourself, whether the warranty transfers, and when to have a roofer get on it before you sign.",
+    published: "2027-03-02",
+  },
+  {
     url: "/blog/second-opinion-on-your-roof",
     tag: "Reader Questions",
     title: "Should You Get a Second Opinion on Your Roof?",
