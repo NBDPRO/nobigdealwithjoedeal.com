@@ -696,7 +696,8 @@ function permitCard(t, service) {
     } else {
       out.push(para(`I haven’t found a written rule on siding permits from ${ext(p.url, esc(p.authority))}, which issues ${T}’s building permits. Ask ${esc(p.ask || p.authority)} before work starts; the answer can depend on whether sheathing or framing gets replaced.`));
     }
-    if (!t.historic || !t.historic.review) out.push(para(pick(t, k + 'n', [`I have no record of a local design review for siding in ${T}.`, `I know of no local historic review of siding in ${T}.`])));
+    // A town-level siding review (e.g. Florence's Main Street district) already says who reviews; don't contradict it.
+    if (!(sd && sd.review) && (!t.historic || !t.historic.review)) out.push(para(pick(t, k + 'n', [`I have no record of a local design review for siding in ${T}.`, `I know of no local historic review of siding in ${T}.`])));
   }
   return card(h, out.join('\n'));
 }
@@ -759,7 +760,7 @@ function inspectionItems(t) {
 const SHEATHING = {
   prewar: 'Board sheathing, or none at all behind the oldest siding. Soft spots get replaced before anything goes back on.',
   postwar: ['Board sheathing is typical at this age; I replace soft or missing boards before the wrap goes on.', 'Houses this age were usually sheathed in boards, and some spots never were. Anything soft gets replaced before new wrap goes over it.'],
-  midcentury: 'Plywood or fiberboard; fiberboard that has been wet crumbles and gets replaced.',
+  midcentury: ['Plywood or fiberboard; fiberboard that has been wet crumbles and gets replaced.', 'Sheathing from those decades is plywood or fiberboard. Wet fiberboard goes soft and crumbly, and it gets cut out before anything goes back over it.'],
   eighties: ['OSB or fiberboard, and water behind failed siding often leaves soft spots under windows.', 'Fiberboard and early OSB were the norm; both turn soft under windows once water gets behind the siding.'],
   newer: 'OSB behind vinyl. I look for swelling under windows where flashing was skipped.',
 };
@@ -770,7 +771,7 @@ function sidingReplacementItems(t) {
     tear: ['Tear-off and disposal', B5(t, {
       prewar: 'If asbestos-cement shingles turn up under the current layer, they get left in place or removed by a licensed abatement contractor, never broken up.',
       postwar: ['Asbestos-cement shingles are common on houses this age. If they are under the current siding, they stay intact or go to a licensed abatement contractor.', 'Cement-asbestos shingle under an aluminum or vinyl layer is a real possibility here. It is never broken up; it stays put or a licensed abatement contractor removes it.'],
-      midcentury: 'Old aluminum comes off clean; what matters is what it was hiding.',
+      midcentury: ['Old aluminum comes off clean; what matters is what it was hiding.', 'Aluminum and hardboard come off in a day; the real work is whatever they were covering.'],
       eighties: ['Swollen hardboard comes off in pieces, and I check the sheathing as it goes.', 'Old pressed-wood lap comes off board by board, which shows me every soft spot behind it.'],
       newer: 'Builder vinyl usually comes off in one layer.',
     })],
@@ -779,7 +780,7 @@ function sidingReplacementItems(t) {
     material: ['Material to suit the house', B5(t, {
       prewar: 'Fiber cement or LP SmartSide lap reads closest to the original wood; vinyl is the budget option.',
       postwar: 'Fiber cement or LP SmartSide lap reads closest to the original wood; vinyl is the budget option.',
-      midcentury: 'Vinyl, fiber cement or LP SmartSide, in a lap reveal close to what the house had.',
+      midcentury: ['Vinyl, fiber cement or LP SmartSide, in a lap reveal close to what the house had.', 'Any of vinyl, fiber cement or LP SmartSide works on a house this age; I match the reveal of the original lap so the proportions stay right.'],
       eighties: ['LP SmartSide or fiber cement in the same reveal as the old hardboard, or vinyl to keep the cost down.', 'Vinyl keeps the cost down; LP SmartSide or fiber cement keeps the look of painted lap.'],
       newer: 'Vinyl to match the street, or fiber cement and LP SmartSide if you want something that takes paint.',
     })],
@@ -804,7 +805,7 @@ function sidingRepairItems(t) {
     profile: ['Profile match', B5(t, {
       prewar: 'Older houses here may be wood, aluminum or asbestos-cement under the vinyl. Wood gets pieced in; aluminum profiles are hard to source now.',
       postwar: ['Houses this age are often wood or aluminum under a later layer. Wood gets pieced in; aluminum profiles are hard to source now.', 'Wood lap can be milled and painted to match. Aluminum is the hard one; most of its old profiles are hard to find.'],
-      midcentury: 'Aluminum and early vinyl profiles from this era are often discontinued. A panel from a hidden wall is sometimes the best match.',
+      midcentury: ['Aluminum and early vinyl profiles from this era are often discontinued. A panel from a hidden wall is sometimes the best match.', 'Wood can be milled and painted to match; aluminum and first-generation vinyl usually can’t be bought new, so a panel from a back wall may stand in.'],
       eighties: ['Profiles from the ’80s and early ’90s are often discontinued. A panel borrowed from a hidden wall is sometimes the best match.', 'Many vinyl and pressed-wood profiles from that era are gone. I check the back of a panel for the maker before promising a match.'],
       newer: 'Builder profiles from the late ’90s on are often still made, or close to it.',
     })],
@@ -844,14 +845,14 @@ function scopeIntro(t, service) {
     'siding-replacement': B5(t, {
       prewar: `Houses that old were built with wood clapboard or shingles, and many have since been covered with aluminum, asbestos-cement shingles or vinyl, sometimes more than one.`,
       postwar: [`Homes from the late ’40s and ’50s typically went up with wood lap siding or asbestos-cement shingles, and many were covered with aluminum or vinyl later. What’s under the current siding matters as much as what’s on top.`, `Post-war houses were usually sided in wood lap or cement-asbestos shingle, and a lot of them got an aluminum or vinyl layer in the ’70s or ’90s. A re-side there starts with finding out how many layers you have.`],
-      midcentury: `Siding from the ’60s and ’70s is often aluminum, hardboard or wood, and plenty of it was covered in vinyl later.`,
+      midcentury: [`Siding from the ’60s and ’70s is often aluminum, hardboard or wood, and plenty of it was covered in vinyl later.`, `Walls from those decades were usually sided in aluminum, pressed-wood lap or wood, and many got a vinyl layer on top in later years. Knowing what’s under there shapes the whole job.`],
       eighties: [`Homes from the ’80s and early ’90s often went up with hardboard or wood-composite lap siding, cedar, or early vinyl. Hardboard swells at the bottom edges and nail holes once the paint fails.`, `That era favored pressed-wood lap siding, cedar and first-generation vinyl. Pressed wood that lost its paint puffs up along the drip edge of every course, which is usually what starts the re-side conversation.`],
       newer: `Houses from the late ’90s on were mostly sided in builder-grade vinyl over OSB and house wrap, with wood or composite trim.`,
     }),
     'siding-repair': B5(t, {
       prewar: `On houses that old, a “siding repair” can mean wood clapboard, aluminum or asbestos-cement shingles, depending on what’s on the wall now, and each is a different job.`,
       postwar: [`On houses that age the wall might be wood lap, asbestos-cement shingle, aluminum or vinyl over one of those, and the repair depends on which.`, `Walls from that era can be wood, cement-asbestos shingle, or aluminum, often with vinyl added later, so the first step is knowing which one is cracked.`],
-      midcentury: `On houses that age the siding is often aluminum, hardboard or a later vinyl layer, and matching it is the hard part.`,
+      midcentury: [`On houses that age the siding is often aluminum, hardboard or a later vinyl layer, and matching it is the hard part.`, `Walls that age might be wood, aluminum, pressed-wood lap or vinyl over any of them, and each one matches differently.`],
       eighties: [`Siding from that era is often hardboard, cedar or early vinyl, and the profile is often out of production, so matching is the first question.`, `Houses that age tend to have pressed-wood lap, cedar or early vinyl, and many of those profiles stopped being made years ago. Finding a match comes before anything else.`],
       newer: `Most of those houses carry builder-grade vinyl, which is the easiest kind to match if the profile is still made.`,
     }),
@@ -980,13 +981,13 @@ function svcFaqAge(t, service) {
   const era = service === 'siding-replacement' ? B5(t, {
     prewar: 'Houses that old were built with wood clapboard or shingles, and many now wear aluminum, asbestos-cement shingles or vinyl on top.',
     postwar: ['Houses that age were typically built with wood lap or asbestos-cement shingles, and many were covered with aluminum or vinyl later.', 'Most started with wood lap or cement-asbestos shingle; many now wear aluminum or vinyl over it.'],
-    midcentury: 'Houses that age often have aluminum, hardboard or wood, or vinyl added later.',
+    midcentury: ['Houses that age often have aluminum, hardboard or wood, or vinyl added later.', 'Expect aluminum or hardboard from the original build, wood on older parts, and often vinyl laid over one of them.'],
     eighties: ['Houses that age often have hardboard or wood-composite lap, cedar, or early vinyl.', 'Expect pressed-wood lap, cedar, or first-generation vinyl, often with some of each.'],
     newer: 'Houses that age mostly have builder-grade vinyl with wood or composite trim.',
   }) : B5(t, {
     prewar: 'On houses that old, wood can be pieced in and painted to match; aluminum and asbestos-cement are harder.',
     postwar: ['On houses that age, wood can be pieced in and painted; aluminum profiles are hard to source now.', 'Wood lap on a house that age can be milled and painted to match; aluminum is much harder to find.'],
-    midcentury: 'On houses that age, the profile is often discontinued, so a panel from a hidden wall is sometimes the best match.',
+    midcentury: ['On houses that age, the profile is often discontinued, so a panel from a hidden wall is sometimes the best match.', 'Wood can be pieced in and painted; aluminum and early vinyl from that era are rarely sold new, so a panel from a hidden wall may be the closest match.'],
     eighties: ['On houses that age, hardboard and early vinyl profiles are often discontinued; sometimes a panel from a hidden wall is the best match.', 'Many profiles from that era are out of production, so I check the maker first and sometimes borrow a panel from a hidden wall.'],
     newer: 'On houses that age, the builder profile is often still made, so the question is mostly color fade.',
   });
