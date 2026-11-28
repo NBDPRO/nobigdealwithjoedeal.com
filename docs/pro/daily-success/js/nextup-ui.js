@@ -110,11 +110,13 @@
   }
 
   // ── the Today card on the Dash ──
+  const blankPart = (m) => { try { return window.NBDBlankDay && window.NBDBlankDay[m] ? window.NBDBlankDay[m]() : ''; } catch (_) { return ''; } };   // optional: the card draws without it
   function dashCard() {
     const tk = today(), p = pageFor(tk);
     const card = document.createElement('div');
     card.className = 'nu-today';
     let html = '<div class="nu-title">Today <small>' + esc(dayLabel(tk)) + '</small></div>';
+    html += blankPart('bannerHtml');   // "Yesterday (Tue Nov 17) is blank." (blankday-ui.js; '' when there is nothing to say)
     if (!p) {
       html += '<div class="nu-line">No page for today yet. Opening one is a tap.</div>';
     } else {
@@ -125,6 +127,7 @@
       const r = compute(tk);
       if (r) html += '<div class="nu-strip" style="border:0;padding:0;background:transparent;border-radius:0;">' + lineHtml(r, r.ctx) + '</div>';
     }
+    html += blankPart('weekHtml');   // "Days logged this week: 5 / 7"
     html += '<button type="button" class="nu-btn nu-open" data-nu="open-today">Open today →</button>';
     card.innerHTML = html;
     return card;

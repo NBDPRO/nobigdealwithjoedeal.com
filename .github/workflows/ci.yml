@@ -1522,6 +1522,11 @@ jobs:
         run: |
           cd tests
           node ds-quick-wins-2026-11-09.test.js
+      # The "yesterday is blank" banner and the Days-logged line on the Daily Success Dash (Joe, 2026-11-18): real browser, phone width, fixed clock. Same server, same Chromium.
+      - name: Run the Daily Success blank-day banner check
+        run: |
+          cd tests
+          node ds-blank-day-ui-2026-11-18.test.js
       # Daily Success full storage (audit 2026-11-14 #9 #13): never SAVED / Saved / Logged over a write the phone refused. Same server, same Chromium.
       - name: Run the Daily Success storage-full check
         run: |
