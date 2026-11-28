@@ -11,7 +11,7 @@
     { "pages": "^index\\.html$", "clip": "topdown-install-spin" },
     { "pages": "^services/emergency-roof-tarping\\.html$", "clip": "snow-orbit-2026" },
     { "pages": "^services/financing\\.html$", "clip": "crew-treeline-hover" },
-    { "pages": "^services/(fire-water-smoke-damage|roof-care-plan|roof-cleaning-soft-wash)\\.html$", "clip": "shingle-reveal-pullback" },
+    { "pages": "^services/(fire-water-smoke-damage|flashing-repair|roof-care-plan|roof-cleaning-soft-wash)\\.html$", "clip": "shingle-reveal-pullback" },
     { "pages": "^services/(hail-damage|storm-damage)-[a-z-]+-(oh|ky)\\.html$", "clip": "snow-orbit-2026" },
     { "pages": "^services/roof-replacement-[a-z-]+-(oh|ky)\\.html$", "clip": "crew-treeline-hover" },
     { "pages": "^services/(roof-repair|roof-inspection)-[a-z-]+-(oh|ky)\\.html$", "clip": "shingle-reveal-pullback" },
