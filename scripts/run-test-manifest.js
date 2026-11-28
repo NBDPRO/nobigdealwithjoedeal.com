@@ -500,7 +500,9 @@ const RUNNABLE = ['node', 'smoke'];
 //   2026-11-19  1199/75/1361 -> 1200/75/1362: book time per job type adds job-hours-2026-11-20 (node). MEASURED via --check.
 //   2026-11-20  1200/75/1362 -> 1202/75/1364: call center compact view adds two node suites. MEASURED via --check.
 //   2026-11-28  1244/75/1409 -> 1247/75/1412: FAQ double-toggle fix adds faq-single-toggle-2026-11-28 (node); main was stale by 2. MEASURED via --check.
-const FLOORS = { node: 1247, smoke: 75, disk: 1412 };
+//   2026-11-28  1247/75/1412 -> 1248/75/1413: announcement-bar fix adds ann-bar-single-rotator-2026-11-28 (node). MEASURED via --check.
+//   2026-11-28  1248/75/1413 -> 1249/75/1414: merging main brought one more node suite. MEASURED via --check.
+const FLOORS = { node: 1249, smoke: 75, disk: 1414 };
 //   2026-11-27  1239/75/1404 -> 1244/75/1409: #3145 merged onto main adds sweep-leftovers-2026-11-17 and sw-sweep-lows-2026-11-17 (node); main was stale by 3. MEASURED via --check.
 //   2026-11-26  1235/75/1400 -> 1239/75/1404: storm-tips email adds storm-tips-email-2026-11-26 (node); main already held three more than its floor. MEASURED via --check.
 //   2026-11-20  1202/75/1364 -> 1203/75/1365: bottom-edge queue adds bottom-edge-queue-2026-11-19 (node). MEASURED via --check.

@@ -1103,6 +1103,7 @@
     "dt-f12-2026-11-08.test.js",
     "faq-schema-sync-2026-10-03.test.js",
     "faq-single-toggle-2026-11-28.test.js",
+    "ann-bar-single-rotator-2026-11-28.test.js",
     "jsonld-redirect-urls-2026-11-17.test.js",
     "site-lows-2026-11-17.test.js",
     "pro-landing-budget-2026-10-04.test.js",
