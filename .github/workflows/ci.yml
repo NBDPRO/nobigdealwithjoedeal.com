@@ -1544,6 +1544,11 @@ jobs:
         run: |
           cd tests
           node ds-flow-batch-3-2026-11-09.test.js
+      # The Sunday review promise-audit suggestions (Joe, 2026-11-18): "From your floors" under the kept and bailed boxes, Use, saved with the review. Real browser, phone width, fixed clock. Same server, same Chromium.
+      - name: Run the Sunday review audit-suggestion check
+        run: |
+          cd tests
+          node ds-review-audit-ui-2026-11-18.test.js
       # Daily Success device-only data (audit 2026-11-14 #2): measurements, routines, custom lifts and check-ins sync, merge on first sync, export. Same server, same Chromium.
       - name: Run the Daily Success device-data sync check
         run: |

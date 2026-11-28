@@ -32,3 +32,6 @@
 .rv-act { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 10px 0; }
 .rv-act > div { min-width: 0; overflow-wrap: anywhere; }
 .rv-accept { min-height: 44px; padding: 0 16px; flex: 0 0 auto; }
+.rv-sug { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 6px 0 10px; }
+.rv-sug > span { min-width: 0; overflow-wrap: anywhere; }
+.rv-use { min-height: 44px; min-width: 44px; padding: 0 16px; flex: 0 0 auto; }
