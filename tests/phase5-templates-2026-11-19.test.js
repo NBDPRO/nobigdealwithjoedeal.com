@@ -190,14 +190,14 @@ const ackIds = (html) => [...html.matchAll(/<input\b[^>]*data-nbd-ack="([^"]+)"/
     ok('the work being requested is on the form', tx.indexOf('Tarp the north slope and dry in the opening over the kitchen.') !== -1);
     ok('party block names the legal party', tx.indexOf(NBD_PARTY) !== -1);
     ok('exactly one signature block (the homeowner), and no contractor By-line', (h.match(/data-nbd-sig="/g) || []).length === 1 && /data-nbd-sig="homeowner"/.test(h) && h.indexOf('By: Joe Deal') === -1);
-    ok('two required recorded ticks (the request, the notice received), no initials', reqIds(h).join() === 'ack:em_request,ack:em_notice' && ackIds(h).length === 2 && !/initial/i.test(h), ackIds(h).join());
+    ok('three required recorded ticks (the request, the notice received, the emergency service terms 2026-11-27), no initials', reqIds(h).join() === 'ack:em_request,ack:em_notice,ack:em_terms' && ackIds(h).length === 3 && !/initial/i.test(h), ackIds(h).join());
     ok('Ohio property: the sign-by-hand and write-the-date instruction, and a date line for a paper copy', /sign this request by hand and write the date yourself/i.test(tx) && h.indexOf('class="p5-blank"') !== -1);
     ok('the marker names the Ohio variant and SCH-1', /<!-- nbd:p5 P5_FORMS_V1 emergency_services_request oh SCH-1_V1 -->/.test(h));
     ok('no claim of what the law requires beyond the memo; no "waive" wording on the customer copy', !/waive|waiver/i.test(tx));
     ok('never "licensed" or a claim promise; no placeholder on the good copy', !/licensed|we handle|guarantee/i.test(tx) && !/\{\{|\[[A-Z][A-Za-z ]+\]/.test(tx));
     const ky = await gen(env, T, Object.assign({ address: H.KY_ADDR }, data));
     const kt = textOf(ky.html || '');
-    ok('Kentucky property: the Kentucky line instead, same two ticks', /Kentucky property: sign and date this request/.test(kt) && !/by hand/.test(kt) && /emergency_services_request ky SCH-1_V1/.test(ky.html || ''), ky.toasts.join('|'));
+    ok('Kentucky property: the Kentucky line instead, same three ticks', /Kentucky property: sign and date this request/.test(kt) && !/by hand/.test(kt) && /emergency_services_request ky SCH-1_V1/.test(ky.html || ''), ky.toasts.join('|'));
     const unk = await gen(env, T, Object.assign({ address: '9 Somewhere Rd' }, data));
     ok('unreadable state: the stricter Ohio form (fail closed)', /emergency_services_request oh /.test(unk.html || ''), unk.toasts.join('|'));
     const noWork = await gen(env, T, { signers: HO });

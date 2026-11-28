@@ -31,7 +31,12 @@
     "not published) is before 2026, or that has no year, renders labelled",
     "\"Joe's work before No Big Deal\" and is left out of NBD schema, the homepage",
     "wall and NBD counts. Optional era: \"nbd\" | \"pre-nbd\" overrides that rule",
-    "for one job (e.g. an undated job Joe confirms was a 2026 NBD job)."
+    "for one job (e.g. an undated job Joe confirms was a 2026 NBD job).",
+    "BEFORE/AFTER + CLIPS (2026-11-27): optional beforeAfter[] pairs (before/after = two of the",
+    "job's own photos[] showing the SAME spot, service = what the pair shows,",
+    "optional caption/beforeLabel/afterLabel) and clips[] (short job video: src mp4,",
+    "optional webm, poster, captions .vtt, title, width, height). Rules and field",
+    "shapes: scripts/lib/before-after.mjs; hand-over: runbooks/PUBLISH-PROJECT.md."
   ],
   "projects": [
     {
@@ -44,6 +49,10 @@
       "tag": "Roof Replacement",
       "city": "Union, KY",
       "description": "Architectural shingle replacement on a two-story colonial. New drip edge, starter strip, and ridge vent. Curb appeal speaks for itself.",
+      "materials": [
+        "Architectural shingles",
+        "New drip edge, starter strip and ridge vent"
+      ],
       "hero": "/assets/images/projects/completed-colonial-spring.jpg",
       "photos": [
         {
@@ -105,6 +114,11 @@
       "tag": "Roof Replacement",
       "city": "Sycamore Township, OH",
       "description": "A large brick two-story with multiple roof sections, valleys and wall transitions, its old shingles faded and streaked on every plane. The crew tore off every section, dried the whole roof in under synthetic underlayment, then laid new architectural shingles with all flashing replaced: new step and counter flashing at the brick walls, new pipe boots and a new ridge vent. Before, install day and the finished roof are all in the photos.",
+      "materials": [
+        "Architectural shingles",
+        "Synthetic underlayment",
+        "New step and counter flashing, pipe boots and ridge vent"
+      ],
       "hero": "/assets/images/projects/completed-multisection.jpg",
       "photos": [
         {
@@ -235,6 +249,9 @@
       "tag": "Active Jobsite",
       "city": "Cincinnati, OH",
       "description": "Joe was on this roof for a full tear-off in May 2025. The old shingles came off down to the decking, synthetic underlayment went on, and new shingles were installed on every plane, with the ridge, valleys, chimney and vents finished clean.",
+      "materials": [
+        "Synthetic underlayment"
+      ],
       "hero": "/assets/images/projects/active-culdescac-crew.jpg",
       "photos": [
         {
@@ -287,6 +304,10 @@
       "tag": "Craftsmanship",
       "city": "Maineville, OH",
       "description": "Metal valley flashing with tight shingle cuts on both sides, new pipe boot sealed properly. This is the kind of detail work that prevents leaks for decades. No shortcuts.",
+      "materials": [
+        "Metal valley flashing",
+        "New pipe boot"
+      ],
       "hero": "/assets/images/projects/detail-valley-shingle.jpg",
       "photos": [
         {
@@ -334,6 +355,11 @@
       "tag": "Commercial",
       "city": "West Liberty, KY",
       "description": "Every roof on a multi-building apartment complex needed replacing. The crew tore each building off down to the decking and laid new synthetic underlayment, then finished every building in architectural shingles with new ridge vents and all flashing replaced. Drone-documented start to finish for the property management company; the range covers the whole complex.",
+      "materials": [
+        "Architectural shingles",
+        "Synthetic underlayment",
+        "New ridge vents and flashing"
+      ],
       "hero": "/assets/images/projects/commercial-apartment-tearoff.jpg",
       "photos": [
         {
@@ -374,6 +400,10 @@
       "priceHigh": 2500,
       "year": 2026,
       "description": "New 5-inch seamless aluminum with fascia wood included — and screens sized run-by-run: the tree-covered runs got protection, the open runs did not get padded onto the bill.",
+      "materials": [
+        "5-inch seamless aluminum gutters",
+        "Leaf screens on the tree-covered runs"
+      ],
       "hero": "/assets/images/projects/cincinnati-oh-gutter-screens-2026-1.jpg",
       "photos": [
         {
@@ -404,6 +434,11 @@
       "priceHigh": 23500,
       "year": 2026,
       "description": "Three layers of old three-tab came off this Cincinnati two-story, and both old dormers came off with them. New GAF Timberline system on the slopes, chimneys re-flashed with new crickets, the built-in box gutters relined, and the flat sections sealed under a fresh aluminum coating. The whole job, documented start to finish.",
+      "materials": [
+        "GAF Timberline system on the slopes",
+        "Relined box gutters",
+        "Aluminum coating on the flat sections"
+      ],
       "hero": "/assets/images/projects/cincinnati-oh-full-tearoff-reroof-2026-1.jpg",
       "photos": [
         {
@@ -507,6 +542,11 @@
       "priceHigh": 3500,
       "year": 2026,
       "description": "The thermal camera found the damp rafter bays before we opened anything up. Then the fix: upgraded with Roofivent — seven new units, Roto turbines and Eco vents, plus new pipe boots — and the bath fan finally vented outside where it belongs. Moisture problems you can see are moisture problems you can solve.",
+      "materials": [
+        "Roofivent vents",
+        "Roto turbines and Eco vents",
+        "New pipe boots"
+      ],
       "hero": "/assets/images/projects/blue-ash-oh-roof-vents-thermal-2026-1.jpg",
       "photos": [
         {
@@ -566,6 +606,10 @@
       "priceHigh": 2000,
       "year": 2026,
       "description": "Wind ripped this gable open two-and-a-half stories up — siding gone, the foam sheathing behind it punctured, gutter bent. We wrapped it fresh, worked in new panels to match, and straightened the gutter line. Storm damage doesn't always mean a whole new wall — sometimes it just needs someone willing to climb.",
+      "materials": [
+        "New siding panels to match",
+        "Fresh wrap behind the siding"
+      ],
       "hero": "/assets/images/projects/sharonville-oh-storm-siding-repair-2026-1.jpg",
       "photos": [
         {
@@ -628,6 +672,11 @@
       "priceHigh": 25500,
       "year": 2026,
       "description": "Forty-five squares on an 8/12 pitch, and the old three-tab was streaked across every plane. Full tear-off, then Owens Corning Duration over synthetic underlayment — with ice-and-water at the eaves and valleys, and both skylights re-flashed at no extra charge because that is where these roofs leak. Two days, start to finish.",
+      "materials": [
+        "Owens Corning Duration shingles",
+        "Synthetic underlayment",
+        "Ice-and-water at the eaves and valleys"
+      ],
       "hero": "/assets/images/projects/milford-oh-full-tearoff-replacement-2026-1.jpg",
       "photos": [
         {
@@ -816,6 +865,9 @@
       "priceHigh": 700,
       "year": 2026,
       "description": "Painted wood lap siding with rot breaches open at two separate spots — the kind of thing that quietly lets water into a wall for years. Every cavity packed with exterior filler, sanded flush, and painted to blend. You have to know where it was to see it.",
+      "materials": [
+        "Exterior filler, sanded and painted to blend"
+      ],
       "hero": "/assets/images/projects/montgomery-oh-siding-rot-repair-2026-1.jpg",
       "photos": [
         {
@@ -871,6 +923,14 @@
         {
           "src": "/assets/images/projects/montgomery-oh-shake-reattachment-2026-4.jpg",
           "alt": "The same front gable with the shake field continuous again and the reattached piece sitting flush and on-course"
+        }
+      ],
+      "beforeAfter": [
+        {
+          "before": "/assets/images/projects/montgomery-oh-shake-reattachment-2026-1.jpg",
+          "after": "/assets/images/projects/montgomery-oh-shake-reattachment-2026-4.jpg",
+          "service": "siding-repair",
+          "caption": "The front gable with the one shake missing, then set back flush and on course."
         }
       ],
       "consentOnFile": true,
@@ -971,6 +1031,9 @@
       "priceHigh": 2000,
       "year": 2026,
       "description": "About sixty-eight feet of old aluminum ridge vent came off this gambrel building, running the full length of the original structure and the addition. Closed back in and capped end to end with shingle. A long, straight, boring ridge line — which is exactly what you want.",
+      "materials": [
+        "Shingle ridge cap"
+      ],
       "hero": "/assets/images/projects/amelia-oh-gambrel-ridge-repair-2026-1.jpg",
       "photos": [
         {
@@ -1009,6 +1072,11 @@
       "priceHigh": 16000,
       "year": 2026,
       "description": "Three stories, three different roof systems, and a chimney base patched with tar by somebody before us. Full tear-off, then architectural shingle on the steep mansard, EPDM on the flat, and five dormer caps converted from rubber to shingle. These photos are what we found going in.",
+      "materials": [
+        "Architectural shingle on the mansard",
+        "EPDM on the flat roof",
+        "Shingle dormer caps"
+      ],
       "hero": "/assets/images/projects/norwood-oh-victorian-three-system-2026-1.jpg",
       "photos": [
         {
@@ -1060,6 +1128,14 @@
           "alt": "The completed roof from a matching angle to the before frame, all three systems finished in one shot"
         }
       ],
+      "beforeAfter": [
+        {
+          "before": "/assets/images/projects/norwood-oh-victorian-three-system-2026-8.jpg",
+          "after": "/assets/images/projects/norwood-oh-victorian-three-system-2026-12.jpg",
+          "service": "roof-replacement",
+          "caption": "The back of the house from the drone, the same angle before and after: mansard, flat roof and dormer caps all redone."
+        }
+      ],
       "consentOnFile": true,
       "published": "2026-08-28"
     },
@@ -1075,6 +1151,10 @@
       "priceHigh": 10500,
       "year": 2026,
       "description": "Fourteen squares across seven facets at a 10/12 pitch — steep enough that everything takes longer and costs more to do safely. Stripped to the original one-by plank decking, then GAF Timberline HDZ over premium synthetic. Nothing exotic, just done right on a hard roof.",
+      "materials": [
+        "GAF Timberline HDZ shingles",
+        "Premium synthetic underlayment"
+      ],
       "hero": "/assets/images/projects/newtown-oh-steep-pitch-replacement-2026-1.jpg",
       "photos": [
         {
@@ -1117,6 +1197,9 @@
       "city": "New Richmond, OH",
       "year": 2024,
       "description": "The carrier approved part of this claim and denied the rest. Once the homeowner decided how to go forward, we did the job: house and outbuildings stripped and dried in by morning, charcoal GAF Timberline HDZ across the whole roof by mid-afternoon.",
+      "materials": [
+        "Charcoal GAF Timberline HDZ shingles"
+      ],
       "hero": "/assets/images/projects/new-richmond-oh-storm-replacement-2024-1.jpg",
       "photos": [
         {
@@ -1186,6 +1269,9 @@
       "city": "Cincinnati, OH",
       "year": 2023,
       "description": "Sometimes the decking underneath is the actual problem. This one came off entirely — open rafters, daylight through the roof — then went back with new sheathing before a single shingle was laid. You only get to do this part once, so it is worth seeing.",
+      "materials": [
+        "New roof sheathing"
+      ],
       "hero": "/assets/images/projects/cincinnati-oh-deck-replacement-2023-1.jpg",
       "photos": [
         {
@@ -1252,6 +1338,9 @@
       "city": "Cincinnati, OH",
       "year": 2023,
       "description": "A smaller insurance job on a hillside lot, done properly and handed back clean. Stripped to the deck, then charcoal dimensional shingle with tight even courses. The view off the back is the bonus.",
+      "materials": [
+        "Charcoal dimensional shingles"
+      ],
       "hero": "/assets/images/projects/cincinnati-oh-hillside-charcoal-2023-3.jpg",
       "photos": [
         {
@@ -1283,6 +1372,11 @@
       "city": "Madeira, OH",
       "year": 2023,
       "description": "Hail and wind damage, an insurance job. Deck stripped and dried in under synthetic with new drip edge, then a light gray field over the whole house. Look at the corbelled brick chimney — new step flashing worked up every course, which is the part that leaks when somebody rushes it.",
+      "materials": [
+        "Synthetic underlayment",
+        "New drip edge",
+        "New step flashing at the chimney"
+      ],
       "hero": "/assets/images/projects/madeira-oh-hail-wind-replacement-2023-1.jpg",
       "photos": [
         {
@@ -1322,6 +1416,9 @@
       "city": "Miamisburg, OH",
       "year": 2024,
       "description": "Strip this brick ranch and you find the whole history of it: original plank, a stretch of older plywood, and the new sheathing we put down. Open rafter bays, landscaping tarped, materials staged. This is what the middle of a storm job actually looks like.",
+      "materials": [
+        "New sheathing"
+      ],
       "hero": "/assets/images/projects/miamisburg-oh-decking-storm-replacement-2024-1.jpg",
       "photos": [
         {
@@ -1399,6 +1496,9 @@
       "city": "Cincinnati, OH",
       "year": 2024,
       "description": "Stripped to the original board sheathing in the morning, finished gray laminate with crisp hip and ridge lines by late afternoon. The overhead pair tells it best — same framing, seven hours apart.",
+      "materials": [
+        "Gray laminate shingles"
+      ],
       "hero": "/assets/images/projects/cincinnati-oh-plank-deck-bungalow-2024-1.jpg",
       "photos": [
         {
@@ -1431,6 +1531,9 @@
       "city": "Loveland, OH",
       "year": 2024,
       "description": "Tear-off complete across every plane, ground fully tarped, debris truck loaded — then synthetic underlayment over the whole field and a finished gray roof the same afternoon. Gutters back on before we left.",
+      "materials": [
+        "Synthetic underlayment"
+      ],
       "hero": "/assets/images/projects/loveland-oh-single-day-replacement-2024-1.jpg",
       "photos": [
         {
@@ -1448,6 +1551,16 @@
         {
           "src": "/assets/images/projects/loveland-oh-single-day-replacement-2024-4.jpg",
           "alt": "Straight-down view of the completed roof, framed to match the bare-deck shot"
+        }
+      ],
+      "beforeAfter": [
+        {
+          "before": "/assets/images/projects/loveland-oh-single-day-replacement-2024-1.jpg",
+          "after": "/assets/images/projects/loveland-oh-single-day-replacement-2024-4.jpg",
+          "service": "roof-replacement",
+          "beforeLabel": "Bare deck",
+          "afterLabel": "Finished",
+          "caption": "Stripped to the sheathing in the morning, finished the same afternoon, shot from the same spot."
         }
       ],
       "consentOnFile": true,
@@ -1485,6 +1598,14 @@
         {
           "src": "/assets/images/projects/loveland-oh-siding-peak-reseal-2026-5.jpg",
           "alt": "Detail of a metal flashing seam on an asphalt shingle roof, with an exposed fastener head capped under a dab of black sealant"
+        }
+      ],
+      "beforeAfter": [
+        {
+          "before": "/assets/images/projects/loveland-oh-siding-peak-reseal-2026-1.jpg",
+          "after": "/assets/images/projects/loveland-oh-siding-peak-reseal-2026-3.jpg",
+          "service": "siding-repair",
+          "caption": "The gable-peak joint where the J-channel had pulled away from the trim, then sealed back tight."
         }
       ],
       "consentOnFile": true,
@@ -1583,6 +1704,10 @@
       "priceHigh": 74000,
       "year": 2023,
       "description": "By Golly’s Bar & Grill in Milford had active leaks after wind damage: four emergency calls including a same-day tarp to keep the kitchen open, then the real fix — 32 squares of old rubber roof torn off, new insulation board down, 60-mil EPDM over the whole low-slope section, with the rooftop HVAC craned off and reset to do it right.",
+      "materials": [
+        "60-mil EPDM",
+        "New insulation board"
+      ],
       "hero": "/assets/images/projects/milford-oh-commercial-epdm-rebuild-2023-1.jpg",
       "photos": [
         {
@@ -1640,6 +1765,11 @@
       "tag": "Shed Re-Roof",
       "city": "Mason, OH",
       "description": "Barn-style backyard shed in Mason — old rolled roofing, torn off completely rather than covered over. With it off we could actually look at the deck: original OSB with old asphalt still stuck to it, sound underneath. Then synthetic underlayment, charcoal architectural shingles and a shingle ridge cap. Same shingle that goes on a house.",
+      "materials": [
+        "Charcoal architectural shingles",
+        "Synthetic underlayment",
+        "Shingle ridge cap"
+      ],
       "hero": "/assets/images/projects/mason-oh-shed-reroof-2026-1.jpg",
       "photos": [
         {
@@ -1713,6 +1843,9 @@
       "tag": "Woodpecker & Rot Repair",
       "city": "Cincinnati, OH",
       "description": "Replaced woodpecker-damaged and rotted corner trim and door-surround boards on LP SmartSide siding, primed and painted to match, with a roof walk to catch and seal exposed fasteners along the way.",
+      "materials": [
+        "Trim on LP SmartSide siding, primed and painted to match"
+      ],
       "hero": "/assets/images/projects/cincinnati-oh-smartside-trim-repair-2026-1.jpg",
       "photos": [
         {
@@ -1775,6 +1908,9 @@
       "tag": "Storm Damage",
       "city": "Batavia, OH",
       "description": "Wind pulled the siding fasteners loose across several courses — we unlocked, refastened and re-locked the wall so it lies flat with no bubbles, plus a matching aluminum gutter extension carried the downspout the rest of the way to the ground.",
+      "materials": [
+        "Matching aluminum gutter extension"
+      ],
       "hero": "/assets/images/projects/batavia-oh-storm-siding-gutter-repair-2026-1.jpg",
       "photos": [
         {
@@ -1805,6 +1941,10 @@
       "tag": "Gutter Replacement",
       "city": "Cincinnati, OH",
       "description": "122 linear feet of new 5-inch seamless aluminum gutter across a full two-story run, capped end to end with micromesh leaf screens — no exposed seams, no gaps at the corners.",
+      "materials": [
+        "5-inch seamless aluminum gutters",
+        "Micromesh leaf screens"
+      ],
       "hero": "/assets/images/projects/cincinnati-oh-gutter-replacement-screens-2026-1.jpg",
       "photos": [
         {
@@ -1892,6 +2032,9 @@
       "tag": "Gutter Repair",
       "city": "Cincinnati, OH",
       "description": "The base section of a downspout had failed where it met the underground drain line — replaced with a new connector, tied back into the existing PVC line, and painted to match.",
+      "materials": [
+        "New downspout connector into the existing PVC drain line"
+      ],
       "hero": "/assets/images/projects/cincinnati-oh-downspout-connector-repair-2026-1.jpg",
       "photos": [
         {
@@ -1921,6 +2064,11 @@
       "priceHigh": 15000,
       "year": 2026,
       "description": "A brick bungalow whose old shingles were faded, granule-worn and holding leaves in the valleys. We stripped it and put a new architectural shingle roof on it, with new box vents, new hip and ridge caps, and the edges and valleys finished clean.",
+      "materials": [
+        "Architectural shingles",
+        "New box vents",
+        "New hip and ridge caps"
+      ],
       "scope": [
         "Tore off the old shingles",
         "Installed new architectural shingles",
@@ -1970,6 +2118,9 @@
       "priceHigh": 4500,
       "year": 2026,
       "description": "The old snap-in screens on this two-story had buckled and pulled loose along the runs, so leaves and roof grit sat right on top of them. We pulled them and put black micromesh guards on the gutters.",
+      "materials": [
+        "Black micromesh gutter guards"
+      ],
       "hero": "/assets/images/projects/cincinnati-oh-gutter-guard-replacement-2026-4.jpg",
       "photos": [
         {

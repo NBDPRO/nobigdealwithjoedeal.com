@@ -15,6 +15,6 @@
     { "pages": "^services/(hail-damage|storm-damage)-[a-z-]+-(oh|ky)\\.html$", "clip": "snow-orbit-2026" },
     { "pages": "^services/roof-replacement-[a-z-]+-(oh|ky)\\.html$", "clip": "crew-treeline-hover" },
     { "pages": "^services/(roof-repair|roof-inspection)-[a-z-]+-(oh|ky)\\.html$", "clip": "shingle-reveal-pullback" },
-    { "pages": "^areas/[a-z-]+-(oh|ky)\\.html$", "clip": "neighborhood-pond-flyover" }
+    { "pages": "^areas/([a-z-]+-(oh|ky)|northern-kentucky)\\.html$", "clip": "neighborhood-pond-flyover" }
   ]
 }

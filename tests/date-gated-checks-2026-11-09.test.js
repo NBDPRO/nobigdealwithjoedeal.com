@@ -63,6 +63,8 @@ try {
     fs.copyFileSync(path.join(ROOT, 'scripts', f), path.join(tmp, 'scripts', f));
   }
   if (fs.existsSync(LIB)) fs.copyFileSync(LIB, path.join(tmp, 'scripts', 'lib', 'date-gate.mjs'));
+  // build-projects.mjs also imports the before/after renderer (2026-11-27).
+  fs.copyFileSync(path.join(ROOT, 'scripts', 'lib', 'before-after.mjs'), path.join(tmp, 'scripts', 'lib', 'before-after.mjs'));
 
   // ── Feed ───────────────────────────────────────────────────────
   console.log('\nbuild-feed.mjs: a post whose date passed since the last stamp is lag, not drift');

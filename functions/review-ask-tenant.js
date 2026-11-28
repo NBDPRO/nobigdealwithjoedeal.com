@@ -98,7 +98,9 @@ async function handleSetProfile(request, deps) {
   }
   if (data.action !== 'set') throw new HttpsError('invalid-argument', 'Unknown action');
 
-  const v = T.validateProfileRequest(data);
+  // The review link is the company profile's own (Jo, 2026-11-27), read here, never typed into the request.
+  const cp = await db.doc('companyProfile/' + companyId).get();
+  const v = T.validateProfileRequest(data, T.profileReviewLink(cp.exists ? cp.data() : null));
   if (!v.ok) throw new HttpsError('invalid-argument', 'Not saved: ' + v.reason + (v.field ? ' (' + v.field + ')' : ''), { reason: v.reason });
   const day = T.periodKeys(nowMs).day;
   const before = await db.runTransaction(async (tx) => {
@@ -144,24 +146,27 @@ async function handleManage(request, deps) {
   const [tSnap, pSnap] = await Promise.all([tRef.get(), pRef.get()]);
   const t = tSnap.exists ? (tSnap.data() || {}) : {};
   const prof = pSnap.exists ? (pSnap.data() || {}) : {};
-  const readAddress = async () => {
+  const readProfile = async () => {
     const cp = await db.doc('companyProfile/' + companyId).get();
-    const b = cp.exists ? ((cp.data() || {}).brand || {}) : {};
-    return T.validatePostalAddress(b.contact && b.contact.mailingAddress);
+    const data0 = cp.exists ? (cp.data() || {}) : {};
+    const b = data0.brand || {};
+    return { pa: T.validatePostalAddress(b.contact && b.contact.mailingAddress), link: T.profileReviewLink(data0) };
   };
   if (data.action === 'get') {
     // What an approve would freeze, so the admin reviews exactly that (and passes it back as `expect`).
-    const pa = await readAddress();
-    return { tenant: t, profile: prof, wouldFreeze: { postalAddress: pa.ok ? pa.value : null, postalReason: pa.ok ? null : pa.reason } };
+    const { pa, link } = await readProfile();
+    return { tenant: t, profile: prof, wouldFreeze: { postalAddress: pa.ok ? pa.value : null, postalReason: pa.ok ? null : pa.reason, reviewUrl: link || null } };
   }
 
   let patch;
   if (data.action === 'approve') {
     if (data.confirmPlace !== true) throw new HttpsError('failed-precondition', 'Check that the Google listing is this company\'s, then approve with confirmPlace: true.');
     const req = prof.requested;
-    const r = T.validateProfileRequest(req ? { displayName: req.displayName, googleReviewUrl: req.googleReviewUrl, replyTo: req.replyTo } : null);
+    const { pa, link } = await readProfile();
+    // The link is the profile's as it is now, and must be the one the company asked for.
+    const r = T.validateProfileRequest(req ? { displayName: req.displayName, replyTo: req.replyTo } : null, link);
     if (!r.ok) throw new HttpsError('failed-precondition', 'The request is not valid: ' + r.reason);
-    const pa = await readAddress();
+    if (!req || r.value.googleReviewUrl !== req.googleReviewUrl) throw new HttpsError('failed-precondition', 'The company profile\'s review link changed after the request. The company must send its request again.');
     if (!pa.ok) throw new HttpsError('failed-precondition', 'The company\'s mailing address is missing or not an address: ' + pa.reason);
     // The admin approves what they reviewed, not whatever the company saved a second ago.
     const x = data.expect && typeof data.expect === 'object' ? data.expect : {};
@@ -379,7 +384,8 @@ async function askOneTenant(db, companyId, ready, entry, deps) {
     sentOk = true;
     await claim.refs.jobRef.set({ status: 'sent', sentAtMs: nowMs }, { merge: true }).catch(() => {});
     await recordSent(db, companyId, entry, nowMs, FV);
-    await logAttempt(db, Object.assign({}, base, { outcome: 'sent', toHash: T.emailHash(el.to), from: T.FROM_ADDRESS, resendId: (r && r.data && r.data.id) || null }), FV);
+    // The audit records which approved link this email carried.
+    await logAttempt(db, Object.assign({}, base, { outcome: 'sent', toHash: T.emailHash(el.to), from: T.FROM_ADDRESS, reviewUrl: ready.approved.reviewUrl, resendId: (r && r.data && r.data.id) || null }), FV);
     return { sent: true, reason: 'sent' };
   } catch (e) {
     log.warn('review_ask_tenant_skipped', { companyId, leadId: entry && entry.id, err: e && e.message });

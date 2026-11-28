@@ -283,6 +283,35 @@ const ACK_FIRST_LINE = {
   storm_alert_subscribers: 'Got your storm damage report.',
 };
 
+// What happens next, per form (2026-11-27, no-show pass). Facts only: the
+// 24-hour reply promise and the visit as /inspect describes it. A missing key
+// skips that paragraph (free_roof_entries: nothing approved to say yet;
+// estimate_leads: /estimate also covers siding and gutters, so no roof visit).
+const ACK_NEXT = {
+  contact_leads: "I'll call or text you within 24 hours, usually the same day.",
+  estimate_leads: "I'll call or text you within 24 hours, usually the same day, to go over your estimate request.",
+  inspect_leads: "If you already picked a time on my calendar, you're set. Cal.com emails your confirmation with the time and links to reschedule or cancel. If you didn't, I'll call or text you within 24 hours, usually the same day, to set a time.",
+  storm_alert_subscribers: "I'll call or text you within 24 hours, usually the same day.",
+};
+const ACK_VISIT = {
+  inspect_leads: "Here's how the visit goes.",
+  storm_alert_subscribers: "If you want me to look at your roof, here's how it goes.",
+  contact_leads: "If you asked about a roof inspection, here's how it goes.",
+};
+
+// The paragraphs between the greeting and the call button, shared by the
+// HTML and plain-text versions so the two never drift.
+function ackParagraphs(collection) {
+  const out = ['This is Joe. Your request came straight to my phone, not a call center. I look at every one myself.'];
+  if (ACK_NEXT[collection]) out.push(ACK_NEXT[collection]);
+  if (ACK_VISIT[collection]) {
+    out.push(ACK_VISIT[collection] + " The inspection is free. There's no deposit to look at your roof. I get on the roof myself, and it takes 45 minutes to an hour. I photograph what I find and show or text you the photos, free. A formal written photo report is $150, and only if you want one.");
+    out.push("Being home is preferred so I can check the attic, but it's not required.");
+  }
+  out.push("Questions? Call or text me. Something urgent, like an active leak? Don't wait on me.");
+  return out;
+}
+
 function ackEmailHtml(collection, firstName) {
   const hi = firstName ? `Hi ${esc(firstName)},` : 'Hi,';
   const first = ACK_FIRST_LINE[collection] || 'Got your request.';
@@ -295,10 +324,9 @@ function ackEmailHtml(collection, firstName) {
     </div>
     <div style="padding:24px 22px;font-size:15px;line-height:1.65">
       <p style="margin:0 0 14px">${hi}</p>
-      <p style="margin:0 0 14px">This is Joe. Your request just hit my phone — not a call center, not a queue. I personally look at every one and I'll reach out shortly (same day during work hours).</p>
-      <p style="margin:0 0 14px">If it's urgent — active leak, storm damage getting worse — don't wait on me:</p>
+${ackParagraphs(collection).map((t) => `      <p style="margin:0 0 14px">${esc(t)}</p>`).join('\n')}
       <p style="text-align:center;margin:20px 0"><a href="tel:8594207382" style="display:inline-block;background:#bd5728;color:#fff;padding:13px 30px;border-radius:6px;text-decoration:none;font-weight:700;font-size:16px">Call or text (859) 420-7382</a></p>
-      <p style="margin:0">— Joe Deal<br><span style="color:#6b7280;font-size:13px">Owner &amp; Operator, No Big Deal Home Solutions</span></p>
+      <p style="margin:0">Joe Deal<br><span style="color:#6b7280;font-size:13px">Owner &amp; Operator, No Big Deal Home Solutions</span></p>
     </div>
   </div>
 </body></html>`;
@@ -306,7 +334,7 @@ function ackEmailHtml(collection, firstName) {
 
 function ackEmailText(collection, firstName) {
   const first = ACK_FIRST_LINE[collection] || 'Got your request.';
-  return `${first}\n\n${firstName ? 'Hi ' + firstName + ',' : 'Hi,'}\n\nThis is Joe. Your request just hit my phone — not a call center, not a queue. I personally look at every one and I'll reach out shortly (same day during work hours).\n\nIf it's urgent — active leak, storm damage getting worse — call or text me directly: (859) 420-7382.\n\n— Joe Deal\nOwner & Operator, No Big Deal Home Solutions`;
+  return `${first}\n\n${firstName ? 'Hi ' + firstName + ',' : 'Hi,'}\n\n${ackParagraphs(collection).join('\n\n')}\n\nCall or text: (859) 420-7382\n\nJoe Deal\nOwner & Operator, No Big Deal Home Solutions`;
 }
 
 async function ackHomeowner(collection, d, leadId, target) {

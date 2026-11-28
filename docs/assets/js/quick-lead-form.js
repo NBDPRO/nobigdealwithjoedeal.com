@@ -143,6 +143,7 @@
     var err = document.getElementById(uid + '-err');
     var ok = document.getElementById(uid + '-ok');
     var btn = document.getElementById(uid + '-btn');
+    var nextBox = null; // the What-happens-next list, once a send succeeds
     // Seen = scrolled onto the screen (the homepage form sits far down the
     // page, so "rendered" would count every visit). Started = first focus.
     if (form && typeof window.IntersectionObserver === 'function') {
@@ -271,13 +272,30 @@
         ok.textContent = okMsg;
         btn.textContent = 'Sent ✓';
         reveal(ok);
+        // What happens next (2026-11-27, no-show pass), under the message and
+        // the calendar button. Static copy only; the visit length is the roof
+        // inspection's, so it shows only where the heading says Inspection.
+        if (nextBox && nextBox.parentNode) nextBox.parentNode.removeChild(nextBox);
+        var booked = intake.fields && intake.fields.scheduling === 'calendar';
+        var next = nextBox = document.createElement('div');
+        next.className = 'qlf-next';
+        next.innerHTML = '<p class="qlf-next-h">What happens next</p><ul>' +
+          '<li>' + (booked
+            ? 'Pick your time on the calendar. Cal.com emails you a confirmation with your time and a link to reschedule.'
+            : 'Joe calls or texts you within 24 hours, usually the same day, to set a time.') + '</li>' +
+          (!service ? '<li>Joe gets on the roof himself. A standard home takes 45 minutes to an hour.</li>' : '<li>Joe comes out himself.</li>') +
+          '<li>He photographs what he finds and shows or texts you the photos, free. There&rsquo;s no deposit for the visit.</li>' +
+          '<li>Being home is preferred, but it&rsquo;s not required.</li>' +
+          '<li>Need to change the time? Call or text <a href="tel:+18594207382">(859) 420-7382</a>.</li>' +
+          '</ul>';
+        form.insertBefore(next, ok.nextSibling);
         if (window.NBDIntake) {
           // Right under the message (not at the bottom of the form) so the
           // calendar button and photo status are on screen with it.
           var after = document.createElement('div');
           form.insertBefore(after, ok.nextSibling);
           window.NBDIntake.afterSubmit(after, {
-            prefix: uid + 'i', fields: intake.fields, files: intake.files, photoToken: out.photoToken || null,
+            prefix: uid + 'i', quietContact: true, fields: intake.fields, files: intake.files, photoToken: out.photoToken || null,
             firstName: firstName, phone: phone, email: email, address: address, service: service || queryService
           }).then(function () { form.reset(); });
         } else {

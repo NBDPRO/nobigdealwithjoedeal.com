@@ -175,6 +175,9 @@
           setText('insThanksText', 'Your request is in. Tap Pick My Time to choose a day. Central Kentucky visits are batched onto set days, so the calendar shows those.');
         }
       }
+      // What-happens-next list: Cal.com's own email carries the time and the
+      // reschedule link, so say so instead of "Joe calls to set a time".
+      setText('insAfterReach', 'Cal.com emails you a confirmation with your time and a link to reschedule.');
       pick.hidden = false;
       var pickNote = document.getElementById('insPickNote');
       if (pickNote) pickNote.hidden = false;

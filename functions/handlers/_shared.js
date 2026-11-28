@@ -220,8 +220,12 @@ const TEAM_ROLES = ['company_admin', 'manager', 'sales_rep', 'viewer'];
 const SUBORDINATE_ROLES = new Set(['member', 'manager', 'sales_rep', 'viewer']);
 
 // Legacy access codes (handlers/admin.js → rotateAccessCodes)
+// 'DEMO' is NOT here (Jo, 2026-11-17): it is the public "Launch Demo
+// Dashboard" code on /pro/login, managed by scripts/seed-demo-access.js, and
+// the seed script's own list dropped it too (#3129). Rotating it broke Try
+// Demo for every visitor (tests/sweep-leftovers-2026-11-17.test.js).
 const LEGACY_ACCESS_CODES = [
-  'NBD-2026', 'NBD-DEMO', 'DEMO', 'TRYIT',
+  'NBD-2026', 'NBD-DEMO', 'TRYIT',
   'DEAL-2026', 'ROOFCON26', 'NBD-STORM'
 ];
 
