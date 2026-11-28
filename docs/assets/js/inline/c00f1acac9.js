@@ -8,6 +8,14 @@
 // ──────────────────────────────────────────────────────────────────
 const POSTS = [
   {
+    url: "/blog/flat-roof-sections-on-houses",
+    tag: "Roofing",
+    title: "The Flat Part of Your Roof: What to Watch For",
+    meta: "By Joe Deal · March 2027 · 4 min read",
+    excerpt: "Porch roofs, additions and other flat sections are built differently from the shingled roof. Why they fail, what to look for after a rain, and three flat sections from 2026.",
+    published: "2027-03-23",
+  },
+  {
     url: "/blog/was-my-house-hit-by-hail",
     tag: "Storm Damage",
     title: "Was Your House Hit by Hail? How to Check",

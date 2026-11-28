@@ -49,8 +49,9 @@ consented Bethel 2026 second-opinion job; the $150 written-report price is quote
 from the warranty card, when to have a roofer look; no blog post covered home buyers before), **2027-03-09**
 `/blog/shed-and-garage-roofs` (the consented Mason shed job; time and price ranges from /services/shed-roof-replacement)
 and **2027-03-16** `/blog/was-my-house-hit-by-hail` (Roof Check's five years of NOAA/NWS records, the after-a-storm list
-from the warranty card, the approved claim line only). The next free Tuesday is 2027-03-23; the next calendar needs
-writing.
+from the warranty card, the approved claim line only), and **2027-03-23** `/blog/flat-roof-sections-on-houses`
+(porch, addition and other flat sections; the consented Loveland, Norwood and Cincinnati 2026 jobs). The next free
+Tuesday is 2027-03-30; the next calendar needs writing.
 
 ## This is a plan, not a queue
 
