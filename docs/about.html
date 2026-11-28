@@ -392,6 +392,16 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,0.75); padding: 5
 .vs-item.good { color:rgba(255,255,255,.85); }
 .vs-item.good::before { content:"✓"; color:var(--orange); font-weight:800; flex-shrink:0; }
 @media(max-width:640px) { .truth-grid,.vs-table { grid-template-columns:1fr; } }
+/* About refresh 2026-11-28: backed-in-writing cards, service area, closing CTA */
+h3.truth-title { font-family:'Montserrat','Segoe UI',sans-serif; letter-spacing:0; line-height:1.3; }
+.truth-link { color:#A14A22; font-weight:700; }
+.backed-intro { max-width:720px; font-size:1rem; color:var(--gray-sub); line-height:1.7; }
+.area-intro { max-width:720px; font-size:1rem; color:var(--gray-sub); line-height:1.7; margin-bottom:20px; }
+.area-chips { display:flex; flex-wrap:wrap; gap:8px; list-style:none; }
+.area-chips a { display:inline-flex; align-items:center; min-height:44px; background:#fff; border:1px solid var(--light-gray); border-radius:100px; padding:8px 16px; font-size:.82rem; font-weight:600; color:var(--navy-dark); }
+.area-chips a:hover { border-color:var(--orange); }
+.area-chips a.area-all { color:#A14A22; }
+.final-cta .btn-white { min-height:44px; }
 @media print {
   .ann-bar, nav, .mobile-nav, .cta-float, .footer-cta, footer .social { display: none !important; }
   body { background: #fff !important; color: #000 !important; }
@@ -739,8 +749,8 @@ a.nav-cta,nav .nav-cta{font-size:.76rem!important;letter-spacing:.08em;font-weig
       </div>
       <!-- CREDENTIALS-STRIP-END -->
       <div class="about-hero-cta">
-        <a href="tel:+18594207382" class="btn-primary"><svg class="ico ico-fill" viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.36 2.3.56 3.6.56.55 0 1 .45 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.56 3.6a1 1 0 0 1-.25 1z"/></svg> Call Joe — (859) 420-7382</a>
-        <a href="/estimate" class="btn-ghost">Get My Free Estimate →</a>
+        <a href="/inspect" class="btn-primary">Book My Free Inspection &rarr;</a>
+        <a href="tel:+18594207382" class="btn-ghost"><svg class="ico ico-fill" viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.36 2.3.56 3.6.56.55 0 1 .45 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.56 3.6a1 1 0 0 1-.25 1z"/></svg> Call or Text Joe: (859) 420-7382</a>
       </div>
     </div>
     <div class="about-photo-wrap">
@@ -764,6 +774,7 @@ a.nav-cta,nav .nav-cta{font-size:.76rem!important;letter-spacing:.08em;font-weig
     <p style="font-size:1rem;color:var(--gray-sub);line-height:1.8;margin-bottom:20px;">I spent years inside the roofing industry — working for companies, watching how it all operates from the inside. And I saw the same problem over and over: owners and investors enter this business to make money without actually knowing the work. They promise smooth jobs and zero issues, then lean on sales reps, project managers, and whoever they can hire cheap to actually handle the roofs.</p>
     <p style="font-size:1rem;color:var(--gray-sub);line-height:1.8;margin-bottom:20px;">A lot of those jobs end up nightmares. The salesperson who sold your job isn't the person showing up to do it. The person showing up doesn't know your situation, doesn't know what was promised, and is moving on to the next roof before yours is done right. And the homeowner has no recourse — they just wanted their roof fixed.</p>
     <p style="font-size:1rem;color:var(--gray-sub);line-height:1.8;margin-bottom:20px;">I started No Big Deal Home Solutions because I wanted to do it differently. Every customer I take on gets my personal attention — from the first call to the final walkthrough. I know their name, I know their situation, and I care about the outcome because my reputation is literally what I'm selling.</p>
+    <p style="font-size:1rem;color:var(--gray-sub);line-height:1.8;margin-bottom:20px;">Here's what that looks like on your job. I get on your roof myself, I write the estimate myself, and I'm on site with the crew on install day. The crews are independent subcontractors who carry their own insurance, and I use the same ones job after job. You deal with me, start to finish.</p>
     <p style="font-size:1rem;color:var(--gray-sub);line-height:1.8;">"No Big Deal" isn't me downplaying the work. It's a promise: whatever problem you're dealing with — a hail-damaged roof, an insurance adjuster missing half the damage, a leak you can't figure out — I've seen it before, and I'll document it, explain it, and fix it. <strong>No big deal.</strong></p>
   </div>
 </section>
@@ -794,6 +805,31 @@ a.nav-cta,nav .nav-cta{font-size:.76rem!important;letter-spacing:.08em;font-weig
   </div>
 </section>
 
+<!-- BACKED IN WRITING -->
+<section class="about-section">
+  <span class="section-label">Backed in Writing</span>
+  <h2 class="section-title">What Stands Behind<br>My Work.</h2>
+  <p class="backed-intro">You can check every one of these before I ever set foot on your roof.</p>
+  <div class="truth-grid">
+    <div class="truth-card">
+      <h3 class="truth-title">Fully insured</h3>
+      <p class="truth-body">No Big Deal is fully insured. Ask me for a certificate of insurance and I'll have one sent to you before work starts. <a href="/credentials#fully-insured" class="truth-link">See how to check it &rarr;</a></p>
+    </div>
+    <div class="truth-card">
+      <h3 class="truth-title">GAF Certified and TAMKO Pro Gold</h3>
+      <p class="truth-body">I'm a GAF Certified&trade; contractor (GAF ID 1162011) and a TAMKO Pro Gold&trade; certified contractor. Both manufacturers list me on their own sites, so you don't have to take my word for it. <a href="/credentials" class="truth-link">Verify both &rarr;</a></p>
+    </div>
+    <div class="truth-card">
+      <h3 class="truth-title">The NBD Pledge</h3>
+      <p class="truth-body">On every job, for as long as you own the home: call me about anything I worked on, and I come look, free. <a href="/the-pledge" class="truth-link">Read the Pledge &rarr;</a></p>
+    </div>
+    <div class="truth-card">
+      <h3 class="truth-title">The NBD Guarantee</h3>
+      <p class="truth-body">Three roof tiers, Standard, Preferred and Elite, so you get the roof that fits your house. The written labor warranty is 5, 10 or 20 years depending on the package. <a href="/services/the-nbd-guarantee" class="truth-link">Compare the tiers &rarr;</a></p>
+    </div>
+  </div>
+</section>
+
 <!-- WHAT JOE KNOWS -->
 <section class="about-section">
   <span class="section-label">Experience</span>
@@ -802,7 +838,7 @@ a.nav-cta,nav .nav-cta{font-size:.76rem!important;letter-spacing:.08em;font-weig
     <div class="truth-card">
       <div class="truth-icon">🌩️</div>
       <div class="truth-title">Insurance Restoration</div>
-      <div class="truth-body">I've worked hundreds of insurance jobs — storm, hail, wind, fire, water. I know what adjusters look for, where damage gets missed, and how to document it so all of it is on the record. You file and own the claim, and what it pays is up to your insurer.</div>
+      <div class="truth-body">I've worked on 300+ roofs in my career, most of them with other roofing companies before I started No Big Deal, and a lot of those were storm, hail, wind, fire and water jobs. I know what adjusters look for and where damage gets missed. I document the damage with photos so you can decide whether to file a claim. You file and own the claim, and what it pays is up to your insurer.</div>
     </div>
     <div class="truth-card">
       <div class="truth-icon">📋</div>
@@ -880,32 +916,32 @@ a.nav-cta,nav .nav-cta{font-size:.76rem!important;letter-spacing:.08em;font-weig
   </div>
 </section>
 
-<!-- FINAL CTA -->
-<section class="final-cta">
-  <h2>Call Joe.<br>I'll Take Care of It.</h2>
-  <p>I'll come out, take a real look, and tell you straight — what it needs, what it'll cost, and whether insurance is in play. No pressure. Seriously.</p>
-  <a href="tel:+18594207382" class="btn-white">📞 (859) 420-7382</a>
-  <div class="phone">Or send a message: <a href="/#contact">Contact form →</a></div>
+<!-- SERVICE AREAS -->
+<section class="about-section alt">
+  <span class="section-label">Where I Work</span>
+  <h2 class="section-title">Greater Cincinnati, Northern Kentucky<br>and the Lexington Area.</h2>
+  <p class="area-intro">I work across Greater Cincinnati, Northern Kentucky and the Lexington area. Find your town below, or see the full list.</p>
+  <ul class="area-chips">
+    <li><a href="/areas/cincinnati-oh">Cincinnati</a></li>
+    <li><a href="/areas/mason-oh">Mason</a></li>
+    <li><a href="/areas/loveland-oh">Loveland</a></li>
+    <li><a href="/areas/batavia-oh">Batavia</a></li>
+    <li><a href="/areas/west-chester-oh">West Chester</a></li>
+    <li><a href="/areas/goshen-oh">Goshen</a></li>
+    <li><a href="/areas/covington-ky">Covington, KY</a></li>
+    <li><a href="/areas/newport-ky">Newport, KY</a></li>
+    <li><a href="/areas/florence-ky">Florence, KY</a></li>
+    <li><a href="/areas/lexington-ky">Lexington, KY</a></li>
+    <li><a href="/areas" class="area-all">All 45 Cities &rarr;</a></li>
+  </ul>
 </section>
 
-<!-- FOOTER -->
-
-<!-- SERVICE AREAS -->
-<section style="background:#f5f3ef;padding:48px 5%">
-  <div style="max-width:1000px;margin:0 auto;">
-    <p style="font-size:.7rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#A14A22;margin-bottom:8px;">Where I work</p>
-    <h3 style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:#12223d;margin-bottom:16px;">Serving Greater Cincinnati</h3>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
-      <a href="/areas/cincinnati-oh" style="background:white;border:1px solid #e8e5e0;border-radius:100px;padding:8px 16px;text-decoration:none;font-size:.82rem;font-weight:600;color:#12223d;">Cincinnati</a>
-      <a href="/areas/mason-oh" style="background:white;border:1px solid #e8e5e0;border-radius:100px;padding:8px 16px;text-decoration:none;font-size:.82rem;font-weight:600;color:#12223d;">Mason</a>
-      <a href="/areas/loveland-oh" style="background:white;border:1px solid #e8e5e0;border-radius:100px;padding:8px 16px;text-decoration:none;font-size:.82rem;font-weight:600;color:#12223d;">Loveland</a>
-      <a href="/areas/batavia-oh" style="background:white;border:1px solid #e8e5e0;border-radius:100px;padding:8px 16px;text-decoration:none;font-size:.82rem;font-weight:600;color:#12223d;">Batavia</a>
-      <a href="/areas/west-chester-oh" style="background:white;border:1px solid #e8e5e0;border-radius:100px;padding:8px 16px;text-decoration:none;font-size:.82rem;font-weight:600;color:#12223d;">West Chester</a>
-      <a href="/areas/goshen-oh" style="background:white;border:1px solid #e8e5e0;border-radius:100px;padding:8px 16px;text-decoration:none;font-size:.82rem;font-weight:600;color:#12223d;">Goshen</a>
-      <a href="/areas/florence-ky" style="background:white;border:1px solid #e8e5e0;border-radius:100px;padding:8px 16px;text-decoration:none;font-size:.82rem;font-weight:600;color:#12223d;">Florence, KY</a>
-      <a href="/areas" style="background:white;border:1px solid #e8e5e0;border-radius:100px;padding:8px 16px;text-decoration:none;font-size:.82rem;font-weight:600;color:#A14A22;">All 45 Cities →</a>
-    </div>
-  </div>
+<!-- FINAL CTA -->
+<section class="final-cta">
+  <h2>Book a Free Inspection.<br>I'll Come Out Myself.</h2>
+  <p>I'll get on the roof, show you photos of what I find, and tell you straight what it needs and what it'll cost.</p>
+  <a href="/inspect" class="btn-white">Book My Free Inspection &rarr;</a>
+  <div class="phone">Or call or text Joe: <a href="tel:+18594207382">(859) 420-7382</a></div>
 </section>
 
 <!-- nbd:partial reviews-strip -->
