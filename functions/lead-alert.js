@@ -283,6 +283,16 @@ const ACK_FIRST_LINE = {
   storm_alert_subscribers: 'Got your storm damage report.',
 };
 
+// The storm form's concern answers "What are you most concerned about?";
+// only 'insurance' ("I already have damage") reports damage. Wind and general
+// signups joined the alert list (Jo, 2026-11-28).
+function ackFirstLine(collection, d) {
+  if (collection === 'storm_alert_subscribers' && String((d && d.concern) || '').toLowerCase() !== 'insurance') {
+    return "You're on my storm alert list.";
+  }
+  return ACK_FIRST_LINE[collection] || 'Got your request.';
+}
+
 // What happens next, per form (2026-11-27, no-show pass). Facts only: the
 // 24-hour reply promise and the visit as /inspect describes it. A missing key
 // skips that paragraph (free_roof_entries: nothing approved to say yet;
@@ -312,9 +322,9 @@ function ackParagraphs(collection) {
   return out;
 }
 
-function ackEmailHtml(collection, firstName) {
+function ackEmailHtml(collection, firstName, d) {
   const hi = firstName ? `Hi ${esc(firstName)},` : 'Hi,';
-  const first = ACK_FIRST_LINE[collection] || 'Got your request.';
+  const first = ackFirstLine(collection, d);
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="font-family:'Barlow','Segoe UI',Roboto,sans-serif;background:#f5f5f5;margin:0;color:#333">
   <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1)">
@@ -332,8 +342,8 @@ ${ackParagraphs(collection).map((t) => `      <p style="margin:0 0 14px">${esc(t
 </body></html>`;
 }
 
-function ackEmailText(collection, firstName) {
-  const first = ACK_FIRST_LINE[collection] || 'Got your request.';
+function ackEmailText(collection, firstName, d) {
+  const first = ackFirstLine(collection, d);
   return `${first}\n\n${firstName ? 'Hi ' + firstName + ',' : 'Hi,'}\n\n${ackParagraphs(collection).join('\n\n')}\n\nCall or text: (859) 420-7382\n\nJoe Deal\nOwner & Operator, No Big Deal Home Solutions`;
 }
 
@@ -379,8 +389,8 @@ async function ackHomeowner(collection, d, leadId, target) {
       to: email,
       reply_to: 'jd@nobigdealwithjoedeal.com',
       subject: "Got it — Joe here. What happens next",
-      html: ackEmailHtml(collection, firstName),
-      text: ackEmailText(collection, firstName),
+      html: ackEmailHtml(collection, firstName, d),
+      text: ackEmailText(collection, firstName, d),
       headers: { 'X-NBD-Campaign': 'lead-ack-v1' },
     });
     if (!ackGate.send) {
