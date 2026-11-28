@@ -9,7 +9,7 @@
   },
   "rules": [
     { "pages": "^index\\.html$", "clip": "topdown-install-spin" },
-    { "pages": "^services/emergency-roof-tarping\\.html$", "clip": "snow-orbit-2026" },
+    { "pages": "^services/(emergency-roof-tarping|roof-leak-repair|roof-leaking-around-chimney)\\.html$", "clip": "snow-orbit-2026" },
     { "pages": "^services/financing\\.html$", "clip": "crew-treeline-hover" },
     { "pages": "^services/(fire-water-smoke-damage|flashing-repair|roof-care-plan|roof-cleaning-soft-wash)\\.html$", "clip": "shingle-reveal-pullback" },
     { "pages": "^services/(hail-damage|storm-damage)-[a-z-]+-(oh|ky)\\.html$", "clip": "snow-orbit-2026" },

@@ -151,6 +151,8 @@ const PLAIN_SERVICES = new Set([
   'roof-care-plan',
   'roof-cleaning-soft-wash',
   'roof-inspection',
+  'roof-leak-repair',
+  'roof-leaking-around-chimney',
   'roof-repair',
   'roof-replacement',
   'siding-repair',
