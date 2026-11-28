@@ -105,6 +105,7 @@ Joe Deal also built **NBD Pro** — a roofing business management SaaS platform 
 - [Roofivent](https://nobigdealwithjoedeal.com/services/roofivent): Polypropylene exhaust + pipe flashing (Build component)
 - [Ice and Water Shield](https://nobigdealwithjoedeal.com/services/ice-and-water-shield): Where the ice and water membrane goes on every NBD roof (eaves and valleys), and what it can and cannot stop
 - [Drip Edge and Starter Strip](https://nobigdealwithjoedeal.com/services/drip-edge-and-starter-strip): Metal drip edge at every eave and rake plus a starter strip on every NBD roof; Ohio and Kentucky code notes
+- [Attic Ventilation](https://nobigdealwithjoedeal.com/services/attic-ventilation): Signs of a poorly ventilated attic (hot upstairs, ice dams, attic frost, curling shingles, high cooling bills), intake vs exhaust balance, ridge vs box vs powered vents, and the shingle warranty
 - [Service Areas](https://nobigdealwithjoedeal.com/areas): Hub page for every town served (each town page is listed under Service Areas below)
 - [Northern Kentucky](https://nobigdealwithjoedeal.com/areas/northern-kentucky): Region hub for Boone, Kenton and Campbell counties (Covington, Erlanger, Florence, Fort Mitchell, Independence, Newport, Union), with the NKY storm record and Kentucky insurance-job rules
 - [Blog](https://nobigdealwithjoedeal.com/blog): Homeowner-focused roofing and insurance-claim guides
