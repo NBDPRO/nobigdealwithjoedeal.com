@@ -2650,8 +2650,8 @@
 
     return page('Thank You Letter', `
       ${letterhead()}
-      <div style="max-width:6in;margin:24px auto;font-size:15px;line-height:2;color:#333;">
-        ${d.completionDate ? `<p style="text-align:right;color:#666;font-size:13px;margin-bottom:28px;">${esc(d.completionDate)}</p>` : ''}
+      <div style="max-width:6in;margin:8px auto;font-size:14px;line-height:1.4;color:#333;">
+        ${d.completionDate ? `<p style="text-align:right;color:#666;font-size:13px;margin-bottom:20px;">${esc(d.completionDate)}</p>` : ''}
 
         <p>Dear ${esc(d.homeownerName)},</p>
 
@@ -2683,9 +2683,9 @@
         <p>If you have a moment, we would greatly appreciate a review on Google. It helps other homeowners
         find a contractor they can trust, and it lets our team know we are on the right track.${d.reviewLink ? ` You can leave a review here: <a href="${esc(d.reviewLink).replace(/"/g,'&quot;')}" style="color:${A};">${esc(d.reviewLink)}</a>.` : ''}</p>
 
-        <p style="margin-top:32px;">
-          With gratitude,<br><br>
-          <strong>${C.name === 'No Big Deal Home Solutions' ? 'Joe Deal' : ((typeof window !== 'undefined' && window._user && window._user.displayName) || C.name)}</strong><br>
+        <p style="margin-top:16px;">
+          With gratitude,<br>
+          <strong style="display:inline-block;margin-top:8px;">${C.name === 'No Big Deal Home Solutions' ? 'Joe Deal' : ((typeof window !== 'undefined' && window._user && window._user.displayName) || C.name)}</strong><br>
           <span style="font-size:13px;color:#666;">Owner, ${C.name}</span><br>
           <span style="font-size:13px;color:#666;">${[C.phone, C.email].filter(Boolean).join(' | ')}</span>
         </p>
