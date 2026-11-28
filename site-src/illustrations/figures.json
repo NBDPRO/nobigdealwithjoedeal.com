@@ -580,6 +580,10 @@
       "gutter-section",
       "storm-inspection-checklist"
     ],
+    "docs/services/flashing-repair.html": [
+      "step-kickout-flashing",
+      "ice-water-valleys-penetrations"
+    ],
     "docs/services/the-nbd-build/index.html": [
       "roof-system-exploded"
     ],

@@ -139,6 +139,7 @@ const GAF_TIMBERLINE_BLOG = ['why-class-4-impact-shingles', '0.7'];
 const PLAIN_SERVICES = new Set([
   'commercial-roofing',
   'financing',
+  'flashing-repair',
   'fire-water-smoke-damage',
   'gutter-cleaning',
   'gutter-replacement',
