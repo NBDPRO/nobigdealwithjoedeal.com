@@ -64,7 +64,7 @@
     if (window.NBDIntake) return Promise.resolve();
     return new Promise(function (resolve) {
       var s = document.createElement('script');
-      s.src = '/assets/js/intake-extras.js?v=5';
+      s.src = '/assets/js/intake-extras.js?v=6';
       s.onload = resolve;
       s.onerror = function () { resolve(); }; // form still works without it
       document.head.appendChild(s);
@@ -191,10 +191,16 @@
     function list(parts) {
       return parts.length < 3 ? parts.join(' and ') : parts.slice(0, -1).join(', ') + ', and ' + parts[parts.length - 1];
     }
-    // A marked field stops being marked as soon as it is edited.
+    // A marked field stops being marked as soon as it is edited. A marked field
+    // also points at the error line (aria-describedby), so a screen reader
+    // reads what is wrong when focus lands on it, not only the alert (2026-11-27).
+    function mark(el, bad) {
+      if (bad) { el.setAttribute('aria-invalid', 'true'); el.setAttribute('aria-describedby', uid + '-err'); }
+      else { el.removeAttribute('aria-invalid'); el.removeAttribute('aria-describedby'); }
+    }
     form.addEventListener('input', function (ev) {
       var t = ev.target;
-      if (t && t.getAttribute && t.getAttribute('aria-invalid')) t.removeAttribute('aria-invalid');
+      if (t && t.getAttribute && t.getAttribute('aria-invalid')) mark(t, false);
     });
 
     form.addEventListener('submit', function (e) {
@@ -212,8 +218,8 @@
       var addressOk = address.length >= 6 && /\d/.test(address) && /[a-z]/i.test(address);
       var bad = [];
       [[fnEl, !!firstName, 'your first name', 'first_name'], [phEl, phoneOk, 'a 10-digit phone number', 'phone'], [adEl, addressOk, 'your street address', 'address']].forEach(function (c) {
-        if (c[1]) c[0].removeAttribute('aria-invalid');
-        else { c[0].setAttribute('aria-invalid', 'true'); bad.push(c); }
+        mark(c[0], !c[1]);
+        if (!c[1]) bad.push(c);
       });
       if (bad.length) {
         err.textContent = 'Please add ' + list(bad.map(function (c) { return c[2]; })) + '.';

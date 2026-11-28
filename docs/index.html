@@ -261,7 +261,9 @@ main#main .sec-title{font-size:clamp(2rem,7.5vw,3rem)!important;line-height:1.02
 .hx-wrap{max-width:1200px;margin:0 auto;padding:0 var(--s3)}
 .hx-btn{display:flex;align-items:center;justify-content:center;min-height:56px;padding:0 var(--s4);border-radius:8px;background:var(--orange);color:var(--white);font-family:'Montserrat',sans-serif;font-weight:800;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase;text-decoration:none;box-shadow:0 8px 24px rgba(189,87,40,.35);transition:background .2s,transform .2s}
 .hx-btn:hover{background:var(--orange-dark);transform:translateY(-1px)}
-.hx-btn:focus-visible,.hx-alt a:focus-visible,.hj-card:focus-visible,.hj-more:focus-visible,.hj-strip:focus-visible{outline:3px solid var(--orange-light);outline-offset:3px}
+.hx-btn:focus-visible,.hx-alt a:focus-visible{outline:3px solid var(--orange-light);outline-offset:3px}
+/* The jobs strip sits on off-white, where the light orange ring was 2.46:1; orange-dark is 5.4:1 (a11y pass 2026-11-27) */
+.hj-card:focus-visible,.hj-more:focus-visible,.hj-strip:focus-visible{outline:3px solid var(--orange-dark);outline-offset:3px}
 .hx-alt{display:none;margin:var(--s2) 0 0;text-align:center;font-size:.95rem!important;color:rgba(255,255,255,.88)}
 .hx-alt a{display:inline-block;padding:12px 4px;color:var(--white);font-weight:700;text-decoration:underline;text-underline-offset:4px}
 a.hx-leak[href^="tel:"]{white-space:normal}
@@ -665,7 +667,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 <!-- /nbd:partial schema-entity -->
 <link rel="stylesheet" href="/assets/css/nbd-nav.css">
 <link rel="stylesheet" href="/assets/css/quick-lead-form.css">
-<link rel="stylesheet" href="/assets/css/hero-video.css?v=2">
+<link rel="stylesheet" href="/assets/css/hero-video.css?v=3">
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 
@@ -758,7 +760,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   data-src-av1-1080="/assets/video/hero/topdown-install-spin-1080.0a7e89e4c6.av1.webm"
   data-src-mp4-1080="/assets/video/hero/topdown-install-spin-1080.b30725d4fb.mp4"></video>
 </div>
-<script src="/assets/js/hero-video.js?v=2" defer></script>
+<script src="/assets/js/hero-video.js?v=3" defer></script>
   <!-- /nbd:partial hero-video-topdown-install-spin -->
   <p class="hx-cap">The crew I bring in &middot; <b>real job</b>, not stock</p>
   <div class="hx-wrap">
@@ -1178,9 +1180,10 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 <script defer  src="/assets/js/inline/7cd8e505ab.js"></script>
 <script defer src="/assets/js/public-lead-submit.js"></script>
 <script defer src="/assets/js/quick-lead-form.js"></script>
-<script defer src="/assets/js/intake-extras.js?v=4"></script>
+<script defer src="/assets/js/intake-extras.js?v=6"></script>
 <script defer  src="/assets/js/inline/0214ed5eea.js"></script>
-<script defer  src="/assets/js/inline/72f02d79d0.js?v=5"></script>
+<script defer  src="/assets/js/inline/72f02d79d0.js?v=6"></script>
+<script defer src="/assets/js/ann-bar.js"></script>
 
 <!-- STORM BANNER LOGIC (seasonal messaging) -->
 <script defer  src="/assets/js/inline/20fa0c9b91.js"></script>

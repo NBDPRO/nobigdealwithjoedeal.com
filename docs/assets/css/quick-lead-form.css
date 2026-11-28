@@ -10,7 +10,8 @@
 .qlf-field{display:block;margin-bottom:12px}
 .qlf-field > span{display:block;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5b6572;margin-bottom:5px}
 .qlf-field > span em{font-style:normal;font-weight:600;text-transform:none;letter-spacing:0;color:#646c7a}
-.qlf-field input{width:100%;border:1px solid #d7dbe0;border-radius:8px;padding:11px 13px;font:inherit;font-size:16px;color:#14181f;background:#fff}
+/* border #858d99 = 3.35:1 on white, the 3:1 a field's edge needs (WCAG 1.4.11); #d7dbe0 was 1.39:1 (2026-11-27) */
+.qlf-field input{width:100%;border:1px solid #858d99;border-radius:8px;padding:11px 13px;font:inherit;font-size:16px;color:#14181f;background:#fff}
 .qlf-field input:focus{outline:3px solid #bd5728;outline-offset:0;border-color:transparent}
 /* a field the last Send found missing or wrong (2026-10-26) — same red as .qlf-err */
 .qlf-field input[aria-invalid="true"]{border-color:#9d2727;box-shadow:inset 0 0 0 1px #9d2727}

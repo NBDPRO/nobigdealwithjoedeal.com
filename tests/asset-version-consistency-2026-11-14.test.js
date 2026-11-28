@@ -40,7 +40,6 @@ const slash = (p) => p.split(path.sep).join('/');
 // as asset → the exact set of versions seen. Fix one by bumping every
 // reference to the highest version, then delete its line here. Never add one.
 const KNOWN_DRIFT = {
-  'assets/js/intake-extras.js': ['2', '4', '5'],
   'pro/js/claude-proxy.js': ['4', '5'],
   'pro/css/google-calendar.css': ['6', '9'],
   'pro/js/customer-checklist.js': ['2', '4'],

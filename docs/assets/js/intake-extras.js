@@ -45,7 +45,7 @@
   // Stylesheet, once per page.
   if (!document.querySelector('link[data-nbd-intake-css]')) {
     const l = document.createElement('link');
-    l.rel = 'stylesheet'; l.href = '/assets/css/intake-extras.css?v=2'; l.setAttribute('data-nbd-intake-css', '');
+    l.rel = 'stylesheet'; l.href = '/assets/css/intake-extras.css?v=3'; l.setAttribute('data-nbd-intake-css', '');
     document.head.appendChild(l);
   }
 
@@ -56,8 +56,8 @@
     const sched = o.sched === false ? '' : '' +
       '<fieldset class="nbd-intake-sched" id="' + p + 'Sched">' +
         '<legend>How should we schedule?' + (o.optional ? '' : ' <span class="nbd-intake-req">*</span>') + '</legend>' +
-        (o.calUrl ? '<label class="nbd-intake-choice"><input type="radio" name="' + p + 'Scheduling" value="calendar"> <span><b>Pick a date &amp; time now</b><small>' + (o.calHint ? esc(o.calHint) : 'The calendar opens right after you send this.') + '</small></span></label>' : '') +
-        '<label class="nbd-intake-choice"><input type="radio" name="' + p + 'Scheduling" value="contact_me"> <span><b>Please contact me to coordinate scheduling</b><small>' + esc(o.who) + ' will call or text you to set a time.</small></span></label>' +
+        (o.calUrl ? '<label class="nbd-intake-choice"><input type="radio" name="' + p + 'Scheduling" value="calendar"' + (o.optional ? '' : ' required') + '> <span><b>Pick a date &amp; time now</b><small>' + (o.calHint ? esc(o.calHint) : 'The calendar opens right after you send this.') + '</small></span></label>' : '') +
+        '<label class="nbd-intake-choice"><input type="radio" name="' + p + 'Scheduling" value="contact_me"' + (o.optional ? '' : ' required') + '> <span><b>Please contact me to coordinate scheduling</b><small>' + esc(o.who) + ' will call or text you to set a time.</small></span></label>' +
       '</fieldset>';
     if (o.extras === false) return sched;
     return sched +

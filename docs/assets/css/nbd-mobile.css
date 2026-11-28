@@ -557,6 +557,12 @@ footer .nbd-social a {
    and a global prefers-reduced-motion kill switch (ann-bar auto-rotate and
    hover lifts previously ran unconditionally on most pages). */
 :focus-visible{outline:3px solid #bd5728;outline-offset:2px}
+/* Two-tone ring (a11y pass, 2026-11-27, documentation/audit/A11Y-LEAD-PAGES-2026-11-27.md):
+   the orange ring alone is 2.8:1 on navy #1a3057 and invisible on the orange
+   announcement bar, under the 3:1 a focus indicator needs. A 2px white band
+   fills the outline-offset gap, so the indicator reads on navy, orange and
+   photo backgrounds while light pages look as before. */
+:focus-visible{box-shadow:0 0 0 2px #fff}
 .faq-q:focus-visible{outline:2px solid var(--orange,#bd5728);outline-offset:-2px}
 .btn-primary:active,.btn-cal:active,.btn-secondary:active,.nav-cta:active,.form-submit:active,.qlf-btn:active,.filter-btn:active,.mobile-cta-text:active,.mobile-cta-book:active,.mobile-cta-call:active{transform:scale(.97)}
 @keyframes nbdRevealIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}

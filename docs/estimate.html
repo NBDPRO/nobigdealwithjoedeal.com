@@ -31,7 +31,8 @@
   --orange: #bd5728; --orange-light: #dd875f; --orange-glow: rgba(189,87,40,.15);
   --white: #fff; --off-white: #f5f3ef; --gray: #5d6673; --light-gray: #e8e5e0;
   --success: #22a06b; --success-bg: rgba(34,160,107,.08);
-  --error: #ef4444;
+  /* #f87171 (2026-11-27 a11y pass): the error lines are .7rem text on the navy card, where #ef4444 was 3.8:1; this is 5.1:1 */
+  --error: #f87171;
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(--white);min-height:100vh;min-height:100dvh;overflow-x:hidden;}
@@ -80,7 +81,8 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 /* ── Input Styles ── */
 .input-group{position:relative;margin-bottom:18px;}
 .input-group label{display:block;font-size:.7rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.72);margin-bottom:8px;}
-.input-group input,.input-group select{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:14px 16px;color:var(--white);font-family:'Montserrat',sans-serif;font-size:.92rem;outline:none;transition:border-color .2s;}
+/* field edge rgba(255,255,255,.4) = 3.5:1 on the card (WCAG 1.4.11 asks 3:1; .12 was 1.45:1), 2026-11-27 */
+.input-group input,.input-group select{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.4);border-radius:10px;padding:14px 16px;color:var(--white);font-family:'Montserrat',sans-serif;font-size:.92rem;outline:none;transition:border-color .2s;}
 .input-group input:focus,.input-group select:focus{border-color:var(--orange);}
 .input-group input:focus-visible,.input-group select:focus-visible{outline:3px solid var(--orange);outline-offset:2px;}
 .input-group input::placeholder{color:rgba(255,255,255,.6);}
@@ -1088,7 +1090,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
      layer (C-3); submissions go through submitPublicLead. -->
 <script defer  src="/assets/js/inline/7cd8e505ab.js"></script>
 <script defer src="/assets/js/public-lead-submit.js?v=2"></script>
-<script defer src="/assets/js/intake-extras.js?v=2"></script>
+<script defer src="/assets/js/intake-extras.js?v=6"></script>
 <!-- Live Google rating for the trust line above Submit (data-nbd-gr-rating). -->
 <script src="/pro/js/dashboard-appcheck-config.js?v=1"></script>
 <script type="module" src="/assets/js/inline/f95015cb84.module.js?v=3"></script>

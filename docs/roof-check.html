@@ -62,9 +62,10 @@ a{color:inherit}
 .rc-opt{font-weight:600;color:var(--gray);text-transform:none;letter-spacing:0}
 /* input */
 .rc-input-wrap{position:relative}
-.rc-input{width:100%;padding:14px 16px;border:2px solid var(--light-gray);border-radius:10px;font-size:1rem;font-family:inherit;color:var(--navy-dark)}
+.rc-input{width:100%;padding:14px 16px;border:2px solid #858d99;border-radius:10px;font-size:1rem;font-family:inherit;color:var(--navy-dark)}
 .rc-input:focus{outline:none;border-color:var(--orange)}
 .rc-input:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+.rc-input[aria-invalid="true"]{border-color:#b91c1c}
 .rc-acdrop{display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--light-gray);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.12);z-index:20;max-height:240px;overflow:auto}
 .rc-ac-item{padding:11px 14px;font-size:.85rem;cursor:pointer;border-bottom:1px solid var(--off-white)}
 .rc-ac-item:hover,.rc-ac-item.kb-active{background:var(--off-white)}
@@ -433,10 +434,10 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
       <h2>Where's the home?</h2>
       <div class="rc-sub">I pull storm records for your exact location. No phone number needed for this part.</div>
       <div class="rc-input-wrap">
-        <input type="text" class="rc-input" id="rc-address" aria-label="Property address" placeholder="Start typing your address…" autocomplete="off">
+        <input type="text" class="rc-input" id="rc-address" aria-label="Property address" aria-describedby="rc-addr-hint" placeholder="Start typing your address…" autocomplete="off">
         <div class="rc-acdrop" id="rc-acdrop"></div>
       </div>
-      <div class="rc-hint" id="rc-addr-hint"></div>
+      <div class="rc-hint" id="rc-addr-hint" role="alert"></div>
       <div class="rc-btns"><button class="rc-next" data-action="generate">Check my address →</button></div>
     </div>
 
@@ -496,11 +497,11 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
     <div class="rc-step" id="rc-step4">
       <h2>Where should Joe send his take?</h2>
       <div class="rc-sub">No spam, no pressure. Joe reaches out personally, usually same day.</div>
-      <span class="rc-label">First name</span>
-      <input type="text" class="rc-input" id="rc-firstName" aria-label="First name" placeholder="John" autocomplete="given-name">
-      <span class="rc-label">Mobile phone</span>
-      <input type="tel" class="rc-input" id="rc-phone" aria-label="Mobile phone" placeholder="(859) 555-1234" autocomplete="tel" inputmode="tel">
-      <span class="rc-label">Email <span class="rc-opt">(optional, for a copy of your storm report)</span></span>
+      <label class="rc-label" for="rc-firstName">First name</label>
+      <input type="text" class="rc-input" id="rc-firstName" aria-label="First name" required placeholder="John" autocomplete="given-name">
+      <label class="rc-label" for="rc-phone">Mobile phone</label>
+      <input type="tel" class="rc-input" id="rc-phone" aria-label="Mobile phone" required placeholder="(859) 555-1234" autocomplete="tel" inputmode="tel">
+      <label class="rc-label" for="rc-email">Email <span class="rc-opt">(optional, for a copy of your storm report)</span></label>
       <input type="email" class="rc-input" id="rc-email" aria-label="Email (optional)" placeholder="you@email.com" autocomplete="email" inputmode="email" maxlength="200">
       <div id="rc-intake"></div>
       <label class="rc-consent"><input type="checkbox" id="rc-consent"><span>I agree to receive text messages and calls from No Big Deal Home Solutions (No Big Deal Solutions LLC) at the number above about my request, including my results, appointment confirmations and reminders, estimate and project updates, and replies to my questions. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></span></label>
@@ -591,9 +592,9 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
 <!-- /nbd:partial footer-slim -->
 
 <script defer src="/assets/js/public-lead-submit.js"></script>
-<script defer src="/assets/js/intake-extras.js?v=2"></script>
+<script defer src="/assets/js/intake-extras.js?v=6"></script>
 <script defer src="/pro/js/storm-time.js?v=1"></script>
-<script defer src="/assets/js/roof-check.js?v=2"></script>
+<script defer src="/assets/js/roof-check.js?v=3"></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
 <!-- nbd:partial mobile-cta book_href="/inspect" -->
 <div class="mobile-cta-strip mobile-cta-bookfirst" role="region" aria-label="Quick contact options">

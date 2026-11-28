@@ -523,15 +523,33 @@
         em = ($('rc-email') ? $('rc-email').value : '').trim(), consent = $('rc-consent').checked;
     var err = $('rc-contact-err');
     var phoneOk = ph.replace(/\D/g, '').replace(/^1/, '').length === 10;
+    var emailOk = !em || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em);
+    // Mark what is wrong, not only say it (2026-11-27): aria-invalid plus the
+    // message as each field's description, and focus on the first one to fix.
+    var bad = [];
+    [['rc-firstName', !!fn], ['rc-phone', phoneOk], ['rc-email', emailOk]].forEach(function (c) {
+      var el = $(c[0]); if (!el || typeof el.setAttribute !== 'function') return;
+      if (c[1]) { if (typeof el.removeAttribute === 'function') { el.removeAttribute('aria-invalid'); el.removeAttribute('aria-describedby'); } }
+      else { el.setAttribute('aria-invalid', 'true'); el.setAttribute('aria-describedby', 'rc-contact-err'); bad.push(el); }
+    });
+    function focusBad() { if (bad[0] && typeof bad[0].focus === 'function') bad[0].focus(); }
     if (!fn || !phoneOk) {
       err.textContent = 'Please add your name and a 10-digit phone.';
       trackStep('form_error', 4, { fields: [!fn && 'rc-firstName', !phoneOk && 'rc-phone'].filter(Boolean).join(',') });
+      focusBad();
       return;
     }
-    if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { err.textContent = 'That email doesn’t look right. Fix it, or leave it blank.'; trackStep('form_error', 4, { fields: 'rc-email' }); return; }
+    if (!emailOk) { err.textContent = 'That email doesn’t look right. Fix it, or leave it blank.'; trackStep('form_error', 4, { fields: 'rc-email' }); focusBad(); return; }
     // Texting consent is optional (2026-10-15): the lead is saved either way; no automatic text without it.
     var intake = readIntake();
-    if (intake.error) { $('rc-contact-err').textContent = intake.error; if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid'); trackStep('form_error', 4, { fields: 'scheduling' }); return; }
+    if (intake.error) { $('rc-contact-err').textContent = intake.error;
+      if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid');
+      trackStep('form_error', 4, { fields: 'scheduling' });
+      // Focus the first choice, the thing to fix (2026-11-27); the role=alert line still announces why.
+      var radio = intake.el && intake.el.querySelector ? intake.el.querySelector('input') : null;
+      if (radio && typeof radio.focus === 'function') radio.focus();
+      return;
+    }
     S.intake = intake;
     err.textContent = '';
     S.firstName = fn; S.phone = ph; S.email = em;
@@ -679,6 +697,11 @@
       if (started || !e.target || typeof e.target.closest !== 'function' || !e.target.closest('.rc-step')) return;
       started = true;
       gtagEvent('form_start', { form: 'roof_check' });
+    });
+    // A field marked on Send stops being marked once it is edited (2026-11-27).
+    document.addEventListener('input', function (e) {
+      var t = e.target;
+      if (t && t.getAttribute && t.getAttribute('aria-invalid') === 'true') { t.removeAttribute('aria-invalid'); t.removeAttribute('aria-describedby'); }
     });
     document.querySelectorAll('.rc-tile').forEach(function (t) { t.setAttribute('type', 'button'); t.setAttribute('aria-pressed', 'false'); });
     if (!mountIntake()) { var _it = 0, _iv = setInterval(function () { if (mountIntake() || ++_it > 40) clearInterval(_iv); }, 250); }
