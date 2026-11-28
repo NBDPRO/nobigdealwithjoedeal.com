@@ -67,7 +67,7 @@ const POSTS = [
     url: "/blog/ice-dams-why-your-eaves-freeze",
     tag: "Winter",
     title: "Ice Dams: Why Your Eaves Freeze and What Actually Stops Them",
-    meta: "By Joe Deal · December 2026 · 5 min read",
+    meta: "By Joe Deal · December 2026 · 6 min read",
     excerpt: "An ice dam starts in the attic, not on the roof. What causes the ridge of ice at your eaves, what to do when you have one, and what actually stops it.",
     published: "2026-12-01",
   },
