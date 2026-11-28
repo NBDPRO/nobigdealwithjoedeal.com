@@ -35,6 +35,16 @@ before pictures, with links to that post and the baseline sheet. It also mention
 (winter wind) should go deeper than spotting them from the yard. Rows #9, #10 and #11 still need dates;
 2027-01-12 and 01-26 are free, then 02-09 on.
 
+## Update 2026-11-28: the winter ice-dam guide folded into the Dec 1 post
+
+A separate "winter roof guide" lane drafted a standalone post for 12-29 the same day #3314 took that slot. With the
+Dec 1, Dec 22, Dec 29, Jan 5 and Feb 2 posts between them covering ice dams, leaks, snow, attic frost and the
+after-winter walk, a sixth URL would only compete with them. The `/guides/` route was ruled out too: every guide in
+`scripts/build-guides.js` needs a Docs Studio PDF (`tests/guide-pdfs-2026-10-16.test.js`). So the guide's new parts
+went into `/blog/ice-dams-why-your-eaves-freeze` instead: an "After It Melts" check, a Roofivent link for attic
+ventilation, and four visible Quick Answers with matching FAQPage JSON-LD (read time 5 → 6 min). The standalone draft
+is on the local branch `backup/winter-guide-standalone` if Jo wants it back.
+
 ## This is a plan, not a queue
 
 **No post below is in the `POSTS` array, and none should be added there until Jo has read it.** The weekly
