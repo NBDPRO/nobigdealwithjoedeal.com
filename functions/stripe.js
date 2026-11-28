@@ -30,6 +30,7 @@ const { FieldValue } = require('firebase-admin/firestore');
 // docs/pro/js/ky-insurance-law.js.
 const KyLaw = require('./ky-insurance-law');
 const KyPayLinkGate = require('./ky-pay-link-gate-logic');
+const PayAgreementGate = require('./pay-agreement-gate-logic');
 // Bank payments (ACH, 2026-10-04): offered on every homeowner pay surface,
 // processing is not money, a failed debit reverts + alerts Jo (internal).
 const AchPay = require('./ach-payments');
@@ -1350,6 +1351,41 @@ exports.createStripePaymentLink = onRequest(
         }
       }
 
+      // ── No signed agreement, no pay link (Jo, 2026-11-27) ──────────────
+      // Platform tenant (NBD): money is taken only after the customer signed
+      // the contract, or, for an emergency invoice, the Emergency Services
+      // Request. No override. Refused BEFORE any Stripe call; fails closed.
+      // pay-agreement-gate-logic.js has the rule and the messages.
+      if (isPlatformTenant(decoded)) {
+        const agreement = await PayAgreementGate.payAgreementGate({
+          invoice,
+          readLead: async (id) => {
+            const ls = await db.collection('leads').doc(id).get();
+            return ls.exists ? (ls.data() || {}) : null;
+          },
+          hasSignEvent: async (id) => {
+            const qs = await db.collection('job_events').where('leadId', '==', id)
+              .where('event', 'in', PayAgreementGate.SIGN_EVENTS).limit(1).get();
+            return !qs.empty;
+          },
+          readEstimate: async (id) => {
+            const es = await db.collection('estimates').doc(id).get();
+            return es.exists ? (es.data() || {}) : null;
+          },
+          hasSignedEmergencyForm: async (id) => {
+            const qs = await db.collection('leads').doc(id).collection('documents')
+              .where('type', '==', PayAgreementGate.ESR_TYPE).get();
+            return qs.docs.some((d) => PayAgreementGate.isSignedEmergencyForm(d.data()));
+          },
+        });
+        if (!agreement.ok) {
+          logger.info('payment_link_refused_no_signed_agreement',
+            { invoiceId, uid: decoded.uid, companyId: tenantId, reason: agreement.reason, err: agreement.error || null });
+          res.status(409).json({ error: agreement.message, code: 'NO_SIGNED_AGREEMENT', reason: agreement.reason });
+          return;
+        }
+      }
+
       // Recompute totals server-side from canonical product prices where possible.
       // For items with a productId, look up the catalog; otherwise use the
       // client-provided total but enforce sanity bounds to block $0.01/absurd values.
@@ -1588,6 +1624,26 @@ exports.createStripePaymentLink = onRequest(
           logger.warn('prior_payment_link_deactivate_failed', { invoiceId, priorLinkId, err: deErr.message });
         }
       }
+      // A prior Stripe INVOICE (in_) on this CRM invoice, when this mint makes
+      // a link (NBD_CRM_STRIPE_INVOICES=off, 2026-11-27 terms checkbox): an
+      // open one could still be paid around the terms box, and twice. Void an
+      // unpaid one; refuse when it is partly paid (the same rule as
+      // stripe-crm-invoice.js R4-11). Not best-effort: if it cannot be closed,
+      // no second payable bill is made.
+      const _mintsLink = !(!connectState && isPlatformTenant(decoded) && process.env.NBD_CRM_STRIPE_INVOICES !== 'off');
+      if (_mintsLink && typeof priorLinkId === 'string' && priorLinkId.startsWith('in_')) {
+        const p = await stripe.invoices.retrieve(priorLinkId);
+        if (p.status === 'open' && p.amount_paid > 0) {
+          res.status(409).json({
+            error: 'This invoice already has a partly paid Stripe invoice (' + (p.number || priorLinkId) + '). '
+              + 'Record or refund that payment in Stripe before sending a new pay link, so the homeowner is never asked to pay twice.',
+            code: 'prior_invoice_partly_paid',
+          });
+          return;
+        }
+        if (p.status === 'open') await stripe.invoices.voidInvoice(priorLinkId);
+        else if (p.status === 'draft') await stripe.invoices.del(priorLinkId);
+      }
 
       // D2: platform fee, Connect mints only (3.4% + 30 cents = Stripe
       // 2.9%+30c pass-through + 0.5% platform margin; clamped below the
@@ -1627,6 +1683,15 @@ exports.createStripePaymentLink = onRequest(
       const _achOnLink = !connectState && isPlatformTenant(decoded);
       const { result: paymentLink } = await AchPay.createWithAch((p) => stripe.paymentLinks.create(p), {
         line_items: chargeLineItems,
+        // Terms before money (Jo, 2026-11-27): on the platform account's own
+        // link the homeowner must tick "I agree" to the signed agreement and
+        // the payment terms before Stripe takes the payment; Stripe records
+        // the acceptance on the Checkout Session (consent.terms_of_service),
+        // which is the evidence in a dispute. Needs the Terms of service URL
+        // in Stripe → Settings → Public details, or Stripe refuses the link.
+        // Connect tenants: their own terms are not on the platform account,
+        // so their links are unchanged.
+        ...(_achOnLink ? PayAgreementGate.termsConsentParams() : {}),
         // Single-use: without this the link is reusable and a homeowner (or a
         // double-click) can pay it repeatedly, each payment firing a fresh
         // payment_intent the event-idempotency guard can't dedupe — an
