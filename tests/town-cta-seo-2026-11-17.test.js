@@ -33,7 +33,8 @@ function walk(dir, out) {
 const doc = (r) => K.parseTags(K.read(r));
 const squash = (s) => s.replace(/\s+/g, ' ').trim();
 const LEX = new Set(['areas/lexington-ky', 'areas/georgetown-ky', 'areas/richmond-ky', 'areas/winchester-ky', 'areas/nicholasville-ky', 'areas/versailles-ky',
-  'services/storm-damage-lexington-ky', 'services/roof-replacement-lexington-ky'].map((p) => 'docs/' + p + '.html'));
+  'services/storm-damage-lexington-ky', 'services/roof-replacement-lexington-ky',
+  'services/roof-repair-lexington-ky', 'services/roof-inspection-lexington-ky'].map((p) => 'docs/' + p + '.html'));
 const LEX_CAL = 'https://cal.com/nobigdeal/roof-inspection-lexington';
 // Eight towns keep their 2026-10-07 Search Console titles; six keep that pass's descriptions too
 const GSC_TITLE = new Set(['fort-mitchell-ky', 'indian-hill-oh', 'amelia-oh', 'mt-orab-oh', 'loveland-oh', 'montgomery-oh', 'mason-oh', 'cincinnati-oh']);
@@ -65,7 +66,7 @@ section('1. one booking path on area and service pages');
     const a = docs.get(r).$$('.cta-section a, .final-cta a').filter((x) => (x.attr('href') || '') === LEX_CAL);
     return a.length !== 1 || squash(a[0].text) !== 'Book a free inspection' || a[0].attr('target') !== '_blank' || !a[0].attr('rel').includes('noopener');
   });
-  ok('the 8 Central KY pages book on the Lexington cal.com event (/inspect cannot route Lexington)', LEX.size === 8 && lexBad.length === 0, lexBad.join(', '));
+  ok('the 10 Central KY pages book on the Lexington cal.com event (/inspect cannot route Lexington)', LEX.size === 10 && lexBad.length === 0, lexBad.join(', '));
   const fl = docs.get('docs/areas/florence-ky.html').$$('.cta-section a').map((a) => (a.attr('href') || '') + ' | ' + squash(a.text));
   ok('Florence final CTA is the phone link then /inspect "Book a free inspection"',
     fl.length === 2 && fl[0].startsWith('tel:+18594207382') && fl[1] === '/inspect | Book a free inspection', fl.join(' ;; '));
