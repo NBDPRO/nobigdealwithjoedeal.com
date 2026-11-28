@@ -90,6 +90,7 @@ const EXEMPT = {
 
   // --- brand microsites (nav-microsite stamped 2026-08-19; only the
   //     4-column grid footer is still hand-built) ---
+  'services/attic-ventilation/index.html': '4-column grid footer; nav IS nav-microsite-governed. No footer partial variant covers this shape',  // LumaNail-page shape (2026-11-28)
   'services/drip-edge-and-starter-strip/index.html': '4-column grid footer; nav IS nav-microsite-governed. No footer partial variant covers this shape',  // LumaNail-page shape (2026-11-27)
   'services/gaf-pivot-boot/index.html': '4-column grid footer; nav IS nav-microsite-governed. No footer partial variant covers this shape',
   'services/ice-and-water-shield/index.html': '4-column grid footer; nav IS nav-microsite-governed. No footer partial variant covers this shape',  // LumaNail-page shape (2026-11-27)
