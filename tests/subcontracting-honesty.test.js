@@ -90,7 +90,8 @@ const BADGE = 'You deal with me, start to finish';
 const servicePages = PAGES.filter((p) => /^docs\/services\/[^/]+\.html$/.test(p));
 const withBadge = servicePages.filter((p) => read(p).includes(BADGE));
 // 2026-11-26: 98, after the GSC content merge folded the 26 hail-damage-<town> pages into their storm twins.
-ok(`all 98 stamped service pages carry the badge (found ${withBadge.length})`, withBadge.length === 98);
+// 2026-11-28: 110, +12 NKY siding town pages (siding repair / replacement / wood × 4 towns).
+ok(`all 110 stamped service pages carry the badge (found ${withBadge.length})`, withBadge.length === 110);
 ok('the generator emits the new badge too',
   read('scripts/add-transparency-strip-services.js').includes(BADGE),
   'if the generator still emits the old sentence, the next stamped page reintroduces it');
