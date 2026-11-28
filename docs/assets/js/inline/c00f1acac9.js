@@ -8,6 +8,14 @@
 // ──────────────────────────────────────────────────────────────────
 const POSTS = [
   {
+    url: "/blog/late-winter-roof-check",
+    tag: "Home Tips",
+    title: "Late-Winter Roof Check: What Winter Left Behind",
+    meta: "By Joe Deal · February 2027 · 4 min read",
+    excerpt: "A 20-minute walk around the house in February: lifted shingles, sagging gutters, loose flashing and attic stains, and why the photos are your before pictures for storm season.",
+    published: "2027-02-02",
+  },
+  {
     url: "/blog/planning-a-spring-roof-replacement",
     tag: "Planning",
     title: "Planning a Spring Roof Replacement",
@@ -22,6 +30,14 @@ const POSTS = [
     meta: "By Joe Deal · January 2027 · 5 min read",
     excerpt: "A 15-minute winter attic check. Frost on the nails, damp roof boards, wet insulation, ceiling stains: how to tell condensation from a roof leak, and what to do next.",
     published: "2027-01-05",
+  },
+  {
+    url: "/blog/snow-and-icicles-on-your-roof",
+    tag: "Winter",
+    title: "Snow and Icicles on Your Roof: When to Worry",
+    meta: "By Joe Deal · December 2026 · 4 min read",
+    excerpt: "Why I would leave the snow on the roof, the signs worth a call (sagging, stains, ice at the eaves), and what big icicles are telling you about the attic.",
+    published: "2026-12-29",
   },
   {
     url: "/blog/roof-leak-after-winter-storm-what-to-do",

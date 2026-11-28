@@ -25,6 +25,16 @@ was dropped: the financing post, guide and /services/financing already cover pay
 would need a source. The undrafted rows (#7, #9, #10, #11, #12) still need dates; 2026-12-29, 2027-01-12, 01-26 and
 02-02 are free.
 
+## Update 2026-11-28: Dec 29 and Feb 2 queued
+
+Two more posts are queued (branch `claude/dec-feb-blog-posts`): **2026-12-29** `/blog/snow-and-icicles-on-your-roof`
+(row #7, as planned) and **2027-02-02** `/blog/late-winter-roof-check` (row #12, reshaped). A post about photographing the
+roof before storm season would repeat `/blog/hail-season-prep-checklist` ("Document Your Roof Before the Storm"), so #12
+became a late-winter walkaround of what winter did to the roof and gutters. It ends by saying to keep the photos as your
+before pictures, with links to that post and the baseline sheet. It also mentions lifted shingles briefly, so row #10
+(winter wind) should go deeper than spotting them from the yard. Rows #9, #10 and #11 still need dates;
+2027-01-12 and 01-26 are free, then 02-09 on.
+
 ## This is a plan, not a queue
 
 **No post below is in the `POSTS` array, and none should be added there until Jo has read it.** The weekly
