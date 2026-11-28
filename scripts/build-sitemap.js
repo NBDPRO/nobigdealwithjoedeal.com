@@ -84,6 +84,8 @@ const CORE_PAGES = [
   ['inspect',      'inspect.html',          '0.9',  'weekly'],
   // 2026-11-25: /storm-check, /roof-score and /storm-report merged into /roof-check (301s in firebase.json).
   ['roof-check',   'roof-check.html',       '0.9',  'weekly'],
+  // 2026-11-28: the five-question repair-or-replace check.
+  ['repair-or-replace', 'repair-or-replace.html', '0.8', 'monthly'],
   ['free-roof',    'free-roof/index.html',  '0.85', 'monthly'],
   ['free-tools',   'free-tools/index.html', '0.85', 'monthly'],
   ['privacy',      'privacy.html',          '0.6',  'monthly'],
