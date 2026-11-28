@@ -862,6 +862,10 @@
       '<p class="aa-p">' + esc(variant === 'ky' ? X.EM_KY : X.EM_OH) + '</p>' +
       '<p class="aa-note">' + esc(X.EM_PAPER) + '</p><div class="p5-blank"></div>' +
       '<p class="aa-note">' + esc(X.TICK_NOTE) + '</p></div>');
+    // The emergency service terms (2026-11-27): signed here, before any emergency payment (pay-agreement-gate-logic.js).
+    parts.push('<div class="section"><p class="aa-note">' + esc(X.EM_TERMS_H) + '</p>' +
+      ['EM_T1', 'EM_T2', 'EM_T3', 'EM_T4', 'EM_T5', 'EM_T6', 'EM_T7'].map(function (k) { return '<p class="aa-p">' + esc(X[k]) + '</p>'; }).join('') +
+      p5Tick('ack:em_terms', esc(X.EM_TERMS_ACK), true) + '</div>');
     var own = Array.isArray(d.signers) && d.signers.length ? d.signers : null;
     parts.push(own ? '<div class="section">' + DG.renderSignatureBlock(own.filter(function (s) { return !(s && typeof s === 'object' && s.role === 'rep'); })) + '</div>' : T.sigBlock(['Homeowner'], d));
     parts.push(T.affiliateRow() + T.footer(X.NAMES.emergency_services_request));

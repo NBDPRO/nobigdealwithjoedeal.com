@@ -71,7 +71,13 @@ function loadStripeHandler() {
   });
   const db = {
     doc: (p) => docRef(p),
-    collection: (n) => ({ doc: (id) => docRef(n + '/' + id) }),
+    // where(): only the 2026-11-27 signed-agreement gate queries. Every job in
+    // this suite is signed (a job_events signing marker exists), so the gate
+    // passes and the money checks below are unchanged.
+    collection: (n) => {
+      const q = { where: () => q, limit: () => q, get: async () => ({ empty: n !== 'job_events', docs: [] }) };
+      return { doc: (id) => docRef(n + '/' + id), where: () => q };
+    },
   };
   class FakeStripe {
     constructor() {
