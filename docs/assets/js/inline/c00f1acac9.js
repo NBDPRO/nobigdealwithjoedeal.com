@@ -8,6 +8,22 @@
 // ──────────────────────────────────────────────────────────────────
 const POSTS = [
   {
+    url: "/blog/was-my-house-hit-by-hail",
+    tag: "Storm Damage",
+    title: "Was Your House Hit by Hail? How to Check",
+    meta: "By Joe Deal · March 2027 · 4 min read",
+    excerpt: "Check your address's storm records, look for the signs from the ground, skip the knock at the door, and know when it is worth having someone get on the roof.",
+    published: "2027-03-16",
+  },
+  {
+    url: "/blog/shed-and-garage-roofs",
+    tag: "Home Tips",
+    title: "Your Shed Needs a Real Roof Too",
+    meta: "By Joe Deal · March 2027 · 4 min read",
+    excerpt: "Sheds, detached garages and outbuildings go longest without anyone looking at their roofs. What to check this spring, what a shed re-roof includes, and a barn-style shed in Mason.",
+    published: "2027-03-09",
+  },
+  {
     url: "/blog/buying-a-house-what-to-know-about-the-roof",
     tag: "Home Tips",
     title: "Buying a House? What to Know About the Roof",

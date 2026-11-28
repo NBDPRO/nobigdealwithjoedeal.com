@@ -46,8 +46,11 @@ vents as attic intake, signs to fix, and three consented 2026 jobs with their pu
 **2027-02-23** `/blog/second-opinion-on-your-roof` (when a second look makes sense, what it should give you, the
 consented Bethel 2026 second-opinion job; the $150 written-report price is quoted from /services/roof-inspection), and
 **2027-03-02** `/blog/buying-a-house-what-to-know-about-the-roof` (seller questions, warranty transfer terms quoted
-from the warranty card, when to have a roofer look; no blog post covered home buyers before). The next free Tuesday is
-2027-03-09; the next calendar needs writing.
+from the warranty card, when to have a roofer look; no blog post covered home buyers before), **2027-03-09**
+`/blog/shed-and-garage-roofs` (the consented Mason shed job; time and price ranges from /services/shed-roof-replacement)
+and **2027-03-16** `/blog/was-my-house-hit-by-hail` (Roof Check's five years of NOAA/NWS records, the after-a-storm list
+from the warranty card, the approved claim line only). The next free Tuesday is 2027-03-23; the next calendar needs
+writing.
 
 ## This is a plan, not a queue
 
