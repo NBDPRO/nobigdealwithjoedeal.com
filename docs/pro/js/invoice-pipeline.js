@@ -3280,7 +3280,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             ${(inv.status === 'sending' && _isOwnerSide() && !_lockIsFresh(inv)) ? `<button type="button" class="btn btn-ghost" data-ip-action="releaseSendLock" data-ip-id="${_escJs(invoiceId)}">Release send lock</button>` : ''}
             ${(inv.ohioHold === true && inv.milestoneReleased !== true && inv.status !== 'paid') ? `<button type="button" class="btn btn-ghost" data-ip-action="releaseMilestone" data-ip-id="${_escJs(invoiceId)}">Materials delivered / work begun — release next payment</button>` : ''}
             ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold) ? `<button type="button" class="btn btn-ghost" data-ip-action="createPayLink" data-ip-id="${_escJs(invoiceId)}">Create Payment Link</button>` : ''}
-            ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold && !inv.emergencyServices) ? `<button type="button" class="btn btn-ghost" data-ip-action="markEmergency" data-ip-id="${_escJs(invoiceId)}">Emergency tarp / repair invoice</button>` : ''}
+            ${(!inv.stripePaymentLink && inv.status !== 'paid' && !inv.emergencyServices) ? `<button type="button" class="btn btn-ghost" data-ip-action="markEmergency" data-ip-id="${_escJs(invoiceId)}">Emergency tarp / repair invoice</button>` : ''}
           </div>
           ${connectStripeNoteHtml(inv, _canCollect)}
           ${(_payUrl && inv.status !== 'paid' && _platformTenant()) ? `<div data-pay-by-bank class="ipx-m11 ipx-mt8">🏦 ${_esc(PAY_BY_BANK_LINE)}</div>` : ''}
@@ -3810,7 +3810,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     // confirm() is patched to answer YES (standalone-compat.js).
     const _ask = window.nbdConfirm
       || ((m) => Promise.resolve(typeof window.confirm === 'function' ? window.confirm(m) : false));
-    const ok = await _ask('Mark this invoice as EMERGENCY tarp or repair work? Kentucky law (KRS 367.626(3)) allows billing emergency work at a reasonable charge before the cancellation window ends. Only do this if the whole invoice is emergency work.');
+    const ok = await _ask('Mark this invoice as EMERGENCY tarp or repair work? No pay link is made until the customer signs the Emergency Services Request (Documents → Emergency Services Request), which carries the dispatch-fee, temporary-work and access terms. Only do this if the whole invoice is emergency work. Kentucky: KRS 367.626(3) allows billing emergency work at a reasonable charge before the cancellation window ends.');
     if (!ok) return;
     await window.updateDoc(window.doc(getDb(), 'invoices', invoiceId), {
       emergencyServices: true, emergencyMarkedAt: new Date(), updatedAt: new Date()
