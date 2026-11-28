@@ -1,16 +1,6 @@
 /* @generated — extracted from inline <script> by audit-homeowner-2026-05-22.
    Hash: 938fe32cde.  Do not edit by hand. */
-(function(){
-  const slides=document.querySelectorAll('.ann-slide');
-  let current=0;
-  if(slides.length<2)return;
-  setInterval(()=>{
-    slides[current].classList.remove('active');
-    slides[current].classList.add('exit');
-    const prev=current;
-    current=(current+1)%slides.length;
-    slides[current].classList.add('active');
-    slides[current].classList.remove('exit');
-    setTimeout(()=>slides[prev].classList.remove('exit'),600);
-  },4000);
-})();
+// Announcement bar rotation lives in assets/js/ann-bar.js, which every page
+// that loads this file also loads, and which holds still under
+// prefers-reduced-motion. This copy ignored that setting and ran a second timer
+// (tests/ann-bar-single-rotator-2026-11-28.test.js).

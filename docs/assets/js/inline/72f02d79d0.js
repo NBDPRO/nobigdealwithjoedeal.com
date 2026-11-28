@@ -21,6 +21,8 @@
   const slides = document.querySelectorAll('.ann-slide');
   let current = 0;
   if(slides.length < 2) return;
+  // Hold still for visitors who asked for less motion, as ann-bar.js does.
+  if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   setInterval(()=>{
     slides[current].classList.remove('active');
     slides[current].classList.add('exit');
