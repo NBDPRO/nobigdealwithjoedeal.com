@@ -76,6 +76,17 @@
     EM_OH: 'Ohio property: sign this request by hand and write the date yourself.',
     EM_KY: 'Kentucky property: sign and date this request.',
     EM_PAPER: 'If you sign on paper, write the date here:',
+    // Emergency service terms (Jo, 2026-11-27): the homeowner agrees to them on this form, before any emergency payment
+    // (functions/pay-agreement-gate-logic.js refuses an emergency pay link until this form is signed).
+    EM_TERMS_H: 'Emergency service terms',
+    EM_T1: 'Dispatch and assessment fee: it is earned when the Contractor sends a crew to the property and is not refundable after dispatch, whatever is found on site, even if the work cannot be done on that visit, the leak stops, the weather clears, or I choose my HOA, landlord, insurer or another contractor. If I cancel before the crew is sent, it is refunded in full.',
+    EM_T2: 'Temporary work: a tarp, patch, seal or water diversion only reduces further water getting in. It is not a permanent repair, it carries no warranty, and more water may still get in. A permanent repair is a separate job under a separate signed agreement.',
+    EM_T3: 'Price: any work beyond the visit is priced on site and done only after I approve the price (a text is enough). Approved work is due when it is done.',
+    EM_T4: 'Access and safety: I will give safe, legal access to the roof and work area (gates, fences, keys, codes, parking). The Contractor decides whether it is safe to work (height, roof type, darkness, rain, wind, ice). If the roof cannot be reached safely, the dispatch fee still applies and a return trip is a new visit.',
+    EM_T5: 'Authority: I own this property or am allowed to approve work on this roof. If an HOA, association or landlord controls the roof, getting their approval is my responsibility, and if they stop or cancel the work, the dispatch fee and any work already done are still owed.',
+    EM_T6: 'Water damage inside: the Contractor is not responsible for damage that happened before the crew arrived or that comes from the original leak (ceilings, walls, insulation, floors, belongings, mold). Protecting the inside of my home and contacting my insurer or HOA are my responsibility.',
+    EM_T7: 'Times, changes and disputes: arrival and finish times are estimates. A change, credit or refund counts only if it is in writing from the Contractor. I will raise any concern in writing and allow 10 days for an answer before disputing a payment with my bank or card company. To the extent the law allows, the total responsibility of the Contractor for this visit is limited to the amount paid for it, except for gross negligence or willful misconduct.',
+    EM_TERMS_ACK: 'I have read and agree to the emergency service terms above.',
     // final_walkthrough
     FW_INTRO: 'We walked the finished job with you. This form records the dates and any open items.',
     FW_COMPLETED: 'Completion date', FW_WALKTHROUGH: 'Walkthrough date', FW_ITEMS_H: 'Open items', FW_HOLD: 'Amount held for the listed items',
@@ -105,10 +116,10 @@
     emergency_services_request: {
       refs: ['SCH-1'],
       variants: {
-        oh: { required: ['ack:em_request', 'ack:em_notice'], lines: [], statics: ['EM_OH'] },
-        ky: { required: ['ack:em_request', 'ack:em_notice'], lines: [], statics: ['EM_KY'] }
+        oh: { required: ['ack:em_request', 'ack:em_notice', 'ack:em_terms'], lines: [], statics: ['EM_OH'] },
+        ky: { required: ['ack:em_request', 'ack:em_notice', 'ack:em_terms'], lines: [], statics: ['EM_KY'] }
       },
-      statics: ['EM_INTRO', 'EM_REQUEST', 'EM_NOTICE', 'TICK_NOTE']
+      statics: ['EM_INTRO', 'EM_REQUEST', 'EM_NOTICE', 'EM_T1', 'EM_T2', 'EM_T3', 'EM_T4', 'EM_T5', 'EM_T6', 'EM_T7', 'EM_TERMS_ACK', 'TICK_NOTE']
     },
     // items = open items are listed; none = the homeowner confirms there are none. PAY-4 is the registry's.
     final_walkthrough: {
