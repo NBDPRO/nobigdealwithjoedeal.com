@@ -357,7 +357,7 @@ const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowM
     await AUTO.runForUser(dbOk, NBD, deps({ env: TXT, sendText, nowMs: noon + DAY }));
     ok('never a second text for the job', texts.length === 1);
     const env = read('functions/.env.nobigdeal-pro');
-    ok('.env.nobigdeal-pro ships the text flag false', /^REVIEW_ASK_AUTO_TEXT_ENABLED=false\s*$/m.test(env) && !/^REVIEW_ASK_AUTO_TEXT_ENABLED=true/m.test(env));
+    ok('.env.nobigdeal-pro ships the text flag true (Joe, 2026-11-26)', /^REVIEW_ASK_AUTO_TEXT_ENABLED=true\s*$/m.test(env) && !/^REVIEW_ASK_AUTO_TEXT_ENABLED=false/m.test(env));
   }
 
   // ═══ H ═══
