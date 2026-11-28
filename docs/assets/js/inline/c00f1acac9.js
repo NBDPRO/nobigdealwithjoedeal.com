@@ -8,6 +8,22 @@
 // ──────────────────────────────────────────────────────────────────
 const POSTS = [
   {
+    url: "/blog/planning-a-spring-roof-replacement",
+    tag: "Planning",
+    title: "Planning a Spring Roof Replacement",
+    meta: "By Joe Deal · January 2027 · 5 min read",
+    excerpt: "How to use January and February to get a spring roof planned: the inspection, a written quote, picking the shingle, and getting a date on the calendar.",
+    published: "2027-01-19",
+  },
+  {
+    url: "/blog/frost-in-attic-leak-or-condensation",
+    tag: "Winter",
+    title: "Frost in the Attic: Leak or Condensation?",
+    meta: "By Joe Deal · January 2027 · 5 min read",
+    excerpt: "A 15-minute winter attic check. Frost on the nails, damp roof boards, wet insulation, ceiling stains: how to tell condensation from a roof leak, and what to do next.",
+    published: "2027-01-05",
+  },
+  {
     url: "/blog/roof-leak-after-winter-storm-what-to-do",
     tag: "Winter",
     title: "Roof Leaking After a Winter Storm? What to Do Tonight",

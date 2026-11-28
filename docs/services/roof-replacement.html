@@ -344,6 +344,15 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,0.75); padding: 5
   .footer-grid { grid-template-columns: 1fr; }
   .trust-bar-inner { flex-wrap: wrap; } .trust-item { border-right: none; border-bottom: 1px solid rgba(255,255,255,.08); justify-content: flex-start; padding: 14px; }
 }
+/* ── WHY MY PRICE IS OFTEN LOWER (2026-11-27) ── */
+.price-why-inner { max-width: 900px; margin: 0 auto; }
+.price-why-list { list-style: none; margin: 0 0 28px; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.price-why-list li { background: var(--white); border: 1px solid var(--light-gray); border-left: 4px solid var(--orange); border-radius: 0 10px 10px 0; padding: 16px 18px; font-size: .92rem; line-height: 1.65; color: var(--gray-sub); }
+.price-why-list strong { display: block; color: #12223d; font-size: .98rem; margin-bottom: 4px; }
+.price-why-close { font-size: .95rem; line-height: 1.7; color: #12223d; margin: 0 0 20px; }
+.price-why-alt { margin: 6px 0 0; font-size: .92rem; color: #5d6673; }
+.price-why-alt a { display: inline-block; padding: 12px 2px; font-weight: 700; color: #a14a22; text-decoration: underline; text-underline-offset: 4px; }
+@media (max-width: 640px) { .price-why-list { grid-template-columns: 1fr; } }
 </style>
   <meta property="og:url" content="https://nobigdealwithjoedeal.com/services/roof-replacement">
 <script type="application/ld+json">
@@ -389,6 +398,14 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,0.75); padding: 5
       "acceptedAnswer": {
         "@type": "Answer",
         "text": "Every roof is different — size, pitch, material, and condition of the decking all affect the price. What I can promise is that my quotes are fair and I'll explain every line item. Call Joe and get a real number, not a range designed to anchor your expectations high. And if the honest number is more than this month's budget, that's what financing is for — spread it into a monthly payment through the Acorn Finance marketplace, with a soft credit pull to see real offers that never touches your score."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why is your quote lower than the other roofer's?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "It often is, for four reasons. I do the inspection and the quote myself, so there's no salesman's commission in it. I'm on every job, so there's no layer of managers to pay for. I don't pay for a big showroom, a call center or TV ads. And I quote what your roof needs, with no upsells and a repair when a repair will do. It won't be lower every time, so the only way to know is a free inspection and a real number for your roof."
       }
     },
     {
@@ -626,7 +643,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <link rel="stylesheet" href="/assets/css/nbd-nav.css">
 <link rel="stylesheet" href="/assets/css/service-revamp.css">
 <!-- nbd:updated-schema -->
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://nobigdealwithjoedeal.com/services/roof-replacement#webpage","url":"https://nobigdealwithjoedeal.com/services/roof-replacement","name":"Roof Replacement in Greater Cincinnati & Northern Kentucky","dateModified":"2026-11-18","isPartOf":{"@id":"https://nobigdealwithjoedeal.com/#website"},"about":{"@id":"https://nobigdealwithjoedeal.com/#org"}}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://nobigdealwithjoedeal.com/services/roof-replacement#webpage","url":"https://nobigdealwithjoedeal.com/services/roof-replacement","name":"Roof Replacement in Greater Cincinnati & Northern Kentucky","dateModified":"2026-11-27","isPartOf":{"@id":"https://nobigdealwithjoedeal.com/#website"},"about":{"@id":"https://nobigdealwithjoedeal.com/#org"}}</script>
 <!-- /nbd:updated-schema -->
 <link rel="stylesheet" href="/assets/css/illustrations.css?v=2">
 <link rel="stylesheet" href="/assets/css/nav-pad-laptop.css">
@@ -738,6 +755,25 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   </div>
 </section>
 
+<!-- WHY MY PRICE IS OFTEN LOWER (2026-11-27): only the four reasons Jo confirmed. No comparison
+     figures, percentages or savings claims; "often lower", never "always". -->
+<section class="section section-alt price-why" id="why-price-lower" aria-labelledby="why-price-lower-h">
+  <div class="price-why-inner">
+    <span class="section-label">Straight Talk on Price</span>
+    <h2 class="section-title" id="why-price-lower-h">Why My Price Is Often Lower<br>Than Other Quotes</h2>
+    <p class="section-intro">If you've gotten a few roof quotes, mine may come in under some of them. Every roof still gets a full tear-off and the GAF or TAMKO shingles on the tier you pick. Here's where the difference comes from.</p>
+    <ul class="price-why-list">
+      <li><strong>No salesman's commission</strong>I do the inspection and write the quote myself, so there's no commissioned sales rep built into your price.</li>
+      <li><strong>The owner is on every job</strong>I'm on site myself, so there's no layer of managers to pay for.</li>
+      <li><strong>Low overhead</strong>I don't pay for a big showroom, a call center or TV ads, so none of that is in your price.</li>
+      <li><strong>Honest scope, no padding</strong>I quote what your roof needs. No upsells, and when a repair will do, I quote a repair.</li>
+    </ul>
+    <p class="price-why-close">That's why my quote is often lower. It won't be every time, because every roof is different. The only way to know is a real number for yours.</p>
+    <a href="/inspect" class="btn-primary">Book a free inspection</a>
+    <p class="price-why-alt">Want a ballpark first? <a href="/estimate">Get an instant estimate &rarr;</a></p>
+  </div>
+</section>
+
 <!-- Recent jobs (moved up under the hero, 2026-10-05): the OURWORK-STRIP region below is stamped by
      scripts/build-projects.mjs from docs/assets/data/projects.json — edit there, never here -->
 <!-- OURWORK-STRIP-START service="roof-replacement" -->
@@ -809,6 +845,26 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
     </details>
   </div>
 </section>
+<link rel="stylesheet" href="/assets/css/before-after.css?v=1">
+<section class="nbd-recent-jobs nbd-ba" id="before-after" aria-labelledby="before-after-h">
+  <div class="nbd-recent-jobs-inner bac-wrap">
+    <div class="nbd-recent-jobs-head">
+      <h2 id="before-after-h">Before <span>&amp; After</span></h2>
+      <a class="nbd-recent-jobs-all" href="/our-work#before-after">More before &amp; after &rarr;</a>
+    </div>
+    <p class="bac-hint bac-hint-js">Drag across the photo, or tab to it and use the arrow keys, to slide between before and after.</p>
+    <div class="bac-grid bac-grid-one">
+      <figure class="bac" data-bac data-before="Before" data-after="After">
+        <div class="bac-frame">
+          <div class="bac-img bac-before"><span class="bac-tag">Before</span><picture><source srcset="/assets/images/projects/norwood-oh-victorian-three-system-2026-8-400.avif 400w, /assets/images/projects/norwood-oh-victorian-three-system-2026-8.avif 800w" sizes="(max-width: 767px) 92vw, 540px" type="image/avif"><source srcset="/assets/images/projects/norwood-oh-victorian-three-system-2026-8-400.webp 400w, /assets/images/projects/norwood-oh-victorian-three-system-2026-8.webp 800w" sizes="(max-width: 767px) 92vw, 540px" type="image/webp"><img src="/assets/images/projects/norwood-oh-victorian-three-system-2026-8.jpg" alt="Aerial over the rear of the three-story house before the work, aged dark-green shingles on the mansard and the failing flat above" loading="lazy" decoding="async" width="800" height="600"></picture></div>
+          <div class="bac-img bac-after"><span class="bac-tag">After</span><picture><source srcset="/assets/images/projects/norwood-oh-victorian-three-system-2026-12-400.avif 400w, /assets/images/projects/norwood-oh-victorian-three-system-2026-12.avif 800w" sizes="(max-width: 767px) 92vw, 540px" type="image/avif"><source srcset="/assets/images/projects/norwood-oh-victorian-three-system-2026-12-400.webp 400w, /assets/images/projects/norwood-oh-victorian-three-system-2026-12.webp 800w" sizes="(max-width: 767px) 92vw, 540px" type="image/webp"><img src="/assets/images/projects/norwood-oh-victorian-three-system-2026-12.jpg" alt="The completed roof from a matching angle to the before frame, all three systems finished in one shot" loading="lazy" decoding="async" width="800" height="600"></picture></div>
+        </div>
+        <figcaption class="bac-cap"><strong><a href="/our-work/norwood-oh-victorian-three-system-2026">Three Roof Systems, One Victorian</a></strong>The back of the house from the drone, the same angle before and after: mansard, flat roof and dormer caps all redone.<span class="bac-loc">Norwood, OH</span></figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+<script src="/assets/js/before-after.js" defer></script>
 <!-- OURWORK-STRIP-END -->
 
 <!-- TRUST BAR -->
@@ -856,7 +912,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         <li>Decking inspection, repair of any rotted or damaged boards</li>
         <li>New synthetic underlayment for weather protection</li>
         <li>GAF Timberline or TAMKO impact-resistant shingles — your choice of style &amp; color</li>
-        <li>Ice and water shield in valleys and eave edges</li>
+        <li><a href="/services/ice-and-water-shield">Ice and water shield</a> in valleys and eave edges</li>
         <li>Ridge cap, flashing, and pipe boot replacement</li>
         <li>Damage documented from first inspection through the adjuster meeting</li>
         <li><a href="/the-pledge" style="color:inherit;border-bottom:1.5px solid var(--orange);font-weight:700;text-decoration:none">The Pledge</a> — NBD Pledge: for as long as you own the home, we'll come back and make it right. That's a promise, not a warranty term — your written labor warranty is 5, 10 or 20 years depending on the package.</li>
@@ -1000,7 +1056,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
     <ol class="roof3d-legend">
       <li data-roof3d-item="deck"><span class="roof3d-n">1</span><span class="roof3d-t"><strong>Roof deck</strong><span>Inspected; rotted boards replaced</span></span></li>
       <li data-roof3d-item="drip"><span class="roof3d-n">2</span><span class="roof3d-t"><strong>Drip edge</strong><span>Metal at every eave and rake. Kentucky code requires it; in Ohio the code defers to the manufacturer, and GAF requires it.</span></span></li>
-      <li data-roof3d-item="ice"><span class="roof3d-n">3</span><span class="roof3d-t"><strong>Ice &amp; water shield</strong><span>Along the eaves</span></span></li>
+      <li data-roof3d-item="ice"><span class="roof3d-n">3</span><span class="roof3d-t"><strong>Ice &amp; water shield</strong><span>Along the eaves and in the valleys</span></span></li>
       <li data-roof3d-item="under"><span class="roof3d-n">4</span><span class="roof3d-t"><span class="roof3d-code">CODE</span> <strong>Synthetic underlayment</strong><span>Over the whole deck</span></span></li>
       <li data-roof3d-item="starter"><span class="roof3d-n">5</span><span class="roof3d-t"><span class="roof3d-code">CODE</span> <strong>Starter strip</strong><span>Seals the first course at the eave</span></span></li>
       <li data-roof3d-item="shingles"><span class="roof3d-n">6</span><span class="roof3d-t"><span class="roof3d-code">CODE</span> <strong>Shingles</strong><span>GAF or TAMKO, nailed to the manufacturer’s pattern</span></span></li>
@@ -1189,6 +1245,10 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       <div class="faq-a">Every roof is different — size, pitch, material, and condition of the decking all affect the price. What I can promise is that my quotes are fair and I'll explain every line item. Call Joe and get a real number, not a range designed to anchor your expectations high. And if the honest number is more than this month's budget, that's what <a href="/services/financing">financing</a> is for — spread it into a monthly payment through the Acorn Finance marketplace, with a soft credit pull to see real offers that never touches your score.</div>
     </div>
     <div class="faq-item">
+      <div class="faq-q">Why is your quote lower than the other roofer's?</div>
+      <div class="faq-a">It often is, for four reasons. I do the inspection and the quote myself, so there's no salesman's commission in it. I'm on every job, so there's no layer of managers to pay for. I don't pay for a big showroom, a call center or TV ads. And I quote what your roof needs, with no upsells and a repair when a repair will do. It won't be lower every time, so the only way to know is a free inspection and a real number for your roof.</div>
+    </div>
+    <div class="faq-item">
       <div class="faq-q">Do you serve areas outside of Cincinnati?</div>
       <div class="faq-a">Yes — I serve Greater Cincinnati including Milford, Loveland, Mason, Batavia, Lebanon, Maineville, Blue Ash, Indian Hill, Amelia, and surrounding communities. If you're not sure I cover your area, just call or text me.</div>
     </div>
@@ -1298,7 +1358,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   </div>
 </section>
 <!-- nbd:updated -->
-<div class="nbd-updated" style="max-width:1100px;margin:0 auto;padding:18px 20px 22px;text-align:center"><p style="margin:0;font-size:13px;line-height:1.5;color:#5b6472">Last updated <time datetime="2026-11-18">November 18, 2026</time></p></div>
+<div class="nbd-updated" style="max-width:1100px;margin:0 auto;padding:18px 20px 22px;text-align:center"><p style="margin:0;font-size:13px;line-height:1.5;color:#5b6472">Last updated <time datetime="2026-11-27">November 27, 2026</time></p></div>
 <!-- /nbd:updated -->
 </main>
 <!-- nbd:partial footer-extended -->

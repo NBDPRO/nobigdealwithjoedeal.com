@@ -4167,6 +4167,20 @@ async function run() {
       await x65(label + ' cannot read ' + p, 'deny', getDoc(doc(db65, p)));
     }
   }
+  // 2026-11-27 (Jo: "use each company's own link from their profile"): the company edits the
+  // link in its own profile, but only a platform admin's approve (server, review_ask_tenants)
+  // makes it the link sends use. A company can never write the approved copy itself.
+  await x65('company_admin may set its own profile review link (the request source)', 'allow',
+    setDoc(doc(adm65, 'companyProfile/co-65'), { brand: { integrations: { reviewUrl: 'https://g.page/r/Co65Place1/review' } } }, { merge: true }));
+  const rep65 = env.authenticatedContext('t65rep', { role: 'sales_rep', companyId: 'co-65' }).firestore();
+  await x65('a sales rep cannot set the company profile review link', 'deny',
+    setDoc(doc(rep65, 'companyProfile/co-65'), { brand: { integrations: { reviewUrl: 'https://g.page/r/RepPlace1/review' } } }, { merge: true }));
+  for (const [label, db65] of [['solo owner', own65], ['company_admin', adm65], ['sales rep', rep65]]) {
+    await x65(label + ' cannot approve its own link (create the approved copy)', 'deny',
+      setDoc(doc(db65, 'review_ask_tenants/co-65'), { companyId: 'co-65', approved: { reviewUrl: 'https://g.page/r/Co65Place1/review', displayName: 'Co Sixty Five' } }));
+    await x65(label + ' cannot approve its own link (merge into the approved copy)', 'deny',
+      setDoc(doc(db65, 'review_ask_tenants/co-65'), { approved: { reviewUrl: 'https://g.page/r/Co65Place1/review' } }, { merge: true }));
+  }
   console.log('  65: ' + s65Pass + ' review-ask-for-companies checks passed, ' + s65Fail.length + ' failed');
   if (s65Fail.length) {
     throw new Error('65 review ask for companies: ' + s65Fail.length + ' check(s) went the wrong way:\n    ' + s65Fail.join('\n    '));

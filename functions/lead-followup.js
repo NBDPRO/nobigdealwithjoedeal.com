@@ -2,14 +2,14 @@
  * NBD — 24h "we haven't connected" follow-up
  * ═══════════════════════════════════════════════════════════════
  * A lead that Joe couldn't reach used to just go cold silently. Every 3
- * hours this sweep finds public leads 20–48h old whose bridged CRM card
+ * hours this sweep finds public leads 24–48h old whose bridged CRM card
  * is STILL untouched (stage/status both 'new' — the dashboard flips stage
  * to 'contacted'/'Inspected'/... the moment Joe works it) and sends the
  * homeowner ONE follow-up email from Joe.
  *
  * Guards, in order:
  *  - active unless LEAD_FOLLOWUP_ENABLED === 'false' (kill switch);
- *  - window 20–48h: never sooner than Joe's realistic first-day attempts,
+ *  - window 24–48h: never sooner than Joe's realistic first-day attempts,
  *    never after the request has gone stale;
  *  - one send ever per lead (followUpEmailStatus 'sending' claimed on the
  *    public doc BEFORE the send, followUpEmailSentAt stamped after);
@@ -20,7 +20,7 @@
  *    request; estimate follow-up event docs excluded via isFollowUpEvent;
  *  - the customer send window (send-window.js, 8:00-20:00 in the homeowner's
  *    time, 2026-11-22): outside it the lead is left UNCLAIMED and the first
- *    sweep inside it sends (the 20-48h span always holds a daytime sweep).
+ *    sweep inside it sends (the 24-48h span always holds a daytime sweep).
  *
  * Index note: all Firestore queries here use range-on-createdAt only, or
  * equality-only filters — no composite indexes needed.
@@ -41,7 +41,9 @@ const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
 
 const WINDOW_OLDEST_H = 48;
-const WINDOW_YOUNGEST_H = 20;
+// 24, not 20 (Jo, 2026-11-27): the site promises "Reply within 24 hours,
+// usually the same day", so "we haven't connected yet" waits that out.
+const WINDOW_YOUNGEST_H = 24;
 const SOURCES = ['estimate_leads', 'inspect_leads', 'contact_leads', 'free_roof_entries'];
 // Tenant-zero (NBD) key, same constant + override as lead-bridge.js. An
 // untagged public lead is NBD's, so its unsubscribe lives under this key.
@@ -54,6 +56,19 @@ const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1
 // rule treated a company with no alert contact as NBD).
 async function isNbdLead(companyId) {
   return !companyId || String(companyId) === NBD_OWNER_UID;
+}
+
+// A cal.com booking that isn't cancelled (calcom.js writes appointments/{uid}
+// with leadId, attendeeEmail and status booked | rescheduled | cancelled).
+// The email is checked as typed and lowercased: Firestore equality is
+// case-sensitive and cal.com stores what the booker typed.
+async function hasLiveBooking(db, cardId, email) {
+  const live = (snap) => snap.docs.some((a) => String((a.data() || {}).status || '') !== 'cancelled');
+  if (live(await db.collection('appointments').where('leadId', '==', cardId).limit(5).get())) return true;
+  for (const e of new Set([email, email.toLowerCase()])) {
+    if (live(await db.collection('appointments').where('attendeeEmail', '==', e).limit(5).get())) return true;
+  }
+  return false;
 }
 
 function esc(s) {
@@ -169,6 +184,18 @@ exports.leadFollowUpSweep = onSchedule(
         // failure this sweep has. Any snooze (active, or snoozeCount>0 for one
         // that just expired) is a human decision; skip and let Jo drive.
         if (card.snoozedUntil || Number(card.snoozeCount) > 0) { skipped++; continue; }
+        // Booked on cal.com (Jo, 2026-11-27): a booking moves this card off
+        // New only when cal.com's attendee matched it; otherwise it gets its
+        // own card and this one still reads new/new. A live booking linked to
+        // this card, or under the lead's email, means they're set. An
+        // unreadable check sends nothing (retried next sweep).
+        try {
+          if (await hasLiveBooking(db, crm.docs[0].id, email)) { skipped++; continue; }
+        } catch (e) {
+          logger.error('leadFollowUp: booking check unreadable', { collection, leadId: doc.id, err: e && e.message });
+          skipped++;
+          continue;
+        }
 
         // The customer send window (2026-11-22): 8:00-20:00 in the homeowner's
         // time (the CRM card's address first, then the public form's, then the
@@ -215,7 +242,7 @@ exports.leadFollowUpSweep = onSchedule(
         // used to share one try, so a send that went out but whose stamp
         // write then failed left the lead eligible — and the homeowner got
         // the same "we haven't connected" email every 3 hours for the rest
-        // of the 20–48h window. The claim makes the exclusion durable before
+        // of the 24–48h window. The claim makes the exclusion durable before
         // anything is sent; a failed claim sends nothing (retried next sweep).
         try {
           await doc.ref.update({

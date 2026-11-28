@@ -124,6 +124,11 @@ h1 span{color:#BD5728}
    and let the one-column grid shrink to the phone (the file input inside
    would otherwise widen the track past the screen). */
 #inspectSuccess{scroll-margin-top:84px}
+.ins-after{margin:16px 0 0;padding:14px 16px;background:#fff;border:1px solid rgba(26,48,87,.15);border-radius:8px;text-align:left}
+.ins-after h4{font-size:.95rem;font-weight:800;color:var(--navy);margin:0 0 6px}
+.ins-after ul{margin:0;padding-left:1.15em}
+.ins-after li{font-size:.88rem;color:var(--gray-sub);line-height:1.5;margin:0 0 5px}
+.ins-after a{color:var(--navy);font-weight:700}
 /* The "Book free inspection" strip links to #inspectForm, which sits under the panel's headline and intro; keep both clear of the sticky top bar. */
 #inspectForm{scroll-margin-top:200px}
 .form-panel{min-width:0}
@@ -497,6 +502,20 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
         <a class="ins-pick-time" id="insPickTime" href="https://cal.com/nobigdeal/roof-inspection" target="_blank" rel="noopener" hidden>Pick My Time</a>
         <p class="ins-pick-note" id="insPickNote" hidden>Opens in a new tab. Come back here to add details.</p>
 
+        <!-- What happens next (2026-11-27, no-show pass): the visit spelled out
+             on the confirmation itself. The first line follows the scheduling
+             choice (inspect-form.js, textContent only). -->
+        <div class="ins-after" aria-labelledby="insAfterTitle">
+          <h4 id="insAfterTitle">What happens next</h4>
+          <ul>
+            <li id="insAfterReach">Joe calls or texts you within 24 hours, usually the same day, to set a time.</li>
+            <li>Joe gets on the roof himself. A standard home takes 45 minutes to an hour.</li>
+            <li>He photographs every concern and shows or texts you the photos, free. There&rsquo;s no deposit to look at your roof.</li>
+            <li>Being home is preferred so Joe can check the attic, but it&rsquo;s not required.</li>
+            <li>Need to change the time or ask something first? Call or text <a href="tel:+18594207382">(859) 420-7382</a>.</li>
+          </ul>
+        </div>
+
         <!-- Optional "add details" step: shown only when the lead was saved and
              the gateway handed back its one-time grant. -->
         <div class="ins-details" id="insDetails" hidden>
@@ -597,7 +616,7 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
 <script src="/assets/js/public-lead-submit.js" defer></script>
 <script src="/assets/js/intake-extras.js?v=6" defer></script>
 <script src="/assets/js/inspect-region.js" defer></script>
-<script src="/assets/js/inspect-form.js?v=14" defer></script>
+<script src="/assets/js/inspect-form.js?v=15" defer></script>
 <script src="/assets/js/booking-clicks.js" defer></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
 <!-- nbd:partial mobile-cta book_href="#inspectForm" -->

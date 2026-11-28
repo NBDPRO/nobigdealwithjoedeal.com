@@ -14,6 +14,17 @@ Weeks 1 and 2 (11-17, 11-24) passed with nothing queued. Four of the seasonal ro
 and need new ones from 2026-12-29 on. The same PR adds the winter announcement-bar slide
 (`node scripts/seasonal-ann-slide.js --season=winter`; turn it off with `--off`).
 
+## Update 2026-11-27: two January posts queued
+
+Two posts from outside the table are queued (branch `claude/january-blog-posts`, Jo said to merge these once green):
+**2027-01-05** `/blog/frost-in-attic-leak-or-condensation` (a winter attic check: condensation vs. a roof leak) and
+**2027-01-19** `/blog/planning-a-spring-roof-replacement` (inspection, written quote, shingle, getting on the calendar,
+with one paragraph on timing it around a tax refund that links the financing post). Row #8's compare-quotes angle is
+folded into the spring post as a link to the checklist, so #8 no longer needs its own post. A standalone tax-refund post
+was dropped: the financing post, guide and /services/financing already cover paying for a roof, and tax-credit claims
+would need a source. The undrafted rows (#7, #9, #10, #11, #12) still need dates; 2026-12-29, 2027-01-12, 01-26 and
+02-02 are free.
+
 ## This is a plan, not a queue
 
 **No post below is in the `POSTS` array, and none should be added there until Jo has read it.** The weekly
