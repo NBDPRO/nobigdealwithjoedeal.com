@@ -35,6 +35,18 @@ before pictures, with links to that post and the baseline sheet. It also mention
 (winter wind) should go deeper than spotting them from the yard. Rows #9, #10 and #11 still need dates;
 2027-01-12 and 01-26 are free, then 02-09 on.
 
+Same day, same branch: **2027-01-12** `/blog/steep-roof-replacement-newtown` (row #9, using its named fallback, the
+Newtown 10/12 job, since no consent-ticked 2026 job has a project draft yet; swap it before Jan 12 if one does) and
+**2027-01-26** `/blog/shingle-warranty-vs-workmanship-warranty` (row #11; every term in it is quoted from the
+home care and warranty card and the tier page). Also **2027-02-09** `/blog/winter-wind-lifted-shingles` (row #10: how
+wind breaks the seal strip, why cold shingles crease, why early is a small repair; the Miamisburg, Loveland and Franklin
+jobs, all before No Big Deal, with their claim lines left out). **All twelve rows are now drafted.** One post from
+past the table follows: **2027-02-16** `/blog/soffit-and-fascia-roof-edge` (what soffit and fascia are, the soffit
+vents as attic intake, signs to fix, and three consented 2026 jobs with their published retail ranges), and
+**2027-02-23** `/blog/second-opinion-on-your-roof` (when a second look makes sense, what it should give you, the
+consented Bethel 2026 second-opinion job; the $150 written-report price is quoted from /services/roof-inspection). The
+next free Tuesday is 2027-03-02; the next calendar needs writing.
+
 ## This is a plan, not a queue
 
 **No post below is in the `POSTS` array, and none should be added there until Jo has read it.** The weekly

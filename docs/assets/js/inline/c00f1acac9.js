@@ -8,6 +8,30 @@
 // ──────────────────────────────────────────────────────────────────
 const POSTS = [
   {
+    url: "/blog/second-opinion-on-your-roof",
+    tag: "Reader Questions",
+    title: "Should You Get a Second Opinion on Your Roof?",
+    meta: "By Joe Deal · February 2027 · 4 min read",
+    excerpt: "When a second look at your roof makes sense, what it should give you, how to compare what two roofers tell you, and a second opinion from Bethel, OH.",
+    published: "2027-02-23",
+  },
+  {
+    url: "/blog/soffit-and-fascia-roof-edge",
+    tag: "Home Tips",
+    title: "Soffit and Fascia: The Roof Edge Nobody Looks At",
+    meta: "By Joe Deal · February 2027 · 4 min read",
+    excerpt: "The boards that hold up your gutters and let your attic breathe: what soffit and fascia are, the signs worth fixing, and three small jobs from 2026.",
+    published: "2027-02-16",
+  },
+  {
+    url: "/blog/winter-wind-lifted-shingles",
+    tag: "Winter",
+    title: "Winter Wind and Lifted Shingles",
+    meta: "By Joe Deal · February 2027 · 4 min read",
+    excerpt: "How winter wind gets under a shingle, why cold shingles crease, what to check after a big wind, and why a lifted shingle is a small repair if it is caught early.",
+    published: "2027-02-09",
+  },
+  {
     url: "/blog/late-winter-roof-check",
     tag: "Home Tips",
     title: "Late-Winter Roof Check: What Winter Left Behind",
@@ -16,12 +40,28 @@ const POSTS = [
     published: "2027-02-02",
   },
   {
+    url: "/blog/shingle-warranty-vs-workmanship-warranty",
+    tag: "Reader Questions",
+    title: "Shingle Warranty vs. Workmanship Warranty",
+    meta: "By Joe Deal · January 2027 · 4 min read",
+    excerpt: "A new roof carries two warranties from two companies. What the manufacturer covers, what the roofer covers, what a certified installer changes, and what to ask before you sign.",
+    published: "2027-01-26",
+  },
+  {
     url: "/blog/planning-a-spring-roof-replacement",
     tag: "Planning",
     title: "Planning a Spring Roof Replacement",
     meta: "By Joe Deal · January 2027 · 5 min read",
     excerpt: "How to use January and February to get a spring roof planned: the inspection, a written quote, picking the shingle, and getting a date on the calendar.",
     published: "2027-01-19",
+  },
+  {
+    url: "/blog/steep-roof-replacement-newtown",
+    tag: "Roofing",
+    title: "A Steep Roof in Newtown: Why Steep Work Takes Longer",
+    meta: "By Joe Deal · January 2027 · 4 min read",
+    excerpt: "Fourteen squares across seven slopes at a 10/12 pitch, down to the original plank decking: what a steep roof replacement in Newtown looked like, and why steep roofs cost more.",
+    published: "2027-01-12",
   },
   {
     url: "/blog/frost-in-attic-leak-or-condensation",
